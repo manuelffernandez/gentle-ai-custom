@@ -15,7 +15,8 @@ Guardar acá el source of truth de overlays propios para OpenCode, Claude y Code
 - `shared/skills/commit-planner/SKILL.md` — source of truth neutral de la skill
 - `shared/commands/commit-plan-body.md` — cuerpo compartido para wrappers/prompts en modo `plan`
 - `shared/commands/commit-apply-body.md` — cuerpo compartido para wrappers/prompts en modo `apply`
-- `inject-skills.sh` — valida targets, renderiza wrappers finos por agente y los instala en los directorios gestionados
+- `inject-skills.sh` — instalador para Linux/macOS (bash)
+- `inject-skills.ps1` — instalador equivalente para Windows (PowerShell 5.1+)
 
 Los wrappers específicos de OpenCode, Claude y Codex **ya no se versionan** en este repo. Se generan durante la instalación a partir de las fuentes compartidas.
 
@@ -27,6 +28,7 @@ Los wrappers específicos de OpenCode, Claude y Codex **ya no se versionan** en 
 
 ## Uso
 
+**Linux / macOS:**
 ```bash
 bash ~/Documentos/gentle-ai-custom/inject-skills.sh opencode
 bash ~/Documentos/gentle-ai-custom/inject-skills.sh claude
@@ -35,14 +37,32 @@ bash ~/Documentos/gentle-ai-custom/inject-skills.sh claude codex
 bash ~/Documentos/gentle-ai-custom/inject-skills.sh all
 ```
 
-El script exige targets explícitos para evitar mutaciones innecesarias por default.
+**Windows (PowerShell 5.1+):**
+```powershell
+.\inject-skills.ps1 opencode
+.\inject-skills.ps1 claude
+.\inject-skills.ps1 codex
+.\inject-skills.ps1 claude codex
+.\inject-skills.ps1 all
+```
+
+Ambos scripts exigen targets explícitos para evitar mutaciones innecesarias por default.
 Si los archivos de destino ya existen, se reemplazan. Eso es intencional: permite reaplicar overlays tras un sync sin intervención manual.
+
+> **Nota Windows — OpenCode:** si OpenCode en tu sistema usa `%APPDATA%\opencode` en lugar de `~\.config\opencode`, ajustá la variable `$targetDir` en `Apply-OpenCode` dentro del PS1.
 
 ## Flujo recomendado
 
 ```bash
+# Linux / macOS
 gentle-ai sync
 bash ~/Documentos/gentle-ai-custom/inject-skills.sh all
+```
+
+```powershell
+# Windows
+# (gentle-ai sync si aplica)
+.\inject-skills.ps1 all
 ```
 
 Para Claude y Codex no se hace auto-mutation de assets gestionados upstream. La idea sigue siendo la misma: **actualización del agente primero, reaplicación manual después**.
