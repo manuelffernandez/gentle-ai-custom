@@ -1,15 +1,3 @@
----
-description: Propose a post-SDD commit plan without changing git state
-agent: gentleman
----
-
-Read the skill file at `~/.config/opencode/skills/commit-planner/SKILL.md` FIRST, then follow it exactly.
-
-CONTEXT:
-- Working directory: !`echo -n "$(pwd)"`
-- Current project: !`echo -n "$(basename $(pwd))"`
-- Mode: plan
-
 TASK:
 Inspect the current git working tree and propose a local commit plan for the current changes.
 

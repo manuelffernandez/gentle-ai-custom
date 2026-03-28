@@ -115,6 +115,11 @@ Return this structure after execution:
 /commit-apply
 ```
 
+These wrappers MAY be exposed by different agent surfaces, but the workflow stays the same:
+
+- `plan` is read-only
+- `apply` is state-changing and still requires explicit user approval before staging or committing
+
 Natural-language triggers:
 
 - `proponeme un plan de commits`
@@ -123,5 +128,5 @@ Natural-language triggers:
 
 ## Resources
 
-- **Managed OpenCode prompt surface**: `~/.config/opencode/AGENTS.md`
-- **Examples of commit/PR conventions**: `~/.config/opencode/skills/branch-pr/SKILL.md`
+- **Agent-level instruction surface** when present (examples: `~/.config/opencode/AGENTS.md`, `~/.claude/CLAUDE.md`)
+- **Examples of release / PR conventions** in repo-local docs or companion skills such as `branch-pr` when available
