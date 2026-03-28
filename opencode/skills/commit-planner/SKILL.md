@@ -1,0 +1,127 @@
+---
+name: commit-planner
+description: >
+  Propose and optionally execute a post-SDD commit plan by grouping changed files into coherent local commits,
+  detecting repository commit conventions first and falling back to Conventional Commits.
+  Trigger: When the user asks for a commit plan, commit grouping, post-SDD finalization, or to commit current changes.
+license: Apache-2.0
+metadata:
+  author: gentleman-programming
+  version: "1.0"
+---
+
+## When to Use
+
+Use this skill when:
+- SDD or normal implementation work is already finished and the user wants to decide the next finalization step
+- The user says things like `proponeme un plan de commits`, `generame un plan de commits`, `commiteá estos cambios`, or `cómo agruparías estos cambios`
+- You need to decide whether the current working tree should become one commit or several meaningful local commits
+
+Do **not** use this skill as part of the default SDD flow. This is a **post-SDD**, user-invoked finalization step.
+
+## Critical Patterns
+
+1. **Never auto-run after SDD**. Only activate this flow when the user explicitly asks.
+2. **Two modes only**:
+   - `plan` → inspect and propose commit grouping, no state changes
+   - `apply` → execute an already approved plan, or generate a plan first and stop for approval
+3. **Convention detection order**:
+   - First, look for explicit repository guidance in common files such as `docs/CONVENTIONS.md`, `CONTRIBUTING.md`, `README.md`, and relevant repo-local workflow docs
+   - Then inspect recent `git log` subjects to understand the style actually used in the repository
+   - If there is no explicit guidance, fall back to **Conventional Commits**
+4. **Prefer file-level grouping**. Never assume hunk splitting is safe.
+5. If a clean plan would require splitting the **same file** across different commits, **stop and report the blocker**.
+6. Never stage or commit likely secrets (`.env`, credential files, tokens, generated secret dumps).
+7. Never push, open PRs, or edit PRs as part of this skill. That belongs to a separate release/PR flow.
+8. State-changing steps (`git add`, `git commit`) require explicit user approval.
+
+## Read-Only Evidence Gathering
+
+These checks are allowed before proposing a plan:
+
+```bash
+git status -sb
+git diff --name-status
+git diff --staged --name-status
+git diff --stat
+git diff --staged --stat
+git log --format=%s -n 15
+```
+
+If a convention file exists, read it before proposing commit messages.
+
+## Planning Rules
+
+When building the plan:
+
+- Prefer **one commit per coherent intention**, not per folder by default
+- Keep infrastructure, docs, tests, and implementation changes separate only when that improves history clarity
+- If all changed files belong to one single behavioral change, prefer a single commit
+- If there are unrelated changes in the working tree, call them out explicitly and either:
+  - exclude them from the plan, or
+  - stop and ask the user to confirm inclusion
+- If the working tree is clean, say so and stop
+
+### Message generation
+
+- Use the repository convention when explicitly documented
+- If repo docs and recent history conflict, prefer docs and mention the mismatch
+- If no repo convention exists, use Conventional Commits
+- Messages should explain the **why** of the change, not just restate filenames
+
+## Mode: `plan`
+
+Return a proposal with this structure:
+
+- `Working Tree Summary`
+- `Convention Source`
+- `Proposed Commits`
+- `Excluded or Blocked Files`
+- `Approval Prompt`
+
+Inside `Proposed Commits`, include for each commit:
+
+- commit number
+- intent / rationale
+- files to stage
+- suggested commit message
+
+`plan` mode is strictly read-only.
+
+## Mode: `apply`
+
+Execution rules:
+
+1. If there is **no explicitly approved plan** in the conversation, generate the plan first and stop.
+2. If the plan is approved, execute commits **sequentially**.
+3. For each commit group:
+   - stage files by path
+   - create the commit with the approved message
+   - verify status before continuing to the next group
+4. If any commit fails, stop immediately and report the exact failure.
+5. Never invent or silently modify an approved plan. If execution reality differs from the plan, stop and explain why.
+
+Return this structure after execution:
+
+- `Approved Plan`
+- `Actions Taken`
+- `Remaining Changes`
+- `Blockers`
+
+## Commands
+
+```bash
+/commit-plan
+/commit-apply
+```
+
+Natural-language triggers:
+
+- `proponeme un plan de commits`
+- `generame un plan de commits`
+- `commiteá estos cambios`
+
+## Resources
+
+- **Managed OpenCode prompt surface**: `~/.config/opencode/AGENTS.md`
+- **Examples of commit/PR conventions**: `~/.config/opencode/skills/branch-pr/SKILL.md`
