@@ -4,6 +4,7 @@ Draft a pull request from committed changes and, if approved, create it with Git
 Rules for this command:
 - This command is **state-changing**: never assume approval for `git fetch`, `git push`, temp artifact writes, or `gh pr create`
 - Use the committed net diff as the only factual source of truth
+- Treat repo governance (issue linkage, labels, branch naming, merge policy) as external policy handled by the repo, CI, or companion skills such as `branch-pr`
 - Detect repository PR conventions first; if none exist, fall back to a generic English Markdown PR template
 - Resolve the base branch in this order: explicit user input, detected remote default branch, then ask only if still ambiguous
 - Never assume branch names like `development`, `main`, or `master`

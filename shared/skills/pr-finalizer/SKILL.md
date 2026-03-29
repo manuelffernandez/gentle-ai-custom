@@ -1,13 +1,14 @@
 ---
 name: pr-finalizer
 description: >
-  Generate or regenerate pull request content from committed changes only, detect repository PR conventions and a sensible base branch,
-  and optionally create or update the PR after explicit approval.
-  Trigger: When the user asks to create, update, regenerate, or sync a pull request from committed changes.
+  Complement repository PR workflows by generating or regenerating pull request content from committed changes only,
+  detecting repository PR conventions and a sensible base branch, and optionally creating or updating the PR after
+  explicit approval.
+  Trigger: When the user asks to draft, regenerate, update, or sync a pull request from committed changes.
 license: Apache-2.0
 metadata:
   author: manuelfernandez
-  version: "1.0"
+  version: "1.1"
 ---
 
 ## When to Use
@@ -17,8 +18,20 @@ Use this skill when:
 - local commits already exist and the user wants PR-ready content or PR synchronization
 - the user asks things like `creame la PR`, `generá la PR`, `regenerá la PR`, `actualizá la PR`, or `prepará el body de la PR`
 - the workflow must stay explicit and approval-driven after implementation or commit planning is already done
+- repository governance is handled elsewhere, typically by repo docs, CI, or companion skills such as `branch-pr`
 
 Do **not** auto-run this skill after SDD, after commits, or after push. This is a **post-commit finalization** step that must be explicitly requested.
+
+## Non-Goals
+
+This skill does **not** define or enforce repository governance. In particular, it does **not**:
+
+- validate issue-first workflows or approval labels
+- require or apply `type:*` labels
+- validate branch naming conventions
+- determine merge readiness
+- replace contributor checklists, CI checks, or repo-specific review policy
+- fork or duplicate the policy owned by upstream skills such as `branch-pr`
 
 ## Critical Patterns
 
@@ -32,22 +45,23 @@ Do **not** auto-run this skill after SDD, after commits, or after push. This is 
    - `CONTRIBUTING.md`
    - `README.md`
    - fallback generic PR template
-4. **Base branch resolution order**:
+4. **Policy awareness without duplication**. If companion repo-policy skills exist (for example `branch-pr`), treat them as contextual guidance only. Do not copy, fork, or re-enforce their rules here.
+5. **Base branch resolution order**:
    - explicit user input
    - in `regenerate` mode, resolved PR metadata (`baseRefName`)
    - remote default branch from GitHub metadata or local remote HEAD metadata
    - ask the user only if still ambiguous
-5. **Never assume branch naming conventions** such as `development`, `main`, or `master`.
-6. **Remote resolution order**:
+6. **Never assume branch naming conventions** such as `development`, `main`, or `master`.
+7. **Remote resolution order**:
    - explicit user input
    - `origin` when it exists and is usable
    - if `origin` is unavailable, ask the user to choose from the available remotes
-7. **State-changing commands require explicit approval**. This includes `git fetch`, `git push`, temporary file writes, `gh pr create`, and `gh pr edit`.
-8. **If remote branch state is stale**, stop and request push approval before PR creation or update.
-9. **If `gh` is unavailable or unauthenticated**, return copy-paste-ready PR content and stop without pretending the PR was created or updated.
-10. **Do not mention branch names in the PR description body** unless the repository template explicitly requires them.
-11. **Do not propose commit messages** as part of this skill.
-12. **Use temporary artifacts outside the repository by default**, for example `${TMPDIR:-/tmp}/gentle-ai-pr-diff.txt` and `${TMPDIR:-/tmp}/gentle-ai-pr-body.md`.
+8. **State-changing commands require explicit approval**. This includes `git fetch`, `git push`, temporary file writes, `gh pr create`, and `gh pr edit`.
+9. **If remote branch state is stale**, stop and request push approval before PR creation or update.
+10. **If `gh` is unavailable or unauthenticated**, return copy-paste-ready PR content and stop without pretending the PR was created or updated.
+11. **Do not mention branch names in the PR description body** unless the repository template explicitly requires them.
+12. **Do not propose commit messages** as part of this skill.
+13. **Use temporary artifacts outside the repository by default**, for example `${TMPDIR:-/tmp}/gentle-ai-pr-diff.txt` and `${TMPDIR:-/tmp}/gentle-ai-pr-body.md`.
 
 ## Supported Inputs
 
@@ -102,6 +116,7 @@ Apply these rules strictly:
 
 - If `.github/PULL_REQUEST_TEMPLATE.md` exists, treat it as the preferred formatting source.
 - If no explicit PR template exists, use repository docs only when they define a clear PR structure.
+- If companion policy skills or docs describe required issue links, labels, or checklists, preserve those requirements in the generated content when they are explicit, but do not invent or enforce them beyond what the repository already defines.
 - If no clear repository convention exists, write in **English Markdown** using this fallback structure:
 
 ```md
@@ -232,6 +247,7 @@ When presenting content:
 ## Safety and Edge Cases
 
 - If the repository has uncommitted changes, warn that PR content excludes them because committed diff is the source of truth.
+- If repository policy requirements appear to be missing (for example issue linkage or labels), warn about the gap when evidenced by templates/docs, but do not fabricate compliance.
 - If `<remote>/<base-branch>` does not exist, stop and ask the user to confirm the remote/base branch pair.
 - If `regenerate` mode cannot resolve PR metadata and the user did not provide enough information, ask only for the missing minimum input.
 - If the current local branch does not match the resolved PR head branch in `regenerate` mode, stop and explain the mismatch.
@@ -249,4 +265,5 @@ These wrappers may be exposed differently by each agent surface, but the workflo
 ## Resources
 
 - Agent-level instruction surface when present (examples: `~/.config/opencode/AGENTS.md`, `~/.claude/CLAUDE.md`)
+- Companion repo-policy skills when present (examples: `branch-pr`) as contextual guidance, not as duplicated local policy
 - Repo-local PR conventions when they exist (`.github/PULL_REQUEST_TEMPLATE.md`, `docs/CONVENTIONS.md`, `CONTRIBUTING.md`, `README.md`)
