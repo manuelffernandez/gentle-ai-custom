@@ -6,13 +6,14 @@ description: >
   Trigger: When the user asks for a commit plan, commit grouping, post-SDD finalization, or to commit current changes.
 license: Apache-2.0
 metadata:
-  author: gentleman-programming
+  author: manuelfernandez
   version: "1.0"
 ---
 
 ## When to Use
 
 Use this skill when:
+
 - SDD or normal implementation work is already finished and the user wants to decide the next finalization step
 - The user says things like `proponeme un plan de commits`, `generame un plan de commits`, `commiteá estos cambios`, or `cómo agruparías estos cambios`
 - You need to decide whether the current working tree should become one commit or several meaningful local commits
