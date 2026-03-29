@@ -12,9 +12,12 @@ Guardar acá el source of truth de overlays propios para OpenCode, Claude y Code
 
 ## Estructura
 
-- `shared/skills/commit-planner/SKILL.md` — source of truth neutral de la skill
+- `shared/skills/commit-planner/SKILL.md` — source of truth neutral para planificación/aplicación de commits
+- `shared/skills/pr-finalizer/SKILL.md` — source of truth neutral para creación/regeneración de PRs
 - `shared/commands/commit-plan-body.md` — cuerpo compartido para wrappers/prompts en modo `plan`
 - `shared/commands/commit-apply-body.md` — cuerpo compartido para wrappers/prompts en modo `apply`
+- `shared/commands/pr-create-body.md` — cuerpo compartido para wrappers/prompts en modo `create`
+- `shared/commands/pr-regenerate-body.md` — cuerpo compartido para wrappers/prompts en modo `regenerate`
 - `inject-skills.sh` — instalador para Linux/macOS (bash)
 - `inject-skills.ps1` — instalador equivalente para Windows (PowerShell 5.1+)
 
@@ -73,8 +76,8 @@ No se parchean automáticamente archivos gestionados upstream como `~/.config/op
 
 La integración durable queda apoyada en:
 
-- skill custom compartida (`commit-planner`) como fuente neutral
-- cuerpos compartidos para `plan` y `apply`
+- skills custom compartidas (`commit-planner`, `pr-finalizer`) como fuentes neutrales
+- cuerpos compartidos para `plan`, `apply`, `create` y `regenerate`
 - wrappers/slash commands nativos renderizados por agente durante la instalación
 - reaplicación manual post-sync
 
@@ -88,6 +91,6 @@ Si más adelante querés reintroducir auto-load por contexto, conviene hacerlo c
    - OpenCode → `~/.config/opencode/commands/*.md`
    - Claude → `~/.claude/commands/*.md`
    - Codex → `~/.codex/prompts/*.md`
-4. La skill se copia desde la misma fuente compartida a `skills/commit-planner/SKILL.md` en cada target.
+4. Las skills se copian desde la misma fuente compartida a `skills/<skill-name>/SKILL.md` en cada target.
 
 Esto mantiene el workflow manual post-sync, elimina duplicación authored y deja las diferencias por agente encapsuladas en el instalador.

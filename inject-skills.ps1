@@ -10,9 +10,12 @@ $ErrorActionPreference = 'Stop'
 
 $SourceDir   = $PSScriptRoot
 $SharedDir   = Join-Path $SourceDir 'shared'
-$SharedSkill = Join-Path $SharedDir 'skills\commit-planner\SKILL.md'
+$CommitSkill = Join-Path $SharedDir 'skills\commit-planner\SKILL.md'
+$PrSkill     = Join-Path $SharedDir 'skills\pr-finalizer\SKILL.md'
 $PlanBody    = Join-Path $SharedDir 'commands\commit-plan-body.md'
 $ApplyBody   = Join-Path $SharedDir 'commands\commit-apply-body.md'
+$PrCreateBody = Join-Path $SharedDir 'commands\pr-create-body.md'
+$PrRegenerateBody = Join-Path $SharedDir 'commands\pr-regenerate-body.md'
 
 $SupportedTargets = @('opencode', 'claude', 'codex')
 
@@ -40,9 +43,12 @@ function Assert-SourceFile([string]$path) {
 }
 
 function Assert-Sources {
-    Assert-SourceFile $SharedSkill
+    Assert-SourceFile $CommitSkill
+    Assert-SourceFile $PrSkill
     Assert-SourceFile $PlanBody
     Assert-SourceFile $ApplyBody
+    Assert-SourceFile $PrCreateBody
+    Assert-SourceFile $PrRegenerateBody
 }
 
 function Resolve-Targets([string[]]$input) {
@@ -52,7 +58,7 @@ function Resolve-Targets([string[]]$input) {
     }
 
     if ($input.Count -eq 1 -and $input[0] -eq 'all') {
-        return $SupportedTargets
+        return , $SupportedTargets
     }
 
     $result = [System.Collections.Generic.List[string]]::new()
@@ -63,15 +69,17 @@ function Resolve-Targets([string[]]$input) {
         if ($SupportedTargets -notcontains $t) {
             Exit-WithError "Unknown target: $t"
         }
-        $result.Add($t)
+        if ($result -notcontains $t) {
+            $result.Add($t)
+        }
     }
     return , $result.ToArray()
 }
 
-function Install-Skill([string]$targetDir) {
-    $dest = Join-Path $targetDir 'skills\commit-planner'
+function Install-Skill([string]$targetDir, [string]$skillName, [string]$skillSource) {
+    $dest = Join-Path $targetDir ("skills\$skillName")
     New-Item -ItemType Directory -Force -Path $dest | Out-Null
-    Copy-Item $SharedSkill (Join-Path $dest 'SKILL.md') -Force
+    Copy-Item $skillSource (Join-Path $dest 'SKILL.md') -Force
 }
 
 function Write-RenderedFile([string]$path, [string]$content) {
@@ -80,7 +88,7 @@ function Write-RenderedFile([string]$path, [string]$content) {
     [System.IO.File]::WriteAllText($path, $content, $Utf8NoBom)
 }
 
-function Render-OpenCodeCommand([string]$targetFile, [string]$mode, [string]$cmdType, [string]$desc, [string]$bodyFile) {
+function Render-OpenCodeCommand([string]$targetFile, [string]$skillName, [string]$mode, [string]$cmdType, [string]$desc, [string]$bodyFile) {
     $body = [System.IO.File]::ReadAllText($bodyFile, $Utf8NoBom)
     $lines = @(
         '---',
@@ -88,7 +96,7 @@ function Render-OpenCodeCommand([string]$targetFile, [string]$mode, [string]$cmd
         'agent: gentleman',
         '---',
         '',
-        'Read the skill file at `~/.config/opencode/skills/commit-planner/SKILL.md` FIRST, then follow it exactly.',
+        "Read the skill file at ``~/.config/opencode/skills/$skillName/SKILL.md`` FIRST, then follow it exactly.",
         '',
         'CONTEXT:',
         '- Working directory: !`echo -n "$(pwd)"`',
@@ -100,7 +108,7 @@ function Render-OpenCodeCommand([string]$targetFile, [string]$mode, [string]$cmd
     Write-RenderedFile $targetFile (($lines -join "`n") + $body)
 }
 
-function Render-ClaudeCommand([string]$targetFile, [string]$mode, [string]$cmdType, [string]$desc, [string]$bodyFile) {
+function Render-ClaudeCommand([string]$targetFile, [string]$skillName, [string]$mode, [string]$cmdType, [string]$desc, [string]$bodyFile) {
     $body = [System.IO.File]::ReadAllText($bodyFile, $Utf8NoBom)
     $lines = [System.Collections.Generic.List[string]]@(
         '---',
@@ -110,6 +118,7 @@ function Render-ClaudeCommand([string]$targetFile, [string]$mode, [string]$cmdTy
         '  - Read',
         '  - Glob',
         '  - Bash(git:*)',
+        '  - Bash(gh:*)',
         '  - Bash(pwd:*)',
         '  - Bash(basename:*)'
     )
@@ -119,7 +128,7 @@ function Render-ClaudeCommand([string]$targetFile, [string]$mode, [string]$cmdTy
     $lines.AddRange([string[]]@(
         '---',
         '',
-        'Read the skill file at `~/.claude/skills/commit-planner/SKILL.md` FIRST, then follow it exactly.',
+        "Read the skill file at ``~/.claude/skills/$skillName/SKILL.md`` FIRST, then follow it exactly.",
         '',
         'CONTEXT:',
         '- Working directory: !`pwd`',
@@ -131,7 +140,7 @@ function Render-ClaudeCommand([string]$targetFile, [string]$mode, [string]$cmdTy
     Write-RenderedFile $targetFile (($lines -join "`n") + $body)
 }
 
-function Render-CodexPrompt([string]$targetFile, [string]$mode, [string]$cmdType, [string]$desc, [string]$bodyFile) {
+function Render-CodexPrompt([string]$targetFile, [string]$skillName, [string]$mode, [string]$cmdType, [string]$desc, [string]$bodyFile) {
     $body = [System.IO.File]::ReadAllText($bodyFile, $Utf8NoBom)
     $lines = @(
         '---',
@@ -141,11 +150,12 @@ function Render-CodexPrompt([string]$targetFile, [string]$mode, [string]$cmdType
         '  - Read',
         '  - Glob',
         '  - Bash(git:*)',
+        '  - Bash(gh:*)',
         '  - Bash(pwd:*)',
         '  - Bash(basename:*)',
         '---',
         '',
-        'Read the skill file at `~/.codex/skills/commit-planner/SKILL.md` FIRST, then follow it exactly.',
+        "Read the skill file at ``~/.codex/skills/$skillName/SKILL.md`` FIRST, then follow it exactly.",
         '',
         'CONTEXT:',
         '- Working directory: !`pwd`',
@@ -161,56 +171,101 @@ function Apply-OpenCode {
     # On Windows, OpenCode may store config under $env:APPDATA\opencode instead.
     # Adjust $targetDir below if needed.
     $targetDir = Join-Path $HOME '.config\opencode'
-    Install-Skill $targetDir
+    Install-Skill $targetDir 'commit-planner' $CommitSkill
+    Install-Skill $targetDir 'pr-finalizer' $PrSkill
     Render-OpenCodeCommand `
         (Join-Path $targetDir 'commands\commit-plan.md') `
+        'commit-planner' `
         'plan' 'read-only' `
         'Propose a post-SDD commit plan without changing git state' `
         $PlanBody
     Render-OpenCodeCommand `
         (Join-Path $targetDir 'commands\commit-apply.md') `
+        'commit-planner' `
         'apply' 'state-changing' `
         'Execute an approved post-SDD commit plan, or generate one first if missing' `
         $ApplyBody
+    Render-OpenCodeCommand `
+        (Join-Path $targetDir 'commands\pr-create.md') `
+        'pr-finalizer' `
+        'create' 'state-changing' `
+        'Draft a PR from committed changes and optionally create it after approval' `
+        $PrCreateBody
+    Render-OpenCodeCommand `
+        (Join-Path $targetDir 'commands\pr-regenerate.md') `
+        'pr-finalizer' `
+        'regenerate' 'state-changing' `
+        'Regenerate or update an existing PR from the current committed diff after approval' `
+        $PrRegenerateBody
     Write-Host "Applied OpenCode overlays -> $targetDir"
 }
 
 function Apply-Claude {
     $targetDir = Join-Path $HOME '.claude'
-    Install-Skill $targetDir
+    Install-Skill $targetDir 'commit-planner' $CommitSkill
+    Install-Skill $targetDir 'pr-finalizer' $PrSkill
     Render-ClaudeCommand `
         (Join-Path $targetDir 'commands\commit-plan.md') `
+        'commit-planner' `
         'plan' 'read-only' `
         'Propose a post-SDD commit plan without changing git state' `
         $PlanBody
     Render-ClaudeCommand `
         (Join-Path $targetDir 'commands\commit-apply.md') `
+        'commit-planner' `
         'apply' 'state-changing' `
         'Execute an approved post-SDD commit plan, or generate one first if missing' `
         $ApplyBody
+    Render-ClaudeCommand `
+        (Join-Path $targetDir 'commands\pr-create.md') `
+        'pr-finalizer' `
+        'create' 'state-changing' `
+        'Draft a PR from committed changes and optionally create it after approval' `
+        $PrCreateBody
+    Render-ClaudeCommand `
+        (Join-Path $targetDir 'commands\pr-regenerate.md') `
+        'pr-finalizer' `
+        'regenerate' 'state-changing' `
+        'Regenerate or update an existing PR from the current committed diff after approval' `
+        $PrRegenerateBody
     Write-Host "Applied Claude overlays -> $targetDir"
 }
 
 function Apply-Codex {
     $targetDir = Join-Path $HOME '.codex'
-    Install-Skill $targetDir
+    Install-Skill $targetDir 'commit-planner' $CommitSkill
+    Install-Skill $targetDir 'pr-finalizer' $PrSkill
     Render-CodexPrompt `
         (Join-Path $targetDir 'prompts\commit-plan.md') `
+        'commit-planner' `
         'plan' 'read-only' `
         'Propose a post-SDD commit plan without changing git state' `
         $PlanBody
     Render-CodexPrompt `
         (Join-Path $targetDir 'prompts\commit-apply.md') `
+        'commit-planner' `
         'apply' 'state-changing' `
         'Execute an approved post-SDD commit plan, or generate one first if missing' `
         $ApplyBody
+    Render-CodexPrompt `
+        (Join-Path $targetDir 'prompts\pr-create.md') `
+        'pr-finalizer' `
+        'create' 'state-changing' `
+        'Draft a PR from committed changes and optionally create it after approval' `
+        $PrCreateBody
+    Render-CodexPrompt `
+        (Join-Path $targetDir 'prompts\pr-regenerate.md') `
+        'pr-finalizer' `
+        'regenerate' 'state-changing' `
+        'Regenerate or update an existing PR from the current committed diff after approval' `
+        $PrRegenerateBody
     Write-Host "Applied Codex overlays -> $targetDir"
 }
 
 # --- Main ---
 
-Assert-Sources
 $resolvedTargets = Resolve-Targets $Targets
+Assert-Sources
 
 foreach ($target in $resolvedTargets) {
     switch ($target) {
