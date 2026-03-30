@@ -114,6 +114,8 @@ Return this structure after execution:
 
 Triggered by `/commit-fast` or natural-language cues like `commiteá directamente`, `aplicá sin preguntar`, `commit rápido`.
 
+**Single-invocation rule**: `auto` mode applies to the changes present at the moment it is invoked. It does NOT carry over to subsequent changes in the same session. Each new set of changes requires an explicit new invocation — never assume `auto` mode is the default going forward.
+
 1. Generate the plan using the same rules as `plan` mode.
 2. Display the full plan in the output **before** executing — for audit visibility, not for approval.
 3. Execute all commits immediately without waiting for user confirmation.

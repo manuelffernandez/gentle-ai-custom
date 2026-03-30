@@ -2,6 +2,7 @@ TASK:
 Generate a local commit plan for the current changes and execute it immediately without waiting for approval.
 
 Rules for this command:
+- **Single-invocation scope**: this command applies only to the changes present at the moment it is called. Once executed, do NOT assume it should be reused for subsequent changes in the same session — each new set of changes requires an explicit new invocation.
 - This command is **state-changing**: it will run `git add` and `git commit` without pausing for plan approval
 - Generate the plan using the same rules as `/commit-plan` (convention detection, coherent grouping)
 - Display the full plan **before** executing — for audit visibility, not for approval
