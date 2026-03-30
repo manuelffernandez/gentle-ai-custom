@@ -56,12 +56,12 @@ This skill does **not** define or enforce repository governance. In particular, 
    - explicit user input
    - `origin` when it exists and is usable
    - if `origin` is unavailable, ask the user to choose from the available remotes
-8. **State-changing commands require explicit approval**. This includes `git fetch`, `git push`, temporary file writes, `gh pr create`, and `gh pr edit`.
+8. **State-changing commands require explicit approval**. This includes `git fetch`, `git push`, `gh pr create`, and `gh pr edit`. Temporary file writes do NOT require approval — write them silently and report the absolute path.
 9. **If remote branch state is stale**, stop and request push approval before PR creation or update.
 10. **If `gh` is unavailable or unauthenticated**, return copy-paste-ready PR content and stop without pretending the PR was created or updated.
 11. **Do not mention branch names in the PR description body** unless the repository template explicitly requires them.
 12. **Do not propose commit messages** as part of this skill.
-13. **Use temporary artifacts outside the repository by default**, for example `${TMPDIR:-/tmp}/gentle-ai-pr-diff.txt` and `${TMPDIR:-/tmp}/gentle-ai-pr-body.md`.
+13. **Use temporary artifacts outside the repository by default**, for example `${TMPDIR:-/tmp}/pr-diff.txt` and `${TMPDIR:-/tmp}/pr-body.md`. After writing any temporary file, report the absolute path used — do not ask for approval.
 
 ## Supported Inputs
 
@@ -72,8 +72,8 @@ Resolve these inputs from the user or caller context, asking only for what is mi
 - `head branch`: optional, default to current local branch
 - `base branch`: optional, auto-detect if possible
 - `PR number`: optional in `regenerate`, preferred if the user already knows it
-- `diff output path`: optional, default to `${TMPDIR:-/tmp}/gentle-ai-pr-diff.txt`
-- `body output path`: optional, default to `${TMPDIR:-/tmp}/gentle-ai-pr-body.md`
+- `diff output path`: optional, default to `${TMPDIR:-/tmp}/pr-diff.txt`
+- `body output path`: optional, default to `${TMPDIR:-/tmp}/pr-body.md`
 
 ## Read-Only Evidence Gathering
 
@@ -146,7 +146,7 @@ Apply these rules strictly:
 
 ## Phase 1 — Generate Committed Diff
 
-Before generating the committed diff, request one approval checkpoint for this command block because it updates remote-tracking refs and writes a temporary diff artifact:
+Before generating the committed diff, request one approval checkpoint for `git fetch` because it updates remote-tracking refs. The diff file write does not require approval — write it silently and report the absolute path:
 
 ```bash
 git fetch --all --prune
@@ -207,10 +207,8 @@ git push -u <remote> HEAD
 
 After the user approves the generated content:
 
-1. Request separate approvals in this order:
-   - writing the temporary PR body artifact
-   - running `gh pr create`
-2. Write the body to `<body-output-path>`.
+1. Write the body to `<body-output-path>` without requesting approval. Report the absolute path used.
+2. Request approval for running `gh pr create`.
 3. Run:
 
 ```bash
@@ -223,10 +221,8 @@ gh pr create --base <base-branch> --head <head-branch> --title "<title>" --body-
 
 After the user approves the regenerated content:
 
-1. Request separate approvals in this order:
-   - writing the temporary PR body artifact
-   - running `gh pr edit`
-2. Write the body to `<body-output-path>`.
+1. Write the body to `<body-output-path>` without requesting approval. Report the absolute path used.
+2. Request approval for running `gh pr edit`.
 3. Run:
 
 ```bash
