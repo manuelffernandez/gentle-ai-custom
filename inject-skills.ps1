@@ -14,6 +14,7 @@ $CommitSkill = Join-Path $SharedDir 'skills\commit-planner\SKILL.md'
 $PrSkill     = Join-Path $SharedDir 'skills\pr-finalizer\SKILL.md'
 $PlanBody    = Join-Path $SharedDir 'commands\commit-plan-body.md'
 $ApplyBody   = Join-Path $SharedDir 'commands\commit-apply-body.md'
+$FastBody    = Join-Path $SharedDir 'commands\commit-fast-body.md'
 $PrCreateBody = Join-Path $SharedDir 'commands\pr-create-body.md'
 $PrRegenerateBody = Join-Path $SharedDir 'commands\pr-regenerate-body.md'
 
@@ -47,6 +48,7 @@ function Assert-Sources {
     Assert-SourceFile $PrSkill
     Assert-SourceFile $PlanBody
     Assert-SourceFile $ApplyBody
+    Assert-SourceFile $FastBody
     Assert-SourceFile $PrCreateBody
     Assert-SourceFile $PrRegenerateBody
 }
@@ -122,7 +124,7 @@ function Render-ClaudeCommand([string]$targetFile, [string]$skillName, [string]$
         '  - Bash(pwd:*)',
         '  - Bash(basename:*)'
     )
-    if ($mode -eq 'apply') {
+    if ($mode -eq 'apply' -or $mode -eq 'auto') {
         $lines.Add('disable-model-invocation: true')
     }
     $lines.AddRange([string[]]@(
@@ -186,6 +188,12 @@ function Apply-OpenCode {
         'Execute an approved post-SDD commit plan, or generate one first if missing' `
         $ApplyBody
     Render-OpenCodeCommand `
+        (Join-Path $targetDir 'commands\commit-fast.md') `
+        'commit-planner' `
+        'auto' 'state-changing' `
+        'Generate and execute a commit plan in one shot without approval pause' `
+        $FastBody
+    Render-OpenCodeCommand `
         (Join-Path $targetDir 'commands\pr-create.md') `
         'pr-finalizer' `
         'create' 'state-changing' `
@@ -217,6 +225,12 @@ function Apply-Claude {
         'Execute an approved post-SDD commit plan, or generate one first if missing' `
         $ApplyBody
     Render-ClaudeCommand `
+        (Join-Path $targetDir 'commands\commit-fast.md') `
+        'commit-planner' `
+        'auto' 'state-changing' `
+        'Generate and execute a commit plan in one shot without approval pause' `
+        $FastBody
+    Render-ClaudeCommand `
         (Join-Path $targetDir 'commands\pr-create.md') `
         'pr-finalizer' `
         'create' 'state-changing' `
@@ -247,6 +261,12 @@ function Apply-Codex {
         'apply' 'state-changing' `
         'Execute an approved post-SDD commit plan, or generate one first if missing' `
         $ApplyBody
+    Render-CodexPrompt `
+        (Join-Path $targetDir 'prompts\commit-fast.md') `
+        'commit-planner' `
+        'auto' 'state-changing' `
+        'Generate and execute a commit plan in one shot without approval pause' `
+        $FastBody
     Render-CodexPrompt `
         (Join-Path $targetDir 'prompts\pr-create.md') `
         'pr-finalizer' `

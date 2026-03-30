@@ -7,6 +7,7 @@ COMMIT_SKILL="${SHARED_DIR}/skills/commit-planner/SKILL.md"
 PR_SKILL="${SHARED_DIR}/skills/pr-finalizer/SKILL.md"
 PLAN_BODY="${SHARED_DIR}/commands/commit-plan-body.md"
 APPLY_BODY="${SHARED_DIR}/commands/commit-apply-body.md"
+FAST_BODY="${SHARED_DIR}/commands/commit-fast-body.md"
 PR_CREATE_BODY="${SHARED_DIR}/commands/pr-create-body.md"
 PR_REGENERATE_BODY="${SHARED_DIR}/commands/pr-regenerate-body.md"
 SUPPORTED_TARGETS="opencode claude codex"
@@ -38,6 +39,7 @@ validate_sources() {
   require_file "${PR_SKILL}"
   require_file "${PLAN_BODY}"
   require_file "${APPLY_BODY}"
+  require_file "${FAST_BODY}"
   require_file "${PR_CREATE_BODY}"
   require_file "${PR_REGENERATE_BODY}"
 }
@@ -141,7 +143,7 @@ render_claude_command() {
     printf '%s\n' '---'
     printf 'description: %s\n' "${description}"
     printf '%s\n' 'argument-hint: [optional-context]' 'allowed-tools:' '  - Read' '  - Glob' '  - Bash(git:*)' '  - Bash(gh:*)' '  - Bash(pwd:*)' '  - Bash(basename:*)'
-    if [ "${mode}" = 'apply' ]; then
+    if [ "${mode}" = 'apply' ] || [ "${mode}" = 'auto' ]; then
       printf '%s\n' 'disable-model-invocation: true'
     fi
     printf '%s\n' '---' ''
@@ -180,6 +182,7 @@ apply_opencode() {
   install_skill "${target_dir}" 'pr-finalizer' "${PR_SKILL}"
   render_opencode_command "${target_dir}/commands/commit-plan.md" 'commit-planner' 'plan' 'read-only' 'Propose a post-SDD commit plan without changing git state' "${PLAN_BODY}"
   render_opencode_command "${target_dir}/commands/commit-apply.md" 'commit-planner' 'apply' 'state-changing' 'Execute an approved post-SDD commit plan, or generate one first if missing' "${APPLY_BODY}"
+  render_opencode_command "${target_dir}/commands/commit-fast.md" 'commit-planner' 'auto' 'state-changing' 'Generate and execute a commit plan in one shot without approval pause' "${FAST_BODY}"
   render_opencode_command "${target_dir}/commands/pr-create.md" 'pr-finalizer' 'create' 'state-changing' 'Draft a PR from committed changes and optionally create it after approval' "${PR_CREATE_BODY}"
   render_opencode_command "${target_dir}/commands/pr-regenerate.md" 'pr-finalizer' 'regenerate' 'state-changing' 'Regenerate or update an existing PR from the current committed diff after approval' "${PR_REGENERATE_BODY}"
 
@@ -193,6 +196,7 @@ apply_claude() {
   install_skill "${target_dir}" 'pr-finalizer' "${PR_SKILL}"
   render_claude_command "${target_dir}/commands/commit-plan.md" 'commit-planner' 'plan' 'read-only' 'Propose a post-SDD commit plan without changing git state' "${PLAN_BODY}"
   render_claude_command "${target_dir}/commands/commit-apply.md" 'commit-planner' 'apply' 'state-changing' 'Execute an approved post-SDD commit plan, or generate one first if missing' "${APPLY_BODY}"
+  render_claude_command "${target_dir}/commands/commit-fast.md" 'commit-planner' 'auto' 'state-changing' 'Generate and execute a commit plan in one shot without approval pause' "${FAST_BODY}"
   render_claude_command "${target_dir}/commands/pr-create.md" 'pr-finalizer' 'create' 'state-changing' 'Draft a PR from committed changes and optionally create it after approval' "${PR_CREATE_BODY}"
   render_claude_command "${target_dir}/commands/pr-regenerate.md" 'pr-finalizer' 'regenerate' 'state-changing' 'Regenerate or update an existing PR from the current committed diff after approval' "${PR_REGENERATE_BODY}"
 
@@ -206,6 +210,7 @@ apply_codex() {
   install_skill "${target_dir}" 'pr-finalizer' "${PR_SKILL}"
   render_codex_prompt "${target_dir}/prompts/commit-plan.md" 'commit-planner' 'plan' 'read-only' 'Propose a post-SDD commit plan without changing git state' "${PLAN_BODY}"
   render_codex_prompt "${target_dir}/prompts/commit-apply.md" 'commit-planner' 'apply' 'state-changing' 'Execute an approved post-SDD commit plan, or generate one first if missing' "${APPLY_BODY}"
+  render_codex_prompt "${target_dir}/prompts/commit-fast.md" 'commit-planner' 'auto' 'state-changing' 'Generate and execute a commit plan in one shot without approval pause' "${FAST_BODY}"
   render_codex_prompt "${target_dir}/prompts/pr-create.md" 'pr-finalizer' 'create' 'state-changing' 'Draft a PR from committed changes and optionally create it after approval' "${PR_CREATE_BODY}"
   render_codex_prompt "${target_dir}/prompts/pr-regenerate.md" 'pr-finalizer' 'regenerate' 'state-changing' 'Regenerate or update an existing PR from the current committed diff after approval' "${PR_REGENERATE_BODY}"
 

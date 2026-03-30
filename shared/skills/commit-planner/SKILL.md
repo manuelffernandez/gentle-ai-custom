@@ -23,9 +23,10 @@ Do **not** use this skill as part of the default SDD flow. This is a **post-SDD*
 ## Critical Patterns
 
 1. **Never auto-run after SDD**. Only activate this flow when the user explicitly asks.
-2. **Two modes only**:
+2. **Three modes**:
    - `plan` → inspect and propose commit grouping, no state changes
    - `apply` → execute an already approved plan, or generate a plan first and stop for approval
+   - `auto` → generate and execute in one shot without pausing for plan approval; still stops on blockers
 3. **Convention detection order**:
    - First, look for explicit repository guidance in common files such as `docs/CONVENTIONS.md`, `CONTRIBUTING.md`, `README.md`, and relevant repo-local workflow docs
    - Then inspect recent `git log` subjects to understand the style actually used in the repository
@@ -109,23 +110,42 @@ Return this structure after execution:
 - `Remaining Changes`
 - `Blockers`
 
+## Mode: `auto`
+
+Triggered by `/commit-fast` or natural-language cues like `commiteá directamente`, `aplicá sin preguntar`, `commit rápido`.
+
+1. Generate the plan using the same rules as `plan` mode.
+2. Display the full plan in the output **before** executing — for audit visibility, not for approval.
+3. Execute all commits immediately without waiting for user confirmation.
+4. **Still stop** if any of these conditions apply:
+   - a blocker exists (same file across multiple commits, suspected secret, ambiguous file)
+   - the working tree contains unrelated changes the plan cannot cleanly separate
+   - any `git commit` fails mid-execution
+
+Return the same structure as `apply` mode after execution.
+
 ## Commands
 
 ```bash
 /commit-plan
 /commit-apply
+/commit-fast
 ```
 
 These wrappers MAY be exposed by different agent surfaces, but the workflow stays the same:
 
 - `plan` is read-only
-- `apply` is state-changing and still requires explicit user approval before staging or committing
+- `apply` is state-changing and requires explicit user approval before staging or committing
+- `fast` is state-changing and executes without approval pause; blockers still require human decision
 
 Natural-language triggers:
 
 - `proponeme un plan de commits`
 - `generame un plan de commits`
 - `commiteá estos cambios`
+- `commiteá directamente`
+- `aplicá sin preguntar`
+- `commit rápido`
 
 ## Resources
 
