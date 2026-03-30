@@ -16,10 +16,13 @@ Guardar acá el source of truth de overlays propios para OpenCode, Claude y Code
 - `shared/skills/pr-finalizer/SKILL.md` — source of truth neutral para creación/regeneración de PRs
 - `shared/commands/commit-plan-body.md` — cuerpo compartido para wrappers/prompts en modo `plan`
 - `shared/commands/commit-apply-body.md` — cuerpo compartido para wrappers/prompts en modo `apply`
+- `shared/commands/commit-fast-body.md` — cuerpo compartido para wrappers/prompts en modo `auto` (sin pausa)
 - `shared/commands/pr-create-body.md` — cuerpo compartido para wrappers/prompts en modo `create`
 - `shared/commands/pr-regenerate-body.md` — cuerpo compartido para wrappers/prompts en modo `regenerate`
 - `inject-skills.sh` — instalador para Linux/macOS (bash)
 - `inject-skills.ps1` — instalador equivalente para Windows (PowerShell 5.1+)
+- `AGENTS.md` — instrucciones operativas para agentes de IA
+- `CLAUDE.md` — delegación a `AGENTS.md` para Claude Code
 
 Los wrappers específicos de OpenCode, Claude y Codex **ya no se versionan** en este repo. Se generan durante la instalación a partir de las fuentes compartidas.
 
@@ -69,6 +72,62 @@ bash ~/Documentos/gentle-ai-custom/inject-skills.sh all
 ```
 
 Para Claude y Codex no se hace auto-mutation de assets gestionados upstream. La idea sigue siendo la misma: **actualización del agente primero, reaplicación manual después**.
+
+## Comandos disponibles
+
+Los siguientes comandos se instalan en cada agente durante la ejecución del instalador. Todos leen primero la `SKILL.md` correspondiente antes de actuar.
+
+---
+
+### `/commit-plan`
+
+**Qué hace**: inspecciona el working tree y propone un plan de commits agrupados coherentemente, respetando las convenciones del repositorio (o Conventional Commits como fallback).
+
+**Intención**: darte visibilidad y control sobre cómo quedará el historial antes de escribir nada. No toca git.
+
+**Cuándo usarlo**: cuando terminaste una tarea y querés revisar cómo agrupar los cambios antes de commitear. Siempre antes de `/commit-apply` si querés aprobación explícita del plan.
+
+---
+
+### `/commit-apply`
+
+**Qué hace**: ejecuta un plan de commits aprobado. Si no hay un plan aprobado en la conversación, genera uno primero y se detiene para que lo apruebes.
+
+**Intención**: aplicar el plan con control total — nunca commitea sin que hayas visto y aprobado el plan.
+
+**Cuándo usarlo**: después de aprobar el output de `/commit-plan`, o cuando querés generar y aprobar el plan en un solo flujo pero sin ejecución automática.
+
+---
+
+### `/commit-fast`
+
+**Qué hace**: genera el plan de commits y lo ejecuta inmediatamente sin pausar para aprobación. Muestra el plan antes de ejecutar (para auditoría), pero no espera confirmación. Se detiene si encuentra un blocker real: mismo archivo en múltiples commits, posible secreto, cambios no relacionados que no puede separar limpiamente, o fallo en algún `git commit`.
+
+**Intención**: velocidad cuando confiás en el agente. Un solo paso en lugar de dos.
+
+**Cuándo usarlo**: cambios chicos y claros donde no necesitás revisar el plan antes de que se aplique.
+
+---
+
+### `/pr-create`
+
+**Qué hace**: genera título y body de PR a partir del diff comprometido de la rama actual, respetando la plantilla del repositorio (`.github/PULL_REQUEST_TEMPLATE.md`, `CONTRIBUTING.md`, etc.) o usando una estructura genérica como fallback. Opcionalmente crea la PR en GitHub tras aprobación explícita.
+
+**Intención**: producir contenido de PR preciso basado solo en lo que está comprometido, sin inventar cambios ni reutilizar borradores anteriores.
+
+**Cuándo usarlo**: cuando tenés commits locales listos y querés abrir una PR nueva. Si ya existe una PR abierta para la misma rama, el comando te indica que uses `/pr-regenerate` en su lugar.
+
+---
+
+### `/pr-regenerate`
+
+**Qué hace**: regenera desde cero el título y body de una PR existente, usando el diff comprometido actual como única fuente de verdad. No reutiliza el contenido anterior de la PR. Opcionalmente actualiza la PR en GitHub tras aprobación explícita.
+
+**Intención**: mantener la PR sincronizada con el estado real de la rama después de nuevos commits o rebase.
+
+**Cuándo usarlo**: cuando la PR ya existe pero su descripción quedó desactualizada respecto a los commits actuales.
+
+---
 
 ## Nota importante
 
