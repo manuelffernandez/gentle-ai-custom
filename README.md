@@ -44,6 +44,13 @@ bash ~/Documentos/gentle-ai-custom/inject-skills.sh all
 ```
 
 **Windows (PowerShell 5.1+):**
+
+> **Requisito previo — política de ejecución:** Windows bloquea la ejecución de scripts por defecto. Antes de correr el instalador, desactivá la restricción para el proceso actual:
+> ```powershell
+> Set-ExecutionPolicy -Scope Process Bypass
+> ```
+> Esto aplica solo a la sesión de PowerShell en curso; no modifica la política global del sistema.
+
 ```powershell
 .\inject-skills.ps1 opencode
 .\inject-skills.ps1 claude
@@ -67,6 +74,7 @@ bash ~/Documentos/gentle-ai-custom/inject-skills.sh all
 
 ```powershell
 # Windows
+Set-ExecutionPolicy -Scope Process Bypass
 # (gentle-ai sync si aplica)
 .\inject-skills.ps1 all
 ```
