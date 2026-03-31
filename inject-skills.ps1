@@ -53,18 +53,18 @@ function Assert-Sources {
     Assert-SourceFile $PrRegenerateBody
 }
 
-function Resolve-Targets([string[]]$input) {
-    if ($input.Count -eq 0) {
+function Resolve-Targets([string[]]$rawTargets) {
+    if ($null -eq $rawTargets -or $rawTargets.Count -eq 0) {
         Show-Usage
         exit 1
     }
 
-    if ($input.Count -eq 1 -and $input[0] -eq 'all') {
+    if ($rawTargets.Count -eq 1 -and $rawTargets[0] -eq 'all') {
         return , $SupportedTargets
     }
 
     $result = [System.Collections.Generic.List[string]]::new()
-    foreach ($t in $input) {
+    foreach ($t in $rawTargets) {
         if ($t -eq 'all') {
             Exit-WithError "Use 'all' by itself, or pass explicit targets only."
         }
