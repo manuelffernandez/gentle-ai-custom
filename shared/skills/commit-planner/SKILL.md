@@ -52,6 +52,17 @@ git log --format=%s -n 15
 
 If a convention file exists, read it before proposing commit messages.
 
+## Divergence Detection (passive)
+
+After running `git status -sb`, inspect the tracking branch status line:
+
+- If the output shows `behind N` (e.g. `## main...origin/main [behind 3]`): **stop and warn the user** before proposing or executing any commits. The remote has commits that are not yet in the local branch. Continuing may create unnecessary merge commits or conflicts on push. Let the user decide whether to pull first.
+- If the output shows `ahead N`: safe to proceed — local has unpushed commits, which is the expected state.
+- If the output shows `ahead N, behind M` (diverged): **stop and warn**. This is a diverged state; committing is allowed but pushing will require a merge or rebase. Surface the information clearly.
+- If there is no tracking branch configured: proceed normally without warning.
+
+Do NOT run `git fetch` at any point. Detection is passive — based solely on the cached remote-tracking ref already present locally.
+
 ## Planning Rules
 
 When building the plan:
