@@ -4,7 +4,7 @@ Configuración custom **fuera del árbol gestionado por `gentle-ai sync`**.
 
 ## Objetivo
 
-Guardar acá el source of truth de overlays propios para OpenCode, Claude y Codex, de modo que:
+Guardar acá el source of truth de overlays propios para OpenCode, Claude, Codex y Gemini CLI, de modo que:
 
 - `gentle-ai sync` pueda seguir actualizando `~/.config/opencode`
 - las customizaciones no se pierdan
@@ -24,13 +24,14 @@ Guardar acá el source of truth de overlays propios para OpenCode, Claude y Code
 - `AGENTS.md` — instrucciones operativas para agentes de IA
 - `CLAUDE.md` — delegación a `AGENTS.md` para Claude Code
 
-Los wrappers específicos de OpenCode, Claude y Codex **ya no se versionan** en este repo. Se generan durante la instalación a partir de las fuentes compartidas.
+Los wrappers específicos de OpenCode, Claude, Codex y Gemini CLI **ya no se versionan** en este repo. Se generan durante la instalación a partir de las fuentes compartidas.
 
 ## Targets soportados
 
 - `opencode` → `~/.config/opencode`
 - `claude` → `~/.claude`
 - `codex` → `~/.codex`
+- `gemini` → `~/.gemini`
 
 ## Uso
 
@@ -39,7 +40,8 @@ Los wrappers específicos de OpenCode, Claude y Codex **ya no se versionan** en 
 bash ~/Documentos/gentle-ai-custom/inject-skills.sh opencode
 bash ~/Documentos/gentle-ai-custom/inject-skills.sh claude
 bash ~/Documentos/gentle-ai-custom/inject-skills.sh codex
-bash ~/Documentos/gentle-ai-custom/inject-skills.sh claude codex
+bash ~/Documentos/gentle-ai-custom/inject-skills.sh gemini
+bash ~/Documentos/gentle-ai-custom/inject-skills.sh claude codex gemini
 bash ~/Documentos/gentle-ai-custom/inject-skills.sh all
 ```
 
@@ -55,7 +57,8 @@ bash ~/Documentos/gentle-ai-custom/inject-skills.sh all
 .\inject-skills.ps1 opencode
 .\inject-skills.ps1 claude
 .\inject-skills.ps1 codex
-.\inject-skills.ps1 claude codex
+.\inject-skills.ps1 gemini
+.\inject-skills.ps1 claude codex gemini
 .\inject-skills.ps1 all
 ```
 
@@ -79,7 +82,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 .\inject-skills.ps1 all
 ```
 
-Para Claude y Codex no se hace auto-mutation de assets gestionados upstream. La idea sigue siendo la misma: **actualización del agente primero, reaplicación manual después**.
+Para Claude, Codex y Gemini CLI no se hace auto-mutation de assets gestionados upstream. La idea sigue siendo la misma: **actualización del agente primero, reaplicación manual después**.
 
 ## Comandos disponibles
 
@@ -158,6 +161,7 @@ Si más adelante querés reintroducir auto-load por contexto, conviene hacerlo c
    - OpenCode → `~/.config/opencode/commands/*.md`
    - Claude → `~/.claude/commands/*.md`
    - Codex → `~/.codex/prompts/*.md`
+   - Gemini CLI → `~/.gemini/commands/*.toml`
 4. Las skills se copian desde la misma fuente compartida a `skills/<skill-name>/SKILL.md` en cada target.
 
 Esto mantiene el workflow manual post-sync, elimina duplicación authored y deja las diferencias por agente encapsuladas en el instalador.

@@ -18,17 +18,18 @@ $FastBody    = Join-Path $SharedDir 'commands\commit-fast-body.md'
 $PrCreateBody = Join-Path $SharedDir 'commands\pr-create-body.md'
 $PrRegenerateBody = Join-Path $SharedDir 'commands\pr-regenerate-body.md'
 
-$SupportedTargets = @('opencode', 'claude', 'codex')
+$SupportedTargets = @('opencode', 'claude', 'codex', 'gemini')
 
 # UTF-8 without BOM — consistent with the bash script output
 $Utf8NoBom = New-Object System.Text.UTF8Encoding $false
 
 function Show-Usage {
     $name = [System.IO.Path]::GetFileName($PSCommandPath)
-    Write-Host "Usage: $name all | [opencode|claude|codex ...]"
+    Write-Host "Usage: $name all | [opencode|claude|codex|gemini ...]"
     Write-Host 'Examples:'
     Write-Host "  $name opencode"
     Write-Host "  $name claude codex"
+    Write-Host "  $name gemini"
     Write-Host "  $name all"
 }
 
@@ -169,6 +170,23 @@ function Render-CodexPrompt([string]$targetFile, [string]$skillName, [string]$mo
     Write-RenderedFile $targetFile (($lines -join "`n") + $body)
 }
 
+function Render-GeminiCommand([string]$targetFile, [string]$skillName, [string]$mode, [string]$cmdType, [string]$desc, [string]$bodyFile) {
+    $body = [System.IO.File]::ReadAllText($bodyFile, $Utf8NoBom)
+    $lines = @(
+        "description = `"$desc`"",
+        'prompt = """',
+        "Read the skill file at ``~/.gemini/skills/$skillName/SKILL.md`` FIRST, then follow it exactly.",
+        '',
+        'CONTEXT:',
+        '- Working directory: !{pwd}',
+        '- Current project: !{basename "$PWD"}',
+        "- Mode: $mode",
+        "- Command type: $cmdType",
+        ''
+    )
+    Write-RenderedFile $targetFile ((($lines -join "`n") + "`n") + $body + "`n\"\"\"`n")
+}
+
 function Apply-OpenCode {
     # On Windows, OpenCode may store config under $env:APPDATA\opencode instead.
     # Adjust $targetDir below if needed.
@@ -282,6 +300,43 @@ function Apply-Codex {
     Write-Host "Applied Codex overlays -> $targetDir"
 }
 
+function Apply-Gemini {
+    $targetDir = Join-Path $HOME '.gemini'
+    Install-Skill $targetDir 'commit-planner' $CommitSkill
+    Install-Skill $targetDir 'pr-finalizer' $PrSkill
+    Render-GeminiCommand `
+        (Join-Path $targetDir 'commands\commit-plan.toml') `
+        'commit-planner' `
+        'plan' 'read-only' `
+        'Propose a post-SDD commit plan without changing git state' `
+        $PlanBody
+    Render-GeminiCommand `
+        (Join-Path $targetDir 'commands\commit-apply.toml') `
+        'commit-planner' `
+        'apply' 'state-changing' `
+        'Execute an approved post-SDD commit plan, or generate one first if missing' `
+        $ApplyBody
+    Render-GeminiCommand `
+        (Join-Path $targetDir 'commands\commit-fast.toml') `
+        'commit-planner' `
+        'auto' 'state-changing' `
+        'Generate and execute a commit plan in one shot without approval pause' `
+        $FastBody
+    Render-GeminiCommand `
+        (Join-Path $targetDir 'commands\pr-create.toml') `
+        'pr-finalizer' `
+        'create' 'state-changing' `
+        'Draft a PR from committed changes and optionally create it after approval' `
+        $PrCreateBody
+    Render-GeminiCommand `
+        (Join-Path $targetDir 'commands\pr-regenerate.toml') `
+        'pr-finalizer' `
+        'regenerate' 'state-changing' `
+        'Regenerate or update an existing PR from the current committed diff after approval' `
+        $PrRegenerateBody
+    Write-Host "Applied Gemini overlays -> $targetDir"
+}
+
 # --- Main ---
 
 $resolvedTargets = Resolve-Targets $Targets
@@ -292,6 +347,7 @@ foreach ($target in $resolvedTargets) {
         'opencode' { Apply-OpenCode }
         'claude'   { Apply-Claude }
         'codex'    { Apply-Codex }
+        'gemini'   { Apply-Gemini }
     }
 }
 

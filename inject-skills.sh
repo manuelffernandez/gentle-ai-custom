@@ -10,7 +10,7 @@ APPLY_BODY="${SHARED_DIR}/commands/commit-apply-body.md"
 FAST_BODY="${SHARED_DIR}/commands/commit-fast-body.md"
 PR_CREATE_BODY="${SHARED_DIR}/commands/pr-create-body.md"
 PR_REGENERATE_BODY="${SHARED_DIR}/commands/pr-regenerate-body.md"
-SUPPORTED_TARGETS="opencode claude codex"
+SUPPORTED_TARGETS="opencode claude codex gemini"
 
 usage() {
   local script_name
@@ -20,6 +20,7 @@ usage() {
   printf 'Examples:\n'
   printf '  %s opencode\n' "${script_name}"
   printf '  %s claude codex\n' "${script_name}"
+  printf '  %s gemini\n' "${script_name}"
   printf '  %s all\n' "${script_name}"
 }
 
@@ -46,7 +47,7 @@ validate_sources() {
 
 is_supported_target() {
   case "$1" in
-    opencode|claude|codex)
+    opencode|claude|codex|gemini)
       return 0
       ;;
     *)
@@ -72,7 +73,7 @@ normalize_targets() {
   fi
 
   if [ "$#" -eq 1 ] && [ "$1" = "all" ]; then
-    printf '%s\n' opencode claude codex
+    printf '%s\n' opencode claude codex gemini
     return 0
   fi
 
@@ -175,6 +176,27 @@ render_codex_prompt() {
   } > "${target_file}"
 }
 
+render_gemini_command() {
+  local target_file="$1"
+  local skill_name="$2"
+  local mode="$3"
+  local command_type="$4"
+  local description="$5"
+  local body_file="$6"
+
+  mkdir -p "$(dirname "${target_file}")"
+
+  {
+    printf 'description = "%s"\n' "${description}"
+    printf '%s\n' 'prompt = """'
+    printf 'Read the skill file at `~/.gemini/skills/%s/SKILL.md` FIRST, then follow it exactly.\n\n' "${skill_name}"
+    printf '%s\n' 'CONTEXT:' '- Working directory: !{pwd}' '- Current project: !{basename "$PWD"}'
+    printf '%s\n' "- Mode: ${mode}" "- Command type: ${command_type}" ''
+    cat "${body_file}"
+    printf '\n%s\n' '"""'
+  } > "${target_file}"
+}
+
 apply_opencode() {
   local target_dir="${HOME}/.config/opencode"
 
@@ -217,6 +239,20 @@ apply_codex() {
   printf 'Applied Codex overlays -> %s\n' "${target_dir}"
 }
 
+apply_gemini() {
+  local target_dir="${HOME}/.gemini"
+
+  install_skill "${target_dir}" 'commit-planner' "${COMMIT_SKILL}"
+  install_skill "${target_dir}" 'pr-finalizer' "${PR_SKILL}"
+  render_gemini_command "${target_dir}/commands/commit-plan.toml" 'commit-planner' 'plan' 'read-only' 'Propose a post-SDD commit plan without changing git state' "${PLAN_BODY}"
+  render_gemini_command "${target_dir}/commands/commit-apply.toml" 'commit-planner' 'apply' 'state-changing' 'Execute an approved post-SDD commit plan, or generate one first if missing' "${APPLY_BODY}"
+  render_gemini_command "${target_dir}/commands/commit-fast.toml" 'commit-planner' 'auto' 'state-changing' 'Generate and execute a commit plan in one shot without approval pause' "${FAST_BODY}"
+  render_gemini_command "${target_dir}/commands/pr-create.toml" 'pr-finalizer' 'create' 'state-changing' 'Draft a PR from committed changes and optionally create it after approval' "${PR_CREATE_BODY}"
+  render_gemini_command "${target_dir}/commands/pr-regenerate.toml" 'pr-finalizer' 'regenerate' 'state-changing' 'Regenerate or update an existing PR from the current committed diff after approval' "${PR_REGENERATE_BODY}"
+
+  printf 'Applied Gemini overlays -> %s\n' "${target_dir}"
+}
+
 _targets_raw=$(normalize_targets "$@") || exit $?
 [ -z "${_targets_raw}" ] && exit 0
 mapfile -t TARGETS <<< "${_targets_raw}"
@@ -232,6 +268,9 @@ for target in "${TARGETS[@]}"; do
       ;;
     codex)
       apply_codex
+      ;;
+    gemini)
+      apply_gemini
       ;;
   esac
 done

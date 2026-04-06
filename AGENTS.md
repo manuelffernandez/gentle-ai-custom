@@ -25,7 +25,7 @@ This document must always reflect the actual state of the repository, not the st
 If one is modified, the other must be updated in the same commit to preserve identical behavior on Linux/macOS and Windows. This includes:
 - path variables
 - source validations (`validate_sources` / `Assert-Sources`)
-- command rendering per target (`apply_opencode`, `apply_claude`, `apply_codex`)
+- command rendering per target (`apply_opencode`, `apply_claude`, `apply_codex`, `apply_gemini`)
 - mode-specific conditions (e.g. `disable-model-invocation`)
 
 Never leave the two scripts in a divergent state.
@@ -67,7 +67,7 @@ gentle-ai-custom/
 └── README.md                      # Usage documentation for humans (Spanish)
 ```
 
-Agent-specific wrappers (OpenCode commands, Claude commands, Codex prompts) are **not versioned** in this repo. They are generated at install time from the sources in `shared/`.
+Agent-specific wrappers (OpenCode commands, Claude commands, Codex prompts, Gemini command TOML files) are **not versioned** in this repo. They are generated at install time from the sources in `shared/`.
 
 ---
 
@@ -96,6 +96,7 @@ Agent-specific wrappers (OpenCode commands, Claude commands, Codex prompts) are 
 | `opencode` | `~/.config/opencode/skills/` | `~/.config/opencode/commands/` |
 | `claude` | `~/.claude/skills/` | `~/.claude/commands/` |
 | `codex` | `~/.codex/skills/` | `~/.codex/prompts/` |
+| `gemini` | `~/.gemini/skills/` | `~/.gemini/commands/*.toml` |
 
 ---
 
