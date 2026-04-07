@@ -188,6 +188,31 @@ function Render-GeminiCommand([string]$targetFile, [string]$skillName, [string]$
     Write-RenderedFile $targetFile ((($lines -join "`n") + "`n") + $body + "`n\"\"\"`n")
 }
 
+function Render-AntigravityWorkflow([string]$targetFile, [string]$skillName, [string]$mode, [string]$cmdType, [string]$desc, [string]$bodyFile) {
+    $body = [System.IO.File]::ReadAllText($bodyFile, $Utf8NoBom)
+    $lines = @(
+        '---',
+        "description: $desc",
+        'type: workflow',
+        'agent: gentleman',
+        'allowed-tools:',
+        '  - Read',
+        '  - Glob',
+        '  - Bash',
+        '---',
+        '',
+        "Read the skill file at ``~/.antigravity/skills/$skillName/SKILL.md`` FIRST, then follow it exactly.",
+        '',
+        'CONTEXT:',
+        '- Working directory: !`pwd`',
+        '- Current project: !`basename "$PWD"`',
+        "- Mode: $mode",
+        "- Command type: $cmdType",
+        ''
+    )
+    Write-RenderedFile $targetFile (($lines -join "`n") + $body)
+}
+
 function Apply-OpenCode {
     # On Windows, OpenCode may store config under $env:APPDATA\opencode instead.
     # Adjust $targetDir below if needed.
@@ -342,31 +367,31 @@ function Apply-Antigravity {
     $targetDir = Join-Path $HOME '.antigravity'
     Install-Skill $targetDir 'commit-planner' $CommitSkill
     Install-Skill $targetDir 'pr-finalizer' $PrSkill
-    Render-ClaudeCommand `
+    Render-AntigravityWorkflow `
         (Join-Path $targetDir 'commands\commit-plan.md') `
         'commit-planner' `
         'plan' 'read-only' `
         'Propose a post-SDD commit plan without changing git state' `
         $PlanBody
-    Render-ClaudeCommand `
+    Render-AntigravityWorkflow `
         (Join-Path $targetDir 'commands\commit-apply.md') `
         'commit-planner' `
         'apply' 'state-changing' `
         'Execute an approved post-SDD commit plan, or generate one first if missing' `
         $ApplyBody
-    Render-ClaudeCommand `
+    Render-AntigravityWorkflow `
         (Join-Path $targetDir 'commands\commit-fast.md') `
         'commit-planner' `
         'auto' 'state-changing' `
         'Generate and execute a commit plan in one shot without approval pause' `
         $FastBody
-    Render-ClaudeCommand `
+    Render-AntigravityWorkflow `
         (Join-Path $targetDir 'commands\pr-create.md') `
         'pr-finalizer' `
         'create' 'state-changing' `
         'Draft a PR from committed changes and optionally create it after approval' `
         $PrCreateBody
-    Render-ClaudeCommand `
+    Render-AntigravityWorkflow `
         (Join-Path $targetDir 'commands\pr-regenerate.md') `
         'pr-finalizer' `
         'regenerate' 'state-changing' `
