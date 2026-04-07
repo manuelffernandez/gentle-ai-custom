@@ -4,7 +4,7 @@ Configuración custom **fuera del árbol gestionado por `gentle-ai sync`**.
 
 ## Objetivo
 
-Guardar acá el source of truth de overlays propios para OpenCode, Claude, Codex y Gemini CLI, de modo que:
+Guardar acá el source of truth de overlays propios para OpenCode, Claude, Codex, Antigravity y Gemini CLI, de modo que:
 
 - `gentle-ai sync` pueda seguir actualizando `~/.config/opencode`
 - las customizaciones no se pierdan
@@ -37,6 +37,7 @@ Los wrappers específicos de OpenCode, Claude, Codex y Gemini CLI **ya no se ver
 ## Uso
 
 **Linux / macOS:**
+
 ```bash
 bash ~/Documentos/gentle-ai-custom/inject-skills.sh opencode
 bash ~/Documentos/gentle-ai-custom/inject-skills.sh claude
@@ -50,9 +51,11 @@ bash ~/Documentos/gentle-ai-custom/inject-skills.sh all
 **Windows (PowerShell 5.1+):**
 
 > **Requisito previo — política de ejecución:** Windows bloquea la ejecución de scripts por defecto. Antes de correr el instalador, desactivá la restricción para el proceso actual:
+>
 > ```powershell
 > Set-ExecutionPolicy -Scope Process Bypass
 > ```
+>
 > Esto aplica solo a la sesión de PowerShell en curso; no modifica la política global del sistema.
 
 ```powershell
