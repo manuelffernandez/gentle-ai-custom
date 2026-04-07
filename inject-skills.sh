@@ -198,22 +198,21 @@ render_gemini_command() {
   } > "${target_file}"
 }
 
-render_antigravity_workflow() {
+render_antigravity_skill() {
   local target_file="$1"
   local skill_name="$2"
-  local mode="$3"
-  local command_type="$4"
-  local description="$5"
-  local body_file="$6"
+  local command_name="$3"
+  local mode="$4"
+  local command_type="$5"
+  local description="$6"
+  local body_file="$7"
 
   mkdir -p "$(dirname "${target_file}")"
 
   {
     printf '%s\n' '---'
+    printf 'name: %s\n' "${command_name}"
     printf 'description: %s\n' "${description}"
-    printf 'type: workflow\n'
-    printf 'agent: gentleman\n'
-    printf '%s\n' 'allowed-tools:' '  - Read' '  - Glob' '  - Bash'
     printf '%s\n' '---' ''
     printf 'Read the skill file at `~/.gemini/antigravity/skills/%s/SKILL.md` FIRST, then follow it exactly.\n\n' "${skill_name}"
     printf '%s\n' 'CONTEXT:' '- Working directory: !`pwd`' '- Current project: !`basename "$PWD"`'
@@ -283,11 +282,11 @@ apply_antigravity() {
 
   install_skill "${target_dir}" 'commit-planner' "${COMMIT_SKILL}"
   install_skill "${target_dir}" 'pr-finalizer' "${PR_SKILL}"
-  render_antigravity_workflow "${target_dir}/commands/commit-plan.md" 'commit-planner' 'plan' 'read-only' 'Propose a post-SDD commit plan without changing git state' "${PLAN_BODY}"
-  render_antigravity_workflow "${target_dir}/commands/commit-apply.md" 'commit-planner' 'apply' 'state-changing' 'Execute an approved post-SDD commit plan, or generate one first if missing' "${APPLY_BODY}"
-  render_antigravity_workflow "${target_dir}/commands/commit-fast.md" 'commit-planner' 'auto' 'state-changing' 'Generate and execute a commit plan in one shot without approval pause' "${FAST_BODY}"
-  render_antigravity_workflow "${target_dir}/commands/pr-create.md" 'pr-finalizer' 'create' 'state-changing' 'Draft a PR from committed changes and optionally create it after approval' "${PR_CREATE_BODY}"
-  render_antigravity_workflow "${target_dir}/commands/pr-regenerate.md" 'pr-finalizer' 'regenerate' 'state-changing' 'Regenerate or update an existing PR from the current committed diff after approval' "${PR_REGENERATE_BODY}"
+  render_antigravity_skill "${target_dir}/skills/commit-plan/SKILL.md" 'commit-planner' 'commit-plan' 'plan' 'read-only' 'Propose a post-SDD commit plan without changing git state' "${PLAN_BODY}"
+  render_antigravity_skill "${target_dir}/skills/commit-apply/SKILL.md" 'commit-planner' 'commit-apply' 'apply' 'state-changing' 'Execute an approved post-SDD commit plan, or generate one first if missing' "${APPLY_BODY}"
+  render_antigravity_skill "${target_dir}/skills/commit-fast/SKILL.md" 'commit-planner' 'commit-fast' 'auto' 'state-changing' 'Generate and execute a commit plan in one shot without approval pause' "${FAST_BODY}"
+  render_antigravity_skill "${target_dir}/skills/pr-create/SKILL.md" 'pr-finalizer' 'pr-create' 'create' 'state-changing' 'Draft a PR from committed changes and optionally create it after approval' "${PR_CREATE_BODY}"
+  render_antigravity_skill "${target_dir}/skills/pr-regenerate/SKILL.md" 'pr-finalizer' 'pr-regenerate' 'regenerate' 'state-changing' 'Regenerate or update an existing PR from the current committed diff after approval' "${PR_REGENERATE_BODY}"
 
   printf 'Applied Antigravity overlays -> %s\n' "${target_dir}"
 }

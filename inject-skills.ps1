@@ -188,17 +188,12 @@ function Render-GeminiCommand([string]$targetFile, [string]$skillName, [string]$
     Write-RenderedFile $targetFile ((($lines -join "`n") + "`n") + $body + "`n\"\"\"`n")
 }
 
-function Render-AntigravityWorkflow([string]$targetFile, [string]$skillName, [string]$mode, [string]$cmdType, [string]$desc, [string]$bodyFile) {
+function Render-AntigravitySkill([string]$targetFile, [string]$skillName, [string]$commandName, [string]$mode, [string]$cmdType, [string]$desc, [string]$bodyFile) {
     $body = [System.IO.File]::ReadAllText($bodyFile, $Utf8NoBom)
     $lines = @(
         '---',
+        "name: $commandName",
         "description: $desc",
-        'type: workflow',
-        'agent: gentleman',
-        'allowed-tools:',
-        '  - Read',
-        '  - Glob',
-        '  - Bash',
         '---',
         '',
         "Read the skill file at ``~/.gemini/antigravity/skills/$skillName/SKILL.md`` FIRST, then follow it exactly.",
@@ -367,33 +362,33 @@ function Apply-Antigravity {
     $targetDir = Join-Path $HOME '.gemini\antigravity'
     Install-Skill $targetDir 'commit-planner' $CommitSkill
     Install-Skill $targetDir 'pr-finalizer' $PrSkill
-    Render-AntigravityWorkflow `
-        (Join-Path $targetDir 'commands\commit-plan.md') `
-        'commit-planner' `
+    Render-AntigravitySkill `
+        (Join-Path $targetDir 'skills\commit-plan\SKILL.md') `
+        'commit-planner' 'commit-plan' `
         'plan' 'read-only' `
         'Propose a post-SDD commit plan without changing git state' `
         $PlanBody
-    Render-AntigravityWorkflow `
-        (Join-Path $targetDir 'commands\commit-apply.md') `
-        'commit-planner' `
+    Render-AntigravitySkill `
+        (Join-Path $targetDir 'skills\commit-apply\SKILL.md') `
+        'commit-planner' 'commit-apply' `
         'apply' 'state-changing' `
         'Execute an approved post-SDD commit plan, or generate one first if missing' `
         $ApplyBody
-    Render-AntigravityWorkflow `
-        (Join-Path $targetDir 'commands\commit-fast.md') `
-        'commit-planner' `
+    Render-AntigravitySkill `
+        (Join-Path $targetDir 'skills\commit-fast\SKILL.md') `
+        'commit-planner' 'commit-fast' `
         'auto' 'state-changing' `
         'Generate and execute a commit plan in one shot without approval pause' `
         $FastBody
-    Render-AntigravityWorkflow `
-        (Join-Path $targetDir 'commands\pr-create.md') `
-        'pr-finalizer' `
+    Render-AntigravitySkill `
+        (Join-Path $targetDir 'skills\pr-create\SKILL.md') `
+        'pr-finalizer' 'pr-create' `
         'create' 'state-changing' `
         'Draft a PR from committed changes and optionally create it after approval' `
         $PrCreateBody
-    Render-AntigravityWorkflow `
-        (Join-Path $targetDir 'commands\pr-regenerate.md') `
-        'pr-finalizer' `
+    Render-AntigravitySkill `
+        (Join-Path $targetDir 'skills\pr-regenerate\SKILL.md') `
+        'pr-finalizer' 'pr-regenerate' `
         'regenerate' 'state-changing' `
         'Regenerate or update an existing PR from the current committed diff after approval' `
         $PrRegenerateBody
