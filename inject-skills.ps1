@@ -201,7 +201,7 @@ function Render-AntigravityWorkflow([string]$targetFile, [string]$skillName, [st
         '  - Bash',
         '---',
         '',
-        "Read the skill file at ``~/.antigravity/skills/$skillName/SKILL.md`` FIRST, then follow it exactly.",
+        "Read the skill file at ``~/.gemini/antigravity/skills/$skillName/SKILL.md`` FIRST, then follow it exactly.",
         '',
         'CONTEXT:',
         '- Working directory: !`pwd`',
@@ -364,7 +364,7 @@ function Apply-Gemini {
 }
 
 function Apply-Antigravity {
-    $targetDir = Join-Path $HOME '.antigravity'
+    $targetDir = Join-Path $HOME '.gemini\antigravity'
     Install-Skill $targetDir 'commit-planner' $CommitSkill
     Install-Skill $targetDir 'pr-finalizer' $PrSkill
     Render-AntigravityWorkflow `

@@ -32,7 +32,7 @@ Los wrappers específicos de OpenCode, Claude, Codex y Gemini CLI **ya no se ver
 - `claude` → `~/.claude`
 - `codex` → `~/.codex`
 - `gemini` → `~/.gemini`
-- `antigravity` → `~/.antigravity`
+- `antigravity` → `~/.gemini/antigravity`
 
 ## Uso
 

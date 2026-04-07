@@ -215,7 +215,7 @@ render_antigravity_workflow() {
     printf 'agent: gentleman\n'
     printf '%s\n' 'allowed-tools:' '  - Read' '  - Glob' '  - Bash'
     printf '%s\n' '---' ''
-    printf 'Read the skill file at `~/.antigravity/skills/%s/SKILL.md` FIRST, then follow it exactly.\n\n' "${skill_name}"
+    printf 'Read the skill file at `~/.gemini/antigravity/skills/%s/SKILL.md` FIRST, then follow it exactly.\n\n' "${skill_name}"
     printf '%s\n' 'CONTEXT:' '- Working directory: !`pwd`' '- Current project: !`basename "$PWD"`'
     printf '%s\n' "- Mode: ${mode}" "- Command type: ${command_type}" ''
     cat "${body_file}"
@@ -279,7 +279,7 @@ apply_gemini() {
 }
 
 apply_antigravity() {
-  local target_dir="${HOME}/.antigravity"
+  local target_dir="${HOME}/.gemini/antigravity"
 
   install_skill "${target_dir}" 'commit-planner' "${COMMIT_SKILL}"
   install_skill "${target_dir}" 'pr-finalizer' "${PR_SKILL}"

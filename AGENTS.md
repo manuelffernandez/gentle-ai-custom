@@ -97,7 +97,7 @@ Agent-specific wrappers (OpenCode commands, Claude commands, Codex prompts, Gemi
 | `claude` | `~/.claude/skills/` | `~/.claude/commands/` |
 | `codex` | `~/.codex/skills/` | `~/.codex/prompts/` |
 | `gemini` | `~/.gemini/skills/` | `~/.gemini/commands/*.toml` |
-| `antigravity` | `~/.antigravity/skills/` | `~/.antigravity/commands/` |
+| `antigravity` | `~/.gemini/antigravity/skills/` | `~/.gemini/antigravity/commands/` |
 
 ---
 
