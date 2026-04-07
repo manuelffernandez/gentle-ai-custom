@@ -18,18 +18,19 @@ $FastBody    = Join-Path $SharedDir 'commands\commit-fast-body.md'
 $PrCreateBody = Join-Path $SharedDir 'commands\pr-create-body.md'
 $PrRegenerateBody = Join-Path $SharedDir 'commands\pr-regenerate-body.md'
 
-$SupportedTargets = @('opencode', 'claude', 'codex', 'gemini')
+$SupportedTargets = @('opencode', 'claude', 'codex', 'gemini', 'antigravity')
 
 # UTF-8 without BOM — consistent with the bash script output
 $Utf8NoBom = New-Object System.Text.UTF8Encoding $false
 
 function Show-Usage {
     $name = [System.IO.Path]::GetFileName($PSCommandPath)
-    Write-Host "Usage: $name all | [opencode|claude|codex|gemini ...]"
+    Write-Host "Usage: $name all | [opencode|claude|codex|gemini|antigravity ...]"
     Write-Host 'Examples:'
     Write-Host "  $name opencode"
     Write-Host "  $name claude codex"
     Write-Host "  $name gemini"
+    Write-Host "  $name antigravity"
     Write-Host "  $name all"
 }
 
@@ -337,6 +338,43 @@ function Apply-Gemini {
     Write-Host "Applied Gemini overlays -> $targetDir"
 }
 
+function Apply-Antigravity {
+    $targetDir = Join-Path $HOME '.antigravity'
+    Install-Skill $targetDir 'commit-planner' $CommitSkill
+    Install-Skill $targetDir 'pr-finalizer' $PrSkill
+    Render-ClaudeCommand `
+        (Join-Path $targetDir 'commands\commit-plan.md') `
+        'commit-planner' `
+        'plan' 'read-only' `
+        'Propose a post-SDD commit plan without changing git state' `
+        $PlanBody
+    Render-ClaudeCommand `
+        (Join-Path $targetDir 'commands\commit-apply.md') `
+        'commit-planner' `
+        'apply' 'state-changing' `
+        'Execute an approved post-SDD commit plan, or generate one first if missing' `
+        $ApplyBody
+    Render-ClaudeCommand `
+        (Join-Path $targetDir 'commands\commit-fast.md') `
+        'commit-planner' `
+        'auto' 'state-changing' `
+        'Generate and execute a commit plan in one shot without approval pause' `
+        $FastBody
+    Render-ClaudeCommand `
+        (Join-Path $targetDir 'commands\pr-create.md') `
+        'pr-finalizer' `
+        'create' 'state-changing' `
+        'Draft a PR from committed changes and optionally create it after approval' `
+        $PrCreateBody
+    Render-ClaudeCommand `
+        (Join-Path $targetDir 'commands\pr-regenerate.md') `
+        'pr-finalizer' `
+        'regenerate' 'state-changing' `
+        'Regenerate or update an existing PR from the current committed diff after approval' `
+        $PrRegenerateBody
+    Write-Host "Applied Antigravity overlays -> $targetDir"
+}
+
 # --- Main ---
 
 $resolvedTargets = Resolve-Targets $Targets
@@ -348,6 +386,7 @@ foreach ($target in $resolvedTargets) {
         'claude'   { Apply-Claude }
         'codex'    { Apply-Codex }
         'gemini'   { Apply-Gemini }
+        'antigravity' { Apply-Antigravity }
     }
 }
 

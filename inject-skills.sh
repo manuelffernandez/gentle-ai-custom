@@ -10,7 +10,7 @@ APPLY_BODY="${SHARED_DIR}/commands/commit-apply-body.md"
 FAST_BODY="${SHARED_DIR}/commands/commit-fast-body.md"
 PR_CREATE_BODY="${SHARED_DIR}/commands/pr-create-body.md"
 PR_REGENERATE_BODY="${SHARED_DIR}/commands/pr-regenerate-body.md"
-SUPPORTED_TARGETS="opencode claude codex gemini"
+SUPPORTED_TARGETS="opencode claude codex gemini antigravity"
 
 usage() {
   local script_name
@@ -21,6 +21,7 @@ usage() {
   printf '  %s opencode\n' "${script_name}"
   printf '  %s claude codex\n' "${script_name}"
   printf '  %s gemini\n' "${script_name}"
+  printf '  %s antigravity\n' "${script_name}"
   printf '  %s all\n' "${script_name}"
 }
 
@@ -47,7 +48,7 @@ validate_sources() {
 
 is_supported_target() {
   case "$1" in
-    opencode|claude|codex|gemini)
+    opencode|claude|codex|gemini|antigravity)
       return 0
       ;;
     *)
@@ -73,7 +74,7 @@ normalize_targets() {
   fi
 
   if [ "$#" -eq 1 ] && [ "$1" = "all" ]; then
-    printf '%s\n' opencode claude codex gemini
+    printf '%s\n' opencode claude codex gemini antigravity
     return 0
   fi
 
@@ -253,6 +254,20 @@ apply_gemini() {
   printf 'Applied Gemini overlays -> %s\n' "${target_dir}"
 }
 
+apply_antigravity() {
+  local target_dir="${HOME}/.antigravity"
+
+  install_skill "${target_dir}" 'commit-planner' "${COMMIT_SKILL}"
+  install_skill "${target_dir}" 'pr-finalizer' "${PR_SKILL}"
+  render_claude_command "${target_dir}/commands/commit-plan.md" 'commit-planner' 'plan' 'read-only' 'Propose a post-SDD commit plan without changing git state' "${PLAN_BODY}"
+  render_claude_command "${target_dir}/commands/commit-apply.md" 'commit-planner' 'apply' 'state-changing' 'Execute an approved post-SDD commit plan, or generate one first if missing' "${APPLY_BODY}"
+  render_claude_command "${target_dir}/commands/commit-fast.md" 'commit-planner' 'auto' 'state-changing' 'Generate and execute a commit plan in one shot without approval pause' "${FAST_BODY}"
+  render_claude_command "${target_dir}/commands/pr-create.md" 'pr-finalizer' 'create' 'state-changing' 'Draft a PR from committed changes and optionally create it after approval' "${PR_CREATE_BODY}"
+  render_claude_command "${target_dir}/commands/pr-regenerate.md" 'pr-finalizer' 'regenerate' 'state-changing' 'Regenerate or update an existing PR from the current committed diff after approval' "${PR_REGENERATE_BODY}"
+
+  printf 'Applied Antigravity overlays -> %s\n' "${target_dir}"
+}
+
 _targets_raw=$(normalize_targets "$@") || exit $?
 [ -z "${_targets_raw}" ] && exit 0
 mapfile -t TARGETS <<< "${_targets_raw}"
@@ -271,6 +286,9 @@ for target in "${TARGETS[@]}"; do
       ;;
     gemini)
       apply_gemini
+      ;;
+    antigravity)
+      apply_antigravity
       ;;
   esac
 done

@@ -32,6 +32,7 @@ Los wrappers específicos de OpenCode, Claude, Codex y Gemini CLI **ya no se ver
 - `claude` → `~/.claude`
 - `codex` → `~/.codex`
 - `gemini` → `~/.gemini`
+- `antigravity` → `~/.antigravity`
 
 ## Uso
 
@@ -41,7 +42,8 @@ bash ~/Documentos/gentle-ai-custom/inject-skills.sh opencode
 bash ~/Documentos/gentle-ai-custom/inject-skills.sh claude
 bash ~/Documentos/gentle-ai-custom/inject-skills.sh codex
 bash ~/Documentos/gentle-ai-custom/inject-skills.sh gemini
-bash ~/Documentos/gentle-ai-custom/inject-skills.sh claude codex gemini
+bash ~/Documentos/gentle-ai-custom/inject-skills.sh antigravity
+bash ~/Documentos/gentle-ai-custom/inject-skills.sh claude codex gemini antigravity
 bash ~/Documentos/gentle-ai-custom/inject-skills.sh all
 ```
 
@@ -58,7 +60,8 @@ bash ~/Documentos/gentle-ai-custom/inject-skills.sh all
 .\inject-skills.ps1 claude
 .\inject-skills.ps1 codex
 .\inject-skills.ps1 gemini
-.\inject-skills.ps1 claude codex gemini
+.\inject-skills.ps1 antigravity
+.\inject-skills.ps1 claude codex gemini antigravity
 .\inject-skills.ps1 all
 ```
 
