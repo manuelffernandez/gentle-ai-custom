@@ -185,7 +185,7 @@ function Render-GeminiCommand([string]$targetFile, [string]$skillName, [string]$
         "- Command type: $cmdType",
         ''
     )
-    Write-RenderedFile $targetFile ((($lines -join "`n") + "`n") + $body + "`n\"\"\"`n")
+    Write-RenderedFile $targetFile ((($lines -join "`n") + "`n") + $body + "`n" + '"""' + "`n")
 }
 
 function Render-AntigravitySkill([string]$targetFile, [string]$skillName, [string]$commandName, [string]$mode, [string]$cmdType, [string]$desc, [string]$bodyFile) {
