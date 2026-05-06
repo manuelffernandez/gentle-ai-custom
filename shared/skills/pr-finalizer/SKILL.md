@@ -8,7 +8,7 @@ description: >
 license: Apache-2.0
 metadata:
   author: manuelfernandez
-  version: "1.2"
+  version: "1.3"
 ---
 
 ## When to Use
@@ -57,8 +57,8 @@ This skill does **not** define or enforce repository governance. In particular, 
    - `origin` when it exists and is usable
    - if `origin` is unavailable, ask the user to choose from the available remotes
 8. **Read-only remote refresh is automatic**. Run `git fetch <remote>` without asking for approval so the skill can work from fresh remote-tracking refs.
-9. **State-changing commands require explicit approval**. This includes `git push`, `gh pr create`, and `gh pr edit`. Temporary file writes do NOT require approval — write them silently and report the absolute path.
-10. **If remote branch state is stale or missing**, stop and request push approval before PR creation or update.
+9. **Sync gate comes before content generation**. If the remote head branch is missing or stale, stop and request approval for `git push -u <remote> HEAD` before generating the PR title/body.
+10. **The only explicit approval in the happy path is the generated content**. After the user approves the proposed title and body, create or update the PR automatically; do not add a second approval checkpoint for `gh pr create` or `gh pr edit`.
 11. **If `gh` is unavailable or unauthenticated**, return copy-paste-ready PR content and stop without pretending the PR was created or updated.
 12. **Do not mention branch names in the PR description body** unless the repository template explicitly requires them.
 13. **Do not propose commit messages** as part of this skill.
@@ -148,7 +148,7 @@ Apply these rules strictly:
 
 ## Phase 1 — Generate Committed Diff
 
-Before generating the committed diff, run `git fetch <remote>` automatically to refresh remote-tracking refs. The diff file write does not require approval — write it silently and report the absolute path:
+Before generating the committed diff, run `git fetch <remote>` automatically to refresh remote-tracking refs. If the remote head branch is missing or stale, stop and request approval for `git push -u <remote> HEAD` before continuing. The diff file write does not require approval — write it silently and report the absolute path:
 
 ```bash
 git fetch <remote>
@@ -185,10 +185,8 @@ If output is truncated, read the diff file from disk and treat it as the source 
 
 Follow this loop exactly:
 
-1. Generate a proposed PR title and PR body.
-2. Return both in copy-paste-ready form plus an explicit approval prompt.
-3. If the user rejects the proposal, incorporate feedback without violating diff evidence constraints and repeat.
-4. After approval, verify whether the remote head branch reflects local `HEAD` with read-only checks such as:
+1. Refresh remote refs with `git fetch <remote>`.
+2. Verify the remote head branch with read-only checks such as:
 
 ```bash
 git ls-remote --heads <remote> <head-branch>
@@ -197,41 +195,42 @@ git rev-parse --verify HEAD
 git rev-list --left-right --count <remote>/<head-branch>...HEAD
 ```
 
-5. If the remote branch is missing or stale, stop and request approval for:
+3. If the remote branch is missing or stale, stop and request approval for:
 
 ```bash
 git push -u <remote> HEAD
 ```
 
-6. Only continue to GitHub CLI actions after the remote branch state is current enough for the requested PR action.
+4. Only after the remote branch is current enough, generate a proposed PR title and PR body.
+5. Return both in copy-paste-ready form plus an explicit approval prompt for the content only.
+6. If the user rejects the proposal, incorporate feedback without violating diff evidence constraints and repeat.
+7. After the user approves the generated content, continue automatically to GitHub CLI actions.
 
 ## PR Creation via CLI (`create` mode)
 
 After the user approves the generated content:
 
 1. Write the body to `<body-output-path>` without requesting approval. Report the absolute path used.
-2. Request approval for running `gh pr create`.
-3. Run:
+2. Run automatically:
 
 ```bash
 gh pr create --base <base-branch> --head <head-branch> --title "<title>" --body-file <body-output-path>
 ```
 
-4. If remotes map to a different repository than the current default, resolve `owner/repo` from the remote URL and use `--repo owner/repo`.
+3. If remotes map to a different repository than the current default, resolve `owner/repo` from the remote URL and use `--repo owner/repo`.
 
 ## PR Update via CLI (`regenerate` mode)
 
 After the user approves the regenerated content:
 
 1. Write the body to `<body-output-path>` without requesting approval. Report the absolute path used.
-2. Request approval for running `gh pr edit`.
-3. Run:
+2. Run automatically:
 
 ```bash
 gh pr edit <pr-number> --title "<title>" --body-file <body-output-path>
 ```
 
-4. If remotes map to a different repository than the current default, resolve `owner/repo` from the remote URL and use `--repo owner/repo`.
+3. If remotes map to a different repository than the current default, resolve `owner/repo` from the remote URL and use `--repo owner/repo`.
 
 ## Output Requirements
 
@@ -240,7 +239,7 @@ When presenting content:
 - show the PR title clearly
 - show the PR body clearly in copy-paste-ready Markdown
 - say whether the output is for `create` or `regenerate`
-- make approval boundaries explicit for temp-file writes, pushes, and GitHub CLI commands
+- make approval boundaries explicit for temp-file writes, pushes, and the content approval prompt only
 
 ## Safety and Edge Cases
 
