@@ -8,7 +8,7 @@ description: >
 license: Apache-2.0
 metadata:
   author: manuelfernandez
-  version: "1.1"
+  version: "1.2"
 ---
 
 ## When to Use
@@ -56,12 +56,13 @@ This skill does **not** define or enforce repository governance. In particular, 
    - explicit user input
    - `origin` when it exists and is usable
    - if `origin` is unavailable, ask the user to choose from the available remotes
-8. **State-changing commands require explicit approval**. This includes `git fetch`, `git push`, `gh pr create`, and `gh pr edit`. Temporary file writes do NOT require approval — write them silently and report the absolute path.
-9. **If remote branch state is stale**, stop and request push approval before PR creation or update.
-10. **If `gh` is unavailable or unauthenticated**, return copy-paste-ready PR content and stop without pretending the PR was created or updated.
-11. **Do not mention branch names in the PR description body** unless the repository template explicitly requires them.
-12. **Do not propose commit messages** as part of this skill.
-13. **Use temporary artifacts outside the repository by default**, for example `${TMPDIR:-/tmp}/pr-diff.txt` and `${TMPDIR:-/tmp}/pr-body.md`. After writing any temporary file, report the absolute path used — do not ask for approval.
+8. **Read-only remote refresh is automatic**. Run `git fetch <remote>` without asking for approval so the skill can work from fresh remote-tracking refs.
+9. **State-changing commands require explicit approval**. This includes `git push`, `gh pr create`, and `gh pr edit`. Temporary file writes do NOT require approval — write them silently and report the absolute path.
+10. **If remote branch state is stale or missing**, stop and request push approval before PR creation or update.
+11. **If `gh` is unavailable or unauthenticated**, return copy-paste-ready PR content and stop without pretending the PR was created or updated.
+12. **Do not mention branch names in the PR description body** unless the repository template explicitly requires them.
+13. **Do not propose commit messages** as part of this skill.
+14. **Use temporary artifacts outside the repository by default**, for example `${TMPDIR:-/tmp}/pr-diff.txt` and `${TMPDIR:-/tmp}/pr-body.md`. After writing any temporary file, report the absolute path used — do not ask for approval.
 
 ## Supported Inputs
 
@@ -84,6 +85,7 @@ git remote -v
 git rev-parse --abbrev-ref HEAD
 git status -sb
 git remote get-url <remote>
+git ls-remote --heads <remote> <head-branch>
 gh --version
 gh auth status
 ```
@@ -146,10 +148,10 @@ Apply these rules strictly:
 
 ## Phase 1 — Generate Committed Diff
 
-Before generating the committed diff, request one approval checkpoint for `git fetch` because it updates remote-tracking refs. The diff file write does not require approval — write it silently and report the absolute path:
+Before generating the committed diff, run `git fetch <remote>` automatically to refresh remote-tracking refs. The diff file write does not require approval — write it silently and report the absolute path:
 
 ```bash
-git fetch --all --prune
+git fetch <remote>
 git diff <remote>/<base-branch>...<head-branch> > <diff-output-path>
 ```
 
@@ -189,9 +191,9 @@ Follow this loop exactly:
 4. After approval, verify whether the remote head branch reflects local `HEAD` with read-only checks such as:
 
 ```bash
+git ls-remote --heads <remote> <head-branch>
 git rev-parse --abbrev-ref HEAD
 git rev-parse --verify HEAD
-git rev-parse --verify <remote>/<head-branch>
 git rev-list --left-right --count <remote>/<head-branch>...HEAD
 ```
 
@@ -243,6 +245,7 @@ When presenting content:
 ## Safety and Edge Cases
 
 - If the repository has uncommitted changes, warn that PR content excludes them because committed diff is the source of truth.
+- If the remote head branch does not exist according to `git ls-remote --heads`, stop and request push approval before creating or updating the PR.
 - If repository policy requirements appear to be missing (for example issue linkage or labels), warn about the gap when evidenced by templates/docs, but do not fabricate compliance.
 - If `<remote>/<base-branch>` does not exist, stop and ask the user to confirm the remote/base branch pair.
 - If `regenerate` mode cannot resolve PR metadata and the user did not provide enough information, ask only for the missing minimum input.

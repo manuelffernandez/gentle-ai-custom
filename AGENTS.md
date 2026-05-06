@@ -83,7 +83,7 @@ Agent-specific wrappers (OpenCode commands, Claude commands, Codex prompts, Gemi
 ### `pr-finalizer`
 
 - **Source**: `shared/skills/pr-finalizer/SKILL.md`
-- **Purpose**: generate or regenerate PR content from the committed diff; create or update the PR on GitHub after explicit approval.
+- **Purpose**: generate or regenerate PR content from the committed diff; refresh remote refs automatically, validate remote head state read-only, and create or update the PR on GitHub after explicit approval.
 - **Modes**: `create`, `regenerate`
 - **Exposed commands**: `/pr-create`, `/pr-regenerate`
 
