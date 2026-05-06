@@ -67,7 +67,7 @@ gentle-ai-custom/
 └── README.md                      # Usage documentation for humans (Spanish)
 ```
 
-Agent-specific wrappers (OpenCode commands, Claude commands, Codex prompts, Gemini command TOML files, Antigravity command skills) are **not versioned** in this repo. They are generated at install time from the sources in `shared/`.
+Agent-specific wrappers (OpenCode commands, Claude commands, Codex prompts, Gemini command skills, Antigravity command skills) are **not versioned** in this repo. They are generated at install time from the sources in `shared/`.
 
 ---
 
@@ -96,7 +96,7 @@ Agent-specific wrappers (OpenCode commands, Claude commands, Codex prompts, Gemi
 | `opencode` | `~/.config/opencode/skills/` | `~/.config/opencode/commands/` |
 | `claude` | `~/.claude/skills/` | `~/.claude/commands/` |
 | `codex` | `~/.codex/skills/` | `~/.codex/prompts/` |
-| `gemini` | `~/.gemini/skills/` | `~/.gemini/commands/*.toml` |
+| `gemini` | `~/.gemini/skills/` | `~/.gemini/skills/<command-name>/` (skill entries) |
 | `antigravity` | `~/.gemini/antigravity/skills/` | `~/.gemini/antigravity/skills/<command-name>/` (skill entries) |
 
 ---

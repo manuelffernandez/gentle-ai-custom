@@ -167,7 +167,7 @@ Si más adelante querés reintroducir auto-load por contexto, conviene hacerlo c
    - OpenCode → `~/.config/opencode/commands/*.md`
    - Claude → `~/.claude/commands/*.md`
    - Codex → `~/.codex/prompts/*.md`
-   - Gemini CLI → `~/.gemini/commands/*.toml`
+   - Gemini CLI → `~/.gemini/skills/*/SKILL.md`
 4. Las skills se copian desde la misma fuente compartida a `skills/<skill-name>/SKILL.md` en cada target.
 
 Esto mantiene el workflow manual post-sync, elimina duplicación authored y deja las diferencias por agente encapsuladas en el instalador.

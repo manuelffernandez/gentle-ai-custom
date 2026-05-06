@@ -171,21 +171,24 @@ function Render-CodexPrompt([string]$targetFile, [string]$skillName, [string]$mo
     Write-RenderedFile $targetFile (($lines -join "`n") + $body)
 }
 
-function Render-GeminiCommand([string]$targetFile, [string]$skillName, [string]$mode, [string]$cmdType, [string]$desc, [string]$bodyFile) {
+function Render-GeminiSkill([string]$targetFile, [string]$skillName, [string]$commandName, [string]$mode, [string]$cmdType, [string]$desc, [string]$bodyFile) {
     $body = [System.IO.File]::ReadAllText($bodyFile, $Utf8NoBom)
     $lines = @(
-        "description = `"$desc`"",
-        'prompt = """',
+        '---',
+        "name: $commandName",
+        "description: $desc",
+        '---',
+        '',
         "Read the skill file at ``~/.gemini/skills/$skillName/SKILL.md`` FIRST, then follow it exactly.",
         '',
         'CONTEXT:',
-        '- Working directory: !{pwd}',
-        '- Current project: !{basename "$PWD"}',
+        '- Working directory: !`pwd`',
+        '- Current project: !`basename "$PWD"`',
         "- Mode: $mode",
         "- Command type: $cmdType",
         ''
     )
-    Write-RenderedFile $targetFile ((($lines -join "`n") + "`n") + $body + "`n" + '"""' + "`n")
+    Write-RenderedFile $targetFile (($lines -join "`n") + $body)
 }
 
 function Render-AntigravitySkill([string]$targetFile, [string]$skillName, [string]$commandName, [string]$mode, [string]$cmdType, [string]$desc, [string]$bodyFile) {
@@ -325,33 +328,33 @@ function Apply-Gemini {
     $targetDir = Join-Path $HOME '.gemini'
     Install-Skill $targetDir 'commit-planner' $CommitSkill
     Install-Skill $targetDir 'pr-finalizer' $PrSkill
-    Render-GeminiCommand `
-        (Join-Path $targetDir 'commands\commit-plan.toml') `
-        'commit-planner' `
+    Render-GeminiSkill `
+        (Join-Path $targetDir 'skills\commit-plan\SKILL.md') `
+        'commit-planner' 'commit-plan' `
         'plan' 'read-only' `
         'Propose a post-SDD commit plan without changing git state' `
         $PlanBody
-    Render-GeminiCommand `
-        (Join-Path $targetDir 'commands\commit-apply.toml') `
-        'commit-planner' `
+    Render-GeminiSkill `
+        (Join-Path $targetDir 'skills\commit-apply\SKILL.md') `
+        'commit-planner' 'commit-apply' `
         'apply' 'state-changing' `
         'Execute an approved post-SDD commit plan, or generate one first if missing' `
         $ApplyBody
-    Render-GeminiCommand `
-        (Join-Path $targetDir 'commands\commit-fast.toml') `
-        'commit-planner' `
+    Render-GeminiSkill `
+        (Join-Path $targetDir 'skills\commit-fast\SKILL.md') `
+        'commit-planner' 'commit-fast' `
         'auto' 'state-changing' `
         'Generate and execute a commit plan in one shot without approval pause' `
         $FastBody
-    Render-GeminiCommand `
-        (Join-Path $targetDir 'commands\pr-create.toml') `
-        'pr-finalizer' `
+    Render-GeminiSkill `
+        (Join-Path $targetDir 'skills\pr-create\SKILL.md') `
+        'pr-finalizer' 'pr-create' `
         'create' 'state-changing' `
         'Draft a PR from committed changes and optionally create it after approval' `
         $PrCreateBody
-    Render-GeminiCommand `
-        (Join-Path $targetDir 'commands\pr-regenerate.toml') `
-        'pr-finalizer' `
+    Render-GeminiSkill `
+        (Join-Path $targetDir 'skills\pr-regenerate\SKILL.md') `
+        'pr-finalizer' 'pr-regenerate' `
         'regenerate' 'state-changing' `
         'Regenerate or update an existing PR from the current committed diff after approval' `
         $PrRegenerateBody

@@ -177,24 +177,26 @@ render_codex_prompt() {
   } > "${target_file}"
 }
 
-render_gemini_command() {
+render_gemini_skill() {
   local target_file="$1"
   local skill_name="$2"
-  local mode="$3"
-  local command_type="$4"
-  local description="$5"
-  local body_file="$6"
+  local command_name="$3"
+  local mode="$4"
+  local command_type="$5"
+  local description="$6"
+  local body_file="$7"
 
   mkdir -p "$(dirname "${target_file}")"
 
   {
-    printf 'description = "%s"\n' "${description}"
-    printf '%s\n' 'prompt = """'
+    printf '%s\n' '---'
+    printf 'name: %s\n' "${command_name}"
+    printf 'description: %s\n' "${description}"
+    printf '%s\n' '---' ''
     printf 'Read the skill file at `~/.gemini/skills/%s/SKILL.md` FIRST, then follow it exactly.\n\n' "${skill_name}"
-    printf '%s\n' 'CONTEXT:' '- Working directory: !{pwd}' '- Current project: !{basename "$PWD"}'
+    printf '%s\n' 'CONTEXT:' '- Working directory: !`pwd`' '- Current project: !`basename "$PWD"`'
     printf '%s\n' "- Mode: ${mode}" "- Command type: ${command_type}" ''
     cat "${body_file}"
-    printf '\n%s\n' '"""'
   } > "${target_file}"
 }
 
@@ -268,11 +270,11 @@ apply_gemini() {
 
   install_skill "${target_dir}" 'commit-planner' "${COMMIT_SKILL}"
   install_skill "${target_dir}" 'pr-finalizer' "${PR_SKILL}"
-  render_gemini_command "${target_dir}/commands/commit-plan.toml" 'commit-planner' 'plan' 'read-only' 'Propose a post-SDD commit plan without changing git state' "${PLAN_BODY}"
-  render_gemini_command "${target_dir}/commands/commit-apply.toml" 'commit-planner' 'apply' 'state-changing' 'Execute an approved post-SDD commit plan, or generate one first if missing' "${APPLY_BODY}"
-  render_gemini_command "${target_dir}/commands/commit-fast.toml" 'commit-planner' 'auto' 'state-changing' 'Generate and execute a commit plan in one shot without approval pause' "${FAST_BODY}"
-  render_gemini_command "${target_dir}/commands/pr-create.toml" 'pr-finalizer' 'create' 'state-changing' 'Draft a PR from committed changes and optionally create it after approval' "${PR_CREATE_BODY}"
-  render_gemini_command "${target_dir}/commands/pr-regenerate.toml" 'pr-finalizer' 'regenerate' 'state-changing' 'Regenerate or update an existing PR from the current committed diff after approval' "${PR_REGENERATE_BODY}"
+  render_gemini_skill "${target_dir}/skills/commit-plan/SKILL.md" 'commit-planner' 'commit-plan' 'plan' 'read-only' 'Propose a post-SDD commit plan without changing git state' "${PLAN_BODY}"
+  render_gemini_skill "${target_dir}/skills/commit-apply/SKILL.md" 'commit-planner' 'commit-apply' 'apply' 'state-changing' 'Execute an approved post-SDD commit plan, or generate one first if missing' "${APPLY_BODY}"
+  render_gemini_skill "${target_dir}/skills/commit-fast/SKILL.md" 'commit-planner' 'commit-fast' 'auto' 'state-changing' 'Generate and execute a commit plan in one shot without approval pause' "${FAST_BODY}"
+  render_gemini_skill "${target_dir}/skills/pr-create/SKILL.md" 'pr-finalizer' 'pr-create' 'create' 'state-changing' 'Draft a PR from committed changes and optionally create it after approval' "${PR_CREATE_BODY}"
+  render_gemini_skill "${target_dir}/skills/pr-regenerate/SKILL.md" 'pr-finalizer' 'pr-regenerate' 'regenerate' 'state-changing' 'Regenerate or update an existing PR from the current committed diff after approval' "${PR_REGENERATE_BODY}"
 
   printf 'Applied Gemini overlays -> %s\n' "${target_dir}"
 }
