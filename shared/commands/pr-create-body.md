@@ -2,7 +2,8 @@ TASK:
 Draft a pull request from committed changes and, if approved, create it with GitHub CLI.
 
 Rules for this command:
-- This command is **state-changing**: never assume approval for `git fetch`, `git push`, temp artifact writes, or `gh pr create`
+- This command is **state-changing**: the only explicit approval checkpoint is the generated PR content; once the user approves title/body, continue automatically unless a real blocker requires human input
+- Do not add a second approval prompt for `git fetch`, temp artifact writes, or `gh pr create`
 - Use the committed net diff as the only factual source of truth
 - Treat repo governance (issue linkage, labels, branch naming, merge policy) as external policy handled by the repo, CI, or companion skills such as `branch-pr`
 - Detect repository PR conventions first; if none exist, fall back to a generic English Markdown PR template

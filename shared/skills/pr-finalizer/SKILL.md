@@ -204,7 +204,7 @@ git push -u <remote> HEAD
 4. Only after the remote branch is current enough, generate a proposed PR title and PR body.
 5. Return both in copy-paste-ready form plus an explicit approval prompt for the content only.
 6. If the user rejects the proposal, incorporate feedback without violating diff evidence constraints and repeat.
-7. After the user approves the generated content, continue automatically to GitHub CLI actions.
+7. After the user approves the generated content, continue automatically to GitHub CLI actions; do not ask for a second approval checkpoint.
 
 ## PR Creation via CLI (`create` mode)
 
@@ -239,7 +239,7 @@ When presenting content:
 - show the PR title clearly
 - show the PR body clearly in copy-paste-ready Markdown
 - say whether the output is for `create` or `regenerate`
-- make approval boundaries explicit for temp-file writes, pushes, and the content approval prompt only
+ - make approval boundaries explicit for pushes and the content approval prompt only; temp-file writes and GitHub CLI execution happen automatically after content approval
 
 ## Safety and Edge Cases
 

@@ -128,7 +128,7 @@ Los siguientes comandos se instalan en cada agente durante la ejecución del ins
 
 ### `/pr-create`
 
-**Qué hace**: genera título y body de PR a partir del diff comprometido de la rama actual, refresca refs remotas con `git fetch` de forma automática y verifica el head remoto con comandos read-only antes de generar el contenido. Respeta la plantilla del repositorio (`.github/PULL_REQUEST_TEMPLATE.md`, `CONTRIBUTING.md`, etc.) o usa una estructura genérica como fallback. Tras aprobar el contenido, crea la PR en GitHub sin pedir una segunda confirmación.
+**Qué hace**: genera título y body de PR a partir del diff comprometido de la rama actual, refresca refs remotas con `git fetch` de forma automática y verifica el head remoto con comandos read-only antes de generar el contenido. Respeta la plantilla del repositorio (`.github/PULL_REQUEST_TEMPLATE.md`, `CONTRIBUTING.md`, etc.) o usa una estructura genérica como fallback. La única pausa normal es la aprobación del contenido; después de eso, crea la PR en GitHub sin pedir una segunda confirmación.
 
 **Intención**: producir contenido de PR preciso basado solo en lo que está comprometido, sin inventar cambios ni reutilizar borradores anteriores, con una sola aprobación visible en el flujo normal.
 
@@ -138,7 +138,7 @@ Los siguientes comandos se instalan en cada agente durante la ejecución del ins
 
 ### `/pr-regenerate`
 
-**Qué hace**: regenera desde cero el título y body de una PR existente, usando el diff comprometido actual como única fuente de verdad, refrescando refs remotas con `git fetch` y validando el head remoto antes de editar. No reutiliza el contenido anterior de la PR. Tras aprobar el contenido, actualiza la PR en GitHub sin pedir una segunda confirmación.
+**Qué hace**: regenera desde cero el título y body de una PR existente, usando el diff comprometido actual como única fuente de verdad, refrescando refs remotas con `git fetch` y validando el head remoto antes de editar. No reutiliza el contenido anterior de la PR. La única pausa normal es la aprobación del contenido; después de eso, actualiza la PR en GitHub sin pedir una segunda confirmación.
 
 **Intención**: mantener la PR sincronizada con el estado real de la rama después de nuevos commits o rebase, con menos fricción operativa y una sola decisión del usuario.
 
