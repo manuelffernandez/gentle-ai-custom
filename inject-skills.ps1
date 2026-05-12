@@ -97,7 +97,6 @@ function Render-OpenCodeCommand([string]$targetFile, [string]$skillName, [string
     $lines = @(
         '---',
         "description: $desc",
-        'agent: gentleman',
         '---',
         '',
         "Read the skill file at ``~/.config/opencode/skills/$skillName/SKILL.md`` FIRST, then follow it exactly.",

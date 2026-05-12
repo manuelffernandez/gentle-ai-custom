@@ -80,6 +80,8 @@ Agent-specific wrappers (OpenCode commands, Claude commands, Codex prompts, Gemi
 - **Modes**: `plan` (read-only), `apply` (requires approval), `auto` (executes without approval pause).
 - **Exposed commands**: `/commit-plan`, `/commit-apply`, `/commit-fast`
 
+> Nota OpenCode: los wrappers generados para `/commit-plan`, `/commit-apply` y `/commit-fast` no fijan `agent:` en el frontmatter; dependen del agente por defecto del entorno.
+
 ### `pr-finalizer`
 
 - **Source**: `shared/skills/pr-finalizer/SKILL.md`

@@ -123,7 +123,7 @@ render_opencode_command() {
   {
     printf '%s\n' '---'
     printf 'description: %s\n' "${description}"
-    printf '%s\n' 'agent: gentleman' '---' ''
+    printf '%s\n' '---' ''
     printf 'Read the skill file at `~/.config/opencode/skills/%s/SKILL.md` FIRST, then follow it exactly.\n\n' "${skill_name}"
     printf '%s\n' 'CONTEXT:' '- Working directory: !`echo -n "$(pwd)"`' '- Current project: !`echo -n "$(basename "$(pwd)")"`'
     printf '%s\n' "- Mode: ${mode}" "- Command type: ${command_type}" ''

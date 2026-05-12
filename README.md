@@ -120,6 +120,8 @@ Los siguientes comandos se instalan en cada agente durante la ejecución del ins
 
 **Qué hace**: genera el plan de commits y lo ejecuta inmediatamente sin pausar para aprobación. Muestra el plan antes de ejecutar (para auditoría), pero no espera confirmación. Se detiene si encuentra un blocker real: mismo archivo en múltiples commits, posible secreto, cambios no relacionados que no puede separar limpiamente, o fallo en algún `git commit`.
 
+**Nota OpenCode**: el wrapper generado ya no fija `agent:` en el frontmatter; usa la resolución de agente por defecto del entorno.
+
 **Intención**: velocidad cuando confiás en el agente. Un solo paso en lugar de dos.
 
 **Cuándo usarlo**: cambios chicos y claros donde no necesitás revisar el plan antes de que se aplique.
