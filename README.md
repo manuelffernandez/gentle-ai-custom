@@ -130,11 +130,11 @@ Los siguientes comandos se instalan en cada agente durante la ejecución del ins
 
 ### `/pr-create`
 
-**Qué hace**: genera título y body de PR a partir del diff comprometido de la rama actual, refresca refs remotas con `git fetch` de forma automática y verifica el head remoto con comandos read-only antes de generar el contenido. Respeta la plantilla del repositorio (`.github/PULL_REQUEST_TEMPLATE.md`, `CONTRIBUTING.md`, etc.) o usa una estructura genérica como fallback. La única pausa normal es la aprobación del contenido; después de eso, crea la PR en GitHub sin pedir una segunda confirmación.
+**Qué hace**: genera título y body de PR a partir del diff comprometido de la rama actual, refresca refs remotas con `git fetch` de forma automática y verifica el head remoto con comandos read-only antes de generar el contenido. Para detectar PRs existentes, consulta solo PRs abiertas de la misma rama head y, cuando ya está resuelta, exige coincidencia también en la base. PRs cerradas o mergeadas no bloquean la creación. Respeta la plantilla del repositorio (`.github/PULL_REQUEST_TEMPLATE.md`, `CONTRIBUTING.md`, etc.) o usa una estructura genérica como fallback. La única pausa normal es la aprobación del contenido; después de eso, crea la PR en GitHub sin pedir una segunda confirmación.
 
 **Intención**: producir contenido de PR preciso basado solo en lo que está comprometido, sin inventar cambios ni reutilizar borradores anteriores, con una sola aprobación visible en el flujo normal.
 
-**Cuándo usarlo**: cuando tenés commits locales listos y querés abrir una PR nueva. Si ya existe una PR abierta para la misma rama, el comando te indica que uses `/pr-regenerate` en su lugar.
+**Cuándo usarlo**: cuando tenés commits locales listos y querés abrir una PR nueva. Si ya existe una PR abierta para la misma rama —y, cuando la base ya está resuelta, para la misma base— el comando te indica que uses `/pr-regenerate` en su lugar. PRs cerradas o mergeadas no bloquean.
 
 ---
 

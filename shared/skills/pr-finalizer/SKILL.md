@@ -104,11 +104,13 @@ gh pr view <pr-number> --json number,title,body,headRefName,baseRefName,url
 gh pr view --json number,title,body,headRefName,baseRefName,url
 ```
 
-In `create` mode, optionally detect whether a PR already exists for the head branch before attempting creation:
+In `create` mode, optionally detect whether an **open** PR already exists for the head branch before attempting creation:
 
 ```bash
-gh pr view --json number,title,headRefName,baseRefName,url
+gh pr list --head "<head-branch>" --state open --json number,title,state,headRefName,baseRefName,url
 ```
+
+If the base branch is already resolved, block only when an open PR matches both `headRefName` and `baseRefName`. Closed or merged PRs for that head branch must not block creation.
 
 If repository-specific PR convention files exist, read them before generating content.
 
@@ -173,7 +175,8 @@ If output is truncated, read the diff file from disk and treat it as the source 
 ### `create` mode
 
 - Describe the current net effect of the head branch relative to the chosen base branch.
-- If an open PR already exists for the same head branch, stop and report that the caller should use `regenerate` mode instead of creating a duplicate.
+- If an open PR already exists for the same head branch, and for the same base branch when that base is already known, stop and report that the caller should use `regenerate` mode instead of creating a duplicate.
+- A PR that is `merged` or `closed` for that head branch does **not** block `create` mode.
 
 ### `regenerate` mode
 
