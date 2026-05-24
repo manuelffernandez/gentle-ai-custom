@@ -36,6 +36,7 @@ Do **not** use this skill as part of the default SDD flow. This is a **post-SDD*
 6. Never stage or commit likely secrets (`.env`, credential files, tokens, generated secret dumps).
 7. Never push, open PRs, or edit PRs as part of this skill. That belongs to a separate release/PR flow.
 8. State-changing steps (`git add`, `git commit`) require explicit user approval.
+9. **Language constraint**: Unless the user explicitly requests otherwise, all generated commit messages, plan bodies, and comments must be in **ENGLISH**.
 
 ## Read-Only Evidence Gathering
 

@@ -63,6 +63,7 @@ This skill does **not** define or enforce repository governance. In particular, 
 12. **Do not mention branch names in the PR description body** unless the repository template explicitly requires them.
 13. **Do not propose commit messages** as part of this skill.
 14. **Use temporary artifacts outside the repository by default**, for example `${TMPDIR:-/tmp}/pr-diff.txt` and `${TMPDIR:-/tmp}/pr-body.md`. After writing any temporary file, report the absolute path used — do not ask for approval.
+15. **Language constraint**: Unless the user explicitly requests otherwise, all generated messages, PR bodies, and comments must be in **ENGLISH**.
 
 ## Supported Inputs
 
