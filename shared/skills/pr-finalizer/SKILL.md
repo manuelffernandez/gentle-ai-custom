@@ -39,12 +39,12 @@ This skill does **not** define or enforce repository governance. In particular, 
 2. **Two modes only**:
    - `create` → draft PR content for the current committed branch state and optionally open a new PR
    - `regenerate` → regenerate PR content from scratch for an existing PR and optionally update it
-3. **Convention detection order**:
-   - `.github/PULL_REQUEST_TEMPLATE.md`
-   - `docs/CONVENTIONS.md`
-   - `CONTRIBUTING.md`
-   - `README.md`
-   - fallback generic PR template
+3. **MANDATORY Convention Detection**: You MUST explicitly search for and read repository conventions BEFORE generating the PR body. Do NOT guess or skip this step. Order of precedence:
+   - 1st: `.github/PULL_REQUEST_TEMPLATE.md`
+   - 2nd: `docs/CONVENTIONS.md`
+   - 3rd: `CONTRIBUTING.md`
+   - 4th: `README.md`
+   - 5th: fallback generic PR template
 4. **Policy awareness without duplication**. If companion repo-policy skills exist (for example `branch-pr`), treat them as contextual guidance only. Do not copy, fork, or re-enforce their rules here.
 5. **Base branch resolution order**:
    - explicit user input

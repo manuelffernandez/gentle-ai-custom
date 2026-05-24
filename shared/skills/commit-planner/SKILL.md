@@ -27,10 +27,10 @@ Do **not** use this skill as part of the default SDD flow. This is a **post-SDD*
    - `plan` → inspect and propose commit grouping, no state changes
    - `apply` → execute an already approved plan, or generate a plan first and stop for approval
    - `auto` → generate and execute in one shot without pausing for plan approval; still stops on blockers
-3. **Convention detection order**:
-   - First, look for explicit repository guidance in common files such as `docs/CONVENTIONS.md`, `CONTRIBUTING.md`, `README.md`, and relevant repo-local workflow docs
-   - Then inspect recent `git log` subjects to understand the style actually used in the repository
-   - If there is no explicit guidance, fall back to **Conventional Commits**
+3. **MANDATORY Convention Detection**: You MUST explicitly search for and read repository conventions BEFORE generating any commit message. Do NOT guess or skip this step.
+   - 1st: Check for explicit repository guidance (`docs/CONVENTIONS.md`, `CONTRIBUTING.md`, `README.md`, and relevant repo-local workflow docs).
+   - 2nd: Inspect recent `git log` subjects to understand the actual style used in the repository.
+   - 3rd: Only if the above yield no clear pattern, fall back to **Conventional Commits**.
 4. **Prefer file-level grouping**. Never assume hunk splitting is safe.
 5. If a clean plan would require splitting the **same file** across different commits, **stop and report the blocker**.
 6. Never stage or commit likely secrets (`.env`, credential files, tokens, generated secret dumps).
