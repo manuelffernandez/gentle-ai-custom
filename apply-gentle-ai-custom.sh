@@ -333,7 +333,7 @@ for target in "${TARGETS[@]}"; do
 done
 
 if should_apply_gentle_overlay; then
-  "${SOURCE_DIR}/overlay/gentle-ai/scripts/apply-gentle-ai-policy.sh"
+  bash "${SOURCE_DIR}/overlay/gentle-ai/scripts/apply-gentle-ai-policy.sh"
 fi
 
 printf 'Reminder: re-run this script after syncs, upgrades, or managed config refreshes.\n'
