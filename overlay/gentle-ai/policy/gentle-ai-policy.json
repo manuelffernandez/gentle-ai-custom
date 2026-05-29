@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "name": "gentle-ai-overlay-baseline",
+  "description": "Persistent keep/prune baseline plus orchestrator prompt redirection policy.",
+  "upstream": {
+    "repo_path": "/home/manuel/Documentos/gentle-ai",
+    "orchestrator_prompt_path": "internal/assets/opencode/sdd-orchestrator.md"
+  },
+  "skills": {
+    "keep": [
+      "_shared",
+      "cognitive-doc-design",
+      "comment-writer",
+      "go-testing",
+      "judgment-day",
+      "sdd-apply",
+      "sdd-archive",
+      "sdd-design",
+      "sdd-explore",
+      "sdd-init",
+      "sdd-onboard",
+      "sdd-propose",
+      "sdd-spec",
+      "sdd-tasks",
+      "sdd-verify",
+      "skill-creator",
+      "skill-improver",
+      "skill-registry"
+    ],
+    "prune": [
+      "branch-pr",
+      "chained-pr",
+      "issue-creation",
+      "work-unit-commits"
+    ],
+    "targets": [
+      "~/.config/opencode/skills",
+      "~/.claude/skills"
+    ]
+  },
+  "orchestrator": {
+    "agent_key": "gentle-orchestrator",
+    "derived_prompt": "overlay/gentle-ai/derived/opencode/gentle-orchestrator.md",
+    "snapshot_file": "overlay/gentle-ai/snapshots/upstream/opencode/gentle-orchestrator.last.md",
+    "opencode_config": "~/.config/opencode/opencode.json"
+  },
+  "agent_overrides": [
+    { "key": "general", "model": "openai/gpt-5.4", "variant": "high" },
+    { "key": "explore", "model": "google-vertex/gemini-3.1-pro-preview", "variant": "high" }
+  ]
+}

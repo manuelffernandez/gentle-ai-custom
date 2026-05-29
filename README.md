@@ -12,6 +12,15 @@ Guardar acá el source of truth de overlays propios para OpenCode, Claude, Codex
 
 ## Estructura
 
+- `overlay/gentle-ai/README.md` — guía humana del overlay/control-plane para Gentle AI
+- `overlay/gentle-ai/policy/gentle-ai-policy.json` — baseline keep/prune + paths para reaplicación mecánica
+- `overlay/gentle-ai/policy/orchestrator-policy.md` — criterio de derivación del prompt limpio del SDD orchestrator
+- `overlay/gentle-ai/prompts/audit-gentle-ai-update.md` — prompt reutilizable para auditar updates futuras de Gentle AI
+- `overlay/gentle-ai/derived/opencode/gentle-orchestrator.md` — prompt derivado para OpenCode sin flujo PR/budget
+- `overlay/gentle-ai/snapshots/upstream/opencode/gentle-orchestrator.last.md` — último prompt upstream capturado antes del redirect al derivado
+- `overlay/gentle-ai/logs/update-log.md` — historial incremental de decisiones y auditorías
+- `overlay/gentle-ai/scripts/apply-gentle-ai-policy.sh` — script bash para podar skills y redirigir el orchestrator
+- `overlay/gentle-ai/scripts/apply-gentle-ai-policy.ps1` — equivalente PowerShell 5.1+
 - `shared/skills/commit-planner/SKILL.md` — source of truth neutral para planificación/aplicación de commits
 - `shared/skills/pr-finalizer/SKILL.md` — source of truth neutral para creación/regeneración de PRs
 - `shared/commands/commit-plan-body.md` — cuerpo compartido para wrappers/prompts en modo `plan`
@@ -79,6 +88,7 @@ Si los archivos de destino ya existen, se reemplazan. Eso es intencional: permit
 # Linux / macOS
 gentle-ai sync
 bash ~/Documentos/gentle-ai-custom/inject-skills.sh all
+bash ~/Documentos/gentle-ai-custom/overlay/gentle-ai/scripts/apply-gentle-ai-policy.sh
 ```
 
 ```powershell
@@ -86,9 +96,112 @@ bash ~/Documentos/gentle-ai-custom/inject-skills.sh all
 Set-ExecutionPolicy -Scope Process Bypass
 # (gentle-ai sync si aplica)
 .\inject-skills.ps1 all
+.\overlay\gentle-ai\scripts\apply-gentle-ai-policy.ps1
 ```
 
 Para Claude, Codex y Gemini CLI no se hace auto-mutation de assets gestionados upstream. La idea sigue siendo la misma: **actualización del agente primero, reaplicación manual después**.
+
+> **Nota OpenCode:** si `apply-gentle-ai-policy` cambia `~/.config/opencode/opencode.json`, reiniciá OpenCode. La config no se hot-reloadéa.
+
+## Overlay Gentle AI: para qué existe
+
+El subárbol `overlay/gentle-ai/` es una **capa de control local** sobre el upstream en `/home/manuel/Documentos/gentle-ai`.
+
+No copia el codebase upstream. En cambio, guarda lo que sí te pertenece a vos:
+
+- la política de qué skills conservar y cuáles podar
+- el prompt derivado para `gentle-orchestrator`
+- el criterio de derivación de ese prompt
+- un snapshot del último prompt upstream visto
+- un log incremental de decisiones
+- scripts con paridad para reaplicar todo después de `gentle-ai sync`
+
+## Política actual de keep/prune
+
+### Se conservan
+
+- `_shared`
+- `cognitive-doc-design`
+- `comment-writer`
+- `go-testing`
+- `judgment-day`
+- `sdd-apply`
+- `sdd-archive`
+- `sdd-design`
+- `sdd-explore`
+- `sdd-init`
+- `sdd-onboard`
+- `sdd-propose`
+- `sdd-spec`
+- `sdd-tasks`
+- `sdd-verify`
+- `skill-creator`
+- `skill-improver`
+- `skill-registry`
+
+### Se podan
+
+- `branch-pr`
+- `chained-pr`
+- `issue-creation`
+- `work-unit-commits`
+
+Además, el prompt derivado de OpenCode elimina **todo** el flujo de PR/budget del `gentle-orchestrator`.
+
+## Cómo funciona la automatización
+
+### 1. Política
+
+`overlay/gentle-ai/policy/gentle-ai-policy.json` es la baseline machine-readable. Ahí viven:
+
+- listas keep/prune
+- rutas del upstream relevante
+- ruta del prompt derivado
+- ruta del snapshot
+
+### 2. Prompt derivado
+
+`overlay/gentle-ai/derived/opencode/gentle-orchestrator.md` es la versión local que querés ejecutar en OpenCode.
+
+El script **no parchea texto del prompt upstream**. Solo hace dos cosas:
+
+1. snapshottea el prompt previo si todavía no apunta al derivado
+2. redirige `agent.gentle-orchestrator.prompt` en `~/.config/opencode/opencode.json` a tu archivo derivado
+
+Eso evita regex frágiles y hace que la adaptación del prompt siga siendo una tarea semántica del agente, no del script.
+
+### 3. Auditoría incremental de updates
+
+Cuando sube una versión nueva de Gentle AI, no hace falta reanalizar todo desde cero.
+
+Usá como punto de entrada:
+
+- `overlay/gentle-ai/prompts/audit-gentle-ai-update.md`
+
+Y pedile al agente que trabaje **desde este repo** (`gentle-ai-custom`) leyendo el upstream como fuente externa en:
+
+- `/home/manuel/Documentos/gentle-ai`
+
+La idea es que cada auditoría nueva actualice solamente lo necesario:
+
+- `gentle-ai-policy.json`
+- `orchestrator-policy.md`
+- `derived/opencode/gentle-orchestrator.md`
+- `snapshots/upstream/opencode/gentle-orchestrator.last.md`
+- `logs/update-log.md`
+- scripts `.sh` / `.ps1` si cambia la mecánica
+
+## Quick path para futuras iteraciones
+
+1. Actualizás `gentle-ai`.
+2. Corrés `gentle-ai sync`.
+3. Reaplicás:
+   - `inject-skills.*`
+   - `apply-gentle-ai-policy.*`
+4. Si notás drift o si la update tocó SDD/skills/orchestrator:
+   - abrís `gentle-ai-custom`
+   - reutilizás `overlay/gentle-ai/prompts/audit-gentle-ai-update.md`
+   - actualizás policy, prompt derivado, snapshot, log y scripts
 
 ## Comandos disponibles
 
