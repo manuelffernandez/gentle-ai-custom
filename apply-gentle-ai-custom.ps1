@@ -35,7 +35,7 @@ function Show-Usage {
 }
 
 function Exit-WithError([string]$message) {
-    [Console]::Error.WriteLine($message)
+    Write-Error $message -ErrorAction Continue
     exit 1
 }
 
@@ -59,6 +59,11 @@ function Resolve-Targets([string[]]$rawTargets) {
     if ($null -eq $rawTargets -or $rawTargets.Count -eq 0) {
         Show-Usage
         exit 1
+    }
+
+    if ($rawTargets.Count -eq 1 -and ($rawTargets[0] -eq '-h' -or $rawTargets[0] -eq '--help')) {
+        Show-Usage
+        exit 0
     }
 
     if ($rawTargets.Count -eq 1 -and $rawTargets[0] -eq 'all') {

@@ -65,10 +65,7 @@
       "D. Review",
       "### Delivery Strategy",
       "### Chain Strategy",
-      "### Review Workload Guard (MANDATORY)",
-      "size:exception",
-      "delivery_strategy",
-      "chain_strategy"
+      "### Review Workload Guard (MANDATORY)"
     ]
   },
   "agent_overrides": [

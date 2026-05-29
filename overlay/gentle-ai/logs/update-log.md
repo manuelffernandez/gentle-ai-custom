@@ -7,6 +7,7 @@
 - Eliminado `overlay/gentle-ai/prompts/audit-gentle-ai-update.md` por quedar reemplazado por la skill del maintainer.
 - Agregado `overlay/gentle-ai/policy/maintenance-intent.md` como fuente de verdad semántica del criterio del usuario.
 - Agregado `overlay/gentle-ai/state/upstream-state.json` como frontera operativa de la última versión/commit mantenido.
+- Seed inicial de `upstream-state.json` con el estado actual del upstream: `v1.32.0-6-g412eed3` sobre `v1.32.0` (`412eed3d39defb2f955a63e21ca13cef4df358c9`).
 - La skill `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md` pasó a ser version-aware y con gate humana explícita antes de mutar intención/política por cambios upstream relevantes.
 - El runbook ahora distingue explícitamente intento, política, estado y log.
 

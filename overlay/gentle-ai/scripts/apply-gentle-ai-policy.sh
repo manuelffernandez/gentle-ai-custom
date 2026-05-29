@@ -124,9 +124,17 @@ def write_utf8(path: str, content: str) -> None:
             fh.write('\n')
 
 def remove_block(text: str, pattern: str, label: str) -> str:
+    """Remove a multi-line block using MULTILINE + DOTALL (dot matches newlines)."""
     new_text, count = re.subn(pattern, '', text, flags=re.MULTILINE | re.DOTALL)
     if count == 0:
         raise ValueError(f'missing expected block: {label}')
+    return new_text
+
+def remove_line(text: str, pattern: str, label: str) -> str:
+    """Remove a single-line pattern using MULTILINE only (dot does NOT match newlines)."""
+    new_text, count = re.subn(pattern, '', text, flags=re.MULTILINE)
+    if count == 0:
+        raise ValueError(f'missing expected line: {label}')
     return new_text
 
 def replace_once(text: str, old: str, new: str, label: str) -> str:
@@ -167,8 +175,8 @@ def sanitize_prompt(text: str) -> str:
         r'^C\. PRs\n.*?^   D3 Otro: preguntar el número después\.\n',
         'spanish PR/review prompt block'
     )
-    text = remove_block(text, r'^- PRs:.*\n', 'PR answer mapping')
-    text = remove_block(text, r'^- Review:.*\n', 'review answer mapping')
+    text = remove_line(text, r'^- PRs:.*\n', 'PR answer mapping')
+    text = remove_line(text, r'^- Review:.*\n', 'review answer mapping')
     text = replace_once(
         text,
         'If the user explicitly provided all four choices in the current conversation, summarize them as the session preflight block and continue.',

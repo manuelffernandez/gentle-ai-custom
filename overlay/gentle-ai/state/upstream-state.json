@@ -1,7 +1,7 @@
 {
-  "last_maintained_version": null,
-  "last_maintained_tag": null,
-  "last_maintained_commit": null,
-  "last_reviewed_at": null,
-  "notes": "Set these fields after the first version-aware maintenance run. This file is the authoritative upstream maintenance boundary."
+  "last_maintained_version": "v1.32.0-6-g412eed3",
+  "last_maintained_tag": "v1.32.0",
+  "last_maintained_commit": "412eed3d39defb2f955a63e21ca13cef4df358c9",
+  "last_reviewed_at": "2026-05-29T21:05:04Z",
+  "notes": "Baseline seeded from the current upstream Gentle AI repository state after the first full maintenance pass in gentle-ai-custom."
 }
