@@ -50,6 +50,13 @@ function Ensure-LfTerminated {
     return $Content
 }
 
+function Normalize-Lf {
+    param([string]$Content)
+
+    if ($null -eq $Content) { return '' }
+    return ($Content -replace "`r`n", "`n")
+}
+
 function Remove-ExactOnce {
     param(
         [string]$Text,
@@ -94,6 +101,19 @@ function Is-OrchestratorAgent {
         if ($AgentKey.StartsWith($Prefix)) { return $true }
     }
     return $false
+}
+
+function Get-AgentPropertyValue {
+    param(
+        [PSCustomObject]$Agent,
+        [string]$Name
+    )
+
+    if ($null -eq $Agent) { return $null }
+    if ($Agent.PSObject.Properties.Name -contains $Name) {
+        return $Agent.$Name
+    }
+    return $null
 }
 
 function Sanitize-OrchestratorPrompt {
@@ -153,6 +173,11 @@ $SnapshotDir = Join-Path $RepoRoot $Policy.opencode.orchestrator_snapshot_dir
 
 Write-Info 'Applying Gentle AI overlay policy...'
 
+# --- Phase 1: skills pruning ---
+
+$PrunedCount = 0
+$MissingKeepSummary = New-Object System.Collections.Generic.List[string]
+
 foreach ($TargetDirRaw in $Policy.skills.targets) {
     $TargetDir = Resolve-UserPath ([string]$TargetDirRaw)
     if (-not (Test-Path -LiteralPath $TargetDir)) {
@@ -166,51 +191,86 @@ foreach ($TargetDirRaw in $Policy.skills.targets) {
         if (Test-Path -LiteralPath $SkillPath) {
             Remove-Item -LiteralPath $SkillPath -Recurse -Force
             Write-Info "  removed $Skill"
+            $PrunedCount++
         }
         else {
             Write-Info "  already absent $Skill"
         }
     }
 
-    $MissingKeep = New-Object System.Collections.Generic.List[string]
     foreach ($Skill in $Policy.skills.keep) {
         $SkillPath = Join-Path $TargetDir ([string]$Skill)
         if (-not (Test-Path -LiteralPath $SkillPath)) {
-            [void]$MissingKeep.Add([string]$Skill)
+            [void]$MissingKeepSummary.Add("$TargetDir -> $Skill")
         }
-    }
-
-    if ($MissingKeep.Count -gt 0) {
-        Write-Info ("  warning: keep skills missing in {0}: {1}" -f $TargetDir, ($MissingKeep -join ', '))
     }
 }
 
+# --- Phase 2: OpenCode config ---
+
 if (-not (Test-Path -LiteralPath $OpenCodeConfig)) {
     Write-Info "- skip missing OpenCode config: $OpenCodeConfig"
+    Write-Info ''
+    Write-Info 'Summary:'
+    Write-Info "  skills pruned this run: $PrunedCount"
+    if ($MissingKeepSummary.Count -gt 0) {
+        Write-Info '  WARNING - keep skills missing (expected but absent):'
+        foreach ($Entry in $MissingKeepSummary) {
+            Write-Info "    - $Entry"
+        }
+    }
     Write-Info 'Done.'
     exit 0
 }
 
-$Config = Get-Content -LiteralPath $OpenCodeConfig -Raw | ConvertFrom-Json
+# Validate that the config is parseable JSON before mutating anything.
+try {
+    $RawConfig = Get-Content -LiteralPath $OpenCodeConfig -Raw
+    $Config = $RawConfig | ConvertFrom-Json
+}
+catch {
+    throw ("OpenCode config at {0} is not valid JSON: {1}. Restore it from a backup under {2}/.gentle-ai/backups/ or re-run ``gentle-ai sync`` to regenerate it." -f $OpenCodeConfig, $_.Exception.Message, $HOME)
+}
+
 if (-not $Config.agent) {
     throw 'OpenCode config does not contain an agent map'
 }
 
 $ConfigChanged = $false
 $GeneratedCount = 0
+$RecoveredCount = 0
 $SkippedCount = 0
+$SnapshotNew = 0
+$SnapshotChanged = 0
+$SnapshotUnchanged = 0
+$TopologyWarnings = New-Object System.Collections.Generic.List[string]
+$WrittenOrchestratorKeys = New-Object System.Collections.Generic.HashSet[string]
+
+# Snapshot original agent keys BEFORE the override loop creates any stubs,
+# so topology drift checks can tell which override targets had to be invented.
+$OriginalAgentKeys = New-Object System.Collections.Generic.HashSet[string]
+foreach ($Name in $Config.agent.PSObject.Properties.Name) {
+    [void]$OriginalAgentKeys.Add($Name)
+}
+
+$CreatedOverrides = New-Object System.Collections.Generic.List[string]
 
 foreach ($Override in $Policy.agent_overrides) {
     $Key = [string]$Override.key
     $Model = [string]$Override.model
     $Variant = [string]$Override.variant
+
+    $AgentExists = $OriginalAgentKeys.Contains($Key)
     if (-not ($Config.agent.$Key -is [PSCustomObject])) {
         $Config.agent | Add-Member -NotePropertyName $Key -NotePropertyValue ([PSCustomObject]@{}) -Force
+        if (-not $AgentExists) {
+            [void]$CreatedOverrides.Add($Key)
+        }
         Write-Info "  agent override $Key reset to object before applying model"
     }
 
-    $CurrentModel = [string]$Config.agent.$Key.model
-    $CurrentVariant = [string]$Config.agent.$Key.variant
+    $CurrentModel = [string](Get-AgentPropertyValue -Agent $Config.agent.$Key -Name 'model')
+    $CurrentVariant = [string](Get-AgentPropertyValue -Agent $Config.agent.$Key -Name 'variant')
     if ($CurrentModel -ne $Model) {
         $Config.agent.$Key | Add-Member -NotePropertyName 'model' -NotePropertyValue $Model -Force
         $ConfigChanged = $true
@@ -224,6 +284,50 @@ foreach ($Override in $Policy.agent_overrides) {
     Write-Info "  agent override $Key -> $Model$OverrideSuffix"
 }
 
+# --- Topology drift checks (non-fatal warnings) ---
+$KnownOrchestratorKeys = New-Object System.Collections.Generic.HashSet[string]
+foreach ($K in $Policy.opencode.orchestrator_agent_keys) {
+    [void]$KnownOrchestratorKeys.Add([string]$K)
+}
+
+$OrchestratorsInConfig = New-Object System.Collections.Generic.HashSet[string]
+foreach ($K in $OriginalAgentKeys) {
+    if (Is-OrchestratorAgent -AgentKey $K -ExactKeys $Policy.opencode.orchestrator_agent_keys -Prefixes $Policy.opencode.orchestrator_agent_prefixes) {
+        [void]$OrchestratorsInConfig.Add($K)
+    }
+}
+
+$UnknownList = New-Object System.Collections.Generic.List[string]
+foreach ($K in $OrchestratorsInConfig) {
+    if (-not $KnownOrchestratorKeys.Contains($K)) {
+        [void]$UnknownList.Add($K)
+    }
+}
+foreach ($K in ($UnknownList | Sort-Object)) {
+    $Msg = "unknown orchestrator matched by prefix only: $K"
+    [void]$TopologyWarnings.Add($Msg)
+    Write-Info "  topology: $Msg"
+}
+
+$MissingOrchestratorList = New-Object System.Collections.Generic.List[string]
+foreach ($K in $KnownOrchestratorKeys) {
+    if (-not $OriginalAgentKeys.Contains($K)) {
+        [void]$MissingOrchestratorList.Add($K)
+    }
+}
+foreach ($K in ($MissingOrchestratorList | Sort-Object)) {
+    $Msg = "expected orchestrator missing from opencode.json: $K"
+    [void]$TopologyWarnings.Add($Msg)
+    Write-Info "  topology: $Msg"
+}
+
+foreach ($K in ($CreatedOverrides | Sort-Object)) {
+    $Msg = "agent_override target was missing from upstream (created): $K"
+    [void]$TopologyWarnings.Add($Msg)
+    Write-Info "  topology: $Msg"
+}
+
+# --- Generate orchestrator overlays ---
 if (-not (Test-Path -LiteralPath $GeneratedDir)) {
     New-Item -ItemType Directory -Path $GeneratedDir -Force | Out-Null
 }
@@ -231,7 +335,7 @@ if (-not (Test-Path -LiteralPath $SnapshotDir)) {
     New-Item -ItemType Directory -Path $SnapshotDir -Force | Out-Null
 }
 
-$AgentKeys = $Config.agent.PSObject.Properties.Name
+$AgentKeys = $Config.agent.PSObject.Properties.Name | Sort-Object
 foreach ($AgentKey in $AgentKeys) {
     if (-not (Is-OrchestratorAgent -AgentKey $AgentKey -ExactKeys $Policy.opencode.orchestrator_agent_keys -Prefixes $Policy.opencode.orchestrator_agent_prefixes)) {
         continue
@@ -239,14 +343,14 @@ foreach ($AgentKey in $AgentKeys) {
 
     $Agent = $Config.agent.$AgentKey
     if (-not ($Agent -is [PSCustomObject])) {
-        Write-Info "  skip $AgentKey: agent entry is not an object"
+        Write-Info "  skip $AgentKey`: agent entry is not an object"
         $SkippedCount++
         continue
     }
 
-    $PromptValue = $Agent.prompt
+    $PromptValue = Get-AgentPropertyValue -Agent $Agent -Name 'prompt'
     if ($PromptValue -isnot [string] -or [string]::IsNullOrWhiteSpace($PromptValue)) {
-        Write-Info "  skip $AgentKey: prompt missing or not a string"
+        Write-Info "  skip $AgentKey`: prompt missing or not a string"
         $SkippedCount++
         continue
     }
@@ -255,37 +359,151 @@ foreach ($AgentKey in $AgentKeys) {
     $DesiredPrompt = '{file:' + $GeneratedPath + '}'
     $SnapshotPath = Join-Path $SnapshotDir ($AgentKey + '.last.md')
 
+    # Fully-applied state — already pointing at our generated overlay file,
+    # and that file exists on disk. Nothing to do.
     if ($PromptValue -eq $DesiredPrompt -and (Test-Path -LiteralPath $GeneratedPath -PathType Leaf)) {
-        Write-Info "  keep $AgentKey: already points to generated overlay prompt"
+        Write-Info "  keep $AgentKey`: already points to generated overlay prompt"
+        [void]$WrittenOrchestratorKeys.Add($AgentKey)
         continue
     }
+
+    $RecoveredFromSnapshot = $false
+    $InlinePrompt = $null
 
     if ($PromptValue.StartsWith('{file:') -and $PromptValue.EndsWith('}')) {
-        Write-Info "  skip $AgentKey: prompt is external file ref and no inline content is available"
-        $SkippedCount++
-        continue
+        # Prompt is a file reference but either the target file is missing
+        # or it points somewhere different from our desired path.
+        # Recover from snapshot if available; fail loud if not.
+        if (-not (Test-Path -LiteralPath $SnapshotPath -PathType Leaf)) {
+            throw ("broken state for orchestrator '{0}': opencode.json prompt is '{1}' but the target file is missing and no snapshot exists at {2}. Run ``gentle-ai sync`` to reset the orchestrator prompt to inline content, then re-run this script." -f $AgentKey, $PromptValue, $SnapshotPath)
+        }
+        $InlinePrompt = (Get-Content -LiteralPath $SnapshotPath -Raw).TrimEnd("`n", "`r")
+        $RecoveredFromSnapshot = $true
+        Write-Info "  recovering $AgentKey from snapshot (target file missing or path drift)"
+    }
+    else {
+        $InlinePrompt = $PromptValue
     }
 
-    Write-Utf8NoBomAtomic -Path $SnapshotPath -Content (Ensure-LfTerminated $PromptValue)
-    $SanitizedPrompt = Sanitize-OrchestratorPrompt -Prompt $PromptValue -SanitizerPolicy $Policy.sanitizer
+    # Snapshot drift tracking — only when capturing fresh inline content.
+    if ($RecoveredFromSnapshot) {
+        $SnapshotStatus = 'recovered'
+    }
+    else {
+        $Normalized = Ensure-LfTerminated $InlinePrompt
+        if (Test-Path -LiteralPath $SnapshotPath -PathType Leaf) {
+            $OldSnapshotRaw = Get-Content -LiteralPath $SnapshotPath -Raw
+            if ((Normalize-Lf $OldSnapshotRaw) -ne (Normalize-Lf $Normalized)) {
+                $SnapshotStatus = 'changed'
+                $SnapshotChanged++
+            }
+            else {
+                $SnapshotStatus = 'unchanged'
+                $SnapshotUnchanged++
+            }
+        }
+        else {
+            $SnapshotStatus = 'new'
+            $SnapshotNew++
+        }
+        Write-Utf8NoBomAtomic -Path $SnapshotPath -Content $Normalized
+    }
+
+    $SanitizedPrompt = Sanitize-OrchestratorPrompt -Prompt $InlinePrompt -SanitizerPolicy $Policy.sanitizer
     Write-Utf8NoBomAtomic -Path $GeneratedPath -Content (Ensure-LfTerminated $SanitizedPrompt)
 
-    $Agent.prompt = $DesiredPrompt
-    $ConfigChanged = $true
-    $GeneratedCount++
-    Write-Info "  generated $AgentKey -> $GeneratedPath"
+    if ((Get-AgentPropertyValue -Agent $Agent -Name 'prompt') -ne $DesiredPrompt) {
+        $Agent | Add-Member -NotePropertyName 'prompt' -NotePropertyValue $DesiredPrompt -Force
+        $ConfigChanged = $true
+    }
+
+    [void]$WrittenOrchestratorKeys.Add($AgentKey)
+    if ($RecoveredFromSnapshot) {
+        $RecoveredCount++
+        Write-Info "  recovered $AgentKey -> $GeneratedPath (from snapshot)"
+    }
+    else {
+        $GeneratedCount++
+        Write-Info "  generated $AgentKey -> $GeneratedPath (snapshot: $SnapshotStatus)"
+    }
 }
 
+# --- Atomic write of opencode.json + post-write verification ---
 if ($ConfigChanged) {
     $Json = $Config | ConvertTo-Json -Depth 100
     Write-Utf8NoBomAtomic -Path $OpenCodeConfig -Content (Ensure-LfTerminated $Json)
     $ConfigStatus = 'updated'
+
+    $VerifyConfig = Get-Content -LiteralPath $OpenCodeConfig -Raw | ConvertFrom-Json
+
+    foreach ($Override in $Policy.agent_overrides) {
+        $Key = [string]$Override.key
+        $ExpectedModel = [string]$Override.model
+        $ExpectedVariant = [string]$Override.variant
+
+        if (-not ($VerifyConfig.agent.PSObject.Properties.Name -contains $Key)) {
+            throw "post-write verification failed: agent '$Key' is missing from $OpenCodeConfig after write"
+        }
+        $ActualAgent = $VerifyConfig.agent.$Key
+        $ActualModel = [string](Get-AgentPropertyValue -Agent $ActualAgent -Name 'model')
+        if ($ActualModel -ne $ExpectedModel) {
+            throw "post-write verification failed: agent '$Key' model is '$ActualModel' after write, expected '$ExpectedModel'"
+        }
+        if ($ExpectedVariant) {
+            $ActualVariant = [string](Get-AgentPropertyValue -Agent $ActualAgent -Name 'variant')
+            if ($ActualVariant -ne $ExpectedVariant) {
+                throw "post-write verification failed: agent '$Key' variant is '$ActualVariant' after write, expected '$ExpectedVariant'"
+            }
+        }
+    }
+
+    foreach ($Key in ($WrittenOrchestratorKeys | Sort-Object)) {
+        $ExpectedRef = '{file:' + (Join-Path $GeneratedDir ($Key + '.overlay.md')) + '}'
+        if (-not ($VerifyConfig.agent.PSObject.Properties.Name -contains $Key)) {
+            throw "post-write verification failed: orchestrator '$Key' is missing from $OpenCodeConfig after write"
+        }
+        $ActualPrompt = [string](Get-AgentPropertyValue -Agent $VerifyConfig.agent.$Key -Name 'prompt')
+        if ($ActualPrompt -ne $ExpectedRef) {
+            throw "post-write verification failed: orchestrator '$Key' prompt is '$ActualPrompt' after write, expected '$ExpectedRef'"
+        }
+        $OverlayPath = Join-Path $GeneratedDir ($Key + '.overlay.md')
+        if (-not (Test-Path -LiteralPath $OverlayPath -PathType Leaf)) {
+            throw "post-write verification failed: overlay file missing for '$Key' at $OverlayPath"
+        }
+    }
 }
 else {
     $ConfigStatus = 'unchanged'
 }
 
-Write-Info "- OpenCode config status: $ConfigStatus"
-Write-Info "- generated orchestrator prompts: $GeneratedCount"
-Write-Info "- skipped orchestrator prompts: $SkippedCount"
+Write-Info ''
+Write-Info 'Summary:'
+Write-Info "  OpenCode config status: $ConfigStatus"
+Write-Info "  skills pruned this run: $PrunedCount"
+Write-Info "  orchestrators generated (fresh): $GeneratedCount"
+Write-Info "  orchestrators recovered from snapshot: $RecoveredCount"
+Write-Info "  orchestrators skipped: $SkippedCount"
+Write-Info "  snapshots - new: $SnapshotNew, changed: $SnapshotChanged, unchanged: $SnapshotUnchanged"
+Write-Info "  topology warnings: $($TopologyWarnings.Count)"
+
+if ($MissingKeepSummary.Count -gt 0) {
+    Write-Info ''
+    Write-Info 'WARNING - keep skills missing (expected but absent):'
+    foreach ($Entry in $MissingKeepSummary) {
+        Write-Info "  - $Entry"
+    }
+}
+
+if ($SnapshotChanged -gt 0) {
+    Write-Info ''
+    Write-Info 'NOTE: upstream orchestrator prompts drifted. Review with:'
+    Write-Info '  git diff overlay/gentle-ai/snapshots/'
+}
+
+if ($TopologyWarnings.Count -gt 0) {
+    Write-Info ''
+    Write-Info 'NOTE: topology drift detected. Review the topology: warnings above and update policy/intent if needed.'
+}
+
+Write-Info ''
 Write-Info 'Done. Restart OpenCode if opencode.json changed.'

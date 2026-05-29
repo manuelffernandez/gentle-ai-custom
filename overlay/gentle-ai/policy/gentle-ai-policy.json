@@ -48,7 +48,10 @@
     "generated_orchestrators_dir": "~/.config/opencode/prompts/sdd/orchestrators",
     "orchestrator_snapshot_dir": "overlay/gentle-ai/snapshots/upstream/opencode/orchestrators",
     "orchestrator_agent_keys": [
-      "gentle-orchestrator"
+      "gentle-orchestrator",
+      "sdd-orchestrator-mixed",
+      "sdd-orchestrator-vertex",
+      "sdd-orchestrator-vertex-claude"
     ],
     "orchestrator_agent_prefixes": [
       "sdd-orchestrator"
