@@ -27,6 +27,77 @@ No cumplen el mismo rol:
 - cuando cambie la estructura del prompt inline de algún orchestrator
 - cuando aparezcan nuevas skills upstream que puedan entrar en conflicto con la política local
 
+## Tipos de actualización de Gentle AI y su impacto en el overlay
+
+Gentle AI puede actualizarse de tres maneras distintas, con efectos diferentes sobre `opencode.json` y las skills instaladas.
+
+### Mecanismos de actualización
+
+| Mecanismo | Qué actualiza | Impacto en `opencode.json` | Skills prunidas |
+|---|---|---|---|
+| `brew upgrade gentle-ai` | Solo el binario | Ninguno | Sin cambio |
+| `gentle-ai sync` / "Sync Configurations" | Prompts, skills, MCP configs, SDD | **Resetea** prompts de orchestrators a upstream inline | **Vuelven** (reinstala todas) |
+| Reinstalación via TUI | Todo: topología de agentes, presets, skills, configuración | **Resetea todo**, puede cambiar agentes | **Vuelven** + posible topología nueva |
+
+### Por qué `gentle-ai sync` resetea los prompts
+
+El mecanismo es verificable en el código fuente del upstream (`internal/components/sdd/profiles.go`):
+
+```
+~/.config/opencode/profiles/ vacío o inexistente
+→ HasExternalProfileFiles() = false
+→ ResolveProfileStrategy() = "generated-multi"   ← no "external-single-active"
+→ PreserveOpenCodeOrchestratorPrompt = false
+→ sync sobreescribe el prompt del orchestrator con el asset inline upstream
+```
+
+El directorio `~/.config/opencode/profiles/` en este setup está vacío, por lo que cada `gentle-ai sync` resetea los prompts de los orchestrators al contenido inline de upstream.
+
+### Regla operativa invariante
+
+**Después de cualquier operación de Gentle AI que no sea solo `brew upgrade`, es obligatorio correr:**
+
+```bash
+bash apply-gentle-ai-custom.sh all
+```
+
+Esto re-aplica el overlay completo:
+- poda las skills no deseadas (branch-pr, chained-pr, issue-creation, work-unit-commits)
+- re-aplica los overrides de modelos (general, explore)
+- captura el nuevo prompt inline en los `*.last.md` (snapshot actualizado)
+- sanitiza y regenera los `*.overlay.md` en `~/.config/opencode/prompts/sdd/orchestrators/`
+- reescribe `opencode.json` con referencias `{file:...}`
+
+### Cuándo usar reinstalación vs sync
+
+Usá **solo sync** cuando la actualización:
+- cambia prompts, skills, MCP configs
+- cambia modelos/variants sin cambiar la estructura de agentes
+- mantiene los mismos agentes con contenido actualizado
+
+Usá **reinstalación** cuando la actualización:
+- renombra o elimina agentes existentes
+- agrega nuevos agentes o presets
+- cambia la forma en que Gentle AI construye `opencode.json`
+- deja artefactos de una versión anterior que sync no limpia
+
+**Señal de que necesitás reinstalar:** después de sync seguís viendo agentes viejos o no aparece un agente nuevo que debería existir según las release notes.
+
+### Flujo completo post-actualización
+
+```
+brew upgrade gentle-ai          ← actualiza el binario
+git pull (gentle-ai repo)       ← actualiza el clon local del upstream
+gentle-ai sync                  ← reaplica config managed (resetea prompts + skills)
+bash apply-gentle-ai-custom.sh all  ← re-aplica el overlay custom (OBLIGATORIO)
+git diff overlay/gentle-ai/snapshots/  ← verificá qué cambió en los prompts upstream
+git add -p && git commit        ← commitea el nuevo estado de los snapshots
+```
+
+Si la actualización requiere reinstalación, el agente de mantenimiento debe auditar primero antes de correr el script.
+
+---
+
 ## Quick path
 
 1. Trabajá desde `gentle-ai-custom`.

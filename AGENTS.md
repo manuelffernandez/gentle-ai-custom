@@ -193,6 +193,26 @@ If sanitization anchors are missing, fail closed and surface the warning.
 
 ---
 
+## Update flow
+
+After any Gentle AI operation other than a bare `brew upgrade`, always run:
+
+```bash
+bash apply-gentle-ai-custom.sh all
+```
+
+**Why**: `gentle-ai sync` resets orchestrator prompts to upstream inline content and reinstalls all skills (including pruned ones). The script re-applies the full overlay: skill pruning, model overrides, snapshot capture, sanitization, and `{file:...}` rewrite.
+
+| Operation | Resets prompts | Restores pruned skills | Run script after |
+|---|---|---|---|
+| `brew upgrade` only | No | No | No |
+| `gentle-ai sync` | **Yes** | **Yes** | **Always** |
+| TUI reinstall | **Yes** (topology may change) | **Yes** | **Always** (audit first) |
+
+When reinstalling, the overlay maintainer agent must audit before running the script in case agent topology changed.
+
+---
+
 ## Runtime caveat
 
 If the scripts update `~/.config/opencode/opencode.json`, OpenCode must be restarted before the new orchestrator prompt takes effect.
