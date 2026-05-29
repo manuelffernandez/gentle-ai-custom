@@ -8,98 +8,117 @@ Operating instructions for AI agents (Claude, OpenCode, Codex, and equivalents) 
 
 ### 1. Self-update this document
 
-Any change that affects the repository structure — creating folders, adding or removing files, relocating a resource, or altering the purpose of a component — **must be accompanied by the corresponding update to this `AGENTS.md`**.
+Any change that affects the repository structure, command flow, overlay behavior, or skill layout **must be accompanied by the corresponding update to this `AGENTS.md`**.
 
-This applies to:
-- new skills (`shared/skills/<name>/`)
-- new command bodies (`shared/commands/<name>-body.md`)
-- changes to installation targets
-- new root files (`AGENTS.md`, `CLAUDE.md`, installers, etc.)
-
-This document must always reflect the actual state of the repository, not the state at the time it was written.
+This includes:
+- new or moved skills (`shared/skills/...`, `.agents/skills/...`)
+- new or renamed scripts
+- changes to installation or maintenance flow
+- changes to overlay policy/runbooks/docs
 
 ### 2. Exact parity between paired automation scripts
 
-`inject-skills.sh` (bash) and `inject-skills.ps1` (PowerShell 5.1+) must maintain **exact behavioral parity**.
+This repo now has two script pairs:
 
-`overlay/gentle-ai/scripts/apply-gentle-ai-policy.sh` (bash) and `overlay/gentle-ai/scripts/apply-gentle-ai-policy.ps1` (PowerShell 5.1+) must also maintain **exact behavioral parity**.
+- `apply-gentle-ai-custom.sh` / `apply-gentle-ai-custom.ps1` → canonical user-facing entrypoints
+- `overlay/gentle-ai/scripts/apply-gentle-ai-policy.sh` / `.ps1` → internal Gentle AI depuration helpers
 
-If one is modified, the other must be updated in the same commit to preserve identical behavior on Linux/macOS and Windows.
+If one side changes, the paired script must be updated in the same commit.
 
-**`inject-skills.*` pair — parity items:**
-- path variables
-- source validations (`validate_sources` / `Assert-Sources`)
-- command rendering per target (`apply_opencode`, `apply_claude`, `apply_codex`, `apply_gemini`, `apply_antigravity`)
-- mode-specific conditions (e.g. `disable-model-invocation`)
+**Canonical entrypoint parity items:**
+- target parsing and usage/help behavior
+- installation of custom skills/wrappers
+- invocation of the Gentle AI overlay helper
 
-**`apply-gentle-ai-policy.*` pair — parity items:**
-- skill pruning logic
-- upstream snapshot capture
-- prompt redirection
+**Overlay helper parity items:**
+- keep/prune skill policy
 - `agent_overrides` application
+- orchestrator snapshot behavior
+- orchestrator sanitization rules
+- generated prompt output path and naming
+- fail-closed behavior when sanitization anchors are missing
 
 Never leave either pair in a divergent state.
 
 ### 3. Update documentation on functional changes
 
-Any modification that affects the operability of a skill, command, or workflow must be reflected in the documentation:
+Any modification that affects operability must be reflected in documentation:
 
-- **`README.md`**: update the commands section when a command is added, removed, or its behavior changes; update the structure section when files or folders are added.
-- **`AGENTS.md`**: update the repository structure and the skills/commands catalog.
-- **`SKILL.md` of the affected skill**: keep it as the source of truth for behavior.
-
-Adding a new command without documenting it in `README.md`, or changing the behavior of an existing one without updating its description, is not acceptable.
+- `README.md` — primary human guide and entrypoint usage
+- `AGENTS.md` — repository structure, policies, and agent workflow
+- `overlay/gentle-ai/README.md` — overlay/control-plane behavior
+- `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md` — maintenance procedure
+- affected `SKILL.md` files — source of truth for runtime agent behavior
 
 ---
 
 ## Repository structure
 
-```
+```text
 gentle-ai-custom/
+├── .agents/
+│   └── skills/
+│       └── gentle-ai-overlay-maintainer/
+│           └── SKILL.md                         # Skill: maintain the Gentle AI overlay against upstream changes
 ├── overlay/
 │   └── gentle-ai/
-│       ├── README.md                              # Human guide for the Gentle AI overlay/control-plane
+│       ├── README.md                            # Human guide for the Gentle AI control-plane
 │       ├── policy/
-│       │   ├── gentle-ai-policy.json             # Machine-readable keep/prune baseline + path config
-│       │   └── orchestrator-policy.md            # Rules for deriving a clean SDD orchestrator prompt
+│       │   ├── gentle-ai-policy.json           # Machine-readable keep/prune + overrides + OpenCode paths
+│       │   └── orchestrator-policy.md          # Sanitization intent for orchestrators
 │       ├── prompts/
-│       │   └── audit-gentle-ai-update.md         # Reusable audit prompt for future upstream updates
-│       ├── derived/
-│       │   └── opencode/
-│       │       └── gentle-orchestrator.md        # Local standalone orchestrator prompt without PR/budget flow
-│       ├── snapshots/
-│       │   └── upstream/
-│       │       └── opencode/
-│       │           └── gentle-orchestrator.last.md # Last upstream prompt seen before redirecting to derived prompt
+│       │   └── audit-gentle-ai-update.md       # Legacy audit prompt; maintainer skill is now preferred
+│       ├── runbooks/
+│       │   └── maintain-upstream-overlay.md    # Human maintenance runbook
 │       ├── logs/
-│       │   └── update-log.md                     # Incremental overlay decisions and upstream audit history
-│       └── scripts/
-│           ├── apply-gentle-ai-policy.sh         # Linux/macOS policy applicator
-│           └── apply-gentle-ai-policy.ps1        # Windows PowerShell policy applicator
+│       │   └── update-log.md                   # Incremental decision history
+│       ├── scripts/
+│       │   ├── apply-gentle-ai-policy.sh       # Internal helper: depure Gentle AI runtime assets
+│       │   └── apply-gentle-ai-policy.ps1      # Internal helper: Windows equivalent
+│       └── snapshots/
+│           └── upstream/
+│               └── opencode/
+│                   └── orchestrators/          # Per-orchestrator snapshots written at runtime
 ├── shared/
 │   ├── skills/
 │   │   ├── commit-planner/
-│   │   │   └── SKILL.md          # Skill: commit planning and execution
+│   │   │   └── SKILL.md
 │   │   └── pr-finalizer/
-│   │       └── SKILL.md          # Skill: PR creation and regeneration
+│   │       └── SKILL.md
 │   └── commands/
-│       ├── commit-plan-body.md   # Command body for /commit-plan (plan mode)
-│       ├── commit-apply-body.md  # Command body for /commit-apply (apply mode)
-│       ├── commit-fast-body.md   # Command body for /commit-fast (auto mode)
-│       ├── pr-create-body.md     # Command body for /pr-create (create mode)
-│       └── pr-regenerate-body.md # Command body for /pr-regenerate (regenerate mode)
-├── .atl/
-│   └── skill-registry.md         # Skill registry for ATL orchestrator resolution
-├── inject-skills.sh               # Bash installer (Linux/macOS)
-├── inject-skills.ps1              # PowerShell installer (Windows, 5.1+)
-├── AGENTS.md                      # This file — instructions for AI agents
-├── CLAUDE.md                      # Delegates to AGENTS.md for Claude Code
-└── README.md                      # Usage documentation for humans (Spanish)
+│       ├── commit-plan-body.md
+│       ├── commit-apply-body.md
+│       ├── commit-fast-body.md
+│       ├── pr-create-body.md
+│       └── pr-regenerate-body.md
+├── apply-gentle-ai-custom.sh                   # Canonical Linux/macOS entrypoint (public)
+├── apply-gentle-ai-custom.ps1                  # Canonical Windows entrypoint (public)
+├── AGENTS.md
+├── CLAUDE.md
+└── README.md
 ```
 
-Agent-specific wrappers (OpenCode commands, Claude commands, Codex prompts, Gemini command skills, Antigravity command skills) are **not versioned** in this repo. They are generated at install time from the sources in `shared/`.
+---
 
-The `overlay/gentle-ai/` tree is different: it is a **persistent control-plane** for adapting upstream Gentle AI to local preferences. It does not mirror the upstream repo; it stores local policy, local prompts, local audit instructions, and the paired scripts that reapply those decisions after every sync/update.
+## Repo meaning
+
+This repository is now a **unified custom layer** on top of Gentle AI.
+
+It does two classes of work:
+
+1. **Custom overlays owned by the user**
+   - `commit-planner`
+   - `pr-finalizer`
+   - generated wrappers/commands per target
+
+2. **Maintenance/depuration of upstream Gentle AI behavior**
+   - prune unwanted workflow skills
+   - set runtime model overrides for built-in OpenCode agents
+   - capture inline orchestrators from OpenCode config
+   - sanitize PR/budget workflow content
+   - emit generated orchestrator prompt files under the OpenCode prompts tree
+
+This repo does **not** mirror the upstream codebase. Upstream lives at `/home/manuel/Documentos/gentle-ai` and is treated as input only.
 
 ---
 
@@ -108,110 +127,68 @@ The `overlay/gentle-ai/` tree is different: it is a **persistent control-plane**
 ### `commit-planner`
 
 - **Source**: `shared/skills/commit-planner/SKILL.md`
-- **Purpose**: plan and execute coherently grouped local commits after finishing implementation.
-- **Modes**: `plan` (read-only), `apply` (requires approval), `auto` (executes without approval pause).
-- **Exposed commands**: `/commit-plan`, `/commit-apply`, `/commit-fast`
-
-> Nota OpenCode: los wrappers generados para `/commit-plan`, `/commit-apply` y `/commit-fast` no fijan `agent:` en el frontmatter; dependen del agente por defecto del entorno.
+- **Purpose**: plan and execute coherently grouped local commits after implementation.
+- **Commands**: `/commit-plan`, `/commit-apply`, `/commit-fast`
 
 ### `pr-finalizer`
 
 - **Source**: `shared/skills/pr-finalizer/SKILL.md`
-- **Purpose**: generate or regenerate PR content from the committed diff; refresh remote refs automatically, validate remote head state read-only, and create or update the PR on GitHub immediately after the content approval step, without a second confirmation.
-- **Modes**: `create`, `regenerate`
-- **Exposed commands**: `/pr-create`, `/pr-regenerate`
+- **Purpose**: generate or regenerate PR content from committed diff.
+- **Commands**: `/pr-create`, `/pr-regenerate`
+
+### `gentle-ai-overlay-maintainer`
+
+- **Source**: `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`
+- **Purpose**: maintain this repo's overlay against upstream Gentle AI updates.
+- **Use when**: auditing upstream changes, refreshing sanitization rules, updating policy/scripts/docs after a new Gentle AI version.
 
 ---
 
-## Gentle AI overlay control-plane
+## Overlay policy baseline
 
-### Purpose
-
-The `overlay/gentle-ai/` subtree exists to maintain a **local, durable adaptation layer** on top of the upstream Gentle AI repo at `/home/manuel/Documentos/gentle-ai`.
-
-Its job is to:
-
-- preserve the approved keep/prune skill baseline
-- remove unwanted repo-management conventions from the OpenCode SDD orchestrator
-- provide a reusable audit prompt for future upstream updates
-- keep a local snapshot/log trail so each future review is incremental rather than starting from zero
-
-### Source-of-truth split
-
-- **Upstream input**: `/home/manuel/Documentos/gentle-ai`
-- **Local decisions**: `overlay/gentle-ai/policy/`, `overlay/gentle-ai/derived/`, `overlay/gentle-ai/logs/`
-- **Mechanical reapplication**: `overlay/gentle-ai/scripts/`
-
-### Audit workflow
-
-When auditing a new Gentle AI update:
-
-1. Start from this repository (`gentle-ai-custom`), not from the upstream repo.
-2. Read the upstream repo as an external source: `/home/manuel/Documentos/gentle-ai`.
-3. Use `overlay/gentle-ai/prompts/audit-gentle-ai-update.md` as the reusable audit prompt.
-4. Update these artifacts together when decisions change:
-   - `policy/gentle-ai-policy.json`
-   - `policy/orchestrator-policy.md`
-   - `derived/opencode/gentle-orchestrator.md`
-   - `snapshots/upstream/opencode/gentle-orchestrator.last.md`
-   - `logs/update-log.md`
-   - `scripts/apply-gentle-ai-policy.sh`
-   - `scripts/apply-gentle-ai-policy.ps1`
-   - `README.md`
-   - `AGENTS.md`
-
-### Current approved baseline
-
-**Keep**:
-
+Keep:
 - `_shared`
 - `cognitive-doc-design`
 - `comment-writer`
 - `go-testing`
 - `judgment-day`
-- `sdd-apply`
-- `sdd-archive`
-- `sdd-design`
-- `sdd-explore`
-- `sdd-init`
-- `sdd-onboard`
-- `sdd-propose`
-- `sdd-spec`
-- `sdd-tasks`
-- `sdd-verify`
-- `skill-creator`
-- `skill-improver`
-- `skill-registry`
+- `sdd-init`, `sdd-explore`, `sdd-propose`, `sdd-spec`, `sdd-design`, `sdd-tasks`, `sdd-apply`, `sdd-verify`, `sdd-archive`, `sdd-onboard`
+- `skill-registry`, `skill-creator`, `skill-improver`
 
-**Prune**:
-
+Prune:
 - `branch-pr`
 - `chained-pr`
 - `issue-creation`
 - `work-unit-commits`
 
-### Orchestrator rule
-
-The derived OpenCode `gentle-orchestrator` prompt must remove **all PR/budget/chained-PR/review-workload flow** while preserving the useful SDD orchestration behavior. Do not reintroduce those concepts unless the user explicitly changes this policy.
-
-### Runtime caveat
-
-If `apply-gentle-ai-policy.*` updates `~/.config/opencode/opencode.json`, OpenCode must be restarted before the new `gentle-orchestrator` prompt takes effect. Agents working from this repo should surface that reminder explicitly.
+Built-in OpenCode agent overrides:
+- `general` → `openai/gpt-5.4` / `high`
+- `explore` → `google-vertex/gemini-3.1-pro-preview` / `high`
 
 ---
 
-## Installation targets
+## Orchestrator rule
 
-| Target | Skills destination | Commands/prompts destination |
-|--------|--------------------|------------------------------|
-| `opencode` | `~/.config/opencode/skills/` | `~/.config/opencode/commands/` |
-| `claude` | `~/.claude/skills/` | `~/.claude/commands/` |
-| `codex` | `~/.codex/skills/` | `~/.codex/prompts/` |
-| `gemini` | `~/.gemini/skills/` | `~/.gemini/skills/<command-name>/` (skill entries) |
-| `antigravity` | `~/.gemini/antigravity/skills/` | `~/.gemini/antigravity/skills/<command-name>/` (skill entries) |
+The OpenCode orchestrator is inline upstream by design. The helper scripts must therefore:
+
+1. read the inline prompt from `opencode.json`
+2. snapshot it per orchestrator
+3. sanitize PR/budget/chained-PR/review-workload flow
+4. generate `~/.config/opencode/prompts/sdd/orchestrators/<agent>.overlay.md`
+5. repoint the orchestrator to that generated file
+
+Do **not** switch back to a static repo-owned prompt file as the operational source of truth.
+
+If sanitization anchors are missing, fail closed and surface the warning.
+
+---
+
+## Runtime caveat
+
+If the scripts update `~/.config/opencode/opencode.json`, OpenCode must be restarted before the new orchestrator prompt takes effect.
 
 ---
 
 ## Commit convention
 
-Use **Conventional Commits**: `feat`, `fix`, `refactor`, `docs`, `chore`. The scope is the affected component (e.g. `commit-planner`, `pr-finalizer`, `overlay`).
+Use **Conventional Commits**: `feat`, `fix`, `refactor`, `docs`, `chore`. Suggested scope examples: `overlay`, `maintainer-skill`, `custom-layer`, `commit-planner`, `pr-finalizer`.

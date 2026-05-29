@@ -412,4 +412,9 @@ foreach ($target in $resolvedTargets) {
     }
 }
 
+$shouldApplyGentleOverlay = ($resolvedTargets -contains 'opencode') -or ($resolvedTargets -contains 'claude')
+if ($shouldApplyGentleOverlay) {
+    & (Join-Path $PSScriptRoot 'overlay\gentle-ai\scripts\apply-gentle-ai-policy.ps1')
+}
+
 Write-Host 'Reminder: re-run this script after syncs, upgrades, or managed config refreshes.'

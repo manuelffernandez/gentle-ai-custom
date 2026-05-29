@@ -1,5 +1,23 @@
 # Gentle AI Overlay Update Log
 
+## 2026-05-29 — Removed compatibility alias layer
+
+- Deleted `inject-skills.sh` and `inject-skills.ps1`.
+- Moved the full installation + wrapper-rendering flow directly into `apply-gentle-ai-custom.sh` and `apply-gentle-ai-custom.ps1`.
+- Kept `overlay/gentle-ai/scripts/apply-gentle-ai-policy.sh/.ps1` as internal helpers invoked only when targets include `opencode` or `claude`.
+- Updated docs to reflect that the only public entrypoint pair is now `apply-gentle-ai-custom.sh/.ps1`.
+
+## 2026-05-29 — Unified custom layer and dynamic orchestrator generation
+
+- Added `apply-gentle-ai-custom.sh` and `.ps1` as canonical entrypoints.
+- Converted `inject-skills.sh` and `.ps1` into compatibility aliases that still execute the full custom-layer workflow.
+- Reframed `gentle-ai-custom` as a unified installation + depuration + maintenance layer for Gentle AI.
+- Reworked the overlay helper so it no longer depends on a static repo-owned orchestrator prompt file.
+- The helper now reads inline orchestrators from `opencode.json`, snapshots them per agent, sanitizes them, and generates `~/.config/opencode/prompts/sdd/orchestrators/<agent>.overlay.md` files.
+- Deleted the obsolete static derived prompt artifact and the obsolete single-snapshot placeholder.
+- Added `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md` as the runtime entrypoint for overlay maintenance.
+- Added `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md` as the human maintenance runbook.
+
 ## 2026-05-28 — Script fixes, parity alignment, and agent_overrides
 
 - Fixed `apply-gentle-ai-policy.sh` Python guard: resolved `PYTHON_CMD="${PYTHON:-python3}"` at startup; guard and both inline Python calls now use `${PYTHON_CMD}` consistently.
@@ -25,4 +43,4 @@ Baseline decisions:
 
 - KEEP: `_shared`, SDD core phases, `skill-registry`, `skill-creator`, `skill-improver`, `cognitive-doc-design`, `comment-writer`, `judgment-day`, `go-testing`.
 - PRUNE: `branch-pr`, `chained-pr`, `issue-creation`, `work-unit-commits`.
-- OpenCode `agent.gentle-orchestrator.prompt` must point to the local derived prompt file via `{file:/abs/path/...}`.
+- Historical baseline: the first version of the overlay redirected `gentle-orchestrator` to a repo-owned derived prompt file. This was replaced on 2026-05-29 by dynamic per-orchestrator generation from inline prompts.

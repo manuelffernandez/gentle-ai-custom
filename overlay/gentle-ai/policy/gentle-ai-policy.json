@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "gentle-ai-overlay-baseline",
-  "description": "Persistent keep/prune baseline plus orchestrator prompt redirection policy.",
+  "description": "Persistent keep/prune baseline plus inline-orchestrator sanitization and runtime overrides.",
   "upstream": {
     "repo_path": "/home/manuel/Documentos/gentle-ai",
     "orchestrator_prompt_path": "internal/assets/opencode/sdd-orchestrator.md"
@@ -38,11 +38,33 @@
       "~/.claude/skills"
     ]
   },
-  "orchestrator": {
-    "agent_key": "gentle-orchestrator",
-    "derived_prompt": "overlay/gentle-ai/derived/opencode/gentle-orchestrator.md",
-    "snapshot_file": "overlay/gentle-ai/snapshots/upstream/opencode/gentle-orchestrator.last.md",
-    "opencode_config": "~/.config/opencode/opencode.json"
+  "opencode": {
+    "config_path": "~/.config/opencode/opencode.json",
+    "generated_orchestrators_dir": "~/.config/opencode/prompts/sdd/orchestrators",
+    "orchestrator_snapshot_dir": "overlay/gentle-ai/snapshots/upstream/opencode/orchestrators",
+    "orchestrator_agent_keys": [
+      "gentle-orchestrator"
+    ],
+    "orchestrator_agent_prefixes": [
+      "sdd-orchestrator"
+    ]
+  },
+  "sanitizer": {
+    "required_markers": [
+      "## Model Assignments",
+      "### Sub-Agent Launch Pattern",
+      "Required preflight choices:"
+    ],
+    "forbidden_markers": [
+      "C. PRs",
+      "D. Review",
+      "### Delivery Strategy",
+      "### Chain Strategy",
+      "### Review Workload Guard (MANDATORY)",
+      "size:exception",
+      "delivery_strategy",
+      "chain_strategy"
+    ]
   },
   "agent_overrides": [
     { "key": "general", "model": "openai/gpt-5.4", "variant": "high" },
