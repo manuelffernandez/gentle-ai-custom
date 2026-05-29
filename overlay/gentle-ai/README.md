@@ -25,13 +25,15 @@ Este overlay mantiene una política **persistente y reaplicable** para tu stack 
 - `logs/update-log.md`  
   Log incremental de decisiones y updates aplicados.
 - `scripts/apply-gentle-ai-policy.sh` y `.ps1`  
-  Helpers internos que podan skills, aplican `agent_overrides`, capturan prompts inline y generan orchestrators derivados bajo `~/.config/opencode/prompts/sdd/orchestrators/`.
+  Helpers internos que podan skills, aplican `agent_overrides`, capturan prompts inline y generan orchestrators derivados bajo `~/.config/opencode/prompts/sdd/orchestrators/`. También recuperan desde snapshot si un `.overlay.md` faltó en disco, detectan drift de topología (orchestrators desconocidos/faltantes) y verifican post-write que `opencode.json` quedó consistente.
 
 ## Convenciones
 
 - El source of truth del orchestrator **no** es un archivo estático del repo.
 - El helper lee el prompt inline real desde `~/.config/opencode/opencode.json`, lo snapshottea por agente, lo sanitiza y recién después genera el `.overlay.md` operativo.
+- Si el `.overlay.md` falta en disco pero el snapshot existe, el helper recupera desde el snapshot. Si no hay snapshot, falla cerrado pidiendo `gentle-ai sync`.
 - Si faltan anchors esperados, el sanitizador debe fallar cerrado y NO reescribir prompts automáticamente.
 - El repo upstream se trata como **fuente de verdad de entrada**; este overlay como **fuente de verdad de decisiones locales**.
 - El maintainer debe leer las cuatro capas en este orden: `maintenance-intent.md` → `gentle-ai-policy.json` → `upstream-state.json` → `update-log.md`.
 - `update-log.md` no reemplaza al estado upstream mantenido; solo deja trazabilidad narrativa.
+- Cada cambio sobre cualquier asset del overlay agrega una entrada a `update-log.md` (ver `AGENTS.md` regla 4).

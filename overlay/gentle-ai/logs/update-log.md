@@ -2,6 +2,59 @@
 
 > Este archivo registra decisiones e hitos del mantenimiento del overlay. No es la fuente autoritativa del último upstream mantenido; esa responsabilidad vive en `overlay/gentle-ai/state/upstream-state.json`.
 
+## 2026-05-29 — Apply script hardening + maintainer skill v1.1
+
+Descubrimiento que motivó el cambio:
+
+- `gentle-ai sync` resetea incondicionalmente los prompts inline de los orchestrators y reinstala todas las skills (verificado contra `internal/components/sdd/profiles.go` → `ResolveProfileStrategy` en upstream; con `~/.config/opencode/profiles/` vacío, devuelve `generated-multi` → `PreserveOpenCodeOrchestratorPrompt = false`).
+- La versión previa del script tenía un bug silencioso: si `opencode.json` apuntaba a un `{file:...}` cuyo target no existía en disco, el script skipeaba con un mensaje informativo y dejaba OpenCode sin poder cargar el orchestrator.
+- La skill del maintainer no distinguía qué tipo de update había ocurrido (brew / sync / reinstall), no tenía step explícito de re-aplicar el script ni de verificar el estado post-corrida, y no detectaba drift de topología.
+
+Cambios en los scripts (`apply-gentle-ai-policy.sh` + `.ps1`, paridad mantenida):
+
+- Recuperación desde snapshot: si el `{file:...}` target falta pero existe `*.last.md`, re-sanitiza desde el snapshot. Si no hay snapshot, falla con un mensaje accionable que pide `gentle-ai sync` para resetear a inline.
+- Drift tracking de snapshots: contadores `new` / `changed` / `unchanged` en el summary; recordatorio de `git diff overlay/gentle-ai/snapshots/` cuando hay drift.
+- Detección de drift de topología: warnings cuando un orchestrator matchea solo por prefijo (sin estar en `orchestrator_agent_keys`), cuando una key esperada falta en upstream, y cuando un `agent_override` creó un stub desde cero.
+- Validación explícita del parseo JSON con error accionable hacia los backups de `~/.gentle-ai/backups/`.
+- Verificación post-write: re-lee `opencode.json` después de escribir y confirma que los model overrides y las refs `{file:...}` de orchestrators persistieron.
+- Bloque `Summary:` estructurado al final con todos los contadores.
+- Las skills "keep" ausentes se agregan en un bloque `WARNING` agregado al final, en lugar de quedarse perdidas en el log inline.
+
+Cambio en la política (`gentle-ai-policy.json`):
+
+- Se listaron `sdd-orchestrator-mixed`, `sdd-orchestrator-vertex` y `sdd-orchestrator-vertex-claude` explícitamente en `orchestrator_agent_keys`. El prefijo `sdd-orchestrator` queda como tripwire real para detectar orchestrators nuevos agregados upstream que la policy todavía no conoce.
+
+Cambio en la skill (`.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`, v1.0 → v1.1):
+
+- Nuevo step obligatorio "Update-Type Triage" al inicio: el agente debe determinar si el usuario hizo `brew upgrade`, `gentle-ai sync` o reinstalación TUI antes de cualquier otra acción.
+- Decision Gates expandidas con escenarios sync / reinstall / topology / snapshot drift / broken state / sanitizer fail.
+- Step explícito de correr el script + step de verificación on-disk (skills prunidas ausentes, model overrides correctos, refs de orchestrators apuntando a archivos existentes).
+- Output Contract amplificado con señales de topology / verification / recovery.
+- Nueva sección "Hardening option" documentando la estrategia `external-single-active` con tradeoffs.
+
+Cambio en el runbook (`maintain-upstream-overlay.md`):
+
+- Tabla mapeando cada señal del summary del script (topology, snapshot drift, recovery, broken state, post-write verification fail, keep skills missing) a una acción concreta.
+- Sección de `external-single-active` explicando el mecanismo upstream, sus tradeoffs, y por qué se deja opt-in (no activar sin pedido explícito porque perdés visibilidad de drift upstream).
+
+Verificación:
+
+- Corridas idempotentes reportan `topology warnings: 0` después del update de policy.
+- Test manual del fallback: borré `~/.config/opencode/prompts/sdd/orchestrators/gentle-orchestrator.overlay.md`, corrí el script, recuperó desde `gentle-orchestrator.last.md` y reportó `orchestrators recovered from snapshot: 1`.
+
+## 2026-05-29 — Documented gentle-ai update types and mandatory script re-run rule
+
+- Agregada sección "Tipos de actualización de Gentle AI y su impacto en el overlay" al runbook con tabla de impacto por mecanismo (brew / sync / reinstall) y regla operativa invariante.
+- Agregada sección "Update flow" a `AGENTS.md` con la misma regla en forma resumida para que cualquier agente trabajando en el repo la encuentre.
+- Documentación basada en lectura directa del código upstream (`internal/cli/sync.go` + `internal/components/sdd/inject.go` + `internal/components/sdd/profiles.go`).
+
+## 2026-05-29 — Fixed apply script execute bit and bash invocation
+
+- `apply-gentle-ai-policy.sh` estaba commiteado con modo `100644` en git. Cualquier clone fresco fallaba con "Permission denied" porque el entrypoint llamaba al helper directamente sin `bash`.
+- Cambiado `apply-gentle-ai-custom.sh` para invocar el helper con `bash` explícito (inmune al bit de ejecución para siempre).
+- Corregido el modo del helper a `100755` en el index de git.
+- Commiteados también los snapshots `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/*.last.md` que estaban en el working tree como untracked. Son estado de referencia del upstream — versionarlos permite que `git diff` muestre el drift entre actualizaciones.
+
 ## 2026-05-29 — Intent / policy / state / log split
 
 - Eliminado `overlay/gentle-ai/prompts/audit-gentle-ai-update.md` por quedar reemplazado por la skill del maintainer.

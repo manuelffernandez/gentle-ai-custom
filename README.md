@@ -9,8 +9,8 @@ Este repo ya no es solo un instalador de dos skills custom. Ahora funciona como 
 - instala tus skills y wrappers propios
 - reaplica tu política local después de `gentle-ai sync`
 - depura skills no deseadas del runtime
-- fija overrides de modelo para agentes built-in de OpenCode
-- captura prompts inline de orchestrators, los sanitiza y genera prompts derivados por agente
+- fija overrides de modelo para agentes built-in de OpenCode ("General" y "Explore")
+- captura prompts inline de orchestrators, los sanitiza y genera prompts derivados por agente/perfil.
 - mantiene el runbook y la skill para auditar futuras actualizaciones del upstream
 
 ## Modelo de mantenimiento
@@ -26,7 +26,7 @@ Cada una cumple un rol distinto:
 
 - `maintenance-intent.md` explica qué quiere conservar y depurar el usuario, y por qué
 - `gentle-ai-policy.json` alimenta la lógica operativa de los scripts
-- `upstream-state.json` guarda desde qué versión/tag/commit hay que auditar el upstream
+- `upstream-state.json` guarda desde qué versión/tag/commit hay que auditar el upstream (última versión mantenida)
 - `update-log.md` deja historial narrativo de decisiones de mantenimiento
 
 ## Estructura
@@ -105,8 +105,22 @@ Este flujo hace, en una sola pasada:
 3. overrides de modelo para `general` y `explore`
 4. captura + sanitización de orchestrators inline de OpenCode
 5. generación de prompts derivados por orchestrator bajo `~/.config/opencode/prompts/sdd/orchestrators/`
+6. recuperación automática desde snapshot si algún `.overlay.md` fue borrado de disco
+7. verificación post-write de que los overrides y las refs `{file:...}` persistieron en `opencode.json`
 
 > **Nota OpenCode:** si el script cambia `~/.config/opencode/opencode.json`, reiniciá OpenCode. La config no se recarga en caliente.
+
+### Qué reporta el script
+
+Al final de cada corrida, el script imprime un bloque `Summary:` con contadores y, si corresponde, bloques `WARNING`/`NOTE`. Los más importantes:
+
+- `orchestrators recovered from snapshot: N` — algún `.overlay.md` faltaba en disco y se reconstruyó desde `*.last.md`. Si esto pasa repetidamente, investigá por qué se está borrando.
+- `snapshots — changed: N > 0` — los prompts inline upstream cambiaron desde la última corrida. Revisalo con `git diff overlay/gentle-ai/snapshots/`.
+- `topology warnings: N > 0` — apareció un orchestrator nuevo, falta uno esperado o algún `agent_override` apunta a una key inexistente. Acción concreta por warning: ver el runbook.
+- `WARNING - keep skills missing` — alguna skill que debería estar conservada está ausente en un target. Probable renombramiento upstream.
+- `ERROR: broken state for orchestrator X` — `opencode.json` apunta a un archivo inexistente y no hay snapshot para recuperar. Solución: `gentle-ai sync` para resetear a inline, después re-correr el script.
+
+Detalle completo de cada señal en `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`.
 
 ## Política actual
 

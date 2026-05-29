@@ -50,6 +50,32 @@ Any modification that affects operability must be reflected in documentation:
 - `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md` — maintenance procedure
 - affected `SKILL.md` files — source of truth for runtime agent behavior
 
+### 4. Append to the overlay update log on every overlay change (MANDATORY)
+
+Any change to overlay assets MUST add an entry to `overlay/gentle-ai/logs/update-log.md` in the same commit (or commit chain).
+
+"Overlay assets" means any of:
+
+- `overlay/gentle-ai/**` (policy, state, runbooks, scripts, snapshots)
+- `apply-gentle-ai-custom.sh` / `.ps1`
+- `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`
+- this file (`AGENTS.md`)
+- `README.md` when it documents overlay behavior
+
+Each log entry MUST include:
+
+- date and short title
+- WHAT changed (one bullet per affected file or coherent area)
+- WHY the change was needed (discovery, bug, intent shift, upstream change)
+- relevant verification performed (manual test, idempotency check, etc.)
+
+Rule 3 and Rule 4 are complementary, not redundant:
+
+- Rule 3 keeps the live documentation aligned with current behavior.
+- Rule 4 preserves the decision history — why things became the way they are.
+
+A change that updates docs (rule 3) without logging the decision (rule 4) is incomplete. Likewise, logging a decision (rule 4) without updating the docs that describe current behavior (rule 3) leaves the live docs lying about the system.
+
 ---
 
 ## Repository structure
