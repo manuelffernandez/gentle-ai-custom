@@ -1,5 +1,15 @@
 # Gentle AI Overlay Update Log
 
+> Este archivo registra decisiones e hitos del mantenimiento del overlay. No es la fuente autoritativa del último upstream mantenido; esa responsabilidad vive en `overlay/gentle-ai/state/upstream-state.json`.
+
+## 2026-05-29 — Intent / policy / state / log split
+
+- Eliminado `overlay/gentle-ai/prompts/audit-gentle-ai-update.md` por quedar reemplazado por la skill del maintainer.
+- Agregado `overlay/gentle-ai/policy/maintenance-intent.md` como fuente de verdad semántica del criterio del usuario.
+- Agregado `overlay/gentle-ai/state/upstream-state.json` como frontera operativa de la última versión/commit mantenido.
+- La skill `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md` pasó a ser version-aware y con gate humana explícita antes de mutar intención/política por cambios upstream relevantes.
+- El runbook ahora distingue explícitamente intento, política, estado y log.
+
 ## 2026-05-29 — Removed compatibility alias layer
 
 - Deleted `inject-skills.sh` and `inject-skills.ps1`.

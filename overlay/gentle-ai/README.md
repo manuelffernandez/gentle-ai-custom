@@ -14,10 +14,12 @@ Este overlay mantiene una política **persistente y reaplicable** para tu stack 
 
 - `policy/gentle-ai-policy.json`  
   Baseline machine-readable de keep/prune, overrides de agentes (`general`, `explore`) y rutas operativas de OpenCode.
+- `policy/maintenance-intent.md`  
+  Fuente de verdad semántica: explica qué se quiere conservar, qué se quiere depurar y por qué.
 - `policy/orchestrator-policy.md`  
   Reglas de limpieza del prompt inline de los orchestrators.
-- `prompts/audit-gentle-ai-update.md`  
-  Prompt heredado de auditoría; hoy el punto de entrada recomendado para mantenimiento es la skill del maintainer.
+- `state/upstream-state.json`  
+  Frontera operativa de la última versión/tag/commit upstream mantenido.
 - `runbooks/maintain-upstream-overlay.md`  
   Runbook humano para mantener la capa local frente a cambios del upstream.
 - `logs/update-log.md`  
@@ -31,3 +33,5 @@ Este overlay mantiene una política **persistente y reaplicable** para tu stack 
 - El helper lee el prompt inline real desde `~/.config/opencode/opencode.json`, lo snapshottea por agente, lo sanitiza y recién después genera el `.overlay.md` operativo.
 - Si faltan anchors esperados, el sanitizador debe fallar cerrado y NO reescribir prompts automáticamente.
 - El repo upstream se trata como **fuente de verdad de entrada**; este overlay como **fuente de verdad de decisiones locales**.
+- El maintainer debe leer las cuatro capas en este orden: `maintenance-intent.md` → `gentle-ai-policy.json` → `upstream-state.json` → `update-log.md`.
+- `update-log.md` no reemplaza al estado upstream mantenido; solo deja trazabilidad narrativa.

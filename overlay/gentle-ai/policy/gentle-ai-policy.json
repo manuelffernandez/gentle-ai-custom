@@ -1,7 +1,12 @@
 {
   "version": 1,
   "name": "gentle-ai-overlay-baseline",
-  "description": "Persistent keep/prune baseline plus inline-orchestrator sanitization and runtime overrides.",
+  "description": "Runtime policy only: keep/prune baseline, inline-orchestrator sanitization, and runtime overrides.",
+  "maintenance": {
+    "intent_file": "overlay/gentle-ai/policy/maintenance-intent.md",
+    "state_file": "overlay/gentle-ai/state/upstream-state.json",
+    "log_file": "overlay/gentle-ai/logs/update-log.md"
+  },
   "upstream": {
     "repo_path": "/home/manuel/Documentos/gentle-ai",
     "orchestrator_prompt_path": "internal/assets/opencode/sdd-orchestrator.md"

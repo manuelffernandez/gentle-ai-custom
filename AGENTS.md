@@ -65,9 +65,10 @@ gentle-ai-custom/
 │       ├── README.md                            # Human guide for the Gentle AI control-plane
 │       ├── policy/
 │       │   ├── gentle-ai-policy.json           # Machine-readable keep/prune + overrides + OpenCode paths
+│       │   ├── maintenance-intent.md           # Semantic source of truth for what to preserve/depure and why
 │       │   └── orchestrator-policy.md          # Sanitization intent for orchestrators
-│       ├── prompts/
-│       │   └── audit-gentle-ai-update.md       # Legacy audit prompt; maintainer skill is now preferred
+│       ├── state/
+│       │   └── upstream-state.json             # Last maintained upstream version/tag/commit boundary
 │       ├── runbooks/
 │       │   └── maintain-upstream-overlay.md    # Human maintenance runbook
 │       ├── logs/
@@ -120,6 +121,13 @@ It does two classes of work:
 
 This repo does **not** mirror the upstream codebase. Upstream lives at `/home/manuel/Documentos/gentle-ai` and is treated as input only.
 
+The maintenance model is intentionally split into:
+
+- `maintenance-intent.md` → semantic intent
+- `gentle-ai-policy.json` → runtime policy
+- `upstream-state.json` → last maintained upstream boundary
+- `update-log.md` → historical record
+
 ---
 
 ## Skills catalog
@@ -139,8 +147,8 @@ This repo does **not** mirror the upstream codebase. Upstream lives at `/home/ma
 ### `gentle-ai-overlay-maintainer`
 
 - **Source**: `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`
-- **Purpose**: maintain this repo's overlay against upstream Gentle AI updates.
-- **Use when**: auditing upstream changes, refreshing sanitization rules, updating policy/scripts/docs after a new Gentle AI version.
+- **Purpose**: maintain this repo's overlay against upstream Gentle AI updates with version-aware auditing and explicit human approval gates.
+- **Use when**: auditing upstream changes, refreshing sanitization rules, deciding what to keep/depure after a new Gentle AI version, and updating intent/policy/state/log coherently.
 
 ---
 
@@ -164,6 +172,8 @@ Prune:
 Built-in OpenCode agent overrides:
 - `general` → `openai/gpt-5.4` / `high`
 - `explore` → `google-vertex/gemini-3.1-pro-preview` / `high`
+
+The maintainer must not infer evolving user intent only from the JSON policy. Intent changes belong first in `maintenance-intent.md`, then in policy/runtime artifacts if the user approves them.
 
 ---
 

@@ -13,6 +13,22 @@ Este repo ya no es solo un instalador de dos skills custom. Ahora funciona como 
 - captura prompts inline de orchestrators, los sanitiza y genera prompts derivados por agente
 - mantiene el runbook y la skill para auditar futuras actualizaciones del upstream
 
+## Modelo de mantenimiento
+
+La capa de mantenimiento se apoya en cuatro piezas distintas:
+
+- **Intento** → `overlay/gentle-ai/policy/maintenance-intent.md`
+- **Política** → `overlay/gentle-ai/policy/gentle-ai-policy.json`
+- **Estado** → `overlay/gentle-ai/state/upstream-state.json`
+- **Log** → `overlay/gentle-ai/logs/update-log.md`
+
+Cada una cumple un rol distinto:
+
+- `maintenance-intent.md` explica qué quiere conservar y depurar el usuario, y por qué
+- `gentle-ai-policy.json` alimenta la lógica operativa de los scripts
+- `upstream-state.json` guarda desde qué versión/tag/commit hay que auditar el upstream
+- `update-log.md` deja historial narrativo de decisiones de mantenimiento
+
 ## Estructura
 
 - `apply-gentle-ai-custom.sh` — entrypoint principal Linux/macOS
@@ -22,7 +38,9 @@ Este repo ya no es solo un instalador de dos skills custom. Ahora funciona como 
 - `shared/commands/*.md` — cuerpos compartidos para wrappers/prompts por agente
 - `overlay/gentle-ai/README.md` — guía del control-plane de Gentle AI
 - `overlay/gentle-ai/policy/gentle-ai-policy.json` — política machine-readable del overlay
+- `overlay/gentle-ai/policy/maintenance-intent.md` — intención de mantenimiento del overlay en lenguaje humano/LLM
 - `overlay/gentle-ai/policy/orchestrator-policy.md` — criterio de sanitización del orchestrator
+- `overlay/gentle-ai/state/upstream-state.json` — estado operativo de la última versión/commit upstream mantenido
 - `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md` — runbook humano para mantenimiento incremental
 - `overlay/gentle-ai/logs/update-log.md` — historial de decisiones del overlay
 - `overlay/gentle-ai/scripts/apply-gentle-ai-policy.sh` — helper bash interno para depurar Gentle AI
@@ -148,11 +166,15 @@ Para futuras actualizaciones del upstream:
 
 La skill es el punto de entrada recomendado para pedirle al agente que revise diffs del upstream y mantenga actualizados:
 
+- maintenance intent
 - scripts
 - política
+- estado upstream mantenido
 - docs
 - snapshots
 - reglas de sanitización
+
+La skill ahora debe auditar el rango entre la última versión/commit mantenido y el estado actual del upstream, separar cambios relevantes de bugfix/chore noise y frenar con gate humana antes de cambiar intención o política para nuevos comportamientos.
 
 ## Comandos custom disponibles
 
