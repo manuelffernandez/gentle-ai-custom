@@ -2,6 +2,34 @@
 
 > Este archivo registra decisiones e hitos del mantenimiento del overlay. No es la fuente autoritativa del último upstream mantenido; esa responsabilidad vive en `overlay/gentle-ai/state/upstream-state.json`.
 
+## 2026-05-30 — Closed upstream v1.33.2 maintenance audit
+
+Razón del cambio:
+
+- El upstream `gentle-ai` avanzó desde `412eed3d39defb2f955a63e21ca13cef4df358c9` (`v1.32.0`) hasta `0fa9f2d1d2d3a8ebd822cdd5c82fcb4bff60f0fc` (`v1.33.2`) y había que cerrar formalmente la auditoría posterior al upstream git pull en este repo.
+
+WHAT cambió:
+
+- `overlay/gentle-ai/state/upstream-state.json`:
+  - Actualizado el boundary mantenido a `v1.33.2` / `0fa9f2d1d2d3a8ebd822cdd5c82fcb4bff60f0fc`.
+  - Actualizado `last_reviewed_at` al momento de cierre de la auditoría.
+  - Reescrita la nota para reflejar que esta entrada ya no es solo el seed inicial sino un mantenimiento cerrado contra un rango auditado.
+- `overlay/gentle-ai/logs/update-log.md`:
+  - Ajustada esta entrada top-level para dejar explícitos el rango auditado, el no-cambio en policy/scripts/docs y la verificación puntual sobre anclas/bloques del prompt upstream.
+
+WHY:
+
+- La auditoría del rango `412eed3d39defb2f955a63e21ca13cef4df358c9..0fa9f2d1d2d3a8ebd822cdd5c82fcb4bff60f0fc` mostró cambios relevantes para awareness, pero no para mutación del overlay.
+- Upstream agregó los subagentes `jd-judge-a`, `jd-judge-b` y `jd-fix-agent`, y sumó deduplicación de sub-agent launches en el orchestrator.
+- Ninguno de esos cambios exige tocar keep/prune, sanitizador, scripts o documentación operativa: los anchors requeridos siguen intactos y los bloques de PR/review que este overlay depura siguen presentes donde se espera.
+
+Verificación:
+
+- Revisión del rango upstream con `git log --oneline`, `git diff --name-only` y `git show --stat` entre los commits auditados.
+- Inspección puntual de `internal/assets/opencode/sdd-orchestrator.md`, auditando las anclas y bloques prohibidos relevantes para el sanitizer.
+- Confirmación de que `Chained PR strategy`, `Review budget`, `C. PRs`, `D. Review`, `### Delivery Strategy`, `### Chain Strategy` y `### Review Workload Guard (MANDATORY)` siguen presentes en el prompt upstream y, por lo tanto, el sanitizador actual sigue siendo válido.
+- Revisión de los commits/archivos upstream relevantes a este overlay: JD agents (`1f13b8d`, `b5351d3`, `22485fb`) y deduplicación del orchestrator (`28fe11d`), sin necesidad de cambios en policy, scripts o docs locales.
+
 ## 2026-05-30 — Follow-up review fixes for local SDD profile config
 
 Razón del cambio:
