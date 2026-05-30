@@ -145,6 +145,27 @@ function Is-OrchestratorAgent {
     return $false
 }
 
+function Is-ProfileOrchestratorKey {
+    param(
+        [string]$AgentKey,
+        [string]$ProfilePrefix
+    )
+
+    if ([string]::IsNullOrEmpty($ProfilePrefix)) { return $false }
+    return $AgentKey.StartsWith($ProfilePrefix)
+}
+
+function Get-ProfileNameFromOrchestratorKey {
+    param(
+        [string]$AgentKey,
+        [string]$ProfilePrefix
+    )
+
+    if ([string]::IsNullOrEmpty($ProfilePrefix)) { return '' }
+    if (-not $AgentKey.StartsWith($ProfilePrefix)) { return '' }
+    return $AgentKey.Substring($ProfilePrefix.Length)
+}
+
 function Get-AgentPropertyValue {
     param(
         [PSCustomObject]$Agent,
@@ -156,6 +177,35 @@ function Get-AgentPropertyValue {
         return $Agent.$Name
     }
     return $null
+}
+
+function Validate-Assignment {
+    param(
+        [string]$Label,
+        [object]$Value
+    )
+
+    if (-not ($Value -is [PSCustomObject])) {
+        Die "$Label`: must be an object with 'model' and 'variant'"
+    }
+    $AllowedFields = @('model', 'variant')
+    foreach ($PropName in $Value.PSObject.Properties.Name) {
+        if (-not ($AllowedFields -contains $PropName)) {
+            Die "$Label`: unexpected field '$PropName'; only 'model' and 'variant' are allowed"
+        }
+    }
+    if (-not ($Value.PSObject.Properties.Name -contains 'model')) {
+        Die "$Label`: missing required field 'model'"
+    }
+    if (-not ($Value.PSObject.Properties.Name -contains 'variant')) {
+        Die "$Label`: missing required field 'variant' (use '' if the assignment has no variant)"
+    }
+    if ($Value.model -isnot [string] -or [string]::IsNullOrEmpty($Value.model)) {
+        Die "$Label`: field 'model' must be a non-empty string"
+    }
+    if ($Value.variant -isnot [string]) {
+        Die "$Label`: field 'variant' must be a string (use '' for no variant)"
+    }
 }
 
 function Sanitize-OrchestratorPrompt {
@@ -219,6 +269,14 @@ $Policy = Get-Content -LiteralPath $PolicyFile -Raw | ConvertFrom-Json
 $OpenCodeConfig = Resolve-UserPath $Policy.opencode.config_path
 $GeneratedDir = Resolve-UserPath $Policy.opencode.generated_orchestrators_dir
 $SnapshotDir = Join-Path $RepoRoot $Policy.opencode.orchestrator_snapshot_dir
+$LocalProfilesConfig = Resolve-UserPath $Policy.opencode.sdd_profiles_local_config_path
+$ProfileOrchPrefix = [string]$Policy.opencode.profile_orchestrator_prefix
+$SddPhases = @($Policy.opencode.sdd_phases)
+if ($SddPhases.Count -eq 0) {
+    Die "policy.opencode.sdd_phases is empty or missing; cannot reconcile SDD profiles"
+}
+$SddPhasesSet = New-Object System.Collections.Generic.HashSet[string]
+foreach ($P in $SddPhases) { [void]$SddPhasesSet.Add([string]$P) }
 
 Write-Info 'Applying Gentle AI overlay policy...'
 
@@ -296,6 +354,14 @@ $SnapshotUnchanged = 0
 $TopologyWarnings = New-Object System.Collections.Generic.List[string]
 $WrittenOrchestratorKeys = New-Object System.Collections.Generic.HashSet[string]
 
+# Profile reconciliation counters
+$ProfilesManagedCount = 0
+$ProfileAgentsCreated = 0
+$ProfileAgentsUpdated = 0
+$ProfileAgentsUnchanged = 0
+$UnmanagedProfileNames = New-Object System.Collections.Generic.List[string]
+$ManagedProfileNames = New-Object System.Collections.Generic.HashSet[string]
+
 # Snapshot original agent keys BEFORE the override loop creates any stubs,
 # so topology drift checks can tell which override targets had to be invented.
 $OriginalAgentKeys = New-Object System.Collections.Generic.HashSet[string]
@@ -337,6 +403,232 @@ foreach ($Override in $Policy.agent_overrides) {
     Write-Info "  agent override $Key -> $Model$OverrideSuffix"
 }
 
+# --- SDD profile reconciliation (strict, fail-closed) ---
+# Mirrors the bash helper. Contract:
+#   - If the local config file does NOT exist: do not touch SDD profiles.
+#   - If it exists: parse + validate STRICTLY before any mutation.
+#   - For each managed profile: create/update orchestrator + 10 phase agents
+#     with the configured model/variant. Do NOT touch prompts here.
+#   - Profiles present in opencode.json but absent from local config are left
+#     untouched but surfaced as warnings + counter.
+#   - No automatic deletion of unmanaged profiles.
+
+if (Test-Path -LiteralPath $LocalProfilesConfig -PathType Leaf) {
+    try {
+        $LocalCfgRaw = Get-Content -LiteralPath $LocalProfilesConfig -Raw
+        $LocalCfg = $LocalCfgRaw | ConvertFrom-Json
+    }
+    catch {
+        Die ("local SDD profile config at {0} is not valid JSON: {1}. Fix or remove the file before re-running this script." -f $LocalProfilesConfig, $_.Exception.Message)
+    }
+
+    if (-not ($LocalCfg -is [PSCustomObject])) {
+        Die ("local SDD profile config at {0} must be a JSON object at the top level" -f $LocalProfilesConfig)
+    }
+    $AllowedLocalTopFields = @('version', 'profiles')
+    foreach ($PropName in $LocalCfg.PSObject.Properties.Name) {
+        if (-not ($AllowedLocalTopFields -contains $PropName)) {
+            Die ("local SDD profile config at {0} has unexpected top-level field '{1}'; only 'version' and 'profiles' are allowed" -f $LocalProfilesConfig, $PropName)
+        }
+    }
+
+    $LocalVersion = Get-AgentPropertyValue -Agent $LocalCfg -Name 'version'
+    if ($LocalVersion -ne 1) {
+        Die ("local SDD profile config at {0} has unsupported 'version' '{1}'; expected 1" -f $LocalProfilesConfig, $LocalVersion)
+    }
+    if (-not ($LocalCfg.PSObject.Properties.Name -contains 'profiles')) {
+        Die ("local SDD profile config at {0} must contain a non-empty 'profiles' array" -f $LocalProfilesConfig)
+    }
+    $ProfilesValue = $LocalCfg.profiles
+    if ($null -eq $ProfilesValue) {
+        Die ("local SDD profile config at {0} must contain a non-empty 'profiles' array" -f $LocalProfilesConfig)
+    }
+    # Force-wrap valid arrays to preserve the single-element-array case. Reject
+    # true non-arrays before any mutation.
+    if ($ProfilesValue -isnot [System.Array]) {
+        Die ("local SDD profile config at {0} must contain a non-empty 'profiles' array (got non-array type {1})" -f $LocalProfilesConfig, $ProfilesValue.GetType().FullName)
+    }
+    $ProfilesRaw = @($ProfilesValue)
+    if ($ProfilesRaw.Count -eq 0) {
+        Die ("local SDD profile config at {0} must contain a non-empty 'profiles' array" -f $LocalProfilesConfig)
+    }
+
+    $SeenProfileNames = New-Object System.Collections.Generic.HashSet[string]
+    $ValidatedProfiles = New-Object System.Collections.Generic.List[object]
+    for ($i = 0; $i -lt $ProfilesRaw.Count; $i++) {
+        $Prefix = "profiles[$i]"
+        $ProfileEntry = $ProfilesRaw[$i]
+        if (-not ($ProfileEntry -is [PSCustomObject])) {
+            Die "$Prefix`: must be an object"
+        }
+        $AllowedTopFields = @('name', 'orchestrator', 'phases')
+        foreach ($PropName in $ProfileEntry.PSObject.Properties.Name) {
+            if (-not ($AllowedTopFields -contains $PropName)) {
+                Die "$Prefix`: unexpected field '$PropName'; only 'name', 'orchestrator', 'phases' are allowed"
+            }
+        }
+        $ProfileName = Get-AgentPropertyValue -Agent $ProfileEntry -Name 'name'
+        if ($ProfileName -isnot [string] -or [string]::IsNullOrEmpty($ProfileName)) {
+            Die "$Prefix`: 'name' must be a non-empty string"
+        }
+        if ($ProfileName -cnotmatch '^[a-z0-9][a-z0-9._-]*$') {
+            Die "$Prefix`: 'name' '$ProfileName' must match ^[a-z0-9][a-z0-9._-]*$ to be safe as an agent-key suffix"
+        }
+        if ($SeenProfileNames.Contains($ProfileName)) {
+            Die "$Prefix`: duplicate profile name '$ProfileName'"
+        }
+        [void]$SeenProfileNames.Add($ProfileName)
+
+        if (-not ($ProfileEntry.PSObject.Properties.Name -contains 'orchestrator')) {
+            Die "$Prefix`: missing required field 'orchestrator'"
+        }
+        Validate-Assignment -Label "$Prefix.orchestrator" -Value $ProfileEntry.orchestrator
+
+        if (-not ($ProfileEntry.PSObject.Properties.Name -contains 'phases')) {
+            Die "$Prefix`: missing required field 'phases'"
+        }
+        $PhasesObj = $ProfileEntry.phases
+        if (-not ($PhasesObj -is [PSCustomObject])) {
+            Die "$Prefix.phases: must be an object keyed by SDD phase name"
+        }
+        $PhaseKeysSet = New-Object System.Collections.Generic.HashSet[string]
+        foreach ($PK in $PhasesObj.PSObject.Properties.Name) { [void]$PhaseKeysSet.Add($PK) }
+
+        $Missing = New-Object System.Collections.Generic.List[string]
+        foreach ($P in $SddPhases) {
+            if (-not $PhaseKeysSet.Contains($P)) { [void]$Missing.Add($P) }
+        }
+        if ($Missing.Count -gt 0) {
+            $MissingSorted = ($Missing | Sort-Object) -join ', '
+            Die "$Prefix.phases: missing required phases [$MissingSorted] (no defaults are inherited)"
+        }
+        $Unknown = New-Object System.Collections.Generic.List[string]
+        foreach ($PK in $PhaseKeysSet) {
+            if (-not $SddPhasesSet.Contains($PK)) { [void]$Unknown.Add($PK) }
+        }
+        if ($Unknown.Count -gt 0) {
+            $UnknownSorted = ($Unknown | Sort-Object) -join ', '
+            $AllowedSorted = $SddPhases -join ', '
+            Die "$Prefix.phases: unknown phases [$UnknownSorted]; allowed: [$AllowedSorted]"
+        }
+        foreach ($P in $SddPhases) {
+            Validate-Assignment -Label "$Prefix.phases.$P" -Value $PhasesObj.$P
+        }
+
+        [void]$ValidatedProfiles.Add([PSCustomObject]@{
+            Name = $ProfileName
+            Orchestrator = $ProfileEntry.orchestrator
+            Phases = $PhasesObj
+        })
+    }
+
+    # --- All validation passed. Apply. ---
+    foreach ($Vp in $ValidatedProfiles) {
+        $Pname = $Vp.Name
+        [void]$ManagedProfileNames.Add($Pname)
+        $ProfilesManagedCount++
+
+        # Orchestrator agent
+        $OrchKey = "sdd-orchestrator-$Pname"
+        $OrchAssignment = $Vp.Orchestrator
+        $ExistingOrch = if ($Config.agent.PSObject.Properties.Name -contains $OrchKey) { $Config.agent.$OrchKey } else { $null }
+        if (-not ($ExistingOrch -is [PSCustomObject])) {
+            $NewObj = [PSCustomObject]@{ model = [string]$OrchAssignment.model; variant = [string]$OrchAssignment.variant }
+            $Config.agent | Add-Member -NotePropertyName $OrchKey -NotePropertyValue $NewObj -Force
+            $ProfileAgentsCreated++
+            $ConfigChanged = $true
+            Write-Info "  profile $Pname`: created orchestrator agent $OrchKey (no prompt; run ``gentle-ai sync`` to materialize)"
+        }
+        else {
+            $ChangedHere = $false
+            $CurModel = [string](Get-AgentPropertyValue -Agent $ExistingOrch -Name 'model')
+            $CurVariant = [string](Get-AgentPropertyValue -Agent $ExistingOrch -Name 'variant')
+            $WantModel = [string]$OrchAssignment.model
+            $WantVariant = [string]$OrchAssignment.variant
+            if ($CurModel -ne $WantModel) {
+                $ExistingOrch | Add-Member -NotePropertyName 'model' -NotePropertyValue $WantModel -Force
+                $ChangedHere = $true
+            }
+            if ($CurVariant -ne $WantVariant) {
+                $ExistingOrch | Add-Member -NotePropertyName 'variant' -NotePropertyValue $WantVariant -Force
+                $ChangedHere = $true
+            }
+            if ($ChangedHere) {
+                $ProfileAgentsUpdated++
+                $ConfigChanged = $true
+                $Suffix = if ($WantVariant) { " ($WantVariant)" } else { '' }
+                Write-Info "  profile $Pname`: updated orchestrator agent $OrchKey -> $WantModel$Suffix"
+            }
+            else {
+                $ProfileAgentsUnchanged++
+            }
+        }
+
+        # Phase agents
+        foreach ($P in $SddPhases) {
+            $PhaseKey = "$P-$Pname"
+            $Assignment = $Vp.Phases.$P
+            $ExistingPhase = if ($Config.agent.PSObject.Properties.Name -contains $PhaseKey) { $Config.agent.$PhaseKey } else { $null }
+            if (-not ($ExistingPhase -is [PSCustomObject])) {
+                $NewObj = [PSCustomObject]@{ model = [string]$Assignment.model; variant = [string]$Assignment.variant }
+                $Config.agent | Add-Member -NotePropertyName $PhaseKey -NotePropertyValue $NewObj -Force
+                $ProfileAgentsCreated++
+                $ConfigChanged = $true
+                $Suffix = if ([string]$Assignment.variant) { " ($([string]$Assignment.variant))" } else { '' }
+                Write-Info "  profile $Pname`: created phase agent $PhaseKey -> $([string]$Assignment.model)$Suffix"
+            }
+            else {
+                $ChangedHere = $false
+                $CurModel = [string](Get-AgentPropertyValue -Agent $ExistingPhase -Name 'model')
+                $CurVariant = [string](Get-AgentPropertyValue -Agent $ExistingPhase -Name 'variant')
+                $WantModel = [string]$Assignment.model
+                $WantVariant = [string]$Assignment.variant
+                if ($CurModel -ne $WantModel) {
+                    $ExistingPhase | Add-Member -NotePropertyName 'model' -NotePropertyValue $WantModel -Force
+                    $ChangedHere = $true
+                }
+                if ($CurVariant -ne $WantVariant) {
+                    $ExistingPhase | Add-Member -NotePropertyName 'variant' -NotePropertyValue $WantVariant -Force
+                    $ChangedHere = $true
+                }
+                if ($ChangedHere) {
+                    $ProfileAgentsUpdated++
+                    $ConfigChanged = $true
+                    $Suffix = if ($WantVariant) { " ($WantVariant)" } else { '' }
+                    Write-Info "  profile $Pname`: updated phase agent $PhaseKey -> $WantModel$Suffix"
+                }
+                else {
+                    $ProfileAgentsUnchanged++
+                }
+            }
+        }
+    }
+
+    # Detect unmanaged profiles already present in opencode.json (warn-only).
+    $DiscoveredProfileNames = New-Object System.Collections.Generic.HashSet[string]
+    foreach ($K in $OriginalAgentKeys) {
+        if (Is-ProfileOrchestratorKey -AgentKey $K -ProfilePrefix $ProfileOrchPrefix) {
+            $Pn = Get-ProfileNameFromOrchestratorKey -AgentKey $K -ProfilePrefix $ProfileOrchPrefix
+            if (-not [string]::IsNullOrEmpty($Pn)) {
+                [void]$DiscoveredProfileNames.Add($Pn)
+            }
+        }
+    }
+    $UnmanagedList = New-Object System.Collections.Generic.List[string]
+    foreach ($Pn in $DiscoveredProfileNames) {
+        if (-not $ManagedProfileNames.Contains($Pn)) {
+            [void]$UnmanagedList.Add($Pn)
+        }
+    }
+    foreach ($Pn in ($UnmanagedList | Sort-Object)) {
+        [void]$UnmanagedProfileNames.Add($Pn)
+        Write-Info "  unmanaged SDD profile present in opencode.json (left untouched): $Pn"
+    }
+}
+else {
+    Write-Info "  no local SDD profile config at $LocalProfilesConfig - SDD profiles untouched"
+}
+
 # --- Topology drift checks (non-fatal warnings) ---
 $KnownOrchestratorKeys = New-Object System.Collections.Generic.HashSet[string]
 foreach ($K in $Policy.opencode.orchestrator_agent_keys) {
@@ -353,6 +645,12 @@ foreach ($K in $OriginalAgentKeys) {
 $UnknownList = New-Object System.Collections.Generic.List[string]
 foreach ($K in $OrchestratorsInConfig) {
     if (-not $KnownOrchestratorKeys.Contains($K)) {
+        # EXCEPTION: profile-managed orchestrators (sdd-orchestrator-<name>) are
+        # deliberately not in orchestrator_agent_keys; they are managed via the
+        # local SDD profile config. Don't warn about them.
+        if (Is-ProfileOrchestratorKey -AgentKey $K -ProfilePrefix $ProfileOrchPrefix) {
+            continue
+        }
         [void]$UnknownList.Add($K)
     }
 }
@@ -533,6 +831,20 @@ if ($ConfigChanged) {
             Die "post-write verification failed: overlay file missing for '$Key' at $OverlayPath"
         }
     }
+
+    # Profile reconciliation post-write verification.
+    foreach ($Pname in ($ManagedProfileNames | Sort-Object)) {
+        $OrchKey = "sdd-orchestrator-$Pname"
+        if (-not ($VerifyConfig.agent.PSObject.Properties.Name -contains $OrchKey)) {
+            Die "post-write verification failed: profile '$Pname' orchestrator agent '$OrchKey' missing from $OpenCodeConfig after write"
+        }
+        foreach ($P in $SddPhases) {
+            $PhaseKey = "$P-$Pname"
+            if (-not ($VerifyConfig.agent.PSObject.Properties.Name -contains $PhaseKey)) {
+                Die "post-write verification failed: profile '$Pname' phase agent '$PhaseKey' missing from $OpenCodeConfig after write"
+            }
+        }
+    }
 }
 else {
     $ConfigStatus = 'unchanged'
@@ -548,6 +860,19 @@ Write-Info "  orchestrators kept (already applied): $KeptCount"
 Write-Info "  orchestrators skipped: $SkippedCount"
 Write-Info "  snapshots - new: $SnapshotNew, changed: $SnapshotChanged, unchanged: $SnapshotUnchanged"
 Write-Info "  topology warnings: $($TopologyWarnings.Count)"
+Write-Info "  SDD profiles managed: $ProfilesManagedCount"
+Write-Info "  SDD profile agents created: $ProfileAgentsCreated"
+Write-Info "  SDD profile agents updated: $ProfileAgentsUpdated"
+Write-Info "  SDD profile agents unchanged: $ProfileAgentsUnchanged"
+Write-Info "  SDD profiles unmanaged (present in opencode.json, absent from local config): $($UnmanagedProfileNames.Count)"
+
+if ($UnmanagedProfileNames.Count -gt 0) {
+    Write-Info ''
+    Write-Info 'WARNING - unmanaged SDD profiles left untouched (add them to the local SDD profile config to manage):'
+    foreach ($Entry in $UnmanagedProfileNames) {
+        Write-Info "  - $Entry"
+    }
+}
 
 if ($MissingKeepSummary.Count -gt 0) {
     Write-Info ''

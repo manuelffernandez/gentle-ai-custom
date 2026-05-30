@@ -10,6 +10,7 @@ Este repo ya no es solo un instalador de dos skills custom. Ahora funciona como 
 - reaplica tu política local después de `gentle-ai sync`
 - depura skills no deseadas del runtime
 - fija overrides de modelo para los agentes built-in de OpenCode listados en `agent_overrides` (ver `overlay/gentle-ai/policy/gentle-ai-policy.json`)
+- reconcilia perfiles SDD locales (`sdd-orchestrator-<name>` + 10 phase agents) desde un config por-máquina en `~/.config/gentle-ai-custom/opencode-sdd-profiles.json`
 - captura prompts inline de orchestrators, los sanitiza y genera prompts derivados por agente/perfil.
 - mantiene el runbook y la skill para auditar futuras actualizaciones del upstream
 
@@ -118,7 +119,10 @@ Al final de cada corrida, el script imprime un bloque `Summary:` con contadores 
 - `orchestrators recovered from snapshot: N` — algún `.overlay.md` faltaba en disco y se reconstruyó desde `*.last.md`. Aparece un `NOTE` adicional avisando que el snapshot puede pre-datar la versión actual de upstream — si querés capturar fresco, corré `gentle-ai sync` y volvé a correr el script.
 - `snapshots - changed: N > 0` — los prompts inline upstream cambiaron desde la última corrida. Revisalo con `git diff overlay/gentle-ai/snapshots/`.
 - `topology warnings: N > 0` — apareció un orchestrator nuevo, falta uno esperado o algún `agent_override` apunta a una key inexistente. Acción concreta por warning: ver el runbook.
+- `SDD profiles managed: N` / `created: N` / `updated: N` / `unchanged: N` — cuántos perfiles del config local se aplicaron y cuántos agent entries se crearon/actualizaron/no cambiaron.
+- `SDD profiles unmanaged (present in opencode.json, absent from local config): N` + `WARNING - unmanaged SDD profiles left untouched` — hay perfiles en `opencode.json` que el config local no menciona. El script no los toca. Para gestionarlos, agregalos al config local; para sacarlos, borralos a mano de `opencode.json`.
 - `WARNING - keep skills missing` — alguna skill que debería estar conservada está ausente en un target. Probable renombramiento upstream.
+- `ERROR: local SDD profile config at ... is not valid JSON` / `... missing required field ...` / `... must be a non-empty string` / `... must match ^[a-z0-9][a-z0-9._-]*$` — el config local no pasa el schema V1 strict. El script **no escribe nada** a `opencode.json` en este caso. Arreglá o eliminá el archivo y volvé a correr.
 - `ERROR: broken state for orchestrator X` — `opencode.json` apunta a un archivo inexistente y no hay snapshot para recuperar. Solución: `gentle-ai sync` para resetear a inline, después re-correr el script.
 - `ERROR: post-write verification failed: ...` — el script escribió `opencode.json` pero al re-leerlo los valores no coinciden con lo esperado. Suele ser otro proceso escribiendo el archivo en paralelo, o un bug serio del script.
 
@@ -158,6 +162,62 @@ Detalle completo de cada señal en `overlay/gentle-ai/runbooks/maintain-upstream
 
 - `general` → `openai/gpt-5.4` / `high`
 - `explore` → `google-vertex/gemini-3.1-pro-preview` / `high`
+
+### Perfiles SDD locales
+
+Los perfiles SDD (`sdd-orchestrator-<name>` + los 10 agentes de fase `sdd-init-<name>`, …, `sdd-onboard-<name>`) **no** se versionan en este repo. Se reconcilian desde un config por-máquina en:
+
+```
+~/.config/gentle-ai-custom/opencode-sdd-profiles.json
+```
+
+Comportamiento del script:
+
+- Si el archivo **no existe** → el helper no toca ningún perfil SDD en `opencode.json`.
+- Si existe → valida estrictamente con schema V1 y **falla cerrado antes de cualquier escritura** si algo está mal.
+- Para cada perfil nombrado en el config local → crea o actualiza orchestrator + 10 phase agents con `model` y `variant` exactos.
+- Perfiles presentes en `opencode.json` pero **no** nombrados en el config local → quedan intactos pero se reportan como `WARNING - unmanaged SDD profiles left untouched` + contador.
+- **Nunca borra perfiles automáticamente**. Si querés sacar uno: editás el config y borrás los agentes correspondientes en `opencode.json` a mano.
+
+Schema V1 (no hay defaults ni herencia):
+
+```jsonc
+{
+  "version": 1,
+  "profiles": [
+    {
+      "name": "vertex",
+      "orchestrator": { "model": "provider/model", "variant": "..." },
+      "phases": {
+        "sdd-init":     { "model": "provider/model", "variant": "..." },
+        "sdd-explore":  { "model": "provider/model", "variant": "..." },
+        "sdd-propose":  { "model": "provider/model", "variant": "..." },
+        "sdd-spec":     { "model": "provider/model", "variant": "..." },
+        "sdd-design":   { "model": "provider/model", "variant": "..." },
+        "sdd-tasks":    { "model": "provider/model", "variant": "..." },
+        "sdd-apply":    { "model": "provider/model", "variant": "..." },
+        "sdd-verify":   { "model": "provider/model", "variant": "..." },
+        "sdd-archive":  { "model": "provider/model", "variant": "..." },
+        "sdd-onboard":  { "model": "provider/model", "variant": "..." }
+      }
+    }
+  ]
+}
+```
+
+Reglas duras:
+
+- El top-level debe tener exactamente `version` y `profiles`. Cualquier campo extra rechaza el archivo.
+- `version` debe ser exactamente `1`.
+- `profiles` debe ser un array no vacío.
+- Cada profile debe tener exactamente los campos `name`, `orchestrator`, `phases`. Cualquier campo extra rechaza el archivo.
+- `name` debe matchear `^[a-z0-9][a-z0-9._-]*$` (sufijo seguro para agent keys) y ser único.
+- Cada `orchestrator`/phase assignment debe tener exactamente `{ "model": "...", "variant": "..." }`.
+- `model` debe ser un string no vacío.
+- `variant` debe ser un string (puede ser `""` si no aplica), pero el campo es **requerido**.
+- `phases` debe contener exactamente los 10 phase keys SDD listados arriba.
+
+El script solo gestiona `model`/`variant`. El `prompt` del orchestrator del perfil viene de `gentle-ai sync` y la sanitización inline existente sigue corriendo igual.
 
 ## Cómo se resuelve el orchestrator
 

@@ -199,7 +199,68 @@ Built-in OpenCode agent overrides:
 - `general` → `openai/gpt-5.4` / `high`
 - `explore` → `google-vertex/gemini-3.1-pro-preview` / `high`
 
+SDD profile orchestrators (`sdd-orchestrator-<name>` and `sdd-<phase>-<name>`) are **NOT** baked into the versioned policy. They are reconciled from a per-machine local config — see `## SDD profile local config` below. The versioned policy keeps only portable baseline keys (`gentle-orchestrator`) so the repo never carries machine-specific model/variant choices.
+
 The maintainer must not infer evolving user intent only from the JSON policy. Intent changes belong first in `maintenance-intent.md`, then in policy/runtime artifacts if the user approves them.
+
+---
+
+## SDD profile local config
+
+Per-machine SDD profile assignments live OUTSIDE the repo at:
+
+```
+~/.config/gentle-ai-custom/opencode-sdd-profiles.json
+```
+
+### Behavior
+
+- If the file does NOT exist → the helper does not touch any SDD profile entry in `opencode.json`.
+- If the file exists → the helper validates it STRICTLY and fails closed before any write if validation fails.
+- For each managed profile → the helper creates or updates `sdd-orchestrator-<name>` plus the 10 phase agents (`sdd-init-<name>`, …, `sdd-onboard-<name>`) with the configured `model` + `variant`.
+- Profiles present in `opencode.json` but NOT named in the local config are LEFT UNTOUCHED and surfaced as `WARNING - unmanaged SDD profiles left untouched`. Nothing is deleted automatically.
+
+### V1 schema (strict, no inheritance)
+
+```jsonc
+{
+  "version": 1,
+  "profiles": [
+    {
+      "name": "vertex",
+      "orchestrator": { "model": "provider/model", "variant": "..." },
+      "phases": {
+        "sdd-init":     { "model": "provider/model", "variant": "..." },
+        "sdd-explore":  { "model": "provider/model", "variant": "..." },
+        "sdd-propose":  { "model": "provider/model", "variant": "..." },
+        "sdd-spec":     { "model": "provider/model", "variant": "..." },
+        "sdd-design":   { "model": "provider/model", "variant": "..." },
+        "sdd-tasks":    { "model": "provider/model", "variant": "..." },
+        "sdd-apply":    { "model": "provider/model", "variant": "..." },
+        "sdd-verify":   { "model": "provider/model", "variant": "..." },
+        "sdd-archive":  { "model": "provider/model", "variant": "..." },
+        "sdd-onboard":  { "model": "provider/model", "variant": "..." }
+      }
+    }
+  ]
+}
+```
+
+Hard rules:
+
+- Top-level config MUST contain exactly `version` and `profiles`. Extra top-level fields are rejected.
+- `version` MUST equal `1`.
+- `profiles` MUST be a non-empty array.
+- Each profile MUST have exactly the fields `name`, `orchestrator`, `phases`. Extra fields are rejected.
+- `name` MUST match `^[a-z0-9][a-z0-9._-]*$` (safe agent-key suffix) and MUST be unique across profiles in the file.
+- `orchestrator` and each phase assignment MUST be exactly `{ "model": "...", "variant": "..." }`.
+- `model` MUST be a non-empty string.
+- `variant` MUST be a string. It may be `""` if the assignment has no variant, but the field is REQUIRED — there is no implicit default.
+- `phases` MUST contain exactly the 10 SDD phase keys listed above. No defaults are inherited from anywhere.
+
+### Why orchestrator prompts are NOT in this schema
+
+The helper only manages `model`/`variant` on profile orchestrators. Orchestrator `prompt` content still comes from `gentle-ai sync` and is sanitized by the existing inline-orchestrator pass. If a profile is configured locally but the orchestrator agent does not yet exist in `opencode.json`, the helper creates a stub `{ model, variant }` agent without a prompt — running `gentle-ai sync` then materializes the prompt, and the next overlay run picks it up via the prefix-matched sanitization.
 
 ---
 

@@ -40,6 +40,7 @@ opencode = data['opencode']
 print(f'OPENCODE_CONFIG={q(os.path.expanduser(opencode["config_path"]))}')
 print(f'GENERATED_DIR={q(os.path.expanduser(opencode["generated_orchestrators_dir"]))}')
 print(f'SNAPSHOT_DIR={q(os.path.join(repo_root, opencode["orchestrator_snapshot_dir"]))}')
+print(f'LOCAL_PROFILES_CONFIG={q(os.path.expanduser(opencode["sdd_profiles_local_config_path"]))}')
 print('TARGET_DIRS=(' + ' '.join(q(os.path.expanduser(path)) for path in data['skills']['targets']) + ')')
 print('PRUNE_SKILLS=(' + ' '.join(q(skill) for skill in data['skills']['prune']) + ')')
 print('KEEP_SKILLS=(' + ' '.join(q(skill) for skill in data['skills']['keep']) + ')')
@@ -95,14 +96,14 @@ if [[ ! -f "${OPENCODE_CONFIG}" ]]; then
   exit 0
 fi
 
-redirect_output="$(${PYTHON_CMD} - "${OPENCODE_CONFIG}" "${GENERATED_DIR}" "${SNAPSHOT_DIR}" "${POLICY_FILE}" <<'PY'
+redirect_output="$(${PYTHON_CMD} - "${OPENCODE_CONFIG}" "${GENERATED_DIR}" "${SNAPSHOT_DIR}" "${POLICY_FILE}" "${LOCAL_PROFILES_CONFIG}" <<'PY'
 import json
 import os
 import re
 import sys
 import tempfile
 
-config_path, generated_dir, snapshot_dir, policy_path = sys.argv[1:5]
+config_path, generated_dir, snapshot_dir, policy_path, local_profiles_path = sys.argv[1:6]
 
 def die(msg: str) -> 'NoReturn':
     """Exit with an ERROR: prefix on stderr, matching the shell fail() helper."""
@@ -134,6 +135,11 @@ required_markers = sanitizer.get('required_markers', [])
 forbidden_markers = sanitizer.get('forbidden_markers', [])
 orchestrator_keys = set(opencode.get('orchestrator_agent_keys', []))
 orchestrator_prefixes = tuple(opencode.get('orchestrator_agent_prefixes', []))
+profile_orch_prefix = opencode.get('profile_orchestrator_prefix', '')
+sdd_phases = list(opencode.get('sdd_phases', []))
+if not sdd_phases:
+    die('policy.opencode.sdd_phases is empty or missing; cannot reconcile SDD profiles')
+sdd_phases_set = set(sdd_phases)
 
 config_changed = False
 generated_count = 0
@@ -146,8 +152,21 @@ snapshot_unchanged = 0
 topology_warnings = []
 written_orchestrator_keys = set()
 
+# Profile reconciliation counters
+profiles_managed_count = 0
+profile_agents_created = 0
+profile_agents_updated = 0
+profile_agents_unchanged = 0
+unmanaged_profiles_warnings = []
+
 def is_orchestrator(agent_key: str) -> bool:
     return agent_key in orchestrator_keys or agent_key.startswith(orchestrator_prefixes)
+
+def is_profile_orchestrator(agent_key: str) -> bool:
+    return bool(profile_orch_prefix) and agent_key.startswith(profile_orch_prefix)
+
+def profile_name_from_orchestrator_key(agent_key: str) -> str:
+    return agent_key[len(profile_orch_prefix):] if profile_orch_prefix and agent_key.startswith(profile_orch_prefix) else ''
 
 def safe_snapshot_key(key: str) -> str:
     """Reject keys that would traverse outside snapshot_dir."""
@@ -268,13 +287,196 @@ for override in policy.get('agent_overrides', []):
         config_changed = True
     print(f'  agent override {key} -> {model}' + (f' ({variant})' if variant else ''), file=sys.stderr)
 
+# --- SDD profile reconciliation (strict, fail-closed) ---
+# Contract:
+#   - If the local config file does NOT exist: do not touch SDD profiles.
+#   - If it exists: parse + validate STRICTLY before any mutation.
+#   - For each managed profile: create/update the orchestrator + 10 phase agents
+#     with the configured model/variant. Do NOT touch prompts here.
+#   - Profiles present in opencode.json but absent from local config are left
+#     untouched but surfaced as warnings + counter.
+#   - No automatic deletion of unmanaged profiles.
+
+managed_profile_names = set()
+
+if os.path.isfile(local_profiles_path):
+    try:
+        with open(local_profiles_path, 'r', encoding='utf-8') as fh:
+            local_cfg = json.load(fh)
+    except json.JSONDecodeError as e:
+        die(
+            f'local SDD profile config at {local_profiles_path} is not valid JSON: {e}. '
+            f'Fix or remove the file before re-running this script.'
+        )
+    except OSError as e:
+        die(f'Cannot read local SDD profile config at {local_profiles_path}: {e}')
+
+    # --- Strict schema validation (V1, no inheritance, no defaults) ---
+    if not isinstance(local_cfg, dict):
+        die(f'local SDD profile config at {local_profiles_path} must be a JSON object at the top level')
+    extra_top = set(local_cfg.keys()) - {'version', 'profiles'}
+    if extra_top:
+        die(
+            f'local SDD profile config at {local_profiles_path} has unexpected top-level fields '
+            f'{sorted(extra_top)}; only "version" and "profiles" are allowed'
+        )
+    if local_cfg.get('version') != 1:
+        die(
+            f'local SDD profile config at {local_profiles_path} has unsupported "version" '
+            f'{local_cfg.get("version")!r}; expected 1'
+        )
+    profiles_raw = local_cfg.get('profiles')
+    if not isinstance(profiles_raw, list) or len(profiles_raw) == 0:
+        die(f'local SDD profile config at {local_profiles_path} must contain a non-empty "profiles" array')
+
+    def validate_assignment(label: str, value):
+        """Each assignment must be {model: non-empty str, variant: str (may be empty)}."""
+        if not isinstance(value, dict):
+            die(f'{label}: must be an object with "model" and "variant"')
+        extra = set(value.keys()) - {'model', 'variant'}
+        if extra:
+            die(f'{label}: unexpected fields {sorted(extra)}; only "model" and "variant" are allowed')
+        if 'model' not in value:
+            die(f'{label}: missing required field "model"')
+        if 'variant' not in value:
+            die(f'{label}: missing required field "variant" (use "" if the assignment has no variant)')
+        if not isinstance(value['model'], str) or value['model'] == '':
+            die(f'{label}: field "model" must be a non-empty string')
+        if not isinstance(value['variant'], str):
+            die(f'{label}: field "variant" must be a string (use "" for no variant)')
+
+    seen_names = set()
+    validated_profiles = []
+    for idx, profile in enumerate(profiles_raw):
+        prefix = f'profiles[{idx}]'
+        if not isinstance(profile, dict):
+            die(f'{prefix}: must be an object')
+        extra = set(profile.keys()) - {'name', 'orchestrator', 'phases'}
+        if extra:
+            die(f'{prefix}: unexpected fields {sorted(extra)}; only "name", "orchestrator", "phases" are allowed')
+        name = profile.get('name')
+        if not isinstance(name, str) or name == '':
+            die(f'{prefix}: "name" must be a non-empty string')
+        if not re.match(r'^[a-z0-9][a-z0-9._-]*$', name):
+            die(f'{prefix}: "name" {name!r} must match ^[a-z0-9][a-z0-9._-]*$ to be safe as an agent-key suffix')
+        if name in seen_names:
+            die(f'{prefix}: duplicate profile name {name!r}')
+        seen_names.add(name)
+
+        if 'orchestrator' not in profile:
+            die(f'{prefix}: missing required field "orchestrator"')
+        validate_assignment(f'{prefix}.orchestrator', profile['orchestrator'])
+
+        if 'phases' not in profile:
+            die(f'{prefix}: missing required field "phases"')
+        phases = profile['phases']
+        if not isinstance(phases, dict):
+            die(f'{prefix}.phases: must be an object keyed by SDD phase name')
+        phase_keys = set(phases.keys())
+        missing = sdd_phases_set - phase_keys
+        if missing:
+            die(f'{prefix}.phases: missing required phases {sorted(missing)} (no defaults are inherited)')
+        unknown = phase_keys - sdd_phases_set
+        if unknown:
+            die(f'{prefix}.phases: unknown phases {sorted(unknown)}; allowed: {sdd_phases}')
+        for phase_name in sdd_phases:
+            validate_assignment(f'{prefix}.phases.{phase_name}', phases[phase_name])
+
+        validated_profiles.append({
+            'name': name,
+            'orchestrator': profile['orchestrator'],
+            'phases': phases,
+        })
+
+    # --- All validation passed. Now apply. ---
+    for profile in validated_profiles:
+        name = profile['name']
+        managed_profile_names.add(name)
+        profiles_managed_count += 1
+        # Reconcile orchestrator agent (model/variant only — we do not manage prompts here).
+        orch_key = f'sdd-orchestrator-{name}'
+        orch_assignment = profile['orchestrator']
+        existing = agents.get(orch_key)
+        if not isinstance(existing, dict):
+            agents[orch_key] = {
+                'model': orch_assignment['model'],
+                'variant': orch_assignment['variant'],
+            }
+            profile_agents_created += 1
+            config_changed = True
+            print(f'  profile {name}: created orchestrator agent {orch_key} (no prompt; run `gentle-ai sync` to materialize)', file=sys.stderr)
+        else:
+            changed_here = False
+            if existing.get('model') != orch_assignment['model']:
+                existing['model'] = orch_assignment['model']
+                changed_here = True
+            if existing.get('variant') != orch_assignment['variant']:
+                existing['variant'] = orch_assignment['variant']
+                changed_here = True
+            if changed_here:
+                profile_agents_updated += 1
+                config_changed = True
+                print(f'  profile {name}: updated orchestrator agent {orch_key} -> {orch_assignment["model"]}'
+                      + (f' ({orch_assignment["variant"]})' if orch_assignment['variant'] else ''), file=sys.stderr)
+            else:
+                profile_agents_unchanged += 1
+
+        # Reconcile each phase agent.
+        for phase_name in sdd_phases:
+            phase_key = f'{phase_name}-{name}'
+            assignment = profile['phases'][phase_name]
+            existing = agents.get(phase_key)
+            if not isinstance(existing, dict):
+                agents[phase_key] = {
+                    'model': assignment['model'],
+                    'variant': assignment['variant'],
+                }
+                profile_agents_created += 1
+                config_changed = True
+                print(f'  profile {name}: created phase agent {phase_key} -> {assignment["model"]}'
+                      + (f' ({assignment["variant"]})' if assignment['variant'] else ''), file=sys.stderr)
+            else:
+                changed_here = False
+                if existing.get('model') != assignment['model']:
+                    existing['model'] = assignment['model']
+                    changed_here = True
+                if existing.get('variant') != assignment['variant']:
+                    existing['variant'] = assignment['variant']
+                    changed_here = True
+                if changed_here:
+                    profile_agents_updated += 1
+                    config_changed = True
+                    print(f'  profile {name}: updated phase agent {phase_key} -> {assignment["model"]}'
+                          + (f' ({assignment["variant"]})' if assignment['variant'] else ''), file=sys.stderr)
+                else:
+                    profile_agents_unchanged += 1
+
+    # Detect unmanaged profiles already present in opencode.json (warn-only).
+    discovered_profile_names = set()
+    for k in original_agent_keys:
+        if is_profile_orchestrator(k):
+            pn = profile_name_from_orchestrator_key(k)
+            if pn:
+                discovered_profile_names.add(pn)
+    for pn in sorted(discovered_profile_names - managed_profile_names):
+        unmanaged_profiles_warnings.append(pn)
+        print(f'  unmanaged SDD profile present in opencode.json (left untouched): {pn}', file=sys.stderr)
+else:
+    print(f'  no local SDD profile config at {local_profiles_path} - SDD profiles untouched', file=sys.stderr)
+
 # --- Topology drift checks (non-fatal warnings) ---
 orchestrators_in_config = {k for k in original_agent_keys if is_orchestrator(k)}
 
 # Orchestrators present via prefix match but NOT in the explicit keys list.
 # These get sanitized silently — surface them so the maintainer notices new
 # orchestrators that may need explicit policy entries.
+#
+# EXCEPTION: profile-managed orchestrators (sdd-orchestrator-<name>) are
+# deliberately not in orchestrator_agent_keys; they are managed via the local
+# SDD profile config. Don't warn about them.
 for key in sorted(orchestrators_in_config - orchestrator_keys):
+    if is_profile_orchestrator(key):
+        continue
     msg = f'unknown orchestrator matched by prefix only: {key}'
     topology_warnings.append(msg)
     print(f'  topology: {msg}', file=sys.stderr)
@@ -440,6 +642,22 @@ if config_changed:
                 f'post-write verification failed: overlay file missing for {key!r} at {overlay_path}'
             )
 
+    # Verify profile reconciliation persisted.
+    for profile_name in sorted(managed_profile_names):
+        orch_key = f'sdd-orchestrator-{profile_name}'
+        if orch_key not in verify_agents:
+            die(
+                f'post-write verification failed: profile {profile_name!r} orchestrator agent '
+                f'{orch_key!r} missing from {config_path} after write'
+            )
+        for phase_name in sdd_phases:
+            phase_key = f'{phase_name}-{profile_name}'
+            if phase_key not in verify_agents:
+                die(
+                    f'post-write verification failed: profile {profile_name!r} phase agent '
+                    f'{phase_key!r} missing from {config_path} after write'
+                )
+
 print(f'CONFIG_STATUS={"updated" if config_changed else "unchanged"}')
 print(f'GENERATED_COUNT={generated_count}')
 print(f'RECOVERED_COUNT={recovered_count}')
@@ -449,6 +667,14 @@ print(f'SNAPSHOT_NEW={snapshot_new}')
 print(f'SNAPSHOT_CHANGED={snapshot_changed}')
 print(f'SNAPSHOT_UNCHANGED={snapshot_unchanged}')
 print(f'TOPOLOGY_WARNINGS={len(topology_warnings)}')
+print(f'PROFILES_MANAGED={profiles_managed_count}')
+print(f'PROFILE_AGENTS_CREATED={profile_agents_created}')
+print(f'PROFILE_AGENTS_UPDATED={profile_agents_updated}')
+print(f'PROFILE_AGENTS_UNCHANGED={profile_agents_unchanged}')
+print(f'UNMANAGED_PROFILES_COUNT={len(unmanaged_profiles_warnings)}')
+# Emit unmanaged profile names as a single shell-safe space-separated line.
+import shlex as _shlex
+print('UNMANAGED_PROFILES_NAMES=' + _shlex.quote(' '.join(unmanaged_profiles_warnings)))
 PY
 )"
 
@@ -464,6 +690,19 @@ info "  orchestrators kept (already applied): ${KEPT_COUNT}"
 info "  orchestrators skipped: ${SKIPPED_COUNT}"
 info "  snapshots - new: ${SNAPSHOT_NEW}, changed: ${SNAPSHOT_CHANGED}, unchanged: ${SNAPSHOT_UNCHANGED}"
 info "  topology warnings: ${TOPOLOGY_WARNINGS}"
+info "  SDD profiles managed: ${PROFILES_MANAGED}"
+info "  SDD profile agents created: ${PROFILE_AGENTS_CREATED}"
+info "  SDD profile agents updated: ${PROFILE_AGENTS_UPDATED}"
+info "  SDD profile agents unchanged: ${PROFILE_AGENTS_UNCHANGED}"
+info "  SDD profiles unmanaged (present in opencode.json, absent from local config): ${UNMANAGED_PROFILES_COUNT}"
+
+if [[ -n "${UNMANAGED_PROFILES_NAMES}" ]]; then
+  info ""
+  info "WARNING - unmanaged SDD profiles left untouched (add them to the local SDD profile config to manage):"
+  for entry in ${UNMANAGED_PROFILES_NAMES}; do
+    info "  - ${entry}"
+  done
+fi
 
 if (( ${#MISSING_KEEP_SUMMARY[@]} > 0 )); then
   info ""

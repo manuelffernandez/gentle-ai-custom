@@ -13,7 +13,7 @@ Este overlay mantiene una política **persistente y reaplicable** para tu stack 
 ## Qué contiene
 
 - `policy/gentle-ai-policy.json`  
-  Baseline machine-readable de keep/prune, overrides de agentes (`general`, `explore`) y rutas operativas de OpenCode.
+  Baseline machine-readable de keep/prune, overrides de agentes (`general`, `explore`), rutas operativas de OpenCode, y la ruta al config local de perfiles SDD (`opencode.sdd_profiles_local_config_path`).
 - `policy/maintenance-intent.md`  
   Fuente de verdad semántica: explica qué se quiere conservar, qué se quiere depurar y por qué.
 - `policy/orchestrator-policy.md`  
@@ -25,7 +25,12 @@ Este overlay mantiene una política **persistente y reaplicable** para tu stack 
 - `logs/update-log.md`  
   Log incremental de decisiones y updates aplicados.
 - `scripts/apply-gentle-ai-policy.sh` y `.ps1`  
-  Helpers internos que podan skills, aplican `agent_overrides`, capturan prompts inline y generan orchestrators derivados bajo `~/.config/opencode/prompts/sdd/orchestrators/`. También recuperan desde snapshot si un `.overlay.md` faltó en disco, detectan drift de topología (orchestrators desconocidos/faltantes) y verifican post-write que `opencode.json` quedó consistente.
+  Helpers internos que podan skills, aplican `agent_overrides`, reconcilian perfiles SDD desde el config local (`~/.config/gentle-ai-custom/opencode-sdd-profiles.json`), capturan prompts inline y generan orchestrators derivados bajo `~/.config/opencode/prompts/sdd/orchestrators/`. También recuperan desde snapshot si un `.overlay.md` faltó en disco, detectan drift de topología (orchestrators desconocidos/faltantes), validan estrictamente el config local de perfiles antes de cualquier escritura (fail-closed) y verifican post-write que `opencode.json` quedó consistente.
+
+### Config externo gestionado fuera del repo
+
+- `~/.config/gentle-ai-custom/opencode-sdd-profiles.json` (NO está en el repo)  
+  Config per-máquina de perfiles SDD. Schema V1 strict, sin defaults ni herencia. Si no existe, el helper no toca ningún perfil SDD en `opencode.json`. Detalle del schema y reglas duras en el `README.md` raíz, sección "Perfiles SDD locales".
 
 ## Convenciones
 

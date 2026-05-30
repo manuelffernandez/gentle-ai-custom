@@ -2,6 +2,81 @@
 
 > Este archivo registra decisiones e hitos del mantenimiento del overlay. No es la fuente autoritativa del último upstream mantenido; esa responsabilidad vive en `overlay/gentle-ai/state/upstream-state.json`.
 
+## 2026-05-30 — Follow-up review fixes for local SDD profile config
+
+Razón del cambio:
+
+- La revisión fresh-context posterior a la implementación encontró 2 bugs reales de parity bash↔PowerShell en la validación del config local de perfiles SDD y una omisión semántica en `maintenance-intent.md`.
+
+WHAT cambió:
+
+- `overlay/gentle-ai/scripts/apply-gentle-ai-policy.ps1`:
+  - Fix del caso `profiles` con un solo elemento: el helper ya no unwrappea silenciosamente un array JSON de 1 elemento a `PSCustomObject`. Ahora exige que `profiles` sea array real y luego lo force-wrappea con `@(...)`, igualando el comportamiento del bash/Python.
+  - Validación del `name` del perfil ahora usa `-cnotmatch` para que la regex sea case-sensitive. Antes PowerShell aceptaba uppercase mientras bash lo rechazaba.
+  - Renombrado `$Profile` → `$ProfileEntry` para evitar shadowing del automatic variable.
+  - Nuevo rechazo explícito de campos extra en el top-level del config local: solo `version` y `profiles` son válidos.
+- `overlay/gentle-ai/scripts/apply-gentle-ai-policy.sh`:
+  - Nuevo rechazo explícito de campos extra en el top-level del config local: solo `version` y `profiles` son válidos. Con esto el schema V1 queda simétricamente estricto arriba y dentro de cada profile.
+- `overlay/gentle-ai/policy/maintenance-intent.md`:
+  - Nueva sección `## Qué NO se versiona` aclarando que las elecciones locales de `model`/`variant` por perfil SDD nombrado viven fuera del repo en `~/.config/gentle-ai-custom/opencode-sdd-profiles.json` y no deben volver a filtrarse a `gentle-ai-policy.json`.
+- `AGENTS.md`, `README.md`, `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`, `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`:
+  - Documentado el rechazo de campos top-level extra y actualizado el catálogo de errores esperables del schema strict.
+
+WHY:
+
+- Sin el fix del single-element array, Windows/PowerShell fallaba cerrado con un mensaje engañoso para un JSON perfectamente válido con un solo profile.
+- Sin el fix de case-sensitivity, PowerShell podía crear suffixes con mayúsculas que bash jamás aceptaría, rompiendo parity cross-platform.
+- Sin actualizar `maintenance-intent.md`, el repo quedaba con la policy/runtime reflejando una decisión semántica nueva sin haberla declarado en la fuente de verdad del intent.
+
+Verificación:
+
+- Revisión fresh-context confirmó que ambos bugs eran reales y localizó el punto exacto de divergencia.
+- Inspección manual posterior de ambos scripts: ahora los dos rechazan campos top-level extra, tratan `profiles` como array real, y validan `name` con semántica case-sensitive consistente.
+- Chequeo documental: `maintenance-intent.md` ahora explicita la nueva frontera entre policy portable y config per-máquina.
+
+## 2026-05-29 — SDD profile local config + policy depersonalization
+
+Razón del cambio:
+
+- La versionada `gentle-ai-policy.json` traía hardcodeadas las keys exactas `sdd-orchestrator-mixed`, `sdd-orchestrator-vertex`, `sdd-orchestrator-vertex-claude` en `orchestrator_agent_keys`. Esto es información per-máquina (qué perfiles SDD usa este usuario, con qué modelos/variants) filtrada al repo compartido. Sumado a eso, `gentle-ai sync` deja en `opencode.json` agent entries con `model`+`variant` per perfil y per fase (~33 keys) que tampoco deberían vivir en el repo.
+- Solución: introducir un config per-máquina fuera del repo, con schema strict, y mover toda la gestión de perfiles SDD a ese archivo. El repo solo retiene baseline portable (`gentle-orchestrator` + prefijo `sdd-orchestrator` como sanitization tripwire).
+
+WHAT cambió:
+
+- `overlay/gentle-ai/policy/gentle-ai-policy.json`:
+  - Removidas las keys exactas `sdd-orchestrator-mixed`, `sdd-orchestrator-vertex`, `sdd-orchestrator-vertex-claude` de `orchestrator_agent_keys`. La policy ahora solo lista `gentle-orchestrator` ahí.
+  - El prefijo `sdd-orchestrator` se conserva en `orchestrator_agent_prefixes` para que la sanitización siga matcheando per-profile orchestrators con prompt inline upstream.
+  - Nuevo campo `opencode.profile_orchestrator_prefix = "sdd-orchestrator-"` — usado por ambos helpers para distinguir profile-managed orchestrators de orchestrators desconocidos, y suprimir el `topology: unknown orchestrator matched by prefix only:` para esos casos.
+  - Nuevo campo `opencode.sdd_profiles_local_config_path = "~/.config/gentle-ai-custom/opencode-sdd-profiles.json"`.
+  - Nuevo campo `opencode.sdd_phases` listando las 10 phases SDD canónicas (`sdd-init`, `sdd-explore`, …, `sdd-onboard`).
+- `overlay/gentle-ai/scripts/apply-gentle-ai-policy.sh` y `.ps1`:
+  - Nueva fase de reconciliación SDD-profile entre el override loop y el topology check.
+  - Validación strict V1 del config local: `version=1`, `profiles` array no vacío, cada profile con exactamente `name`/`orchestrator`/`phases`, `name` matcheando `^[a-z0-9][a-z0-9._-]*$` y único, `phases` con exactamente las 10 phase keys, cada assignment con exactamente `model` (non-empty string) y `variant` (string, may be ""). Sin defaults, sin herencia, sin campos extra.
+  - **Fail-closed antes de cualquier escritura a `opencode.json`** si la validación falla.
+  - Para cada profile managed: crea/actualiza `sdd-orchestrator-<name>` + 10 phase agents `sdd-<phase>-<name>` con `model`/`variant` exactos del config. NO toca `prompt` (sigue siendo dominio de `gentle-ai sync` + sanitización inline existente).
+  - Detecta perfiles unmanaged (en `opencode.json` pero no en el config local), los reporta con `WARNING - unmanaged SDD profiles left untouched` + contador, los deja intactos. **NUNCA borra automáticamente.**
+  - Nuevos contadores en el `Summary:`: `SDD profiles managed`, `SDD profile agents created`/`updated`/`unchanged`, `SDD profiles unmanaged`.
+  - Post-write verification extendida: cada profile managed debe tener su orchestrator + 10 phase agents persistidos en disco.
+  - Topology drift check actualizado: profile-managed orchestrators ahora se EXCLUYEN del warning `unknown orchestrator matched by prefix only:` (eran ruido inevitable bajo el nuevo modelo).
+- `AGENTS.md`: nueva sección `## SDD profile local config` con schema completo, hard rules y nota sobre por qué los prompts no están en el schema. Actualizada la sección `## Overlay policy baseline` para explicar que profile orchestrators NO se versionan.
+- `README.md`: nueva subsección `### Perfiles SDD locales` debajo de `## Política actual` con schema, contrato operacional y reglas duras. Actualizado bloque `### Qué reporta el script` con los nuevos counters y el set de ERROR de validation strict.
+- `overlay/gentle-ai/README.md`: descripción del helper actualizada para mencionar la reconciliación de perfiles y la validación strict fail-closed. Nueva subsección `### Config externo gestionado fuera del repo`.
+- `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`: nuevas filas en la tabla de señales (counters de SDD profiles, WARNING unmanaged, ERRORs de validación). Nueva sección `### Perfiles SDD locales (config externo)`. Checklist actualizada con dos items nuevos sobre la policy depersonalizada y el config local.
+- `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`: nueva hard rule prohibiendo agregar profile-managed assignments a `gentle-ai-policy.json` (deben vivir en el config local). Nuevas Decision Gates para el WARNING unmanaged y los ERRORs de validación. Nuevo step de post-state verification que chequea la reconciliación SDD profile.
+
+WHY (detalle adicional):
+
+- El `vertex` profile actual en `opencode.json` tiene `sdd-onboard.model = null variant = null`. Bajo el schema V1 strict esto es inválido (`model` requiere non-empty string). La generación inicial del config local lo respeta: el profile `vertex` quedó EXCLUIDO del archivo activo `~/.config/gentle-ai-custom/opencode-sdd-profiles.json` y se guardó en cuarentena en `~/.config/gentle-ai-custom/opencode-sdd-profiles.invalid.json` con un `_note` top-level explicando cómo activarlo (fix el model vacío + mover al archivo activo). Esto deja al usuario consciente del estado roto sin hacerlo invisible y sin inventar valores. Mientras tanto, el script lista a `vertex` como "unmanaged" en cada corrida — visibilidad permanente.
+
+Verificación:
+
+- Run con NO local config: 0 perfiles managed, 0 unmanaged, 0 topology warnings, opencode.json sin cambios. Idempotente.
+- Run con local config válido (mixed + vertex-claude): 2 managed, 22 unchanged, 1 unmanaged (vertex), WARNING listado, opencode.json sin cambios (estado ya consistente).
+- 8 negative tests sobre el config local (version inválida, version distinta, profile sin phases, model vacío, name con `/`, phase desconocida, campo extra, JSON malformado): TODOS fallan con `ERROR:` accionable y `opencode.json` queda byte-idéntico al estado previo (fail-closed verificado).
+- Test de update positivo: cambié `sdd-init-mixed.model` en el config local a un valor fake, corrí el script, opencode.json se actualizó con el fake, post-write verification passed; revertí, opencode.json volvió a estado original byte-idéntico al baseline.
+- Test de create-from-scratch: agregué un profile `test-create` brand-new al config local; el script creó las 11 agent keys (1 orchestrator + 10 phases), reportó `created: 11`, post-write verification passed. Cleanup manual restauró opencode.json byte-idéntico.
+- Parity bash↔PS1 verificada por inspección (no hay pwsh en este host). El PS1 mirrorea exactamente bash: misma fase de reconciliación, mismas reglas de validación, mismos mensajes de error, mismo orden (validate-all-then-mutate), misma post-write verification, mismo set de counters en el summary.
+
 ## 2026-05-29 — Judgment Day round 1 fixes
 
 Adversarial dual review (Judge A + Judge B en paralelo) sobre los 5 commits de hardening (`bfbc363..HEAD`). Confirmados 2 CRITICAL y 11 WARNING (real). Esta entrada documenta los fixes aplicados.

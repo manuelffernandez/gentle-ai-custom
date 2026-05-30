@@ -103,7 +103,10 @@ Después de cada corrida del script, leé el bloque `Summary:` y los `topology:`
 | Señal en el output | Significa | Acción |
 |---|---|---|
 | `orchestrators kept (already applied): N` | Estado estable: todo ya está aplicado y el script no tuvo que tocar nada. | Ninguna. Indica una corrida idempotente exitosa. |
-| `topology: unknown orchestrator matched by prefix only: X` | Apareció un orchestrator nuevo upstream que sólo matchea por prefijo. | Auditar el cambio upstream. Si es legítimo, agregar `X` a `orchestrator_agent_keys` en la policy con aprobación del usuario. |
+| `SDD profiles managed: N` / `created: N` / `updated: N` / `unchanged: N` | Cuántos perfiles se reconciliaron desde el config local y cuántos agent entries se crearon/actualizaron/no cambiaron. | Ninguna si todo cuadra con lo esperado. Útil para verificar que un cambio del config local realmente se aplicó. |
+| `SDD profiles unmanaged ...: N > 0` + `WARNING - unmanaged SDD profiles left untouched` | Hay perfiles SDD (`sdd-orchestrator-<name>`) en `opencode.json` que no están nombrados en `~/.config/gentle-ai-custom/opencode-sdd-profiles.json`. El script no los tocó. | Decidir si querés gestionar ese perfil (agregalo al config local) o sacarlo (borralo a mano de `opencode.json`). El script NUNCA borra perfiles automáticamente. |
+| `ERROR: local SDD profile config at ... is not valid JSON` o `... unexpected top-level field ...` o `... missing required field ...` o `... unexpected fields ...` o `... must be a non-empty string` o `... must match ^[a-z0-9]...` o `... missing required phases ...` o `... unknown phases ...` | El config local de perfiles no pasa el schema V1 strict. | El script **no escribe nada** a `opencode.json` en este caso (fail-closed). Arreglá el JSON o eliminá el archivo. |
+| `topology: unknown orchestrator matched by prefix only: X` | Apareció un orchestrator nuevo upstream que sólo matchea por prefijo (excluyendo `sdd-orchestrator-*` que son perfil-managed). | Auditar el cambio upstream. Si es legítimo, agregar `X` a `orchestrator_agent_keys` en la policy con aprobación del usuario. |
 | `topology: expected orchestrator missing from opencode.json: X` | Un orchestrator listado en la policy ya no existe en upstream. | Auditar si fue renombrado/eliminado upstream. Actualizar policy + intent. |
 | `topology: agent_override target was missing from upstream (created): X` | El override apuntaba a un agente que no existía upstream **o que existía con un tipo distinto a object**; el script creó/sobrescribió el stub. | Verificar si el agente fue renombrado o cambió de forma upstream. Ajustar el `key` del override o el intent si corresponde. |
 | `snapshots - changed: N > 0` | Cambió el prompt inline upstream de algún orchestrator. | `git diff overlay/gentle-ai/snapshots/` para revisar. Si los anchors del sanitizador se movieron, actualizar ambos scripts. |
@@ -115,6 +118,28 @@ Después de cada corrida del script, leé el bloque `Summary:` y los `topology:`
 | `ERROR: post-write verification failed: orchestrator X prompt is Y after write, expected Z` | Idem anterior pero para la referencia `{file:...}` del orchestrator. | Idem anterior. |
 | `ERROR: OpenCode config at ... is not valid JSON: ...` | `opencode.json` está corrupto y no se puede parsear. | Restaurar desde `~/.gentle-ai/backups/<timestamp>/` o correr `gentle-ai sync` para regenerar. |
 | `ERROR: unsafe agent key for snapshot path: 'X'` | Un agente en `opencode.json` tiene un key con `/`, `\`, `..` o caracteres nulos que harían path traversal al escribir el snapshot. | Investigar de dónde salió ese key en `opencode.json`; no debería pasar bajo flujos normales. |
+
+### Perfiles SDD locales (config externo)
+
+Desde el cambio del schema de perfiles SDD, los assignments de modelo/variant per-perfil (`sdd-orchestrator-<name>` + 10 phase agents `sdd-<phase>-<name>`) ya no se versionan en este repo. Se gestionan desde un archivo per-máquina fuera del repo:
+
+```
+~/.config/gentle-ai-custom/opencode-sdd-profiles.json
+```
+
+Contrato operacional:
+
+- Si el archivo no existe, el helper no toca ningún perfil SDD en `opencode.json`. Esto es por diseño: una máquina sin config local no debe alterar configuraciones existentes.
+- Si el archivo existe, el helper valida estrictamente (schema V1: sin defaults, sin herencia, los 10 phase keys requeridos, `variant` siempre requerido aunque sea `""`) y falla cerrado antes de tocar `opencode.json` si algo está mal.
+- Profiles nombrados en el config local pero ausentes en `opencode.json` se crean. Los agentes orchestrator nuevos se crean como stubs sin `prompt` — la siguiente corrida de `gentle-ai sync` los materializa con el prompt upstream, y la corrida posterior del overlay los sanitiza vía prefix match.
+- Profiles presentes en `opencode.json` pero ausentes del config local quedan intactos. Se reportan como `WARNING - unmanaged SDD profiles left untouched`. El helper nunca borra perfiles automáticamente.
+
+Schema completo y reglas duras: ver `README.md` raíz, sección "Perfiles SDD locales", o `AGENTS.md` sección "SDD profile local config".
+
+Razón del split:
+
+- El repo versionado solo conoce baseline portable (`gentle-orchestrator`). Esto permite compartir el repo entre máquinas sin filtrar elecciones de modelo personales.
+- El config local es el único lugar donde viven los assignments por-perfil. Cambiarlo no requiere commit en este repo.
 
 ### Opción de hardening: estrategia external-single-active
 
@@ -182,6 +207,8 @@ El agente debe pedir aprobación humana cuando aparezcan cambios que puedan afec
 - [ ] `agent.general` sigue en `openai/gpt-5.4` / `high`.
 - [ ] `agent.explore` sigue en `google-vertex/gemini-3.1-pro-preview` / `high`.
 - [ ] `apply-gentle-ai-custom.sh` y `.ps1` siguen siendo el único par de entrypoints públicos y mantienen paridad funcional.
+- [ ] La policy versionada NO lista keys exactas de orchestrators per-perfil (`sdd-orchestrator-<name>`). Solo lista `gentle-orchestrator` + el prefijo `sdd-orchestrator` para sanitización.
+- [ ] El config local de perfiles SDD (si existe) sigue cumpliendo el schema V1 strict; si fue modificado externamente, la próxima corrida del helper lo va a validar antes de cualquier escritura.
 
 ## Notas operativas
 

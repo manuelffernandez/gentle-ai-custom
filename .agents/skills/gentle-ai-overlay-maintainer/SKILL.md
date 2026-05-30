@@ -27,6 +27,7 @@ Use this skill when:
 - Keep bash and PowerShell scripts behaviorally equivalent.
 - Update `AGENTS.md`, `README.md`, and `overlay/gentle-ai/logs/update-log.md` when the workflow changes (see `AGENTS.md` rules 3 and 4).
 - Do not change intent, keep/prune, or sanitization behavior for new upstream changes without explicit user approval.
+- The versioned policy MUST NOT carry per-profile orchestrator/phase model+variant choices. Those live in the per-machine local config at `~/.config/gentle-ai-custom/opencode-sdd-profiles.json`. If you need a new profile-managed assignment, edit the LOCAL file — do NOT add it back to `gentle-ai-policy.json`.
 
 ## Update-Type Triage (MANDATORY first step)
 
@@ -46,7 +47,9 @@ Re-apply paths are mandatory regardless of whether upstream content changed — 
 |---|---|
 | User just ran `gentle-ai sync` | Re-apply overlay immediately (`bash apply-gentle-ai-custom.sh all`). Audit drift afterwards via snapshot diff. |
 | User just ran TUI reinstall | Audit topology BEFORE re-applying. New/renamed/removed agents may require policy updates first. |
-| Script printed `topology: ...` warnings | Investigate each warning. New explicit orchestrators need policy entries; missing/created entries need maintenance-intent updates. STOP and ask the user before mutating policy. |
+| Script printed `topology: ...` warnings | Investigate each warning. New explicit orchestrators need policy entries; missing/created entries need maintenance-intent updates. STOP and ask the user before mutating policy. Note: `sdd-orchestrator-<name>` orchestrators are deliberately suppressed from prefix-only topology warnings; they belong to the SDD profile local config, not the versioned policy. |
+| Script printed `WARNING - unmanaged SDD profiles left untouched` | A profile exists in `opencode.json` but is not named in `~/.config/gentle-ai-custom/opencode-sdd-profiles.json`. Ask the user whether to add it to the local config (to manage) or delete its agent keys manually (to remove). NEVER delete it automatically. |
+| Script raised `ERROR: local SDD profile config at ... is not valid JSON` / `... unexpected top-level field ...` / `... missing required field ...` / `... must be a non-empty string` / `... must match ^[a-z0-9]...` / `... missing required phases ...` / `... unknown phases ...` | The local profile config failed strict V1 validation. The script wrote nothing. Surface the exact error to the user; ask them to fix or remove the file. Do NOT relax the schema. |
 | Script summary shows `snapshots - changed: N > 0` | Review `git diff overlay/gentle-ai/snapshots/`. If sanitizer anchors moved, update both scripts. |
 | Script printed `orchestrators recovered from snapshot: N > 0` | User-side state was broken (deleted overlay files). Now consistent again. Worth noting in the log. |
 | Script raised `broken state for orchestrator X` | Run `gentle-ai sync` to reset prompts to inline, then re-run the script. Record the cause in the log. |
@@ -76,6 +79,7 @@ Re-apply paths are mandatory regardless of whether upstream content changed — 
     - For each `agent_overrides` entry: `~/.config/opencode/opencode.json` → `agent.<key>.model` must equal the policy value; `variant` must equal the policy value when set.
     - For each `orchestrator_agent_keys` entry: `agent.<key>.prompt` must be a `{file:...}` reference, and the referenced file must exist on disk.
     - For each `*.last.md` in `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/`: a corresponding `*.overlay.md` must exist under `generated_orchestrators_dir`.
+    - If `~/.config/gentle-ai-custom/opencode-sdd-profiles.json` exists: for each profile `<name>` in it, `agent.sdd-orchestrator-<name>` and `agent.sdd-<phase>-<name>` (10 phases) must exist with matching `model` + `variant`.
 14. Record the decision in `overlay/gentle-ai/logs/update-log.md` (include update type, topology findings, snapshot drift, recovery events, and any policy mutations).
 
 ## Hardening option: external-single-active strategy

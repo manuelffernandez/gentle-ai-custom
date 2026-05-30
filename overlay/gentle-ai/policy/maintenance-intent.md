@@ -21,6 +21,20 @@ Se quiere conservar todo lo que mejore estructura, razonamiento y calidad técni
 - mejora y creación de skills
 - revisión adversarial
 
+## Qué NO se versiona
+
+Las elecciones locales por máquina sobre perfiles SDD de OpenCode no forman parte de la policy compartida del repo.
+
+Eso incluye:
+
+- asignaciones de `model` y `variant` por perfil SDD nombrado
+- nombres de perfiles personalizados del usuario (`sdd-orchestrator-<perfil>` y sus fases asociadas)
+- cualquier combinación local de proveedores/modelos pensada para una máquina o preferencia personal
+
+Esas decisiones viven fuera del repo, en `~/.config/gentle-ai-custom/opencode-sdd-profiles.json`.
+
+La policy versionada solo conserva el baseline portable del overlay; la configuración de perfiles locales se proyecta a `opencode.json` en runtime y no debe volver a copiarse dentro de `gentle-ai-policy.json`.
+
 ## Qué se quiere depurar
 
 Se quieren depurar convenciones que imponen una forma específica de colaborar en repositorios:
