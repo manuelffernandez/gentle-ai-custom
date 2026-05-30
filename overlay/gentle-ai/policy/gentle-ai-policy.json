@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "name": "gentle-ai-overlay-baseline",
+  "description": "Runtime policy only: keep/prune baseline, inline-orchestrator sanitization, runtime overrides, and SDD profile reconciliation against a local config.",
+  "maintenance": {
+    "intent_file": "overlay/gentle-ai/policy/maintenance-intent.md",
+    "state_file": "overlay/gentle-ai/state/upstream-state.json",
+    "log_file": "overlay/gentle-ai/logs/update-log.md"
+  },
+  "upstream": {
+    "repo_path": "/home/manuel/Documentos/gentle-ai",
+    "orchestrator_prompt_path": "internal/assets/opencode/sdd-orchestrator.md"
+  },
+  "skills": {
+    "keep": [
+      "_shared",
+      "cognitive-doc-design",
+      "comment-writer",
+      "go-testing",
+      "judgment-day",
+      "sdd-apply",
+      "sdd-archive",
+      "sdd-design",
+      "sdd-explore",
+      "sdd-init",
+      "sdd-onboard",
+      "sdd-propose",
+      "sdd-spec",
+      "sdd-tasks",
+      "sdd-verify",
+      "skill-creator",
+      "skill-improver",
+      "skill-registry"
+    ],
+    "prune": [
+      "branch-pr",
+      "chained-pr",
+      "issue-creation",
+      "work-unit-commits"
+    ],
+    "targets": [
+      "~/.config/opencode/skills",
+      "~/.claude/skills"
+    ]
+  },
+  "opencode": {
+    "config_path": "~/.config/opencode/opencode.json",
+    "generated_orchestrators_dir": "~/.config/opencode/prompts/sdd/orchestrators",
+    "orchestrator_snapshot_dir": "overlay/gentle-ai/snapshots/upstream/opencode/orchestrators",
+    "orchestrator_agent_keys": [
+      "gentle-orchestrator"
+    ],
+    "orchestrator_agent_prefixes": [
+      "sdd-orchestrator"
+    ],
+    "profile_orchestrator_prefix": "sdd-orchestrator-",
+    "sdd_profiles_local_config_path": "~/.config/gentle-ai-custom/opencode-sdd-profiles.json",
+    "sdd_phases": [
+      "sdd-init",
+      "sdd-explore",
+      "sdd-propose",
+      "sdd-spec",
+      "sdd-design",
+      "sdd-tasks",
+      "sdd-apply",
+      "sdd-verify",
+      "sdd-archive",
+      "sdd-onboard"
+    ]
+  },
+  "sanitizer": {
+    "required_markers": [
+      "## Model Assignments",
+      "### Sub-Agent Launch Pattern",
+      "Required preflight choices:"
+    ],
+    "forbidden_markers": [
+      "C. PRs",
+      "D. Review",
+      "### Delivery Strategy",
+      "### Chain Strategy",
+      "### Review Workload Guard (MANDATORY)"
+    ]
+  },
+  "agent_overrides": [
+    { "key": "general", "model": "openai/gpt-5.4", "variant": "high" },
+    { "key": "explore", "model": "google-vertex/gemini-3.1-pro-preview", "variant": "high" }
+  ]
+}

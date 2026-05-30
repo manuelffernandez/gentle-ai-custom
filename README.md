@@ -4,27 +4,50 @@ Configuración custom **fuera del árbol gestionado por `gentle-ai sync`**.
 
 ## Objetivo
 
-Guardar acá el source of truth de overlays propios para OpenCode, Claude, Codex, Antigravity y Gemini CLI, de modo que:
+Este repo ya no es solo un instalador de dos skills custom. Ahora funciona como una **capa unificada de personalización y mantenimiento** sobre Gentle AI:
 
-- `gentle-ai sync` pueda seguir actualizando `~/.config/opencode`
-- las customizaciones no se pierdan
-- la reaplicación sea explícita y repetible
+- instala tus skills y wrappers propios
+- reaplica tu política local después de `gentle-ai sync`
+- depura skills no deseadas del runtime
+- fija overrides de modelo para los agentes built-in de OpenCode listados en `agent_overrides` (ver `overlay/gentle-ai/policy/gentle-ai-policy.json`)
+- reconcilia perfiles SDD locales (`sdd-orchestrator-<name>` + 10 phase agents) desde un config por-máquina en `~/.config/gentle-ai-custom/opencode-sdd-profiles.json`
+- captura prompts inline de orchestrators, los sanitiza y genera prompts derivados por agente/perfil.
+- mantiene el runbook y la skill para auditar futuras actualizaciones del upstream
+
+## Modelo de mantenimiento
+
+La capa de mantenimiento se apoya en cuatro piezas distintas:
+
+- **Intento** → `overlay/gentle-ai/policy/maintenance-intent.md`
+- **Política** → `overlay/gentle-ai/policy/gentle-ai-policy.json`
+- **Estado** → `overlay/gentle-ai/state/upstream-state.json`
+- **Log** → `overlay/gentle-ai/logs/update-log.md`
+
+Cada una cumple un rol distinto:
+
+- `maintenance-intent.md` explica qué quiere conservar y depurar el usuario, y por qué
+- `gentle-ai-policy.json` alimenta la lógica operativa de los scripts
+- `upstream-state.json` guarda desde qué versión/tag/commit hay que auditar el upstream (última versión mantenida)
+- `update-log.md` deja historial narrativo de decisiones de mantenimiento
 
 ## Estructura
 
+- `apply-gentle-ai-custom.sh` — entrypoint principal Linux/macOS
+- `apply-gentle-ai-custom.ps1` — entrypoint principal Windows (PowerShell 5.1+)
 - `shared/skills/commit-planner/SKILL.md` — source of truth neutral para planificación/aplicación de commits
 - `shared/skills/pr-finalizer/SKILL.md` — source of truth neutral para creación/regeneración de PRs
-- `shared/commands/commit-plan-body.md` — cuerpo compartido para wrappers/prompts en modo `plan`
-- `shared/commands/commit-apply-body.md` — cuerpo compartido para wrappers/prompts en modo `apply`
-- `shared/commands/commit-fast-body.md` — cuerpo compartido para wrappers/prompts en modo `auto` (sin pausa)
-- `shared/commands/pr-create-body.md` — cuerpo compartido para wrappers/prompts en modo `create`
-- `shared/commands/pr-regenerate-body.md` — cuerpo compartido para wrappers/prompts en modo `regenerate`
-- `inject-skills.sh` — instalador para Linux/macOS (bash)
-- `inject-skills.ps1` — instalador equivalente para Windows (PowerShell 5.1+)
-- `AGENTS.md` — instrucciones operativas para agentes de IA
-- `CLAUDE.md` — delegación a `AGENTS.md` para Claude Code
-
-Los wrappers específicos de OpenCode, Claude, Codex y Gemini CLI **ya no se versionan** en este repo. Se generan durante la instalación a partir de las fuentes compartidas.
+- `shared/commands/*.md` — cuerpos compartidos para wrappers/prompts por agente
+- `overlay/gentle-ai/README.md` — guía del control-plane de Gentle AI
+- `overlay/gentle-ai/policy/gentle-ai-policy.json` — política machine-readable del overlay
+- `overlay/gentle-ai/policy/maintenance-intent.md` — intención de mantenimiento del overlay en lenguaje humano/LLM
+- `overlay/gentle-ai/policy/orchestrator-policy.md` — criterio de sanitización del orchestrator
+- `overlay/gentle-ai/state/upstream-state.json` — estado operativo de la última versión/commit upstream mantenido
+- `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md` — runbook humano para mantenimiento incremental
+- `overlay/gentle-ai/logs/update-log.md` — historial de decisiones del overlay
+- `overlay/gentle-ai/scripts/apply-gentle-ai-policy.sh` — helper bash interno para depurar Gentle AI
+- `overlay/gentle-ai/scripts/apply-gentle-ai-policy.ps1` — helper PowerShell interno equivalente
+- `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md` — skill de mantenimiento del overlay
+- `AGENTS.md` — contrato operativo para agentes
 
 ## Targets soportados
 
@@ -36,140 +59,205 @@ Los wrappers específicos de OpenCode, Claude, Codex y Gemini CLI **ya no se ver
 
 ## Uso
 
-**Linux / macOS:**
+La capa custom tiene **un único par de entrypoints públicos**:
+
+- `apply-gentle-ai-custom.sh`
+- `apply-gentle-ai-custom.ps1`
+
+### Linux / macOS
 
 ```bash
-bash ~/Documentos/gentle-ai-custom/inject-skills.sh opencode
-bash ~/Documentos/gentle-ai-custom/inject-skills.sh claude
-bash ~/Documentos/gentle-ai-custom/inject-skills.sh codex
-bash ~/Documentos/gentle-ai-custom/inject-skills.sh gemini
-bash ~/Documentos/gentle-ai-custom/inject-skills.sh antigravity
-bash ~/Documentos/gentle-ai-custom/inject-skills.sh claude codex gemini antigravity
-bash ~/Documentos/gentle-ai-custom/inject-skills.sh all
+bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh opencode
+bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh claude
+bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh codex
+bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh gemini
+bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh antigravity
+bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh all
 ```
 
-**Windows (PowerShell 5.1+):**
+### Windows (PowerShell 5.1+)
 
-> **Requisito previo — política de ejecución:** Windows bloquea la ejecución de scripts por defecto. Antes de correr el instalador, desactivá la restricción para el proceso actual:
+> **Requisito previo — política de ejecución:**
 >
 > ```powershell
 > Set-ExecutionPolicy -Scope Process Bypass
 > ```
->
-> Esto aplica solo a la sesión de PowerShell en curso; no modifica la política global del sistema.
 
 ```powershell
-.\inject-skills.ps1 opencode
-.\inject-skills.ps1 claude
-.\inject-skills.ps1 codex
-.\inject-skills.ps1 gemini
-.\inject-skills.ps1 antigravity
-.\inject-skills.ps1 claude codex gemini antigravity
-.\inject-skills.ps1 all
+~\Documentos\gentle-ai-custom\apply-gentle-ai-custom.ps1 opencode
+~\Documentos\gentle-ai-custom\apply-gentle-ai-custom.ps1 claude
+~\Documentos\gentle-ai-custom\apply-gentle-ai-custom.ps1 codex
+~\Documentos\gentle-ai-custom\apply-gentle-ai-custom.ps1 gemini
+~\Documentos\gentle-ai-custom\apply-gentle-ai-custom.ps1 antigravity
+~\Documentos\gentle-ai-custom\apply-gentle-ai-custom.ps1 all
 ```
-
-Ambos scripts exigen targets explícitos para evitar mutaciones innecesarias por default.
-Si los archivos de destino ya existen, se reemplazan. Eso es intencional: permite reaplicar overlays tras un sync sin intervención manual.
-
-> **Nota Windows — OpenCode:** si OpenCode en tu sistema usa `%APPDATA%\opencode` en lugar de `~\.config\opencode`, ajustá la variable `$targetDir` en `Apply-OpenCode` dentro del PS1.
 
 ## Flujo recomendado
 
 ```bash
-# Linux / macOS
 gentle-ai sync
-bash ~/Documentos/gentle-ai-custom/inject-skills.sh all
+bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh all
 ```
 
-```powershell
-# Windows
-Set-ExecutionPolicy -Scope Process Bypass
-# (gentle-ai sync si aplica)
-.\inject-skills.ps1 all
+Este flujo hace, en una sola pasada:
+
+1. reinstalación de tus skills/wrappers custom
+2. poda de skills Gentle AI no deseadas
+3. overrides de modelo para `general` y `explore`
+4. captura + sanitización de orchestrators inline de OpenCode
+5. generación de prompts derivados por orchestrator bajo `~/.config/opencode/prompts/sdd/orchestrators/`
+6. recuperación automática desde snapshot si algún `.overlay.md` fue borrado de disco
+7. verificación post-write de que los overrides y las refs `{file:...}` persistieron en `opencode.json`
+
+> **Nota OpenCode:** si el script cambia `~/.config/opencode/opencode.json`, reiniciá OpenCode. La config no se recarga en caliente.
+
+### Qué reporta el script
+
+Al final de cada corrida, el script imprime un bloque `Summary:` con contadores y, si corresponde, bloques `WARNING`/`NOTE`. Los más importantes:
+
+- `orchestrators kept (already applied): N` — todo estaba aplicado y el script no tuvo que hacer nada. Run idempotente.
+- `orchestrators recovered from snapshot: N` — algún `.overlay.md` faltaba en disco y se reconstruyó desde `*.last.md`. Aparece un `NOTE` adicional avisando que el snapshot puede pre-datar la versión actual de upstream — si querés capturar fresco, corré `gentle-ai sync` y volvé a correr el script.
+- `snapshots - changed: N > 0` — los prompts inline upstream cambiaron desde la última corrida. Revisalo con `git diff overlay/gentle-ai/snapshots/`.
+- `topology warnings: N > 0` — apareció un orchestrator nuevo, falta uno esperado o algún `agent_override` apunta a una key inexistente. Acción concreta por warning: ver el runbook.
+- `SDD profiles managed: N` / `created: N` / `updated: N` / `unchanged: N` — cuántos perfiles del config local se aplicaron y cuántos agent entries se crearon/actualizaron/no cambiaron.
+- `SDD profiles unmanaged (present in opencode.json, absent from local config): N` + `WARNING - unmanaged SDD profiles left untouched` — hay perfiles en `opencode.json` que el config local no menciona. El script no los toca. Para gestionarlos, agregalos al config local; para sacarlos, borralos a mano de `opencode.json`.
+- `WARNING - keep skills missing` — alguna skill que debería estar conservada está ausente en un target. Probable renombramiento upstream.
+- `ERROR: local SDD profile config at ... is not valid JSON` / `... missing required field ...` / `... must be a non-empty string` / `... must match ^[a-z0-9][a-z0-9._-]*$` — el config local no pasa el schema V1 strict. El script **no escribe nada** a `opencode.json` en este caso. Arreglá o eliminá el archivo y volvé a correr.
+- `ERROR: broken state for orchestrator X` — `opencode.json` apunta a un archivo inexistente y no hay snapshot para recuperar. Solución: `gentle-ai sync` para resetear a inline, después re-correr el script.
+- `ERROR: post-write verification failed: ...` — el script escribió `opencode.json` pero al re-leerlo los valores no coinciden con lo esperado. Suele ser otro proceso escribiendo el archivo en paralelo, o un bug serio del script.
+
+Detalle completo de cada señal en `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`.
+
+## Política actual
+
+### Se conservan
+
+- `_shared`
+- `cognitive-doc-design`
+- `comment-writer`
+- `go-testing`
+- `judgment-day`
+- `sdd-apply`
+- `sdd-archive`
+- `sdd-design`
+- `sdd-explore`
+- `sdd-init`
+- `sdd-onboard`
+- `sdd-propose`
+- `sdd-spec`
+- `sdd-tasks`
+- `sdd-verify`
+- `skill-creator`
+- `skill-improver`
+- `skill-registry`
+
+### Se podan
+
+- `branch-pr`
+- `chained-pr`
+- `issue-creation`
+- `work-unit-commits`
+
+### Overrides de agentes
+
+- `general` → `openai/gpt-5.4` / `high`
+- `explore` → `google-vertex/gemini-3.1-pro-preview` / `high`
+
+### Perfiles SDD locales
+
+Los perfiles SDD (`sdd-orchestrator-<name>` + los 10 agentes de fase `sdd-init-<name>`, …, `sdd-onboard-<name>`) **no** se versionan en este repo. Se reconcilian desde un config por-máquina en:
+
+```
+~/.config/gentle-ai-custom/opencode-sdd-profiles.json
 ```
 
-Para Claude, Codex y Gemini CLI no se hace auto-mutation de assets gestionados upstream. La idea sigue siendo la misma: **actualización del agente primero, reaplicación manual después**.
+Comportamiento del script:
 
-## Comandos disponibles
+- Si el archivo **no existe** → el helper no toca ningún perfil SDD en `opencode.json`.
+- Si existe → valida estrictamente con schema V1 y **falla cerrado antes de cualquier escritura** si algo está mal.
+- Para cada perfil nombrado en el config local → crea o actualiza orchestrator + 10 phase agents con `model` y `variant` exactos.
+- Perfiles presentes en `opencode.json` pero **no** nombrados en el config local → quedan intactos pero se reportan como `WARNING - unmanaged SDD profiles left untouched` + contador.
+- **Nunca borra perfiles automáticamente**. Si querés sacar uno: editás el config y borrás los agentes correspondientes en `opencode.json` a mano.
 
-Los siguientes comandos se instalan en cada agente durante la ejecución del instalador. Todos leen primero la `SKILL.md` correspondiente antes de actuar.
+Schema V1 (no hay defaults ni herencia):
 
----
+```jsonc
+{
+  "version": 1,
+  "profiles": [
+    {
+      "name": "vertex",
+      "orchestrator": { "model": "provider/model", "variant": "..." },
+      "phases": {
+        "sdd-init":     { "model": "provider/model", "variant": "..." },
+        "sdd-explore":  { "model": "provider/model", "variant": "..." },
+        "sdd-propose":  { "model": "provider/model", "variant": "..." },
+        "sdd-spec":     { "model": "provider/model", "variant": "..." },
+        "sdd-design":   { "model": "provider/model", "variant": "..." },
+        "sdd-tasks":    { "model": "provider/model", "variant": "..." },
+        "sdd-apply":    { "model": "provider/model", "variant": "..." },
+        "sdd-verify":   { "model": "provider/model", "variant": "..." },
+        "sdd-archive":  { "model": "provider/model", "variant": "..." },
+        "sdd-onboard":  { "model": "provider/model", "variant": "..." }
+      }
+    }
+  ]
+}
+```
 
-### `/commit-plan`
+Reglas duras:
 
-**Qué hace**: inspecciona el working tree y propone un plan de commits agrupados coherentemente, respetando las convenciones del repositorio (o Conventional Commits como fallback).
+- El top-level debe tener exactamente `version` y `profiles`. Cualquier campo extra rechaza el archivo.
+- `version` debe ser exactamente `1`.
+- `profiles` debe ser un array no vacío.
+- Cada profile debe tener exactamente los campos `name`, `orchestrator`, `phases`. Cualquier campo extra rechaza el archivo.
+- `name` debe matchear `^[a-z0-9][a-z0-9._-]*$` (sufijo seguro para agent keys) y ser único.
+- Cada `orchestrator`/phase assignment debe tener exactamente `{ "model": "...", "variant": "..." }`.
+- `model` debe ser un string no vacío.
+- `variant` debe ser un string (puede ser `""` si no aplica), pero el campo es **requerido**.
+- `phases` debe contener exactamente los 10 phase keys SDD listados arriba.
 
-**Intención**: darte visibilidad y control sobre cómo quedará el historial antes de escribir nada. No toca git.
+El script solo gestiona `model`/`variant`. El `prompt` del orchestrator del perfil viene de `gentle-ai sync` y la sanitización inline existente sigue corriendo igual.
 
-**Cuándo usarlo**: cuando terminaste una tarea y querés revisar cómo agrupar los cambios antes de commitear. Siempre antes de `/commit-apply` si querés aprobación explícita del plan.
+## Cómo se resuelve el orchestrator
 
----
+El orchestrator upstream de Gentle AI queda inline por diseño. Esta capa custom **no** usa un prompt estático del repo como source of truth.
 
-### `/commit-apply`
+En cambio, el helper hace esto:
 
-**Qué hace**: ejecuta un plan de commits aprobado. Si no hay un plan aprobado en la conversación, genera uno primero y se detiene para que lo apruebes.
+1. lee el prompt inline actual desde `opencode.json`
+2. genera un snapshot por orchestrator en `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/`
+3. elimina PR/budget/chained-PR/review-workload flow
+4. escribe el prompt derivado bajo `~/.config/opencode/prompts/sdd/orchestrators/<agent>.overlay.md`
+5. cambia la referencia del agente a ese archivo generado
 
-**Intención**: aplicar el plan con control total — nunca commitea sin que hayas visto y aprobado el plan.
+Si faltan anchors esperados, el sanitizador falla cerrado y no reescribe automáticamente el prompt.
 
-**Cuándo usarlo**: después de aprobar el output de `/commit-plan`, o cuando querés generar y aprobar el plan en un solo flujo pero sin ejecución automática.
+## Skill y runbook de mantenimiento
 
----
+Para futuras actualizaciones del upstream:
 
-### `/commit-fast`
+- Skill: `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`
+- Runbook: `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`
 
-**Qué hace**: genera el plan de commits y lo ejecuta inmediatamente sin pausar para aprobación. Muestra el plan antes de ejecutar (para auditoría), pero no espera confirmación. Se detiene si encuentra un blocker real: mismo archivo en múltiples commits, posible secreto, cambios no relacionados que no puede separar limpiamente, o fallo en algún `git commit`.
+La skill es el punto de entrada recomendado para pedirle al agente que revise diffs del upstream y mantenga actualizados:
 
-**Nota OpenCode**: el wrapper generado ya no fija `agent:` en el frontmatter; usa la resolución de agente por defecto del entorno.
+- maintenance intent
+- scripts
+- política
+- estado upstream mantenido
+- docs
+- snapshots
+- reglas de sanitización
 
-**Intención**: velocidad cuando confiás en el agente. Un solo paso en lugar de dos.
+La skill ahora debe auditar el rango entre la última versión/commit mantenido y el estado actual del upstream, separar cambios relevantes de bugfix/chore noise y frenar con gate humana antes de cambiar intención o política para nuevos comportamientos.
 
-**Cuándo usarlo**: cambios chicos y claros donde no necesitás revisar el plan antes de que se aplique.
+## Comandos custom disponibles
 
----
+- `/commit-plan`
+- `/commit-apply`
+- `/commit-fast`
+- `/pr-create`
+- `/pr-regenerate`
 
-### `/pr-create`
-
-**Qué hace**: genera título y body de PR a partir del diff comprometido de la rama actual, refresca refs remotas con `git fetch` de forma automática y verifica el head remoto con comandos read-only antes de generar el contenido. Para detectar PRs existentes, consulta solo PRs abiertas de la misma rama head y, cuando ya está resuelta, exige coincidencia también en la base. PRs cerradas o mergeadas no bloquean la creación. Respeta la plantilla del repositorio (`.github/PULL_REQUEST_TEMPLATE.md`, `CONTRIBUTING.md`, etc.) o usa una estructura genérica como fallback. La única pausa normal es la aprobación del contenido; después de eso, crea la PR en GitHub sin pedir una segunda confirmación.
-
-**Intención**: producir contenido de PR preciso basado solo en lo que está comprometido, sin inventar cambios ni reutilizar borradores anteriores, con una sola aprobación visible en el flujo normal.
-
-**Cuándo usarlo**: cuando tenés commits locales listos y querés abrir una PR nueva. Si ya existe una PR abierta para la misma rama —y, cuando la base ya está resuelta, para la misma base— el comando te indica que uses `/pr-regenerate` en su lugar. PRs cerradas o mergeadas no bloquean.
-
----
-
-### `/pr-regenerate`
-
-**Qué hace**: regenera desde cero el título y body de una PR existente, usando el diff comprometido actual como única fuente de verdad, refrescando refs remotas con `git fetch` y validando el head remoto antes de editar. No reutiliza el contenido anterior de la PR. La única pausa normal es la aprobación del contenido; después de eso, actualiza la PR en GitHub sin pedir una segunda confirmación.
-
-**Intención**: mantener la PR sincronizada con el estado real de la rama después de nuevos commits o rebase, con menos fricción operativa y una sola decisión del usuario.
-
-**Cuándo usarlo**: cuando la PR ya existe pero su descripción quedó desactualizada respecto a los commits actuales.
-
----
-
-## Nota importante
-
-No se parchean automáticamente archivos gestionados upstream como `~/.config/opencode/AGENTS.md`, `~/.claude/CLAUDE.md` o equivalentes. Son assets frágiles frente a updates y esta repo se limita a reinstalar overlays explícitos.
-
-La integración durable queda apoyada en:
-
-- skills custom compartidas (`commit-planner`, `pr-finalizer`) como fuentes neutrales
-- cuerpos compartidos para `plan`, `apply`, `create` y `regenerate`
-- wrappers/slash commands nativos renderizados por agente durante la instalación
-- reaplicación manual post-sync
-
-Si más adelante querés reintroducir auto-load por contexto, conviene hacerlo como overlay/patch separado o directamente upstream.
-
-## Arquitectura de render
-
-1. El repo mantiene sólo contenido agent-agnostic en `shared/`.
-2. `inject-skills.sh` valida **todos** los targets pedidos antes de copiar nada.
-3. Después renderiza wrappers finos con el path de skill y el frontmatter que cada superficie espera:
-   - OpenCode → `~/.config/opencode/commands/*.md`
-   - Claude → `~/.claude/commands/*.md`
-   - Codex → `~/.codex/prompts/*.md`
-   - Gemini CLI → `~/.gemini/skills/*/SKILL.md`
-4. Las skills se copian desde la misma fuente compartida a `skills/<skill-name>/SKILL.md` en cada target.
-
-Esto mantiene el workflow manual post-sync, elimina duplicación authored y deja las diferencias por agente encapsuladas en el instalador.
+Todos se instalan desde `shared/` y generan wrappers específicos por agente en tiempo de aplicación.

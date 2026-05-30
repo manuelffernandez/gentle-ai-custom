@@ -293,6 +293,20 @@ apply_antigravity() {
   printf 'Applied Antigravity overlays -> %s\n' "${target_dir}"
 }
 
+should_apply_gentle_overlay() {
+  local target
+
+  for target in "${TARGETS[@]}"; do
+    case "${target}" in
+      opencode|claude)
+        return 0
+        ;;
+    esac
+  done
+
+  return 1
+}
+
 _targets_raw=$(normalize_targets "$@") || exit $?
 [ -z "${_targets_raw}" ] && exit 0
 mapfile -t TARGETS <<< "${_targets_raw}"
@@ -317,5 +331,9 @@ for target in "${TARGETS[@]}"; do
       ;;
   esac
 done
+
+if should_apply_gentle_overlay; then
+  bash "${SOURCE_DIR}/overlay/gentle-ai/scripts/apply-gentle-ai-policy.sh"
+fi
 
 printf 'Reminder: re-run this script after syncs, upgrades, or managed config refreshes.\n'
