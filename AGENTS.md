@@ -105,7 +105,7 @@ gentle-ai-custom/
 │       └── snapshots/
 │           └── upstream/
 │               └── opencode/
-│                   └── orchestrators/          # Per-orchestrator snapshots written at runtime
+│                   └── orchestrators/          # Versioned baseline snapshots (repo keeps only gentle-orchestrator.last.md)
 ├── shared/
 │   ├── skills/
 │   │   ├── commit-planner/
@@ -201,6 +201,8 @@ Built-in OpenCode agent overrides:
 
 SDD profile orchestrators (`sdd-orchestrator-<name>` and `sdd-<phase>-<name>`) are **NOT** baked into the versioned policy. They are reconciled from a per-machine local config — see `## SDD profile local config` below. The versioned policy keeps only portable baseline keys (`gentle-orchestrator`) so the repo never carries machine-specific model/variant choices.
 
+Profile orchestrator snapshots also stay out of the versioned repo. The repo keeps only `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md`; the helper keeps operational snapshots per machine under `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`.
+
 The maintainer must not infer evolving user intent only from the JSON policy. Intent changes belong first in `maintenance-intent.md`, then in policy/runtime artifacts if the user approves them.
 
 ---
@@ -269,10 +271,16 @@ The helper only manages `model`/`variant` on profile orchestrators. Orchestrator
 The OpenCode orchestrator is inline upstream by design. The helper scripts must therefore:
 
 1. read the inline prompt from `opencode.json`
-2. snapshot it per orchestrator
-3. sanitize PR/budget/chained-PR/review-workload flow
-4. generate `~/.config/opencode/prompts/sdd/orchestrators/<agent>.overlay.md`
-5. repoint the orchestrator to that generated file
+2. snapshot every orchestrator into `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`
+3. additionally keep `gentle-orchestrator.last.md` versioned under `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/`
+4. sanitize PR/budget/chained-PR/review-workload flow
+5. generate `~/.config/opencode/prompts/sdd/orchestrators/<agent>.overlay.md`
+6. repoint the orchestrator to that generated file
+
+Recovery rules:
+
+- `gentle-orchestrator`: prefer the local operational snapshot; if missing, fall back to the repo versioned snapshot and mirror it back into the local directory.
+- `sdd-orchestrator-<name>`: use only the local operational snapshot directory. If missing, fail closed and require `gentle-ai sync`.
 
 Do **not** switch back to a static repo-owned prompt file as the operational source of truth.
 

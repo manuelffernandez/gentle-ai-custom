@@ -39,7 +39,8 @@ def q(value: str) -> str:
 opencode = data['opencode']
 print(f'OPENCODE_CONFIG={q(os.path.expanduser(opencode["config_path"]))}')
 print(f'GENERATED_DIR={q(os.path.expanduser(opencode["generated_orchestrators_dir"]))}')
-print(f'SNAPSHOT_DIR={q(os.path.join(repo_root, opencode["orchestrator_snapshot_dir"]))}')
+print(f'REPO_SNAPSHOT_DIR={q(os.path.join(repo_root, opencode["orchestrator_snapshot_dir"]))}')
+print(f'LOCAL_SNAPSHOT_DIR={q(os.path.expanduser(opencode["local_orchestrator_snapshot_dir"]))}')
 print(f'LOCAL_PROFILES_CONFIG={q(os.path.expanduser(opencode["sdd_profiles_local_config_path"]))}')
 print('TARGET_DIRS=(' + ' '.join(q(os.path.expanduser(path)) for path in data['skills']['targets']) + ')')
 print('PRUNE_SKILLS=(' + ' '.join(q(skill) for skill in data['skills']['prune']) + ')')
@@ -96,14 +97,14 @@ if [[ ! -f "${OPENCODE_CONFIG}" ]]; then
   exit 0
 fi
 
-redirect_output="$(${PYTHON_CMD} - "${OPENCODE_CONFIG}" "${GENERATED_DIR}" "${SNAPSHOT_DIR}" "${POLICY_FILE}" "${LOCAL_PROFILES_CONFIG}" <<'PY'
+redirect_output="$(${PYTHON_CMD} - "${OPENCODE_CONFIG}" "${GENERATED_DIR}" "${REPO_SNAPSHOT_DIR}" "${LOCAL_SNAPSHOT_DIR}" "${POLICY_FILE}" "${LOCAL_PROFILES_CONFIG}" <<'PY'
 import json
 import os
 import re
 import sys
 import tempfile
 
-config_path, generated_dir, snapshot_dir, policy_path, local_profiles_path = sys.argv[1:6]
+config_path, generated_dir, repo_snapshot_dir, local_snapshot_dir, policy_path, local_profiles_path = sys.argv[1:7]
 
 def die(msg: str) -> 'NoReturn':
     """Exit with an ERROR: prefix on stderr, matching the shell fail() helper."""
@@ -146,11 +147,12 @@ generated_count = 0
 recovered_count = 0
 kept_count = 0
 skipped_count = 0
-snapshot_new = 0
-snapshot_changed = 0
-snapshot_unchanged = 0
 topology_warnings = []
 written_orchestrator_keys = set()
+repo_snapshot_counters = {'new': 0, 'changed': 0, 'unchanged': 0}
+local_snapshot_counters = {'new': 0, 'changed': 0, 'unchanged': 0}
+local_snapshot_migrations = 0
+repo_snapshot_backfills = 0
 
 # Profile reconciliation counters
 profiles_managed_count = 0
@@ -169,7 +171,7 @@ def profile_name_from_orchestrator_key(agent_key: str) -> str:
     return agent_key[len(profile_orch_prefix):] if profile_orch_prefix and agent_key.startswith(profile_orch_prefix) else ''
 
 def safe_snapshot_key(key: str) -> str:
-    """Reject keys that would traverse outside snapshot_dir."""
+    """Reject keys that would traverse outside snapshot directories."""
     if not key or '/' in key or '\\' in key or '..' in key.split('/') or '\x00' in key:
         die(f'unsafe agent key for snapshot path: {key!r}')
     return key
@@ -180,6 +182,52 @@ def write_utf8(path: str, content: str) -> None:
         fh.write(content)
         if not content.endswith('\n'):
             fh.write('\n')
+
+def normalize_lf_terminated(content: str) -> str:
+    return content if content.endswith('\n') else content + '\n'
+
+def write_snapshot_with_status(path: str, content: str, counters) -> str:
+    normalized = normalize_lf_terminated(content)
+    if os.path.isfile(path):
+        with open(path, 'r', encoding='utf-8') as fh:
+            old_snapshot = fh.read()
+        old_snapshot_normalized = old_snapshot.replace('\r\n', '\n')
+        if old_snapshot_normalized != normalized:
+            status = 'changed'
+        else:
+            status = 'unchanged'
+    else:
+        status = 'new'
+    counters[status] += 1
+    write_utf8(path, content)
+    return status
+
+def should_write_repo_snapshot(agent_key: str) -> bool:
+    return agent_key in orchestrator_keys
+
+def migrate_repo_snapshot_to_local(agent_key: str, repo_snapshot_path: str, local_snapshot_path: str) -> bool:
+    global local_snapshot_migrations
+    if os.path.isfile(local_snapshot_path) or not os.path.isfile(repo_snapshot_path):
+        return False
+    with open(repo_snapshot_path, 'r', encoding='utf-8') as fh:
+        legacy_content = fh.read().rstrip('\r\n')
+    write_utf8(local_snapshot_path, legacy_content)
+    local_snapshot_migrations += 1
+    print(f'  migrated snapshot {agent_key} -> {local_snapshot_path} (from repo versioned snapshot)', file=sys.stderr)
+    return True
+
+def backfill_repo_snapshot_from_local(agent_key: str, local_snapshot_path: str, repo_snapshot_path: str) -> bool:
+    global repo_snapshot_backfills
+    if not should_write_repo_snapshot(agent_key):
+        return False
+    if os.path.isfile(repo_snapshot_path) or not os.path.isfile(local_snapshot_path):
+        return False
+    with open(local_snapshot_path, 'r', encoding='utf-8') as fh:
+        local_content = fh.read().rstrip('\r\n')
+    write_utf8(repo_snapshot_path, local_content)
+    repo_snapshot_backfills += 1
+    print(f'  backfilled repo snapshot {agent_key} -> {repo_snapshot_path} (from local operational snapshot)', file=sys.stderr)
+    return True
 
 def remove_block(text: str, pattern: str, label: str) -> str:
     """Remove a multi-line block using MULTILINE + DOTALL (dot matches newlines)."""
@@ -497,7 +545,8 @@ for key in sorted(created_overrides):
 
 # --- Generate orchestrator overlays ---
 os.makedirs(generated_dir, exist_ok=True)
-os.makedirs(snapshot_dir, exist_ok=True)
+os.makedirs(repo_snapshot_dir, exist_ok=True)
+os.makedirs(local_snapshot_dir, exist_ok=True)
 
 for key in sorted(agents.keys()):
     if not is_orchestrator(key):
@@ -516,11 +565,28 @@ for key in sorted(agents.keys()):
     safe_key = safe_snapshot_key(key)
     generated_path = os.path.join(generated_dir, f'{safe_key}.overlay.md')
     desired_prompt = '{file:' + generated_path + '}'
-    snapshot_path = os.path.join(snapshot_dir, f'{safe_key}.last.md')
+    repo_snapshot_path = os.path.join(repo_snapshot_dir, f'{safe_key}.last.md')
+    local_snapshot_path = os.path.join(local_snapshot_dir, f'{safe_key}.last.md')
+
+    migrate_repo_snapshot_to_local(key, repo_snapshot_path, local_snapshot_path)
+    backfill_repo_snapshot_from_local(key, local_snapshot_path, repo_snapshot_path)
 
     # Fully-applied state — already pointing at our generated overlay file,
     # and that file exists on disk. Nothing to do.
     if prompt == desired_prompt and os.path.isfile(generated_path):
+        if not os.path.isfile(local_snapshot_path):
+            die(
+                f'local operational snapshot missing for orchestrator {key!r} at {local_snapshot_path}. '
+                f'Run `gentle-ai sync` to reset the orchestrator prompt to inline content, '
+                f'then re-run this script to capture a fresh snapshot.'
+            )
+        if should_write_repo_snapshot(key) and not os.path.isfile(repo_snapshot_path):
+            backfill_repo_snapshot_from_local(key, local_snapshot_path, repo_snapshot_path)
+            if not os.path.isfile(repo_snapshot_path):
+                die(
+                    f'versioned repo snapshot missing for orchestrator {key!r} at {repo_snapshot_path}. '
+                    f'Run `gentle-ai sync` to capture fresh upstream, then re-run this script.'
+                )
         print(f'  keep {key}: already points to generated overlay prompt', file=sys.stderr)
         written_orchestrator_keys.add(key)
         kept_count += 1
@@ -534,18 +600,26 @@ for key in sorted(agents.keys()):
         #   - the target file is missing (e.g. user wiped ~/.config/opencode/prompts/), OR
         #   - the reference points at a path different from our desired one.
         # Recover from the snapshot if available; fail loud if no snapshot exists.
-        if not os.path.isfile(snapshot_path):
+        if not os.path.isfile(local_snapshot_path):
+            migrate_repo_snapshot_to_local(key, repo_snapshot_path, local_snapshot_path)
+        if not os.path.isfile(local_snapshot_path):
+            if should_write_repo_snapshot(key):
+                missing_detail = f'no local operational snapshot exists at {local_snapshot_path} and no repo snapshot exists at {repo_snapshot_path}'
+            else:
+                missing_detail = f'no local operational snapshot exists at {local_snapshot_path}'
             die(
                 f'broken state for orchestrator {key!r}: opencode.json prompt is {prompt!r} '
-                f'but the target file is missing and no snapshot exists at {snapshot_path}. '
+                f'but the target file is missing and {missing_detail}. '
                 f'Run `gentle-ai sync` to reset the orchestrator prompt to inline content, '
                 f'then re-run this script.'
             )
-        with open(snapshot_path, 'r', encoding='utf-8') as fh:
+        if should_write_repo_snapshot(key) and not os.path.isfile(repo_snapshot_path):
+            backfill_repo_snapshot_from_local(key, local_snapshot_path, repo_snapshot_path)
+        with open(local_snapshot_path, 'r', encoding='utf-8') as fh:
             inline_prompt = fh.read().rstrip('\r\n')
         recovered_from_snapshot = True
         print(
-            f'  WARNING recovering {key} from snapshot - content may pre-date current upstream; '
+            f'  WARNING recovering {key} from local snapshot - content may pre-date current upstream; '
             f'run `gentle-ai sync` then re-run this script to capture fresh upstream into the snapshot',
             file=sys.stderr,
         )
@@ -562,21 +636,12 @@ for key in sorted(agents.keys()):
     if recovered_from_snapshot:
         snapshot_status = 'recovered'
     else:
-        normalized = inline_prompt if inline_prompt.endswith('\n') else inline_prompt + '\n'
-        if os.path.isfile(snapshot_path):
-            with open(snapshot_path, 'r', encoding='utf-8') as fh:
-                old_snapshot = fh.read()
-            old_snapshot_normalized = old_snapshot.replace('\r\n', '\n')
-            if old_snapshot_normalized != normalized:
-                snapshot_status = 'changed'
-                snapshot_changed += 1
-            else:
-                snapshot_status = 'unchanged'
-                snapshot_unchanged += 1
+        local_snapshot_status = write_snapshot_with_status(local_snapshot_path, inline_prompt, local_snapshot_counters)
+        if should_write_repo_snapshot(key):
+            repo_snapshot_status = write_snapshot_with_status(repo_snapshot_path, inline_prompt, repo_snapshot_counters)
+            snapshot_status = f'local: {local_snapshot_status}, repo: {repo_snapshot_status}'
         else:
-            snapshot_status = 'new'
-            snapshot_new += 1
-        write_utf8(snapshot_path, inline_prompt)
+            snapshot_status = f'local: {local_snapshot_status}'
 
     write_utf8(generated_path, sanitized)
     if agent.get('prompt') != desired_prompt:
@@ -663,9 +728,14 @@ print(f'GENERATED_COUNT={generated_count}')
 print(f'RECOVERED_COUNT={recovered_count}')
 print(f'KEPT_COUNT={kept_count}')
 print(f'SKIPPED_COUNT={skipped_count}')
-print(f'SNAPSHOT_NEW={snapshot_new}')
-print(f'SNAPSHOT_CHANGED={snapshot_changed}')
-print(f'SNAPSHOT_UNCHANGED={snapshot_unchanged}')
+print(f'REPO_SNAPSHOT_NEW={repo_snapshot_counters["new"]}')
+print(f'REPO_SNAPSHOT_CHANGED={repo_snapshot_counters["changed"]}')
+print(f'REPO_SNAPSHOT_UNCHANGED={repo_snapshot_counters["unchanged"]}')
+print(f'LOCAL_SNAPSHOT_NEW={local_snapshot_counters["new"]}')
+print(f'LOCAL_SNAPSHOT_CHANGED={local_snapshot_counters["changed"]}')
+print(f'LOCAL_SNAPSHOT_UNCHANGED={local_snapshot_counters["unchanged"]}')
+print(f'LOCAL_SNAPSHOT_MIGRATIONS={local_snapshot_migrations}')
+print(f'REPO_SNAPSHOT_BACKFILLS={repo_snapshot_backfills}')
 print(f'TOPOLOGY_WARNINGS={len(topology_warnings)}')
 print(f'PROFILES_MANAGED={profiles_managed_count}')
 print(f'PROFILE_AGENTS_CREATED={profile_agents_created}')
@@ -688,7 +758,10 @@ info "  orchestrators generated (fresh): ${GENERATED_COUNT}"
 info "  orchestrators recovered from snapshot: ${RECOVERED_COUNT}"
 info "  orchestrators kept (already applied): ${KEPT_COUNT}"
 info "  orchestrators skipped: ${SKIPPED_COUNT}"
-info "  snapshots - new: ${SNAPSHOT_NEW}, changed: ${SNAPSHOT_CHANGED}, unchanged: ${SNAPSHOT_UNCHANGED}"
+info "  repo snapshots - new: ${REPO_SNAPSHOT_NEW}, changed: ${REPO_SNAPSHOT_CHANGED}, unchanged: ${REPO_SNAPSHOT_UNCHANGED}"
+info "  local snapshots - new: ${LOCAL_SNAPSHOT_NEW}, changed: ${LOCAL_SNAPSHOT_CHANGED}, unchanged: ${LOCAL_SNAPSHOT_UNCHANGED}"
+info "  local snapshot migrations from repo: ${LOCAL_SNAPSHOT_MIGRATIONS}"
+info "  repo snapshot backfills from local: ${REPO_SNAPSHOT_BACKFILLS}"
 info "  topology warnings: ${TOPOLOGY_WARNINGS}"
 info "  SDD profiles managed: ${PROFILES_MANAGED}"
 info "  SDD profile agents created: ${PROFILE_AGENTS_CREATED}"
@@ -712,10 +785,26 @@ if (( ${#MISSING_KEEP_SUMMARY[@]} > 0 )); then
   done
 fi
 
-if (( SNAPSHOT_CHANGED > 0 )); then
+if (( REPO_SNAPSHOT_CHANGED > 0 )); then
   info ""
-  info "NOTE: upstream orchestrator prompts drifted. Review with:"
+  info "NOTE: versioned orchestrator snapshots drifted. Review with:"
   info "  git diff overlay/gentle-ai/snapshots/"
+fi
+
+if (( LOCAL_SNAPSHOT_CHANGED > 0 )); then
+  info ""
+  info "NOTE: local operational orchestrator snapshots drifted under:"
+  info "  ${LOCAL_SNAPSHOT_DIR}"
+fi
+
+if (( LOCAL_SNAPSHOT_MIGRATIONS > 0 )); then
+  info ""
+  info "NOTE: migrated ${LOCAL_SNAPSHOT_MIGRATIONS} legacy snapshot(s) from the repo into the local operational snapshot dir."
+fi
+
+if (( REPO_SNAPSHOT_BACKFILLS > 0 )); then
+  info ""
+  info "NOTE: backfilled ${REPO_SNAPSHOT_BACKFILLS} versioned repo snapshot(s) from local operational snapshots."
 fi
 
 if (( RECOVERED_COUNT > 0 )); then

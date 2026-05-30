@@ -64,7 +64,8 @@ bash apply-gentle-ai-custom.sh all
 Esto re-aplica el overlay completo:
 - poda las skills no deseadas (branch-pr, chained-pr, issue-creation, work-unit-commits)
 - re-aplica los overrides de modelos (general, explore)
-- captura el nuevo prompt inline en los `*.last.md` (snapshot actualizado)
+- actualiza `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/*.last.md` para todos los orchestrators
+- mantiene además `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md` como baseline versionado
 - sanitiza y regenera los `*.overlay.md` en `~/.config/opencode/prompts/sdd/orchestrators/`
 - reescribe `opencode.json` con referencias `{file:...}`
 
@@ -111,11 +112,14 @@ Después de cada corrida del script, leé el bloque `Summary:` y los `topology:`
 | `topology: unknown orchestrator matched by prefix only: X` | Apareció un orchestrator nuevo upstream que sólo matchea por prefijo (excluyendo `sdd-orchestrator-*` que son perfil-managed). | Auditar el cambio upstream. Si es legítimo, agregar `X` a `orchestrator_agent_keys` en la policy con aprobación del usuario. |
 | `topology: expected orchestrator missing from opencode.json: X` | Un orchestrator listado en la policy ya no existe en upstream. | Auditar si fue renombrado/eliminado upstream. Actualizar policy + intent. |
 | `topology: agent_override target was missing from upstream (created): X` | El override apuntaba a un agente que no existía upstream **o que existía con un tipo distinto a object**; el script creó/sobrescribió el stub. | Verificar si el agente fue renombrado o cambió de forma upstream. Ajustar el `key` del override o el intent si corresponde. |
-| `snapshots - changed: N > 0` | Cambió el prompt inline upstream de algún orchestrator. | `git diff overlay/gentle-ai/snapshots/` para revisar. Si los anchors del sanitizador se movieron, actualizar ambos scripts. |
+| `repo snapshots - changed: N > 0` | Cambió el baseline versionado de `gentle-orchestrator`. | `git diff overlay/gentle-ai/snapshots/` para revisar. Si los anchors del sanitizador se movieron, actualizar ambos scripts. |
+| `local snapshots - changed: N > 0` | Cambió algún snapshot operativo local (incluidos profiles) bajo `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`. | Verificar cuál cambió en el directorio local. No esperes ver esto en git para snapshots per-perfil. |
+| `local snapshot migrations from repo: N > 0` | El helper copió snapshots legacy desde el repo al directorio local operativo. | Confirmar que la migración dejó los archivos esperados en `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/` y luego remover del repo los snapshots per-perfil versionados. |
+| `repo snapshot backfills from local: N > 0` | El helper recreó el snapshot versionado de `gentle-orchestrator` desde la copia operativa local. | Revisar por qué faltaba el snapshot versionado en el repo antes de la corrida. |
 | `orchestrators recovered from snapshot: N > 0` + el bloque `NOTE: ... may pre-date the current upstream` | Algún `.overlay.md` no existía en disco y se reconstruyó desde el snapshot. El contenido aplicado puede ser de una versión upstream anterior. | Investigar por qué se perdió el archivo (¿borrado manual? ¿bug en otro script?). Si querés capturar fresco, correr `gentle-ai sync` y re-correr el script — el snapshot se actualizará desde el inline upstream. |
 | `WARNING - keep skills missing (expected but absent):` | Alguna skill que debería existir está ausente en un target. | Probablemente la skill se renombró/eliminó upstream o el usuario la quiso fuera. Revisar intent. |
-| `WARNING recovering X from snapshot - content may pre-date current upstream` | El script va a reconstruir el `.overlay.md` desde el snapshot porque el target file falta. Se imprime durante la corrida, no en el Summary. | Si fue intencional (borrado manual), todo OK. Si no, investigar quién está borrando los `.overlay.md`. |
-| `ERROR: broken state for orchestrator 'X': opencode.json prompt is '{file:...}' but the target file is missing and no snapshot exists at ...` | `opencode.json` apunta a un `{file:...}` inexistente y no hay snapshot para recuperar. | Correr `gentle-ai sync` para resetear los prompts a inline upstream, después re-correr el script. |
+| `WARNING recovering X from local snapshot - content may pre-date current upstream` | El script va a reconstruir el `.overlay.md` desde el snapshot operativo local porque el target file falta. Se imprime durante la corrida, no en el Summary. | Si fue intencional (borrado manual), todo OK. Si no, investigar quién está borrando los `.overlay.md`. |
+| `ERROR: broken state for orchestrator 'X': opencode.json prompt is '{file:...}' but the target file is missing and ...` | `opencode.json` apunta a un `{file:...}` inexistente y no existe el snapshot recuperable requerido (local para profiles; local o repo versionado para `gentle-orchestrator`). | Correr `gentle-ai sync` para resetear los prompts a inline upstream, después re-correr el script. |
 | `ERROR: post-write verification failed: agent X model is Y after write, expected Z` | El JSON se escribió pero al re-leer los valores no coinciden con lo esperado. | Bug serio: investigar si hay otro proceso escribiendo `opencode.json` (race) o si el script tiene un bug de serialización. |
 | `ERROR: post-write verification failed: orchestrator X prompt is Y after write, expected Z` | Idem anterior pero para la referencia `{file:...}` del orchestrator. | Idem anterior. |
 | `ERROR: OpenCode config at ... is not valid JSON: ...` | `opencode.json` está corrupto y no se puede parsear. | Restaurar desde `~/.gentle-ai/backups/<timestamp>/` o correr `gentle-ai sync` para regenerar. |
@@ -137,6 +141,12 @@ Contrato operacional:
 - Profiles presentes en `opencode.json` pero ausentes del config local quedan intactos. Se reportan como `WARNING - unmanaged SDD profiles left untouched`. El helper nunca borra perfiles automáticamente.
 
 Schema completo y reglas duras: ver `README.md` raíz, sección "Perfiles SDD locales", o `AGENTS.md` sección "SDD profile local config".
+
+Snapshots de orchestrators:
+
+- El repo versionado conserva solo `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md`.
+- `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/` guarda la copia operativa local de `gentle-orchestrator` y todos los `sdd-orchestrator-<profile>.last.md`.
+- Si todavía quedan snapshots legacy per-perfil en el repo, la próxima corrida del helper los migra al directorio local para preservar recovery sin requerir un sync inmediato.
 
 Razón del split:
 
@@ -178,7 +188,7 @@ Crear un archivo `*.json` directamente bajo `~/.config/opencode/profiles/` (no e
 3. Leé la política en `overlay/gentle-ai/policy/gentle-ai-policy.json`.
 4. Leé el estado en `overlay/gentle-ai/state/upstream-state.json`.
 5. Determiná el rango a auditar desde `last_maintained_commit` / `last_maintained_tag` hasta el estado actual del upstream.
-6. Revisá snapshots en `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/`.
+6. Revisá snapshots versionados en `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/` y snapshots operativos en `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`.
 7. Si cambió la estructura del orchestrator, ajustá el sanitizador en ambos scripts:
    - `overlay/gentle-ai/scripts/apply-gentle-ai-policy.sh`
    - `overlay/gentle-ai/scripts/apply-gentle-ai-policy.ps1`
@@ -204,7 +214,8 @@ El agente debe pedir aprobación humana cuando aparezcan cambios que puedan afec
 - [ ] La política keep/prune sigue representando la intención del usuario.
 - [ ] `upstream-state.json` apunta a la última versión/commit realmente mantenida.
 - [ ] Los scripts siguen generando prompts derivados bajo `~/.config/opencode/prompts/sdd/orchestrators/`.
-- [ ] Los snapshots por orchestrator se siguen escribiendo en `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/`.
+- [ ] `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/` conserva solo `gentle-orchestrator.last.md`.
+- [ ] `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/` contiene `gentle-orchestrator.last.md` y los snapshots `sdd-orchestrator-<profile>.last.md` gestionados localmente.
 - [ ] El sanitizador todavía remueve PR/budget/chained-PR/review-workload sin romper `## Model Assignments`.
 - [ ] `agent.general` sigue en `openai/gpt-5.4` / `high`.
 - [ ] `agent.explore` sigue en `google-vertex/gemini-3.1-pro-preview` / `high`.

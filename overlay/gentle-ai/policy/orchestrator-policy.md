@@ -43,7 +43,8 @@ Preserve as much as possible of:
 ## Update process
 
 1. Read the current inline orchestrator prompt from OpenCode config after `gentle-ai sync`.
-2. Snapshot it under `snapshots/upstream/opencode/orchestrators/<agent>.last.md`.
-3. Re-apply this policy.
-4. Emit the generated prompt under `~/.config/opencode/prompts/sdd/orchestrators/<agent>.overlay.md`.
-5. Append a dated note in `logs/update-log.md`.
+2. For `gentle-orchestrator`, snapshot it both under `snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md` and under `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/gentle-orchestrator.last.md`.
+3. For `sdd-orchestrator-<profile>`, snapshot it only under `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/<agent>.last.md`.
+4. Re-apply this policy.
+5. Emit the generated prompt under `~/.config/opencode/prompts/sdd/orchestrators/<agent>.overlay.md`.
+6. Append a dated note in `logs/update-log.md`.

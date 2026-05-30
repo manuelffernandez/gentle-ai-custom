@@ -59,6 +59,16 @@ function Write-Utf8NoBomAtomic {
     }
 }
 
+function Copy-Utf8NoBomFile {
+    param(
+        [string]$SourcePath,
+        [string]$DestinationPath
+    )
+
+    $Content = (Get-Content -LiteralPath $SourcePath -Raw).TrimEnd("`n", "`r")
+    Write-Utf8NoBomAtomic -Path $DestinationPath -Content $Content
+}
+
 function Ensure-LfTerminated {
     param([string]$Content)
 
@@ -179,6 +189,85 @@ function Get-AgentPropertyValue {
     return $null
 }
 
+function Test-RepoSnapshotEligible {
+    param(
+        [string]$AgentKey,
+        [object]$PolicyObject
+    )
+
+    return $PolicyObject.opencode.orchestrator_agent_keys -contains $AgentKey
+}
+
+function Write-SnapshotWithStatus {
+    param(
+        [string]$Path,
+        [string]$Content,
+        [ref]$NewCounter,
+        [ref]$ChangedCounter,
+        [ref]$UnchangedCounter
+    )
+
+    $Normalized = Ensure-LfTerminated $Content
+    if (Test-Path -LiteralPath $Path -PathType Leaf) {
+        $OldSnapshotRaw = Get-Content -LiteralPath $Path -Raw
+        if ((Normalize-Lf $OldSnapshotRaw) -ne (Normalize-Lf $Normalized)) {
+            $ChangedCounter.Value++
+            $Status = 'changed'
+        }
+        else {
+            $UnchangedCounter.Value++
+            $Status = 'unchanged'
+        }
+    }
+    else {
+        $NewCounter.Value++
+        $Status = 'new'
+    }
+
+    Write-Utf8NoBomAtomic -Path $Path -Content $Normalized
+    return $Status
+}
+
+function Ensure-LocalSnapshotFromRepo {
+    param(
+        [string]$AgentKey,
+        [string]$RepoSnapshotPath,
+        [string]$LocalSnapshotPath,
+        [ref]$MigrationCounter
+    )
+
+    if ((Test-Path -LiteralPath $LocalSnapshotPath -PathType Leaf) -or -not (Test-Path -LiteralPath $RepoSnapshotPath -PathType Leaf)) {
+        return $false
+    }
+
+    Copy-Utf8NoBomFile -SourcePath $RepoSnapshotPath -DestinationPath $LocalSnapshotPath
+    $MigrationCounter.Value++
+    Write-Info "  migrated snapshot $AgentKey -> $LocalSnapshotPath (from repo versioned snapshot)"
+    return $true
+}
+
+function Ensure-RepoSnapshotFromLocal {
+    param(
+        [string]$AgentKey,
+        [string]$RepoSnapshotPath,
+        [string]$LocalSnapshotPath,
+        [object]$PolicyObject,
+        [ref]$BackfillCounter
+    )
+
+    if (-not (Test-RepoSnapshotEligible -AgentKey $AgentKey -PolicyObject $PolicyObject)) {
+        return $false
+    }
+    if ((Test-Path -LiteralPath $RepoSnapshotPath -PathType Leaf) -or -not (Test-Path -LiteralPath $LocalSnapshotPath -PathType Leaf)) {
+        return $false
+    }
+
+    Copy-Utf8NoBomFile -SourcePath $LocalSnapshotPath -DestinationPath $RepoSnapshotPath
+    $BackfillCounter.Value++
+    Write-Info "  backfilled repo snapshot $AgentKey -> $RepoSnapshotPath (from local operational snapshot)"
+    return $true
+}
+
 function Validate-Assignment {
     param(
         [string]$Label,
@@ -268,7 +357,8 @@ if (-not (Test-Path -LiteralPath $PolicyFile)) {
 $Policy = Get-Content -LiteralPath $PolicyFile -Raw | ConvertFrom-Json
 $OpenCodeConfig = Resolve-UserPath $Policy.opencode.config_path
 $GeneratedDir = Resolve-UserPath $Policy.opencode.generated_orchestrators_dir
-$SnapshotDir = Join-Path $RepoRoot $Policy.opencode.orchestrator_snapshot_dir
+$RepoSnapshotDir = Join-Path $RepoRoot $Policy.opencode.orchestrator_snapshot_dir
+$LocalSnapshotDir = Resolve-UserPath $Policy.opencode.local_orchestrator_snapshot_dir
 $LocalProfilesConfig = Resolve-UserPath $Policy.opencode.sdd_profiles_local_config_path
 $ProfileOrchPrefix = [string]$Policy.opencode.profile_orchestrator_prefix
 $SddPhases = @($Policy.opencode.sdd_phases)
@@ -348,9 +438,14 @@ $GeneratedCount = 0
 $RecoveredCount = 0
 $KeptCount = 0
 $SkippedCount = 0
-$SnapshotNew = 0
-$SnapshotChanged = 0
-$SnapshotUnchanged = 0
+$RepoSnapshotNew = 0
+$RepoSnapshotChanged = 0
+$RepoSnapshotUnchanged = 0
+$LocalSnapshotNew = 0
+$LocalSnapshotChanged = 0
+$LocalSnapshotUnchanged = 0
+$LocalSnapshotMigrations = 0
+$RepoSnapshotBackfills = 0
 $TopologyWarnings = New-Object System.Collections.Generic.List[string]
 $WrittenOrchestratorKeys = New-Object System.Collections.Generic.HashSet[string]
 
@@ -682,8 +777,11 @@ foreach ($K in ($CreatedOverrides | Sort-Object)) {
 if (-not (Test-Path -LiteralPath $GeneratedDir)) {
     New-Item -ItemType Directory -Path $GeneratedDir -Force | Out-Null
 }
-if (-not (Test-Path -LiteralPath $SnapshotDir)) {
-    New-Item -ItemType Directory -Path $SnapshotDir -Force | Out-Null
+if (-not (Test-Path -LiteralPath $RepoSnapshotDir)) {
+    New-Item -ItemType Directory -Path $RepoSnapshotDir -Force | Out-Null
+}
+if (-not (Test-Path -LiteralPath $LocalSnapshotDir)) {
+    New-Item -ItemType Directory -Path $LocalSnapshotDir -Force | Out-Null
 }
 
 $AgentKeys = $Config.agent.PSObject.Properties.Name | Sort-Object
@@ -709,11 +807,24 @@ foreach ($AgentKey in $AgentKeys) {
     $SafeKey = Assert-SafeSnapshotKey -Key $AgentKey
     $GeneratedPath = Join-Path $GeneratedDir ($SafeKey + '.overlay.md')
     $DesiredPrompt = '{file:' + $GeneratedPath + '}'
-    $SnapshotPath = Join-Path $SnapshotDir ($SafeKey + '.last.md')
+    $RepoSnapshotPath = Join-Path $RepoSnapshotDir ($SafeKey + '.last.md')
+    $LocalSnapshotPath = Join-Path $LocalSnapshotDir ($SafeKey + '.last.md')
+
+    [void](Ensure-LocalSnapshotFromRepo -AgentKey $AgentKey -RepoSnapshotPath $RepoSnapshotPath -LocalSnapshotPath $LocalSnapshotPath -MigrationCounter ([ref]$LocalSnapshotMigrations))
+    [void](Ensure-RepoSnapshotFromLocal -AgentKey $AgentKey -RepoSnapshotPath $RepoSnapshotPath -LocalSnapshotPath $LocalSnapshotPath -PolicyObject $Policy -BackfillCounter ([ref]$RepoSnapshotBackfills))
 
     # Fully-applied state — already pointing at our generated overlay file,
     # and that file exists on disk. Nothing to do.
     if ($PromptValue -eq $DesiredPrompt -and (Test-Path -LiteralPath $GeneratedPath -PathType Leaf)) {
+        if (-not (Test-Path -LiteralPath $LocalSnapshotPath -PathType Leaf)) {
+            Die ("local operational snapshot missing for orchestrator '{0}' at {1}. Run ``gentle-ai sync`` to reset the orchestrator prompt to inline content, then re-run this script to capture a fresh snapshot." -f $AgentKey, $LocalSnapshotPath)
+        }
+        if ((Test-RepoSnapshotEligible -AgentKey $AgentKey -PolicyObject $Policy) -and -not (Test-Path -LiteralPath $RepoSnapshotPath -PathType Leaf)) {
+            [void](Ensure-RepoSnapshotFromLocal -AgentKey $AgentKey -RepoSnapshotPath $RepoSnapshotPath -LocalSnapshotPath $LocalSnapshotPath -PolicyObject $Policy -BackfillCounter ([ref]$RepoSnapshotBackfills))
+            if (-not (Test-Path -LiteralPath $RepoSnapshotPath -PathType Leaf)) {
+                Die ("versioned repo snapshot missing for orchestrator '{0}' at {1}. Run ``gentle-ai sync`` to capture fresh upstream, then re-run this script." -f $AgentKey, $RepoSnapshotPath)
+            }
+        }
         Write-Info "  keep $AgentKey`: already points to generated overlay prompt"
         [void]$WrittenOrchestratorKeys.Add($AgentKey)
         $KeptCount++
@@ -727,12 +838,24 @@ foreach ($AgentKey in $AgentKeys) {
         # Prompt is a file reference but either the target file is missing
         # or it points somewhere different from our desired path.
         # Recover from snapshot if available; fail loud if not.
-        if (-not (Test-Path -LiteralPath $SnapshotPath -PathType Leaf)) {
-            Die ("broken state for orchestrator '{0}': opencode.json prompt is '{1}' but the target file is missing and no snapshot exists at {2}. Run ``gentle-ai sync`` to reset the orchestrator prompt to inline content, then re-run this script." -f $AgentKey, $PromptValue, $SnapshotPath)
+        if (-not (Test-Path -LiteralPath $LocalSnapshotPath -PathType Leaf)) {
+            [void](Ensure-LocalSnapshotFromRepo -AgentKey $AgentKey -RepoSnapshotPath $RepoSnapshotPath -LocalSnapshotPath $LocalSnapshotPath -MigrationCounter ([ref]$LocalSnapshotMigrations))
         }
-        $InlinePrompt = (Get-Content -LiteralPath $SnapshotPath -Raw).TrimEnd("`n", "`r")
+        if (-not (Test-Path -LiteralPath $LocalSnapshotPath -PathType Leaf)) {
+            if (Test-RepoSnapshotEligible -AgentKey $AgentKey -PolicyObject $Policy) {
+                $MissingDetail = "no local operational snapshot exists at $LocalSnapshotPath and no repo snapshot exists at $RepoSnapshotPath"
+            }
+            else {
+                $MissingDetail = "no local operational snapshot exists at $LocalSnapshotPath"
+            }
+            Die ("broken state for orchestrator '{0}': opencode.json prompt is '{1}' but the target file is missing and {2}. Run ``gentle-ai sync`` to reset the orchestrator prompt to inline content, then re-run this script." -f $AgentKey, $PromptValue, $MissingDetail)
+        }
+        if ((Test-RepoSnapshotEligible -AgentKey $AgentKey -PolicyObject $Policy) -and -not (Test-Path -LiteralPath $RepoSnapshotPath -PathType Leaf)) {
+            [void](Ensure-RepoSnapshotFromLocal -AgentKey $AgentKey -RepoSnapshotPath $RepoSnapshotPath -LocalSnapshotPath $LocalSnapshotPath -PolicyObject $Policy -BackfillCounter ([ref]$RepoSnapshotBackfills))
+        }
+        $InlinePrompt = (Get-Content -LiteralPath $LocalSnapshotPath -Raw).TrimEnd("`n", "`r")
         $RecoveredFromSnapshot = $true
-        Write-Info "  WARNING recovering $AgentKey from snapshot - content may pre-date current upstream; run ``gentle-ai sync`` then re-run this script to capture fresh upstream into the snapshot"
+        Write-Info "  WARNING recovering $AgentKey from local snapshot - content may pre-date current upstream; run ``gentle-ai sync`` then re-run this script to capture fresh upstream into the snapshot"
     }
     else {
         $InlinePrompt = $PromptValue
@@ -747,23 +870,14 @@ foreach ($AgentKey in $AgentKeys) {
         $SnapshotStatus = 'recovered'
     }
     else {
-        $Normalized = Ensure-LfTerminated $InlinePrompt
-        if (Test-Path -LiteralPath $SnapshotPath -PathType Leaf) {
-            $OldSnapshotRaw = Get-Content -LiteralPath $SnapshotPath -Raw
-            if ((Normalize-Lf $OldSnapshotRaw) -ne (Normalize-Lf $Normalized)) {
-                $SnapshotStatus = 'changed'
-                $SnapshotChanged++
-            }
-            else {
-                $SnapshotStatus = 'unchanged'
-                $SnapshotUnchanged++
-            }
+        $LocalSnapshotStatus = Write-SnapshotWithStatus -Path $LocalSnapshotPath -Content $InlinePrompt -NewCounter ([ref]$LocalSnapshotNew) -ChangedCounter ([ref]$LocalSnapshotChanged) -UnchangedCounter ([ref]$LocalSnapshotUnchanged)
+        if (Test-RepoSnapshotEligible -AgentKey $AgentKey -PolicyObject $Policy) {
+            $RepoSnapshotStatus = Write-SnapshotWithStatus -Path $RepoSnapshotPath -Content $InlinePrompt -NewCounter ([ref]$RepoSnapshotNew) -ChangedCounter ([ref]$RepoSnapshotChanged) -UnchangedCounter ([ref]$RepoSnapshotUnchanged)
+            $SnapshotStatus = "local: $LocalSnapshotStatus, repo: $RepoSnapshotStatus"
         }
         else {
-            $SnapshotStatus = 'new'
-            $SnapshotNew++
+            $SnapshotStatus = "local: $LocalSnapshotStatus"
         }
-        Write-Utf8NoBomAtomic -Path $SnapshotPath -Content $Normalized
     }
 
     Write-Utf8NoBomAtomic -Path $GeneratedPath -Content (Ensure-LfTerminated $SanitizedPrompt)
@@ -858,7 +972,10 @@ Write-Info "  orchestrators generated (fresh): $GeneratedCount"
 Write-Info "  orchestrators recovered from snapshot: $RecoveredCount"
 Write-Info "  orchestrators kept (already applied): $KeptCount"
 Write-Info "  orchestrators skipped: $SkippedCount"
-Write-Info "  snapshots - new: $SnapshotNew, changed: $SnapshotChanged, unchanged: $SnapshotUnchanged"
+Write-Info "  repo snapshots - new: $RepoSnapshotNew, changed: $RepoSnapshotChanged, unchanged: $RepoSnapshotUnchanged"
+Write-Info "  local snapshots - new: $LocalSnapshotNew, changed: $LocalSnapshotChanged, unchanged: $LocalSnapshotUnchanged"
+Write-Info "  local snapshot migrations from repo: $LocalSnapshotMigrations"
+Write-Info "  repo snapshot backfills from local: $RepoSnapshotBackfills"
 Write-Info "  topology warnings: $($TopologyWarnings.Count)"
 Write-Info "  SDD profiles managed: $ProfilesManagedCount"
 Write-Info "  SDD profile agents created: $ProfileAgentsCreated"
@@ -882,10 +999,26 @@ if ($MissingKeepSummary.Count -gt 0) {
     }
 }
 
-if ($SnapshotChanged -gt 0) {
+if ($RepoSnapshotChanged -gt 0) {
     Write-Info ''
-    Write-Info 'NOTE: upstream orchestrator prompts drifted. Review with:'
+    Write-Info 'NOTE: versioned orchestrator snapshots drifted. Review with:'
     Write-Info '  git diff overlay/gentle-ai/snapshots/'
+}
+
+if ($LocalSnapshotChanged -gt 0) {
+    Write-Info ''
+    Write-Info 'NOTE: local operational orchestrator snapshots drifted under:'
+    Write-Info "  $LocalSnapshotDir"
+}
+
+if ($LocalSnapshotMigrations -gt 0) {
+    Write-Info ''
+    Write-Info "NOTE: migrated $LocalSnapshotMigrations legacy snapshot(s) from the repo into the local operational snapshot dir."
+}
+
+if ($RepoSnapshotBackfills -gt 0) {
+    Write-Info ''
+    Write-Info "NOTE: backfilled $RepoSnapshotBackfills versioned repo snapshot(s) from local operational snapshots."
 }
 
 if ($RecoveredCount -gt 0) {

@@ -2,6 +2,44 @@
 
 > Este archivo registra decisiones e hitos del mantenimiento del overlay. No es la fuente autoritativa del último upstream mantenido; esa responsabilidad vive en `overlay/gentle-ai/state/upstream-state.json`.
 
+## 2026-05-30 — Profile orchestrator snapshots moved out of the repo
+
+Razón del cambio:
+
+- Después de mover los perfiles SDD nombrados a un config per-máquina (`~/.config/gentle-ai-custom/opencode-sdd-profiles.json`), seguía habiendo una inconsistencia: los snapshots `sdd-orchestrator-<perfil>.last.md` seguían versionándose dentro del repo aunque representan estado operativo local derivado de perfiles también locales.
+- Eso ensuciaba el historial con artefactos redundantes y mezclaba en el árbol versionado algo que ya no forma parte del baseline portable del overlay.
+
+WHAT cambió:
+
+- `overlay/gentle-ai/policy/gentle-ai-policy.json`:
+  - Nuevo campo `opencode.local_orchestrator_snapshot_dir = "~/.config/gentle-ai-custom/opencode-orchestrator-snapshots"`.
+- `overlay/gentle-ai/scripts/apply-gentle-ai-policy.sh` y `.ps1`:
+  - Split de storage para snapshots de orchestrators.
+  - `gentle-orchestrator` ahora mantiene DOS copias:
+    1. snapshot operativo local en `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/gentle-orchestrator.last.md`
+    2. snapshot versionado en `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md`
+  - Los `sdd-orchestrator-<perfil>.last.md` pasan a vivir SOLO en el directorio local per-máquina.
+  - Recovery/lookup actualizado:
+    - para `gentle-orchestrator`: preferir snapshot local; si falta, fallback al versionado del repo y mirror de vuelta al local
+    - para `sdd-orchestrator-<perfil>`: usar solo el directorio local; si falta, fail closed pidiendo `gentle-ai sync`
+  - Nueva migración automática: si todavía existe un snapshot legado de perfil en el repo, copiarlo al directorio local y seguir desde ahí.
+- `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/`:
+  - removidos del repo `sdd-orchestrator-mixed.last.md`, `sdd-orchestrator-vertex.last.md`, `sdd-orchestrator-vertex-claude.last.md`
+  - queda versionado únicamente `gentle-orchestrator.last.md`
+- `AGENTS.md`, `README.md`, `overlay/gentle-ai/README.md`, `overlay/gentle-ai/policy/maintenance-intent.md`, `overlay/gentle-ai/policy/orchestrator-policy.md`, `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`, `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`:
+  - documentada la nueva frontera: el repo conserva solo el snapshot base portable; los snapshots de perfiles son estado operativo local.
+
+WHY:
+
+- Los perfiles SDD nombrados ya no son parte del baseline compartido. Mantener sus snapshots en git rompía esa frontera conceptual.
+- `gentle-orchestrator.last.md` sí conserva valor histórico/reviewable porque es el baseline común del overlay contra upstream. Los snapshots per-profile no agregan señal útil al historial del repo.
+
+Verificación:
+
+- Revisión de scripts bash/PS1: ambos implementan la misma regla de dual snapshot para `gentle-orchestrator` y snapshot local-only para perfiles.
+- Confirmado que el directorio local `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/` contiene `gentle-orchestrator.last.md` + los snapshots de perfiles.
+- Confirmado que el árbol versionado de snapshots queda reducido al snapshot base una vez removidos los tres `sdd-orchestrator-*.last.md` del repo.
+
 ## 2026-05-30 — Maintainer now recommends sync vs reinstall explicitly
 
 Razón del cambio:

@@ -12,6 +12,7 @@ Este repo ya no es solo un instalador de dos skills custom. Ahora funciona como 
 - fija overrides de modelo para los agentes built-in de OpenCode listados en `agent_overrides` (ver `overlay/gentle-ai/policy/gentle-ai-policy.json`)
 - reconcilia perfiles SDD locales (`sdd-orchestrator-<name>` + 10 phase agents) desde un config por-máquina en `~/.config/gentle-ai-custom/opencode-sdd-profiles.json`
 - captura prompts inline de orchestrators, los sanitiza y genera prompts derivados por agente/perfil.
+- mantiene el snapshot versionado de `gentle-orchestrator` y snapshots operativos locales por máquina bajo `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`
 - mantiene el runbook y la skill para auditar futuras actualizaciones del upstream
 
 ## Modelo de mantenimiento
@@ -106,8 +107,9 @@ Este flujo hace, en una sola pasada:
 3. overrides de modelo para `general` y `explore`
 4. captura + sanitización de orchestrators inline de OpenCode
 5. generación de prompts derivados por orchestrator bajo `~/.config/opencode/prompts/sdd/orchestrators/`
-6. recuperación automática desde snapshot si algún `.overlay.md` fue borrado de disco
-7. verificación post-write de que los overrides y las refs `{file:...}` persistieron en `opencode.json`
+6. actualización dual de snapshots: `gentle-orchestrator` queda versionado en el repo y también copiado al snapshot local operativo; los snapshots per-perfil quedan solo en el directorio local
+7. recuperación automática desde snapshot si algún `.overlay.md` fue borrado de disco
+8. verificación post-write de que los overrides y las refs `{file:...}` persistieron en `opencode.json`
 
 > **Nota OpenCode:** si el script cambia `~/.config/opencode/opencode.json`, reiniciá OpenCode. La config no se recarga en caliente.
 
@@ -117,7 +119,10 @@ Al final de cada corrida, el script imprime un bloque `Summary:` con contadores 
 
 - `orchestrators kept (already applied): N` — todo estaba aplicado y el script no tuvo que hacer nada. Run idempotente.
 - `orchestrators recovered from snapshot: N` — algún `.overlay.md` faltaba en disco y se reconstruyó desde `*.last.md`. Aparece un `NOTE` adicional avisando que el snapshot puede pre-datar la versión actual de upstream — si querés capturar fresco, corré `gentle-ai sync` y volvé a correr el script.
-- `snapshots - changed: N > 0` — los prompts inline upstream cambiaron desde la última corrida. Revisalo con `git diff overlay/gentle-ai/snapshots/`.
+- `repo snapshots - changed: N > 0` — cambió el baseline versionado de `gentle-orchestrator`. Revisalo con `git diff overlay/gentle-ai/snapshots/`.
+- `local snapshots - changed: N > 0` — cambió algún snapshot operativo local bajo `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`.
+- `local snapshot migrations from repo: N > 0` — el helper copió snapshots legacy desde el repo al directorio local operativo para conservar la recuperación sin pedir un sync inmediato.
+- `repo snapshot backfills from local: N > 0` — el helper recreó el snapshot versionado de `gentle-orchestrator` desde la copia operativa local.
 - `topology warnings: N > 0` — apareció un orchestrator nuevo, falta uno esperado o algún `agent_override` apunta a una key inexistente. Acción concreta por warning: ver el runbook.
 - `SDD profiles managed: N` / `created: N` / `updated: N` / `unchanged: N` — cuántos perfiles del config local se aplicaron y cuántos agent entries se crearon/actualizaron/no cambiaron.
 - `SDD profiles unmanaged (present in opencode.json, absent from local config): N` + `WARNING - unmanaged SDD profiles left untouched` — hay perfiles en `opencode.json` que el config local no menciona. El script no los toca. Para gestionarlos, agregalos al config local; para sacarlos, borralos a mano de `opencode.json`.
@@ -219,6 +224,21 @@ Reglas duras:
 
 El script solo gestiona `model`/`variant`. El `prompt` del orchestrator del perfil viene de `gentle-ai sync` y la sanitización inline existente sigue corriendo igual.
 
+### Snapshots locales de orchestrators
+
+Los snapshots operativos por máquina viven en:
+
+```
+~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/
+```
+
+Reglas:
+
+- `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md` sigue versionado en el repo como baseline portable.
+- El helper mantiene además `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/gentle-orchestrator.last.md` como copia operativa local preferida para recovery.
+- Los snapshots `sdd-orchestrator-<profile>.last.md` viven solo en el directorio local; ya no se versionan en este repo.
+- Si el helper encuentra snapshots legacy por perfil todavía presentes en el repo, los migra al directorio local en la próxima corrida.
+
 ## Cómo se resuelve el orchestrator
 
 El orchestrator upstream de Gentle AI queda inline por diseño. Esta capa custom **no** usa un prompt estático del repo como source of truth.
@@ -226,10 +246,16 @@ El orchestrator upstream de Gentle AI queda inline por diseño. Esta capa custom
 En cambio, el helper hace esto:
 
 1. lee el prompt inline actual desde `opencode.json`
-2. genera un snapshot por orchestrator en `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/`
-3. elimina PR/budget/chained-PR/review-workload flow
-4. escribe el prompt derivado bajo `~/.config/opencode/prompts/sdd/orchestrators/<agent>.overlay.md`
-5. cambia la referencia del agente a ese archivo generado
+2. escribe el snapshot operativo local en `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/<agent>.last.md`
+3. si el agente es `gentle-orchestrator`, además mantiene `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md` versionado en el repo
+4. elimina PR/budget/chained-PR/review-workload flow
+5. escribe el prompt derivado bajo `~/.config/opencode/prompts/sdd/orchestrators/<agent>.overlay.md`
+6. cambia la referencia del agente a ese archivo generado
+
+Recovery/lookup:
+
+- `gentle-orchestrator` → usa primero el snapshot local operativo; si falta, cae al snapshot versionado del repo y lo vuelve a copiar al directorio local.
+- `sdd-orchestrator-<profile>` → usa solo el snapshot local operativo. Si falta, el helper falla con mensaje accionable pidiendo `gentle-ai sync`.
 
 Si faltan anchors esperados, el sanitizador falla cerrado y no reescribe automáticamente el prompt.
 
