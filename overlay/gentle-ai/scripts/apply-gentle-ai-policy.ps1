@@ -7,6 +7,12 @@ function Write-Info {
     Write-Host $Message
 }
 
+function Die {
+    param([string]$Message)
+    [Console]::Error.WriteLine("ERROR: $Message")
+    exit 1
+}
+
 function Resolve-UserPath {
     param([string]$PathValue)
 
@@ -16,6 +22,18 @@ function Resolve-UserPath {
     }
     if ($PathValue -eq '~') { return $HOME }
     return $PathValue
+}
+
+function Assert-SafeSnapshotKey {
+    param([string]$Key)
+
+    if ([string]::IsNullOrWhiteSpace($Key)) {
+        Die "unsafe agent key for snapshot path: empty"
+    }
+    if ($Key.Contains('/') -or $Key.Contains('\') -or $Key.Contains('..') -or $Key.Contains([char]0)) {
+        Die "unsafe agent key for snapshot path: '$Key'"
+    }
+    return $Key
 }
 
 function Write-Utf8NoBomAtomic {
@@ -57,6 +75,22 @@ function Normalize-Lf {
     return ($Content -replace "`r`n", "`n")
 }
 
+function Unescape-NonAsciiUnicode {
+    param([string]$Json)
+
+    # ConvertTo-Json on PS5.1 escapes non-ASCII as \uXXXX. Bash/Python uses
+    # ensure_ascii=False and keeps raw UTF-8. To produce byte-identical
+    # opencode.json across both helpers, unescape \uXXXX back to UTF-8 here.
+    if ([string]::IsNullOrEmpty($Json)) { return $Json }
+    $Regex = New-Object System.Text.RegularExpressions.Regex '\\u([0-9a-fA-F]{4})'
+    $Evaluator = [System.Text.RegularExpressions.MatchEvaluator] {
+        param($Match)
+        $CodePoint = [Convert]::ToInt32($Match.Groups[1].Value, 16)
+        return [char]$CodePoint
+    }
+    return $Regex.Replace($Json, $Evaluator)
+}
+
 function Remove-ExactOnce {
     param(
         [string]$Text,
@@ -65,11 +99,13 @@ function Remove-ExactOnce {
         [string]$Label
     )
 
-    if ($Text.IndexOf($Old, [System.StringComparison]::Ordinal) -lt 0) {
+    $Index = $Text.IndexOf($Old, [System.StringComparison]::Ordinal)
+    if ($Index -lt 0) {
         throw "Missing expected text: $Label"
     }
 
-    return $Text.Replace($Old, $New)
+    # Single-occurrence replace, mirroring Python's str.replace(old, new, 1).
+    return $Text.Substring(0, $Index) + $New + $Text.Substring($Index + $Old.Length)
 }
 
 function Remove-RegexOnce {
@@ -129,8 +165,15 @@ function Sanitize-OrchestratorPrompt {
     }
 
     $Text = $Prompt
-    $Text = Remove-ExactOnce $Text '3. **Chained PR strategy**: `auto-forecast`, `ask-always`, `single-pr-default`, or `force-chained`.' '' 'preflight PR choice item'
-    $Text = Remove-ExactOnce $Text '4. **Review budget**: maximum changed lines before stopping for reviewer-burden approval.' '' 'preflight review choice item'
+
+    # Bash removes preflight choices 3 and 4 as a single block (one replace_once
+    # with both lines concatenated). Mirror that here so failure semantics are
+    # identical: if upstream reorders/interleaves these lines, BOTH scripts
+    # fail with "preflight PR/review choices" rather than silently sanitizing
+    # half of them.
+    $PreflightBlock = '3. **Chained PR strategy**: `auto-forecast`, `ask-always`, `single-pr-default`, or `force-chained`.' + "`n" + '4. **Review budget**: maximum changed lines before stopping for reviewer-burden approval.' + "`n"
+    $Text = Remove-ExactOnce $Text $PreflightBlock '' 'preflight PR/review choices'
+
     $Text = Remove-ExactOnce $Text 'Reply with "use recommended" or with codes like: A1, B1, C1, D1.' 'Reply with "use recommended" or with codes like: A1, B1.' 'english preflight codes'
     $Text = Remove-ExactOnce $Text 'Respondé con "usar recomendado" o con códigos como: A1, B1, C1, D1.' 'Respondé con "usar recomendado" o con códigos como: A1, B1.' 'spanish preflight codes'
     $Text = Remove-RegexOnce $Text '(?ms)^C\. PRs\n.*?^   D3 Other: ask for the number afterwards\.\n' '' 'english PR/review prompt block'
@@ -163,7 +206,7 @@ $RepoRoot = Split-Path -Parent (Split-Path -Parent $OverlayRoot)
 $PolicyFile = Join-Path $OverlayRoot 'policy/gentle-ai-policy.json'
 
 if (-not (Test-Path -LiteralPath $PolicyFile)) {
-    throw "Policy file not found: $PolicyFile"
+    Die "Policy file not found: $PolicyFile"
 }
 
 $Policy = Get-Content -LiteralPath $PolicyFile -Raw | ConvertFrom-Json
@@ -229,16 +272,17 @@ try {
     $Config = $RawConfig | ConvertFrom-Json
 }
 catch {
-    throw ("OpenCode config at {0} is not valid JSON: {1}. Restore it from a backup under {2}/.gentle-ai/backups/ or re-run ``gentle-ai sync`` to regenerate it." -f $OpenCodeConfig, $_.Exception.Message, $HOME)
+    Die ("OpenCode config at {0} is not valid JSON: {1}. Restore it from a backup under {2}/.gentle-ai/backups/ or re-run ``gentle-ai sync`` to regenerate it." -f $OpenCodeConfig, $_.Exception.Message, $HOME)
 }
 
 if (-not $Config.agent) {
-    throw 'OpenCode config does not contain an agent map'
+    Die 'OpenCode config does not contain an agent map'
 }
 
 $ConfigChanged = $false
 $GeneratedCount = 0
 $RecoveredCount = 0
+$KeptCount = 0
 $SkippedCount = 0
 $SnapshotNew = 0
 $SnapshotChanged = 0
@@ -260,12 +304,15 @@ foreach ($Override in $Policy.agent_overrides) {
     $Model = [string]$Override.model
     $Variant = [string]$Override.variant
 
-    $AgentExists = $OriginalAgentKeys.Contains($Key)
-    if (-not ($Config.agent.$Key -is [PSCustomObject])) {
+    # Track EVERY non-object reset, matching bash behavior. Two cases land here:
+    #   - the key did not exist upstream (purely missing)
+    #   - the key existed but as a non-object (string/null/list)
+    # Both deserve a topology warning so the maintainer can review whether the
+    # upstream agent shape changed.
+    $AgentValue = if ($OriginalAgentKeys.Contains($Key)) { $Config.agent.$Key } else { $null }
+    if (-not ($AgentValue -is [PSCustomObject])) {
         $Config.agent | Add-Member -NotePropertyName $Key -NotePropertyValue ([PSCustomObject]@{}) -Force
-        if (-not $AgentExists) {
-            [void]$CreatedOverrides.Add($Key)
-        }
+        [void]$CreatedOverrides.Add($Key)
         Write-Info "  agent override $Key reset to object before applying model"
     }
 
@@ -355,15 +402,17 @@ foreach ($AgentKey in $AgentKeys) {
         continue
     }
 
-    $GeneratedPath = Join-Path $GeneratedDir ($AgentKey + '.overlay.md')
+    $SafeKey = Assert-SafeSnapshotKey -Key $AgentKey
+    $GeneratedPath = Join-Path $GeneratedDir ($SafeKey + '.overlay.md')
     $DesiredPrompt = '{file:' + $GeneratedPath + '}'
-    $SnapshotPath = Join-Path $SnapshotDir ($AgentKey + '.last.md')
+    $SnapshotPath = Join-Path $SnapshotDir ($SafeKey + '.last.md')
 
     # Fully-applied state — already pointing at our generated overlay file,
     # and that file exists on disk. Nothing to do.
     if ($PromptValue -eq $DesiredPrompt -and (Test-Path -LiteralPath $GeneratedPath -PathType Leaf)) {
         Write-Info "  keep $AgentKey`: already points to generated overlay prompt"
         [void]$WrittenOrchestratorKeys.Add($AgentKey)
+        $KeptCount++
         continue
     }
 
@@ -375,15 +424,19 @@ foreach ($AgentKey in $AgentKeys) {
         # or it points somewhere different from our desired path.
         # Recover from snapshot if available; fail loud if not.
         if (-not (Test-Path -LiteralPath $SnapshotPath -PathType Leaf)) {
-            throw ("broken state for orchestrator '{0}': opencode.json prompt is '{1}' but the target file is missing and no snapshot exists at {2}. Run ``gentle-ai sync`` to reset the orchestrator prompt to inline content, then re-run this script." -f $AgentKey, $PromptValue, $SnapshotPath)
+            Die ("broken state for orchestrator '{0}': opencode.json prompt is '{1}' but the target file is missing and no snapshot exists at {2}. Run ``gentle-ai sync`` to reset the orchestrator prompt to inline content, then re-run this script." -f $AgentKey, $PromptValue, $SnapshotPath)
         }
         $InlinePrompt = (Get-Content -LiteralPath $SnapshotPath -Raw).TrimEnd("`n", "`r")
         $RecoveredFromSnapshot = $true
-        Write-Info "  recovering $AgentKey from snapshot (target file missing or path drift)"
+        Write-Info "  WARNING recovering $AgentKey from snapshot - content may pre-date current upstream; run ``gentle-ai sync`` then re-run this script to capture fresh upstream into the snapshot"
     }
     else {
         $InlinePrompt = $PromptValue
     }
+
+    # Sanitize FIRST so a failure does not leave a stale-but-overwritten
+    # snapshot. The snapshot is only updated after sanitization succeeds.
+    $SanitizedPrompt = Sanitize-OrchestratorPrompt -Prompt $InlinePrompt -SanitizerPolicy $Policy.sanitizer
 
     # Snapshot drift tracking — only when capturing fresh inline content.
     if ($RecoveredFromSnapshot) {
@@ -409,7 +462,6 @@ foreach ($AgentKey in $AgentKeys) {
         Write-Utf8NoBomAtomic -Path $SnapshotPath -Content $Normalized
     }
 
-    $SanitizedPrompt = Sanitize-OrchestratorPrompt -Prompt $InlinePrompt -SanitizerPolicy $Policy.sanitizer
     Write-Utf8NoBomAtomic -Path $GeneratedPath -Content (Ensure-LfTerminated $SanitizedPrompt)
 
     if ((Get-AgentPropertyValue -Agent $Agent -Name 'prompt') -ne $DesiredPrompt) {
@@ -431,6 +483,10 @@ foreach ($AgentKey in $AgentKeys) {
 # --- Atomic write of opencode.json + post-write verification ---
 if ($ConfigChanged) {
     $Json = $Config | ConvertTo-Json -Depth 100
+    # PS 5.1 ConvertTo-Json escapes non-ASCII to \uXXXX. Bash/Python writes raw
+    # UTF-8 via ensure_ascii=False. Unescape here so both helpers produce
+    # byte-identical opencode.json output.
+    $Json = Unescape-NonAsciiUnicode $Json
     Write-Utf8NoBomAtomic -Path $OpenCodeConfig -Content (Ensure-LfTerminated $Json)
     $ConfigStatus = 'updated'
 
@@ -442,17 +498,17 @@ if ($ConfigChanged) {
         $ExpectedVariant = [string]$Override.variant
 
         if (-not ($VerifyConfig.agent.PSObject.Properties.Name -contains $Key)) {
-            throw "post-write verification failed: agent '$Key' is missing from $OpenCodeConfig after write"
+            Die "post-write verification failed: agent '$Key' is missing from $OpenCodeConfig after write"
         }
         $ActualAgent = $VerifyConfig.agent.$Key
         $ActualModel = [string](Get-AgentPropertyValue -Agent $ActualAgent -Name 'model')
         if ($ActualModel -ne $ExpectedModel) {
-            throw "post-write verification failed: agent '$Key' model is '$ActualModel' after write, expected '$ExpectedModel'"
+            Die "post-write verification failed: agent '$Key' model is '$ActualModel' after write, expected '$ExpectedModel'"
         }
         if ($ExpectedVariant) {
             $ActualVariant = [string](Get-AgentPropertyValue -Agent $ActualAgent -Name 'variant')
             if ($ActualVariant -ne $ExpectedVariant) {
-                throw "post-write verification failed: agent '$Key' variant is '$ActualVariant' after write, expected '$ExpectedVariant'"
+                Die "post-write verification failed: agent '$Key' variant is '$ActualVariant' after write, expected '$ExpectedVariant'"
             }
         }
     }
@@ -460,15 +516,15 @@ if ($ConfigChanged) {
     foreach ($Key in ($WrittenOrchestratorKeys | Sort-Object)) {
         $ExpectedRef = '{file:' + (Join-Path $GeneratedDir ($Key + '.overlay.md')) + '}'
         if (-not ($VerifyConfig.agent.PSObject.Properties.Name -contains $Key)) {
-            throw "post-write verification failed: orchestrator '$Key' is missing from $OpenCodeConfig after write"
+            Die "post-write verification failed: orchestrator '$Key' is missing from $OpenCodeConfig after write"
         }
         $ActualPrompt = [string](Get-AgentPropertyValue -Agent $VerifyConfig.agent.$Key -Name 'prompt')
         if ($ActualPrompt -ne $ExpectedRef) {
-            throw "post-write verification failed: orchestrator '$Key' prompt is '$ActualPrompt' after write, expected '$ExpectedRef'"
+            Die "post-write verification failed: orchestrator '$Key' prompt is '$ActualPrompt' after write, expected '$ExpectedRef'"
         }
         $OverlayPath = Join-Path $GeneratedDir ($Key + '.overlay.md')
         if (-not (Test-Path -LiteralPath $OverlayPath -PathType Leaf)) {
-            throw "post-write verification failed: overlay file missing for '$Key' at $OverlayPath"
+            Die "post-write verification failed: overlay file missing for '$Key' at $OverlayPath"
         }
     }
 }
@@ -482,6 +538,7 @@ Write-Info "  OpenCode config status: $ConfigStatus"
 Write-Info "  skills pruned this run: $PrunedCount"
 Write-Info "  orchestrators generated (fresh): $GeneratedCount"
 Write-Info "  orchestrators recovered from snapshot: $RecoveredCount"
+Write-Info "  orchestrators kept (already applied): $KeptCount"
 Write-Info "  orchestrators skipped: $SkippedCount"
 Write-Info "  snapshots - new: $SnapshotNew, changed: $SnapshotChanged, unchanged: $SnapshotUnchanged"
 Write-Info "  topology warnings: $($TopologyWarnings.Count)"
@@ -498,6 +555,13 @@ if ($SnapshotChanged -gt 0) {
     Write-Info ''
     Write-Info 'NOTE: upstream orchestrator prompts drifted. Review with:'
     Write-Info '  git diff overlay/gentle-ai/snapshots/'
+}
+
+if ($RecoveredCount -gt 0) {
+    Write-Info ''
+    Write-Info "NOTE: $RecoveredCount orchestrator(s) recovered from snapshot."
+    Write-Info '  The snapshot content may pre-date the current upstream version.'
+    Write-Info '  Run `gentle-ai sync` then re-run this script to capture fresh upstream.'
 }
 
 if ($TopologyWarnings.Count -gt 0) {

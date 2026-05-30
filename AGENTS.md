@@ -69,7 +69,7 @@ Each log entry MUST include:
 - WHY the change was needed (discovery, bug, intent shift, upstream change)
 - relevant verification performed (manual test, idempotency check, etc.)
 
-Rule 3 and Rule 4 are complementary, not redundant:
+Rule 3 = live state. Rule 4 = decision history. Both deliverables are required for changes that touch overlapping files (AGENTS.md, README.md, SKILL.md, runbook, overlay/gentle-ai/README.md).
 
 - Rule 3 keeps the live documentation aligned with current behavior.
 - Rule 4 preserves the decision history — why things became the way they are.

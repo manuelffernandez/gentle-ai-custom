@@ -102,14 +102,19 @@ Después de cada corrida del script, leé el bloque `Summary:` y los `topology:`
 
 | Señal en el output | Significa | Acción |
 |---|---|---|
+| `orchestrators kept (already applied): N` | Estado estable: todo ya está aplicado y el script no tuvo que tocar nada. | Ninguna. Indica una corrida idempotente exitosa. |
 | `topology: unknown orchestrator matched by prefix only: X` | Apareció un orchestrator nuevo upstream que sólo matchea por prefijo. | Auditar el cambio upstream. Si es legítimo, agregar `X` a `orchestrator_agent_keys` en la policy con aprobación del usuario. |
 | `topology: expected orchestrator missing from opencode.json: X` | Un orchestrator listado en la policy ya no existe en upstream. | Auditar si fue renombrado/eliminado upstream. Actualizar policy + intent. |
-| `topology: agent_override target was missing from upstream (created): X` | El override apuntaba a un agente que no existe upstream. El script creó el stub. | Verificar si el agente fue renombrado upstream. Ajustar el `key` del override si corresponde. |
-| `snapshots — changed: N > 0` | Cambió el prompt inline upstream de algún orchestrator. | `git diff overlay/gentle-ai/snapshots/` para revisar. Si los anchors del sanitizador se movieron, actualizar ambos scripts. |
-| `orchestrators recovered from snapshot: N > 0` | Algún `.overlay.md` no existía en disco y se reconstruyó desde el snapshot. | Estado normalizado. Investigar por qué se perdió (¿borrado manual? ¿bug en otro script?). |
+| `topology: agent_override target was missing from upstream (created): X` | El override apuntaba a un agente que no existía upstream **o que existía con un tipo distinto a object**; el script creó/sobrescribió el stub. | Verificar si el agente fue renombrado o cambió de forma upstream. Ajustar el `key` del override o el intent si corresponde. |
+| `snapshots - changed: N > 0` | Cambió el prompt inline upstream de algún orchestrator. | `git diff overlay/gentle-ai/snapshots/` para revisar. Si los anchors del sanitizador se movieron, actualizar ambos scripts. |
+| `orchestrators recovered from snapshot: N > 0` + el bloque `NOTE: ... may pre-date the current upstream` | Algún `.overlay.md` no existía en disco y se reconstruyó desde el snapshot. El contenido aplicado puede ser de una versión upstream anterior. | Investigar por qué se perdió el archivo (¿borrado manual? ¿bug en otro script?). Si querés capturar fresco, correr `gentle-ai sync` y re-correr el script — el snapshot se actualizará desde el inline upstream. |
 | `WARNING - keep skills missing: ...` | Alguna skill que debería existir está ausente en un target. | Probablemente la skill se renombró/eliminó upstream o el usuario la quiso fuera. Revisar intent. |
-| `ERROR: broken state for orchestrator X: ... no snapshot exists` | `opencode.json` apunta a un `{file:...}` inexistente y no hay snapshot para recuperar. | Correr `gentle-ai sync` para resetear los prompts a inline upstream, después re-correr el script. |
-| `ERROR: post-write verification failed: ...` | El JSON se escribió pero al re-leer los valores no coinciden con lo esperado. | Bug serio: investigar si hay otro proceso escribiendo `opencode.json` o si el script tiene un bug de serialización. |
+| `WARNING recovering X from snapshot - content may pre-date current upstream` | El script va a reconstruir el `.overlay.md` desde el snapshot porque el target file falta. Se imprime durante la corrida, no en el Summary. | Si fue intencional (borrado manual), todo OK. Si no, investigar quién está borrando los `.overlay.md`. |
+| `ERROR: broken state for orchestrator 'X': opencode.json prompt is '{file:...}' but the target file is missing and no snapshot exists at ...` | `opencode.json` apunta a un `{file:...}` inexistente y no hay snapshot para recuperar. | Correr `gentle-ai sync` para resetear los prompts a inline upstream, después re-correr el script. |
+| `ERROR: post-write verification failed: agent X model is Y after write, expected Z` | El JSON se escribió pero al re-leer los valores no coinciden con lo esperado. | Bug serio: investigar si hay otro proceso escribiendo `opencode.json` (race) o si el script tiene un bug de serialización. |
+| `ERROR: post-write verification failed: orchestrator X prompt is Y after write, expected Z` | Idem anterior pero para la referencia `{file:...}` del orchestrator. | Idem anterior. |
+| `ERROR: OpenCode config at ... is not valid JSON: ...` | `opencode.json` está corrupto y no se puede parsear. | Restaurar desde `~/.gentle-ai/backups/<timestamp>/` o correr `gentle-ai sync` para regenerar. |
+| `ERROR: unsafe agent key for snapshot path: 'X'` | Un agente en `opencode.json` tiene un key con `/`, `\`, `..` o caracteres nulos que harían path traversal al escribir el snapshot. | Investigar de dónde salió ese key en `opencode.json`; no debería pasar bajo flujos normales. |
 
 ### Opción de hardening: estrategia external-single-active
 
@@ -118,22 +123,24 @@ Por defecto, `gentle-ai sync` resetea el prompt del orchestrator porque `~/.conf
 El upstream tiene esta lógica en `internal/components/sdd/profiles.go`:
 
 ```
-~/.config/opencode/profiles/ tiene al menos un *.json
+~/.config/opencode/profiles/ tiene al menos un *.json directamente en la raíz
+                              (los subdirectorios son ignorados por HasExternalProfileFiles())
 → HasExternalProfileFiles() = true
 → ResolveProfileStrategy() = "external-single-active"
 → PreserveOpenCodeOrchestratorPrompt = true
 → sync NO sobreescribe el prompt del orchestrator
 ```
 
-Crear un archivo `*.json` en `~/.config/opencode/profiles/` hace que `gentle-ai sync` respete la referencia `{file:...}` del overlay.
+Crear un archivo `*.json` directamente bajo `~/.config/opencode/profiles/` (no en subcarpetas) hace que `gentle-ai sync` respete la referencia `{file:...}` del overlay.
 
 **Tradeoffs**:
 
 - **A favor**: el overlay sobrevive a `gentle-ai sync` sin necesidad de re-correr el script para restaurar prompts. (La poda de skills sí sigue requiriendo el script.)
-- **En contra**: los cambios upstream del prompt inline ya no se capturan en los snapshots automáticamente — la detección de drift queda ciega.
-- **En contra**: si los anchors del sanitizador se mueven upstream, solo te enterás cuando alguien borre el profile y `sync` vuelva al comportamiento default.
+- **En contra (crítico)**: el usuario sigue ejecutando **indefinidamente** la versión sanitizada anterior del prompt upstream. El script ya no puede ni siquiera intentar resanitizar contra el nuevo upstream porque no lo ve — `opencode.json` queda fijo en `{file:...}` y los `*.last.md` snapshots dejan de refrescarse.
+- **En contra**: si los anchors del sanitizador se mueven upstream, solo te enterás cuando alguien borre el profile y `sync` vuelva al comportamiento default — y para ese momento podrías llevar meses ejecutando un prompt sanitizado contra una estructura que upstream ya cambió.
+- **En contra**: `git diff overlay/gentle-ai/snapshots/` deja de ser señal útil de cambios upstream.
 
-**No activar sin pedido explícito del usuario y una conversación sobre estos tradeoffs.** El comportamiento default (sync resetea, script re-aplica) tiene la ventaja de mantener los snapshots como una bitácora viva del estado upstream.
+**No activar sin pedido explícito del usuario y una conversación sobre estos tradeoffs.** El comportamiento default (sync resetea, script re-aplica) tiene la ventaja de mantener los snapshots como una bitácora viva del estado upstream y de garantizar que cada corrida del script sanitiza contra el upstream actual, no contra una foto vieja.
 
 ---
 

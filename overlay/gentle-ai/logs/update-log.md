@@ -2,6 +2,42 @@
 
 > Este archivo registra decisiones e hitos del mantenimiento del overlay. No es la fuente autoritativa del último upstream mantenido; esa responsabilidad vive en `overlay/gentle-ai/state/upstream-state.json`.
 
+## 2026-05-29 — Judgment Day round 1 fixes
+
+Adversarial dual review (Judge A + Judge B en paralelo) sobre los 5 commits de hardening (`bfbc363..HEAD`). Confirmados 2 CRITICAL y 11 WARNING (real). Esta entrada documenta los fixes aplicados.
+
+Fixes de código en `apply-gentle-ai-policy.{sh,ps1}`:
+
+- **CRITICAL — PS1 `Remove-ExactOnce` reemplazaba TODAS las ocurrencias**: usaba `String.Replace($Old, $New)` (multi-occurrence) mientras bash usaba `text.replace(old, new, 1)` (single-occurrence). Reescrita con `IndexOf` + `Substring` para reemplazar solo la primera ocurrencia, mirroring la semántica de Python.
+- **CRITICAL — Preflight sanitization: parity divergente entre bash y PS1**: bash eliminaba las dos líneas (Chained PR strategy + Review budget) como un único bloque con un `replace_once`; PS1 las eliminaba como dos llamadas independientes a `Remove-ExactOnce`. Reorganizado PS1 para mirrorear bash: una sola llamada con el bloque concatenado por `"`n"`, lo que iguala las semánticas de fallo (ambos ahora fallan con `missing expected text: preflight PR/review choices` si upstream las reordena).
+- **PS1 `ConvertTo-Json` escapaba non-ASCII a `\uXXXX`**: bash/Python usa `ensure_ascii=False` y escribe UTF-8 crudo. Esto causaba diff byte-por-byte en `opencode.json` según qué helper corriera último, dañando trazabilidad e idempotencia cross-platform. Agregada función `Unescape-NonAsciiUnicode` que post-procesa la salida de `ConvertTo-Json` con regex para devolver los `\uXXXX` a sus caracteres UTF-8, produciendo output byte-idéntico al bash.
+- **Snapshot escrito antes de sanitizar**: si `sanitize_prompt` fallaba, el `*.last.md` ya había sido sobreescrito con contenido que no se pudo procesar, perdiendo el last-known-good. Reordenado en ambos scripts: sanitización primero, escritura del snapshot solo si la sanitización pasó.
+- **Em-dash (U+2014) en bash vs hyphen ASCII en PS1**: el bash imprimía `snapshots — new:` y `WARNING — keep skills missing` con em-dash; PS1 con hyphen; runbook y README con em-dash. Tres convenciones inconsistentes. Estandarizado a hyphen ASCII en bash, runbook y README para parity con PS1 y mejor portabilidad de grep/terminal.
+- **`SystemExit(...)` no producía el prefijo `ERROR:` que docs prometían**: agregada función `die()` en Python y `Die` en PowerShell que imprimen `ERROR: <msg>` a stderr y salen con código 1. Reemplazadas todas las llamadas a `SystemExit` / `throw` user-facing por `die()` / `Die`. Ahora docs y output realmente coinciden.
+- **PS1 no flageaba sobrescritura de agentes non-object como `created_overrides`**: bash agregaba a `created_overrides` siempre que el agente no fuera dict (key faltante O key con tipo distinto a object), pero PS1 solo agregaba cuando el key directamente no existía. Parity fix: PS1 ahora siempre pushea cuando el agente no es `PSCustomObject`, igualando bash.
+- **Recovery silenciosa de snapshot stale**: cuando un `.overlay.md` faltaba en disco y se recuperaba del `*.last.md`, el script lo reportaba como éxito normal sin avisar que el snapshot puede pre-datar el upstream actual. Agregado un `WARNING` per-orchestrator durante la corrida + un bloque `NOTE` en el Summary cuando `RECOVERED_COUNT > 0` que recomienda correr `gentle-ai sync` para refrescar.
+- **Summary engañoso en steady-state**: cuando todos los orchestrators ya estaban aplicados, el summary mostraba `generated: 0, recovered: 0, skipped: 0, snapshots 0/0/0` — indistinguible de "no procesé nada". Agregado contador `kept_count` / `KeptCount` que se incrementa en la rama keep, surfaceado como `orchestrators kept (already applied): N`.
+- **Path traversal teórico via agent key**: agregada función `safe_snapshot_key` / `Assert-SafeSnapshotKey` que rechaza keys con `/`, `\`, `..`, o caracteres nulos antes de usarlos en paths de snapshot/overlay. Defensa en profundidad ante upstream malformado.
+
+Fixes en docs:
+
+- `README.md`: removido hardcodeo de `("General" y "Explore")`; ahora referencia `agent_overrides` en la policy. Actualizado bloque "Qué reporta el script" para usar hyphens, agregar la fila de `kept`, mencionar el `NOTE` de stale recovery, y agregar la fila de `post-write verification failed`.
+- `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`: tabla de señales reescrita con hyphens, agregadas filas para `kept`, `WARNING recovering ... may pre-date current upstream`, `ERROR: post-write verification failed: orchestrator ...`, `ERROR: OpenCode config ... is not valid JSON`, y `ERROR: unsafe agent key`. Sección de `external-single-active` reforzada: la "Con" crítica ahora dice explícitamente que el usuario ejecuta indefinidamente la versión sanitizada anterior, no solo que pierde "drift detection".
+- `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`: removida la duplicación entre "Hard Rules" y "Update-Type Triage" (la asercion sobre overlay roto post-sync ahora vive solo en la triage table). Sección `Hardening option: external-single-active strategy` ahora aclara "directly under (subdirectories are ignored)" y enfatiza el riesgo crítico de quedar ejecutando sanitización vieja.
+- `AGENTS.md`: agregado one-liner "Rule 3 = live state. Rule 4 = decision history. Both deliverables are required..." arriba del párrafo explicativo, para que un lector que scanea rápido capte la distinción sin tener que leer la prosa.
+- `overlay/gentle-ai/logs/update-log.md`: amenda implícitamente la entrada anterior — el "Apply script hardening" del mismo día había omitido mencionar el cambio en root `README.md` (commit `4dab640`), violando rule 4 el día que se introdujo. Esta entrada lo registra.
+
+Findings descartados o diferidos:
+
+- StrictMode property access en PS1 (Judge A CRITICAL): contradicho por Judge B con razonamiento técnico correcto (PS 5.1 StrictMode v3+ no lanza para propiedades inexistentes en `PSCustomObject`). Downgrade a INFO. No requiere fix.
+- `gentle-orchestrator` en `orchestrator_agent_keys` como "user-specific" (Judge B WARNING): falso. Verificado que upstream emite `gentle-orchestrator` para todo usuario via `internal/components/sdd/inject.go:741` (`agentsMap["gentle-orchestrator"]`). La policy es correcta.
+- Fsync, CRLF en Windows, hash check del overlay file, stderr routing, commit pin en SKILL: registrados como SUGGESTION/theoretical, no aplicados en esta ronda.
+
+Verificación:
+
+- `bash apply-gentle-ai-custom.sh all` corre limpio idempotente: `kept: 4`, `topology warnings: 0`, hyphens consistentes en summary.
+- Recovery fallback verificado con re-borrado de `gentle-orchestrator.overlay.md` y observando el nuevo WARNING + NOTE de stale.
+
 ## 2026-05-29 — Apply script hardening + maintainer skill v1.1
 
 Descubrimiento que motivó el cambio:

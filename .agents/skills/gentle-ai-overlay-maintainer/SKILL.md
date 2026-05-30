@@ -21,12 +21,11 @@ Use this skill when:
 
 - Work from `gentle-ai-custom`, not from the upstream repo.
 - Treat `/home/manuel/Documentos/gentle-ai` as upstream input only.
-- ALWAYS triage the update type before deciding what to audit (see Update-Type Triage).
-- After ANY `gentle-ai sync` or TUI reinstall, the overlay is broken on disk (skills restored, prompts reset). Re-applying the overlay via `bash apply-gentle-ai-custom.sh all` is mandatory before any other action.
+- ALWAYS triage the update type before deciding what to audit (see Update-Type Triage). The triage table itself describes what state the overlay is in for each path.
 - Read semantic intent before making maintenance decisions.
 - Preserve the local keep/prune baseline and the orchestrator sanitization goals.
 - Keep bash and PowerShell scripts behaviorally equivalent.
-- Update `AGENTS.md`, `README.md`, and `overlay/gentle-ai/logs/update-log.md` when the workflow changes.
+- Update `AGENTS.md`, `README.md`, and `overlay/gentle-ai/logs/update-log.md` when the workflow changes (see `AGENTS.md` rules 3 and 4).
 - Do not change intent, keep/prune, or sanitization behavior for new upstream changes without explicit user approval.
 
 ## Update-Type Triage (MANDATORY first step)
@@ -81,14 +80,15 @@ Re-apply paths are mandatory regardless of whether upstream content changed — 
 
 ## Hardening option: external-single-active strategy
 
-By default, `gentle-ai sync` resets the orchestrator prompts because `~/.config/opencode/profiles/` is empty. Creating any `*.json` file there flips upstream's profile strategy detection to `external-single-active`, which preserves the existing `{file:...}` reference during sync (see `internal/components/sdd/profiles.go` → `ResolveProfileStrategy` in upstream).
+By default, `gentle-ai sync` resets the orchestrator prompts because `~/.config/opencode/profiles/` is empty. Creating any `*.json` file **directly under** that directory (subdirectories are ignored by upstream's `HasExternalProfileFiles`) flips upstream's profile strategy detection to `external-single-active`, which preserves the existing `{file:...}` reference during sync. Reference: `internal/components/sdd/profiles.go` → `ResolveProfileStrategy` in upstream (verify against the commit pinned in `overlay/gentle-ai/state/upstream-state.json` → `last_maintained_commit` before relying on it).
 
 **Tradeoffs**:
 - Pro: the overlay survives `gentle-ai sync` without needing to re-run the script for prompt restoration. Skills pruning still requires the script.
-- Con: upstream prompt updates are no longer captured into `*.last.md` snapshots automatically — drift detection becomes blind to inline prompt evolution.
-- Con: when upstream sanitizer anchors move, you'll only notice on the next time someone deletes a profile and triggers sync's default behavior.
+- Con (critical): the user keeps executing the **previous** sanitized version of the upstream prompt indefinitely. The script can no longer even attempt to re-sanitize against the new upstream because it never sees the new inline content.
+- Con: `*.last.md` snapshots stop refreshing — `git diff overlay/gentle-ai/snapshots/` is no longer a useful drift signal.
+- Con: when upstream sanitizer anchors move, you only notice the next time someone deletes the profile and triggers sync's default behavior, by which point you may have been running a stale-sanitized prompt for a long time.
 
-This is opt-in only. Do not enable it without explicit user request and a discussion of the tradeoffs above.
+This is opt-in only. Do not enable it without explicit user request and a full discussion of the tradeoffs above. The default behavior (sync resets, script re-applies) has the advantage of keeping snapshots as a live log of upstream state and guaranteeing every script run sanitizes against current upstream, not against an old capture.
 
 ## Output Contract
 

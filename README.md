@@ -9,7 +9,7 @@ Este repo ya no es solo un instalador de dos skills custom. Ahora funciona como 
 - instala tus skills y wrappers propios
 - reaplica tu política local después de `gentle-ai sync`
 - depura skills no deseadas del runtime
-- fija overrides de modelo para agentes built-in de OpenCode ("General" y "Explore")
+- fija overrides de modelo para los agentes built-in de OpenCode listados en `agent_overrides` (ver `overlay/gentle-ai/policy/gentle-ai-policy.json`)
 - captura prompts inline de orchestrators, los sanitiza y genera prompts derivados por agente/perfil.
 - mantiene el runbook y la skill para auditar futuras actualizaciones del upstream
 
@@ -114,11 +114,13 @@ Este flujo hace, en una sola pasada:
 
 Al final de cada corrida, el script imprime un bloque `Summary:` con contadores y, si corresponde, bloques `WARNING`/`NOTE`. Los más importantes:
 
-- `orchestrators recovered from snapshot: N` — algún `.overlay.md` faltaba en disco y se reconstruyó desde `*.last.md`. Si esto pasa repetidamente, investigá por qué se está borrando.
-- `snapshots — changed: N > 0` — los prompts inline upstream cambiaron desde la última corrida. Revisalo con `git diff overlay/gentle-ai/snapshots/`.
+- `orchestrators kept (already applied): N` — todo estaba aplicado y el script no tuvo que hacer nada. Run idempotente.
+- `orchestrators recovered from snapshot: N` — algún `.overlay.md` faltaba en disco y se reconstruyó desde `*.last.md`. Aparece un `NOTE` adicional avisando que el snapshot puede pre-datar la versión actual de upstream — si querés capturar fresco, corré `gentle-ai sync` y volvé a correr el script.
+- `snapshots - changed: N > 0` — los prompts inline upstream cambiaron desde la última corrida. Revisalo con `git diff overlay/gentle-ai/snapshots/`.
 - `topology warnings: N > 0` — apareció un orchestrator nuevo, falta uno esperado o algún `agent_override` apunta a una key inexistente. Acción concreta por warning: ver el runbook.
 - `WARNING - keep skills missing` — alguna skill que debería estar conservada está ausente en un target. Probable renombramiento upstream.
 - `ERROR: broken state for orchestrator X` — `opencode.json` apunta a un archivo inexistente y no hay snapshot para recuperar. Solución: `gentle-ai sync` para resetear a inline, después re-correr el script.
+- `ERROR: post-write verification failed: ...` — el script escribió `opencode.json` pero al re-leerlo los valores no coinciden con lo esperado. Suele ser otro proceso escribiendo el archivo en paralelo, o un bug serio del script.
 
 Detalle completo de cada señal en `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`.
 

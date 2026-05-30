@@ -86,7 +86,7 @@ if [[ ! -f "${OPENCODE_CONFIG}" ]]; then
   info "Summary:"
   info "  skills pruned this run: ${PRUNED_COUNT}"
   if (( ${#MISSING_KEEP_SUMMARY[@]} > 0 )); then
-    info "  WARNING — keep skills missing (expected but absent):"
+    info "  WARNING - keep skills missing (expected but absent):"
     for entry in "${MISSING_KEEP_SUMMARY[@]}"; do
       info "    - ${entry}"
     done
@@ -104,17 +104,22 @@ import tempfile
 
 config_path, generated_dir, snapshot_dir, policy_path = sys.argv[1:5]
 
+def die(msg: str) -> 'NoReturn':
+    """Exit with an ERROR: prefix on stderr, matching the shell fail() helper."""
+    print(f'ERROR: {msg}', file=sys.stderr)
+    sys.exit(1)
+
 # --- Load OpenCode config with explicit validation ---
 try:
     with open(config_path, 'r', encoding='utf-8') as fh:
         data = json.load(fh)
 except json.JSONDecodeError as e:
-    raise SystemExit(
+    die(
         f'OpenCode config at {config_path} is not valid JSON: {e}. '
         f'Restore it from a backup under ~/.gentle-ai/backups/ or re-run `gentle-ai sync` to regenerate it.'
     )
 except OSError as e:
-    raise SystemExit(f'Cannot read OpenCode config at {config_path}: {e}')
+    die(f'Cannot read OpenCode config at {config_path}: {e}')
 
 with open(policy_path, 'r', encoding='utf-8') as fh:
     policy = json.load(fh)
@@ -123,7 +128,7 @@ opencode = policy['opencode']
 sanitizer = policy['sanitizer']
 agents = data.get('agent')
 if not isinstance(agents, dict):
-    raise SystemExit('OpenCode config does not contain an agent map')
+    die('OpenCode config does not contain an agent map')
 
 required_markers = sanitizer.get('required_markers', [])
 forbidden_markers = sanitizer.get('forbidden_markers', [])
@@ -133,6 +138,7 @@ orchestrator_prefixes = tuple(opencode.get('orchestrator_agent_prefixes', []))
 config_changed = False
 generated_count = 0
 recovered_count = 0
+kept_count = 0
 skipped_count = 0
 snapshot_new = 0
 snapshot_changed = 0
@@ -142,6 +148,12 @@ written_orchestrator_keys = set()
 
 def is_orchestrator(agent_key: str) -> bool:
     return agent_key in orchestrator_keys or agent_key.startswith(orchestrator_prefixes)
+
+def safe_snapshot_key(key: str) -> str:
+    """Reject keys that would traverse outside snapshot_dir."""
+    if not key or '/' in key or '\\' in key or '..' in key.split('/') or '\x00' in key:
+        die(f'unsafe agent key for snapshot path: {key!r}')
+    return key
 
 def write_utf8(path: str, content: str) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -240,6 +252,10 @@ for override in policy.get('agent_overrides', []):
     variant = override.get('variant')
     current = agents.get(key)
     if not isinstance(current, dict):
+        # Track every non-dict reset: includes "key was missing entirely" AND
+        # "key existed but as a non-object (string/null/list)". Both cases
+        # surface as topology drift so the maintainer can review whether the
+        # upstream agent shape changed.
         current = {}
         agents[key] = current
         created_overrides.append(key)
@@ -295,15 +311,17 @@ for key in sorted(agents.keys()):
         skipped_count += 1
         continue
 
-    generated_path = os.path.join(generated_dir, f'{key}.overlay.md')
+    safe_key = safe_snapshot_key(key)
+    generated_path = os.path.join(generated_dir, f'{safe_key}.overlay.md')
     desired_prompt = '{file:' + generated_path + '}'
-    snapshot_path = os.path.join(snapshot_dir, f'{key}.last.md')
+    snapshot_path = os.path.join(snapshot_dir, f'{safe_key}.last.md')
 
     # Fully-applied state — already pointing at our generated overlay file,
     # and that file exists on disk. Nothing to do.
     if prompt == desired_prompt and os.path.isfile(generated_path):
         print(f'  keep {key}: already points to generated overlay prompt', file=sys.stderr)
         written_orchestrator_keys.add(key)
+        kept_count += 1
         continue
 
     recovered_from_snapshot = False
@@ -315,7 +333,7 @@ for key in sorted(agents.keys()):
         #   - the reference points at a path different from our desired one.
         # Recover from the snapshot if available; fail loud if no snapshot exists.
         if not os.path.isfile(snapshot_path):
-            raise SystemExit(
+            die(
                 f'broken state for orchestrator {key!r}: opencode.json prompt is {prompt!r} '
                 f'but the target file is missing and no snapshot exists at {snapshot_path}. '
                 f'Run `gentle-ai sync` to reset the orchestrator prompt to inline content, '
@@ -324,10 +342,18 @@ for key in sorted(agents.keys()):
         with open(snapshot_path, 'r', encoding='utf-8') as fh:
             inline_prompt = fh.read().rstrip('\n')
         recovered_from_snapshot = True
-        print(f'  recovering {key} from snapshot (target file missing or path drift)', file=sys.stderr)
+        print(
+            f'  WARNING recovering {key} from snapshot - content may pre-date current upstream; '
+            f'run `gentle-ai sync` then re-run this script to capture fresh upstream into the snapshot',
+            file=sys.stderr,
+        )
     else:
         # Normal path: prompt is inline content captured from upstream.
         inline_prompt = prompt
+
+    # Sanitize FIRST so a failure does not leave a stale-but-overwritten
+    # snapshot. The snapshot is only updated after sanitization succeeds.
+    sanitized = sanitize_prompt(inline_prompt)
 
     # Snapshot drift tracking — only when capturing fresh inline content.
     # Recovery reads FROM the snapshot, so by definition it doesn't drift.
@@ -349,7 +375,6 @@ for key in sorted(agents.keys()):
             snapshot_new += 1
         write_utf8(snapshot_path, inline_prompt)
 
-    sanitized = sanitize_prompt(inline_prompt)
     write_utf8(generated_path, sanitized)
     if agent.get('prompt') != desired_prompt:
         agent['prompt'] = desired_prompt
@@ -390,12 +415,12 @@ if config_changed:
         expected_variant = override.get('variant')
         actual = verify_agents.get(key) or {}
         if actual.get('model') != expected_model:
-            raise SystemExit(
+            die(
                 f'post-write verification failed: agent {key!r} model is '
                 f'{actual.get("model")!r} after write, expected {expected_model!r}'
             )
         if expected_variant and actual.get('variant') != expected_variant:
-            raise SystemExit(
+            die(
                 f'post-write verification failed: agent {key!r} variant is '
                 f'{actual.get("variant")!r} after write, expected {expected_variant!r}'
             )
@@ -404,19 +429,20 @@ if config_changed:
         expected_ref = '{file:' + os.path.join(generated_dir, f'{key}.overlay.md') + '}'
         actual = (verify_agents.get(key) or {}).get('prompt')
         if actual != expected_ref:
-            raise SystemExit(
+            die(
                 f'post-write verification failed: orchestrator {key!r} prompt is '
                 f'{actual!r} after write, expected {expected_ref!r}'
             )
         overlay_path = os.path.join(generated_dir, f'{key}.overlay.md')
         if not os.path.isfile(overlay_path):
-            raise SystemExit(
+            die(
                 f'post-write verification failed: overlay file missing for {key!r} at {overlay_path}'
             )
 
 print(f'CONFIG_STATUS={"updated" if config_changed else "unchanged"}')
 print(f'GENERATED_COUNT={generated_count}')
 print(f'RECOVERED_COUNT={recovered_count}')
+print(f'KEPT_COUNT={kept_count}')
 print(f'SKIPPED_COUNT={skipped_count}')
 print(f'SNAPSHOT_NEW={snapshot_new}')
 print(f'SNAPSHOT_CHANGED={snapshot_changed}')
@@ -433,13 +459,14 @@ info "  OpenCode config status: ${CONFIG_STATUS}"
 info "  skills pruned this run: ${PRUNED_COUNT}"
 info "  orchestrators generated (fresh): ${GENERATED_COUNT}"
 info "  orchestrators recovered from snapshot: ${RECOVERED_COUNT}"
+info "  orchestrators kept (already applied): ${KEPT_COUNT}"
 info "  orchestrators skipped: ${SKIPPED_COUNT}"
-info "  snapshots — new: ${SNAPSHOT_NEW}, changed: ${SNAPSHOT_CHANGED}, unchanged: ${SNAPSHOT_UNCHANGED}"
+info "  snapshots - new: ${SNAPSHOT_NEW}, changed: ${SNAPSHOT_CHANGED}, unchanged: ${SNAPSHOT_UNCHANGED}"
 info "  topology warnings: ${TOPOLOGY_WARNINGS}"
 
 if (( ${#MISSING_KEEP_SUMMARY[@]} > 0 )); then
   info ""
-  info "WARNING — keep skills missing (expected but absent):"
+  info "WARNING - keep skills missing (expected but absent):"
   for entry in "${MISSING_KEEP_SUMMARY[@]}"; do
     info "  - ${entry}"
   done
@@ -449,6 +476,13 @@ if (( SNAPSHOT_CHANGED > 0 )); then
   info ""
   info "NOTE: upstream orchestrator prompts drifted. Review with:"
   info "  git diff overlay/gentle-ai/snapshots/"
+fi
+
+if (( RECOVERED_COUNT > 0 )); then
+  info ""
+  info "NOTE: ${RECOVERED_COUNT} orchestrator(s) recovered from snapshot."
+  info "  The snapshot content may pre-date the current upstream version."
+  info "  Run \`gentle-ai sync\` then re-run this script to capture fresh upstream."
 fi
 
 if (( TOPOLOGY_WARNINGS > 0 )); then
