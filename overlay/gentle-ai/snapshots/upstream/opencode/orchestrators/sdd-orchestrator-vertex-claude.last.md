@@ -283,19 +283,30 @@ Read this table at session start (or before first delegation) and cache it for t
 
 | Phase | Model | Reason |
 |-------|-------|--------|
-| orchestrator | — | Coordinates, makes decisions |
-| sdd-init-vertex-claude | openai/gpt-5.5 | Bootstrap SDD context |
-| sdd-explore-vertex-claude | openai/gpt-5.5 | Reads code, structural - not architectural |
-| sdd-propose-vertex-claude | openai/gpt-5.5 | Architectural decisions |
-| sdd-spec-vertex-claude | openai/gpt-5.5 | Structured writing |
-| sdd-design-vertex-claude | openai/gpt-5.5 | Architecture decisions |
-| sdd-tasks-vertex-claude | openai/gpt-5.5 | Mechanical breakdown |
-| sdd-apply-vertex-claude | openai/gpt-5.5 | Implementation |
-| sdd-verify-vertex-claude | openai/gpt-5.5 | Validation against spec |
-| sdd-archive-vertex-claude | openai/gpt-5.5 | Copy and close |
-| sdd-onboard-vertex-claude | — | Guided walkthrough |
+| orchestrator | google-vertex-anthropic/claude-sonnet-4-6@default | Coordinates, makes decisions |
+| sdd-init-vertex-claude | google-vertex/gemini-3.1-pro-preview | Bootstrap SDD context |
+| sdd-explore-vertex-claude | google-vertex/gemini-3.1-pro-preview-customtools | Reads code, structural - not architectural |
+| sdd-propose-vertex-claude | google-vertex-anthropic/claude-opus-4-7@default | Architectural decisions |
+| sdd-spec-vertex-claude | google-vertex-anthropic/claude-sonnet-4-6@default | Structured writing |
+| sdd-design-vertex-claude | google-vertex-anthropic/claude-opus-4-7@default | Architecture decisions |
+| sdd-tasks-vertex-claude | google-vertex-anthropic/claude-sonnet-4-6@default | Mechanical breakdown |
+| sdd-apply-vertex-claude | google-vertex-anthropic/claude-sonnet-4-6@default | Implementation |
+| sdd-verify-vertex-claude | google-vertex-anthropic/claude-opus-4-7@default | Validation against spec |
+| sdd-archive-vertex-claude | google-vertex/gemini-3.1-flash-lite | Copy and close |
+| sdd-onboard-vertex-claude | google-vertex/gemini-3.1-pro-preview | Guided walkthrough |
 
 <!-- /gentle-ai:sdd-model-assignments -->
+
+### Sub-Agent Launch Deduplication (MANDATORY)
+
+Before emitting any delegation call, check your in-session launch log:
+
+- Maintain a session-scoped list of `(phase, task-fingerprint)` pairs already launched this turn.
+- The task fingerprint is a short hash or normalized summary of the instruction text (phase name + key artifact references).
+- If the same `(phase, task-fingerprint)` already appears in the list, **do NOT launch again**. Emit exactly one launch per distinct task.
+- After launching, append the pair to the list.
+
+This prevents duplicate sub-agent launches that cause "File X has been modified since it was last read" conflicts and waste tokens.
 
 ### Sub-Agent Launch Pattern
 

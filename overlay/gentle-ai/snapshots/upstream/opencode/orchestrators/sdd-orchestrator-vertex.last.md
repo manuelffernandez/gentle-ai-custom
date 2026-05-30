@@ -283,19 +283,30 @@ Read this table at session start (or before first delegation) and cache it for t
 
 | Phase | Model | Reason |
 |-------|-------|--------|
-| orchestrator | openai/gpt-5.4 | Coordinates, makes decisions |
-| sdd-init-vertex | — | Bootstrap SDD context |
-| sdd-explore-vertex | — | Reads code, structural - not architectural |
-| sdd-propose-vertex | — | Architectural decisions |
-| sdd-spec-vertex | — | Structured writing |
-| sdd-design-vertex | — | Architecture decisions |
-| sdd-tasks-vertex | — | Mechanical breakdown |
-| sdd-apply-vertex | — | Implementation |
-| sdd-verify-vertex | — | Validation against spec |
-| sdd-archive-vertex | — | Copy and close |
-| sdd-onboard-vertex | — | Guided walkthrough |
+| orchestrator | google-vertex/gemini-3.1-pro-preview | Coordinates, makes decisions |
+| sdd-init-vertex | google-vertex/gemini-3.1-pro-preview-customtools | Bootstrap SDD context |
+| sdd-explore-vertex | google-vertex/gemini-3.1-pro-preview-customtools | Reads code, structural - not architectural |
+| sdd-propose-vertex | google-vertex/gemini-3.1-pro-preview | Architectural decisions |
+| sdd-spec-vertex | google-vertex/gemini-3.1-pro-preview | Structured writing |
+| sdd-design-vertex | google-vertex/gemini-3.1-pro-preview | Architecture decisions |
+| sdd-tasks-vertex | google-vertex/gemini-3.1-pro-preview | Mechanical breakdown |
+| sdd-apply-vertex | google-vertex/deepseek-ai/deepseek-v3.2-maas | Implementation |
+| sdd-verify-vertex | google-vertex/moonshotai/kimi-k2-thinking-maas | Validation against spec |
+| sdd-archive-vertex | google-vertex/gemini-3.1-flash-lite | Copy and close |
+| sdd-onboard-vertex | google-vertex/gemini-3.1-pro-preview | Guided walkthrough |
 
 <!-- /gentle-ai:sdd-model-assignments -->
+
+### Sub-Agent Launch Deduplication (MANDATORY)
+
+Before emitting any delegation call, check your in-session launch log:
+
+- Maintain a session-scoped list of `(phase, task-fingerprint)` pairs already launched this turn.
+- The task fingerprint is a short hash or normalized summary of the instruction text (phase name + key artifact references).
+- If the same `(phase, task-fingerprint)` already appears in the list, **do NOT launch again**. Emit exactly one launch per distinct task.
+- After launching, append the pair to the list.
+
+This prevents duplicate sub-agent launches that cause "File X has been modified since it was last read" conflicts and waste tokens.
 
 ### Sub-Agent Launch Pattern
 
