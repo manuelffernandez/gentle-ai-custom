@@ -166,25 +166,25 @@ def remove_block(text: str, pattern: str, label: str) -> str:
     """Remove a multi-line block using MULTILINE + DOTALL (dot matches newlines)."""
     new_text, count = re.subn(pattern, '', text, flags=re.MULTILINE | re.DOTALL)
     if count == 0:
-        raise ValueError(f'missing expected block: {label}')
+        die(f'missing expected block: {label}')
     return new_text
 
 def remove_line(text: str, pattern: str, label: str) -> str:
     """Remove a single-line pattern using MULTILINE only (dot does NOT match newlines)."""
     new_text, count = re.subn(pattern, '', text, flags=re.MULTILINE)
     if count == 0:
-        raise ValueError(f'missing expected line: {label}')
+        die(f'missing expected line: {label}')
     return new_text
 
 def replace_once(text: str, old: str, new: str, label: str) -> str:
     if old not in text:
-        raise ValueError(f'missing expected text: {label}')
+        die(f'missing expected text: {label}')
     return text.replace(old, new, 1)
 
 def sanitize_prompt(text: str) -> str:
     for marker in required_markers:
         if marker not in text:
-            raise ValueError(f'missing required marker before sanitizing: {marker}')
+            die(f'missing required marker before sanitizing: {marker}')
 
     text = replace_once(
         text,
@@ -234,10 +234,10 @@ def sanitize_prompt(text: str) -> str:
 
     for marker in required_markers:
         if marker not in text:
-            raise ValueError(f'missing required marker after sanitizing: {marker}')
+            die(f'missing required marker after sanitizing: {marker}')
     for marker in forbidden_markers:
         if marker in text:
-            raise ValueError(f'forbidden marker still present after sanitizing: {marker}')
+            die(f'forbidden marker still present after sanitizing: {marker}')
     return text
 
 # --- Apply agent overrides ---
@@ -340,7 +340,7 @@ for key in sorted(agents.keys()):
                 f'then re-run this script.'
             )
         with open(snapshot_path, 'r', encoding='utf-8') as fh:
-            inline_prompt = fh.read().rstrip('\n')
+            inline_prompt = fh.read().rstrip('\r\n')
         recovered_from_snapshot = True
         print(
             f'  WARNING recovering {key} from snapshot - content may pre-date current upstream; '
@@ -364,7 +364,8 @@ for key in sorted(agents.keys()):
         if os.path.isfile(snapshot_path):
             with open(snapshot_path, 'r', encoding='utf-8') as fh:
                 old_snapshot = fh.read()
-            if old_snapshot != normalized:
+            old_snapshot_normalized = old_snapshot.replace('\r\n', '\n')
+            if old_snapshot_normalized != normalized:
                 snapshot_status = 'changed'
                 snapshot_changed += 1
             else:

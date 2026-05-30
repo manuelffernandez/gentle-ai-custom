@@ -81,8 +81,14 @@ function Unescape-NonAsciiUnicode {
     # ConvertTo-Json on PS5.1 escapes non-ASCII as \uXXXX. Bash/Python uses
     # ensure_ascii=False and keeps raw UTF-8. To produce byte-identical
     # opencode.json across both helpers, unescape \uXXXX back to UTF-8 here.
+    #
+    # Limitation: uses a negative lookbehind to skip \\uXXXX (literal backslash-u
+    # in JSON). This handles the common case but may not be correct for sequences
+    # with an odd number of consecutive backslashes before \uXXXX. Orchestrator
+    # prompts are markdown documents that don't contain literal \uXXXX sequences,
+    # so this is safe for our workload.
     if ([string]::IsNullOrEmpty($Json)) { return $Json }
-    $Regex = New-Object System.Text.RegularExpressions.Regex '\\u([0-9a-fA-F]{4})'
+    $Regex = New-Object System.Text.RegularExpressions.Regex '(?<!\\)\\u([0-9a-fA-F]{4})'
     $Evaluator = [System.Text.RegularExpressions.MatchEvaluator] {
         param($Match)
         $CodePoint = [Convert]::ToInt32($Match.Groups[1].Value, 16)
@@ -101,7 +107,7 @@ function Remove-ExactOnce {
 
     $Index = $Text.IndexOf($Old, [System.StringComparison]::Ordinal)
     if ($Index -lt 0) {
-        throw "Missing expected text: $Label"
+        Die "missing expected text: $Label"
     }
 
     # Single-occurrence replace, mirroring Python's str.replace(old, new, 1).
@@ -119,7 +125,7 @@ function Remove-RegexOnce {
     $Regex = New-Object System.Text.RegularExpressions.Regex($Pattern)
     $Matches = $Regex.Matches($Text)
     if ($Matches.Count -eq 0) {
-        throw "Missing expected block: $Label"
+        Die "missing expected block: $Label"
     }
 
     return $Regex.Replace($Text, $Replacement, 1)
@@ -160,7 +166,7 @@ function Sanitize-OrchestratorPrompt {
 
     foreach ($Marker in $SanitizerPolicy.required_markers) {
         if ($Prompt.IndexOf([string]$Marker, [System.StringComparison]::Ordinal) -lt 0) {
-            throw "Missing required marker before sanitizing: $Marker"
+            Die "missing required marker before sanitizing: $Marker"
         }
     }
 
@@ -184,16 +190,16 @@ function Sanitize-OrchestratorPrompt {
     $Text = Remove-RegexOnce $Text '(?ms)^### Delivery Strategy\n.*?(?=^### Chain Strategy\n|^### Dependency Graph\n)' '' 'Delivery Strategy section'
     $Text = Remove-RegexOnce $Text '(?ms)^### Chain Strategy\n.*?(?=^### Dependency Graph\n)' '' 'Chain Strategy section'
     $Text = Remove-RegexOnce $Text '(?ms)^### Review Workload Guard \(MANDATORY\)\n.*?(?=^<!-- gentle-ai:sdd-model-assignments -->\n)' '' 'Review Workload Guard section'
-    $Text = Remove-ExactOnce $Text '3. The user explicitly asked to apply/continue implementation, or the prior SDD planning phase completed and the orchestrator has passed the review workload guard.' '3. The user explicitly asked to apply/continue implementation, or the prior SDD planning phase completed.' 'apply routing clause'
+    $Text = Remove-ExactOnce $Text '3. The user explicitly asked to apply/continue implementation, or the prior SDD planning phase completed and the orchestrator has passed the review workload guard.' '3. The user explicitly asked to apply/continue implementation, or the prior SDD planning phase completed.' 'apply routing review-workload clause'
 
     foreach ($Marker in $SanitizerPolicy.required_markers) {
         if ($Text.IndexOf([string]$Marker, [System.StringComparison]::Ordinal) -lt 0) {
-            throw "Missing required marker after sanitizing: $Marker"
+            Die "missing required marker after sanitizing: $Marker"
         }
     }
     foreach ($Marker in $SanitizerPolicy.forbidden_markers) {
         if ($Text.IndexOf([string]$Marker, [System.StringComparison]::Ordinal) -ge 0) {
-            throw "Forbidden marker still present after sanitizing: $Marker"
+            Die "forbidden marker still present after sanitizing: $Marker"
         }
     }
 

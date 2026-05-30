@@ -47,7 +47,7 @@ Re-apply paths are mandatory regardless of whether upstream content changed — 
 | User just ran `gentle-ai sync` | Re-apply overlay immediately (`bash apply-gentle-ai-custom.sh all`). Audit drift afterwards via snapshot diff. |
 | User just ran TUI reinstall | Audit topology BEFORE re-applying. New/renamed/removed agents may require policy updates first. |
 | Script printed `topology: ...` warnings | Investigate each warning. New explicit orchestrators need policy entries; missing/created entries need maintenance-intent updates. STOP and ask the user before mutating policy. |
-| Script summary shows `snapshots — changed: N > 0` | Review `git diff overlay/gentle-ai/snapshots/`. If sanitizer anchors moved, update both scripts. |
+| Script summary shows `snapshots - changed: N > 0` | Review `git diff overlay/gentle-ai/snapshots/`. If sanitizer anchors moved, update both scripts. |
 | Script printed `orchestrators recovered from snapshot: N > 0` | User-side state was broken (deleted overlay files). Now consistent again. Worth noting in the log. |
 | Script raised `broken state for orchestrator X` | Run `gentle-ai sync` to reset prompts to inline, then re-run the script. Record the cause in the log. |
 | Sanitizer fails (`missing required marker` / `missing expected block`) | Upstream changed orchestrator structure. Update the sanitizers in both scripts before applying the overlay. |
