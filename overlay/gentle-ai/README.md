@@ -10,6 +10,8 @@ Este overlay mantiene una política **persistente y reaplicable** para tu stack 
    - Windows: `~\Documentos\gentle-ai-custom\apply-gentle-ai-custom.ps1 all`
 3. Reiniciá OpenCode si el script tocó `opencode.json`.
 
+Cuando audités cambios del upstream con la skill maintainer, esa skill te tiene que decir además si ese delta se resuelve con `gentle-ai sync` o si requiere reinstalación completa. Si hubo cambios de topología, `sync` no alcanza.
+
 ## Qué contiene
 
 - `policy/gentle-ai-policy.json`  

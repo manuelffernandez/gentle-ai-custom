@@ -83,6 +83,8 @@ Usá **reinstalación** cuando la actualización:
 
 **Señal de que necesitás reinstalar:** después de sync seguís viendo agentes viejos o no aparece un agente nuevo que debería existir según las release notes.
 
+Durante esta auditoría, la skill maintainer debe devolver esta recomendación de forma explícita: `gentle-ai sync` para cambios sin drift de topología; reinstalación completa cuando el upstream cambió la topología o la forma en que materializa los agentes.
+
 ### Flujo completo post-actualización
 
 ```

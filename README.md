@@ -250,7 +250,7 @@ La skill es el punto de entrada recomendado para pedirle al agente que revise di
 - snapshots
 - reglas de sanitización
 
-La skill ahora debe auditar el rango entre la última versión/commit mantenido y el estado actual del upstream, separar cambios relevantes de bugfix/chore noise y frenar con gate humana antes de cambiar intención o política para nuevos comportamientos.
+La skill ahora debe auditar el rango entre la última versión/commit mantenido y el estado actual del upstream, separar cambios relevantes de bugfix/chore noise, decir explícitamente si para traer ese delta alcanza con `gentle-ai sync` o hace falta reinstalación completa, y frenar con gate humana antes de cambiar intención o política para nuevos comportamientos. Regla práctica: cambios de topología upstream => reinstalación; cambios de comportamiento/contenido sin drift de topología => `gentle-ai sync`.
 
 ## Comandos custom disponibles
 

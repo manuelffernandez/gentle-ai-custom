@@ -22,6 +22,7 @@ Use this skill when:
 - Work from `gentle-ai-custom`, not from the upstream repo.
 - Treat `/home/manuel/Documentos/gentle-ai` as upstream input only.
 - ALWAYS triage the update type before deciding what to audit (see Update-Type Triage). The triage table itself describes what state the overlay is in for each path.
+- After auditing upstream drift, ALWAYS translate the findings into an explicit adoption recommendation: `gentle-ai sync` when topology is unchanged, full reinstall when topology changed or sync cannot materialize the new upstream shape.
 - Read semantic intent before making maintenance decisions.
 - Preserve the local keep/prune baseline and the orchestrator sanitization goals.
 - Keep bash and PowerShell scripts behaviorally equivalent.
@@ -54,7 +55,8 @@ Re-apply paths are mandatory regardless of whether upstream content changed — 
 | Script printed `orchestrators recovered from snapshot: N > 0` | User-side state was broken (deleted overlay files). Now consistent again. Worth noting in the log. |
 | Script raised `broken state for orchestrator X` | Run `gentle-ai sync` to reset prompts to inline, then re-run the script. Record the cause in the log. |
 | Sanitizer fails (`missing required marker` / `missing expected block`) | Upstream changed orchestrator structure. Update the sanitizers in both scripts before applying the overlay. |
-| Upstream added new skills or workflow behavior | STOP, summarize the impact, and ask the user what to keep or depure. |
+| Upstream topology changed (agents/presets added, removed, renamed, or upstream shape no longer matches what sync can refresh) | STOP, summarize the impact, ask the user what to preserve or depure, and explicitly recommend a full reinstall before re-applying the overlay. `gentle-ai sync` alone is not enough for topology drift. |
+| Upstream added new skills or workflow behavior without topology drift | STOP, summarize the impact, ask the user what to keep or depure, and explicitly say that `gentle-ai sync` is the correct upstream refresh path before re-applying the overlay. |
 | The script can no longer sanitize safely | Fail closed, refresh docs, and record the blocker. |
 
 ## Execution Steps
@@ -69,8 +71,9 @@ Re-apply paths are mandatory regardless of whether upstream content changed — 
 8. Classify findings into:
    - behavior / workflow / feature changes relevant to the overlay
    - topology changes (renamed/added/removed agents)
+   - recommended upstream adoption path: `gentle-ai sync` vs full reinstall
    - likely low-priority bugfix / chore noise
-9. If relevant changes affect keep/prune intent, sanitization behavior, or topology, STOP and ask the user what to preserve or depure before editing anything.
+9. If relevant changes affect keep/prune intent, sanitization behavior, or topology, STOP and ask the user what to preserve or depure before editing anything. In that same handoff, explicitly tell the user whether the audited upstream delta should be applied with `gentle-ai sync` or with a full reinstall, and why.
 10. After approval, update scripts, policy, docs, state, snapshots, and logs together.
 11. **Run the script**: `bash apply-gentle-ai-custom.sh all` (or `.ps1` on Windows). Capture full output, including the `topology:` lines and the final `Summary:` block.
 12. **Read the summary** and act on each signal (see Decision Gates).
@@ -101,6 +104,7 @@ Return:
 - files changed in the overlay (policy, scripts, docs, log)
 - topology drift detected and how it was resolved (entries added to policy, intent updates, deferred to user)
 - snapshot drift detected (which prompts changed since the previous run)
+- recommended upstream adoption path (`gentle-ai sync` or full reinstall) and the reason for that recommendation
 - script summary counts (generated, recovered, skipped, snapshots new/changed/unchanged, topology warnings)
 - post-state verification result (which checks passed / failed)
 - whether keep/prune or sanitizer rules changed

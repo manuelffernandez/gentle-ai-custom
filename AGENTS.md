@@ -298,6 +298,12 @@ bash apply-gentle-ai-custom.sh all
 
 When reinstalling, the overlay maintainer agent must audit before running the script in case agent topology changed.
 
+During an upstream audit, the maintainer must make the adoption path explicit:
+
+- If the upstream delta is overlay-relevant but preserves agent topology, recommend `gentle-ai sync` and then re-apply the overlay.
+- If the upstream delta adds, removes, or renames agents, changes presets/topology, or changes how upstream materializes `opencode.json`, recommend a full reinstall before re-applying the overlay.
+- If both kinds of changes exist, topology wins: recommend reinstall.
+
 ---
 
 ## Runtime caveat

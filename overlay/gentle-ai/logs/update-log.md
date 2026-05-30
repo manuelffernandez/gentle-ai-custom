@@ -2,6 +2,32 @@
 
 > Este archivo registra decisiones e hitos del mantenimiento del overlay. No es la fuente autoritativa del último upstream mantenido; esa responsabilidad vive en `overlay/gentle-ai/state/upstream-state.json`.
 
+## 2026-05-30 — Maintainer now recommends sync vs reinstall explicitly
+
+Razón del cambio:
+
+- La skill `gentle-ai-overlay-maintainer` ya distinguía drift de topología versus cambios de comportamiento, pero no convertía siempre ese hallazgo en una recomendación operativa explícita para el usuario.
+- Eso dejaba un hueco peligroso: ante cambios de topología upstream, alguien podía asumir que `gentle-ai sync` alcanzaba aunque en este repo ya sabemos que no materializa bien ese tipo de cambios.
+
+WHAT cambió:
+
+- `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`:
+  - Nueva hard rule para traducir toda auditoría upstream en una recomendación explícita de adopción: `gentle-ai sync` cuando no hay drift de topología, reinstalación completa cuando sí lo hay.
+  - Nuevos decision gates separando cambios de topología upstream de cambios de workflow/skills sin drift de topología.
+  - Execution steps y output contract actualizados para exigir que la recomendación `sync vs reinstall` salga en el handoff al usuario.
+- `README.md`, `overlay/gentle-ai/README.md`, `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`:
+  - Documentada la regla operativa para que la recomendación de la skill coincida con el runbook: topología cambió => reinstalación; contenido/comportamiento sin drift => `gentle-ai sync`.
+
+WHY:
+
+- El problema no era técnico en scripts/policy sino de guidance operativa: el criterio existía en el runbook, pero no estaba lo bastante cerca del punto donde el agente le responde al usuario qué hacer.
+- Mover esa decisión al output explícito de la skill reduce el riesgo de aplicar mal una actualización upstream y quedar con un estado parcialmente refrescado.
+
+Verificación:
+
+- Revisión manual de consistencia entre skill, README raíz, overlay README y runbook.
+- Confirmado que no fue necesario tocar scripts ni policy: el cambio es solo de instrucciones/documentación para surfacing de la decisión ya existente.
+
 ## 2026-05-30 — Closed upstream v1.33.2 maintenance audit
 
 Razón del cambio:
