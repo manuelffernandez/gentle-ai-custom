@@ -109,12 +109,11 @@ func writeAtomicFile(path string, data []byte, defaultMode os.FileMode) error {
 		cleanup()
 		return err
 	}
-	if err := tmp.Chmod(mode); err != nil {
-		_ = tmp.Close()
+	if err := tmp.Close(); err != nil {
 		cleanup()
 		return err
 	}
-	if err := tmp.Close(); err != nil {
+	if err := os.Chmod(tmpPath, mode); err != nil {
 		cleanup()
 		return err
 	}

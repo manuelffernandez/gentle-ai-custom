@@ -2,6 +2,7 @@ package overlay
 
 import (
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -56,12 +57,15 @@ func (s *applyPolicyState) migrateRepoSnapshotToLocal(agentKey, repoSnapshotPath
 	}
 	content, err := readText(repoSnapshotPath)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "  WARNING: cannot read repo snapshot for migration (%s): %v\n", agentKey, err)
 		return
 	}
-	if err := writeTextFile(localSnapshotPath, strings.TrimRight(content, "\r\n")); err == nil {
-		s.localSnapshotMigrate++
-		fmt.Printf("  migrated snapshot %s -> %s (from repo versioned snapshot)\n", agentKey, localSnapshotPath)
+	if err := writeTextFile(localSnapshotPath, strings.TrimRight(content, "\r\n")); err != nil {
+		fmt.Fprintf(os.Stderr, "  WARNING: cannot write local snapshot during migration (%s): %v\n", agentKey, err)
+		return
 	}
+	s.localSnapshotMigrate++
+	fmt.Printf("  migrated snapshot %s -> %s (from repo versioned snapshot)\n", agentKey, localSnapshotPath)
 }
 
 // backfillRepoSnapshotFromLocal copies the local operational snapshot back into
@@ -74,10 +78,13 @@ func (s *applyPolicyState) backfillRepoSnapshotFromLocal(agentKey, localSnapshot
 	}
 	content, err := readText(localSnapshotPath)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "  WARNING: cannot read local snapshot for backfill (%s): %v\n", agentKey, err)
 		return
 	}
-	if err := writeTextFile(repoSnapshotPath, strings.TrimRight(content, "\r\n")); err == nil {
-		s.repoSnapshotBackfill++
-		fmt.Printf("  backfilled repo snapshot %s -> %s (from local operational snapshot)\n", agentKey, repoSnapshotPath)
+	if err := writeTextFile(repoSnapshotPath, strings.TrimRight(content, "\r\n")); err != nil {
+		fmt.Fprintf(os.Stderr, "  WARNING: cannot write repo snapshot during backfill (%s): %v\n", agentKey, err)
+		return
 	}
+	s.repoSnapshotBackfill++
+	fmt.Printf("  backfilled repo snapshot %s -> %s (from local operational snapshot)\n", agentKey, repoSnapshotPath)
 }

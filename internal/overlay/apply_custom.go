@@ -10,13 +10,14 @@ import (
 var supportedTargets = []string{"opencode", "claude", "codex", "gemini", "antigravity"}
 
 type customSourceFiles struct {
-	commitSkill      string
-	prSkill          string
-	planBody         string
-	applyBody        string
-	fastBody         string
-	prCreateBody     string
-	prRegenerateBody string
+	commitSkill             string
+	prSkill                 string
+	codeModularizationSkill string
+	planBody                string
+	applyBody               string
+	fastBody                string
+	prCreateBody            string
+	prRegenerateBody        string
 }
 
 type customCommand struct {
@@ -43,14 +44,16 @@ func RunApplyCustom(repoRoot string, args []string) int {
 		return exitCode
 	}
 
+	sharedRoot := filepath.Join(repoRoot, "shared")
 	sources := customSourceFiles{
-		commitSkill:      filepath.Join(repoRoot, "shared", "skills", "commit-planner", "SKILL.md"),
-		prSkill:          filepath.Join(repoRoot, "shared", "skills", "pr-finalizer", "SKILL.md"),
-		planBody:         filepath.Join(repoRoot, "shared", "commands", "commit-plan-body.md"),
-		applyBody:        filepath.Join(repoRoot, "shared", "commands", "commit-apply-body.md"),
-		fastBody:         filepath.Join(repoRoot, "shared", "commands", "commit-fast-body.md"),
-		prCreateBody:     filepath.Join(repoRoot, "shared", "commands", "pr-create-body.md"),
-		prRegenerateBody: filepath.Join(repoRoot, "shared", "commands", "pr-regenerate-body.md"),
+		commitSkill:             filepath.Join(sharedRoot, "skills", "commit-planner", "SKILL.md"),
+		prSkill:                 filepath.Join(sharedRoot, "skills", "pr-finalizer", "SKILL.md"),
+		codeModularizationSkill: filepath.Join(sharedRoot, "skills", "code-modularization", "SKILL.md"),
+		planBody:                filepath.Join(sharedRoot, "commands", "commit-plan-body.md"),
+		applyBody:               filepath.Join(sharedRoot, "commands", "commit-apply-body.md"),
+		fastBody:                filepath.Join(sharedRoot, "commands", "commit-fast-body.md"),
+		prCreateBody:            filepath.Join(sharedRoot, "commands", "pr-create-body.md"),
+		prRegenerateBody:        filepath.Join(sharedRoot, "commands", "pr-regenerate-body.md"),
 	}
 
 	if err := validateCustomSources(sources); err != nil {
@@ -59,7 +62,7 @@ func RunApplyCustom(repoRoot string, args []string) int {
 	}
 
 	for _, targetName := range targets {
-		if err := applyCustomTarget(buildCustomTarget(targetName, sources)); err != nil {
+		if err := applyCustomTarget(buildCustomTarget(targetName, sources), sharedRoot); err != nil {
 			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 			return 1
 		}
@@ -81,7 +84,7 @@ func normalizeTargets(args []string) ([]string, int) {
 		return nil, 1
 	}
 	if len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
-		printApplyCustomUsage(os.Stderr)
+		printApplyCustomUsage(os.Stdout)
 		return nil, 0
 	}
 	if len(args) == 1 && args[0] == "all" {
@@ -93,7 +96,7 @@ func normalizeTargets(args []string) ([]string, int) {
 	for _, target := range args {
 		switch target {
 		case "-h", "--help":
-			printApplyCustomUsage(os.Stderr)
+			printApplyCustomUsage(os.Stdout)
 			return nil, 0
 		case "all":
 			fmt.Fprintln(os.Stderr, "Use 'all' by itself, or pass explicit targets only.")
@@ -134,6 +137,7 @@ func validateCustomSources(sources customSourceFiles) error {
 	for _, source := range []string{
 		sources.commitSkill,
 		sources.prSkill,
+		sources.codeModularizationSkill,
 		sources.planBody,
 		sources.applyBody,
 		sources.fastBody,
@@ -194,8 +198,10 @@ func buildCustomTarget(name string, sources customSourceFiles) customTarget {
 	return target
 }
 
-func applyCustomTarget(target customTarget) error {
-	sharedRoot := filepath.Dir(filepath.Dir(target.commands[0].bodyPath))
+func applyCustomTarget(target customTarget, sharedRoot string) error {
+	if len(target.commands) == 0 {
+		return fmt.Errorf("no commands defined for target %q", target.name)
+	}
 	skillSources := map[string]string{
 		"commit-planner":      filepath.Join(sharedRoot, "skills", "commit-planner", "SKILL.md"),
 		"pr-finalizer":        filepath.Join(sharedRoot, "skills", "pr-finalizer", "SKILL.md"),

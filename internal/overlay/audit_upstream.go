@@ -102,9 +102,9 @@ func RunAuditUpstream(repoRoot string) int {
 	if gitErr != nil {
 		failures = append(failures, fmt.Sprintf("cannot inspect upstream git state: %v", gitErr))
 	}
-	upstreamDescribe, gitErr := runGit(upstreamRepo, false, "describe", "--tags", "--always")
-	if gitErr != nil {
-		failures = append(failures, fmt.Sprintf("cannot inspect upstream git state: %v", gitErr))
+	upstreamDescribe, _ := runGit(upstreamRepo, true, "describe", "--tags", "--always")
+	if upstreamDescribe == "" {
+		notes = append(notes, "upstream git describe returned nothing; repo may have no tags (HEAD hash still captured via rev-parse)")
 	}
 	upstreamExactTag, gitErr := runGit(upstreamRepo, true, "describe", "--tags", "--exact-match")
 	if gitErr != nil {

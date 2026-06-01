@@ -78,7 +78,10 @@ func RunApplyPolicy(repoRoot string) int {
 	}
 
 	fmt.Println("Applying Gentle AI overlay policy...")
-	state.pruneSkills()
+	if err := state.pruneSkills(); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		return 1
+	}
 
 	if !pathExists(state.configPath) {
 		fmt.Printf("- skip missing OpenCode config: %s\n", state.configPath)
@@ -119,7 +122,7 @@ func RunApplyPolicy(repoRoot string) int {
 
 // --- Skills ---
 
-func (s *applyPolicyState) pruneSkills() {
+func (s *applyPolicyState) pruneSkills() error {
 	for _, targetDirRaw := range s.policy.Skills.Targets {
 		targetDir := expandUser(targetDirRaw)
 		info, err := os.Stat(targetDir)
@@ -132,12 +135,11 @@ func (s *applyPolicyState) pruneSkills() {
 		for _, skill := range s.policy.Skills.Prune {
 			skillPath := filepath.Join(targetDir, skill)
 			if pathExists(skillPath) {
-				if err := os.RemoveAll(skillPath); err == nil {
-					s.prunedCount++
-					fmt.Printf("  removed %s\n", skill)
-				} else {
-					fmt.Printf("  already absent %s\n", skill)
+				if err := os.RemoveAll(skillPath); err != nil {
+					return fmt.Errorf("failed to remove skill %s: %w", skillPath, err)
 				}
+				s.prunedCount++
+				fmt.Printf("  removed %s\n", skill)
 			} else {
 				fmt.Printf("  already absent %s\n", skill)
 			}
@@ -149,6 +151,7 @@ func (s *applyPolicyState) pruneSkills() {
 			}
 		}
 	}
+	return nil
 }
 
 // --- Config loading ---
@@ -236,8 +239,13 @@ func (s *applyPolicyState) applyAgentOverrides() {
 			current["model"] = override.Model
 			s.configChanged = true
 		}
-		if override.Variant != "" && jsonString(current["variant"]) != override.Variant {
-			current["variant"] = override.Variant
+		if override.Variant != "" {
+			if jsonString(current["variant"]) != override.Variant {
+				current["variant"] = override.Variant
+				s.configChanged = true
+			}
+		} else if _, hasVariant := current["variant"]; hasVariant {
+			delete(current, "variant")
 			s.configChanged = true
 		}
 		suffix := ""
@@ -320,8 +328,12 @@ func (s *applyPolicyState) verifyPersistedState() error {
 		if jsonString(actual["model"]) != override.Model {
 			return fmt.Errorf("post-write verification failed: agent %q model is %q after write, expected %q", override.Key, jsonString(actual["model"]), override.Model)
 		}
-		if override.Variant != "" && jsonString(actual["variant"]) != override.Variant {
-			return fmt.Errorf("post-write verification failed: agent %q variant is %q after write, expected %q", override.Key, jsonString(actual["variant"]), override.Variant)
+		if override.Variant != "" {
+			if jsonString(actual["variant"]) != override.Variant {
+				return fmt.Errorf("post-write verification failed: agent %q variant is %q after write, expected %q", override.Key, jsonString(actual["variant"]), override.Variant)
+			}
+		} else if jsonString(actual["variant"]) != "" {
+			return fmt.Errorf("post-write verification failed: agent %q variant is %q after write, expected empty", override.Key, jsonString(actual["variant"]))
 		}
 	}
 

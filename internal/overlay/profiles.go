@@ -214,7 +214,11 @@ func (s *applyPolicyState) reconcileProfiles() error {
 func (s *applyPolicyState) reconcileProfileAgent(profileName, key string, assignment profileAssignment, orchestrator bool) error {
 	existing, ok := jsonObject(s.agents[key])
 	if !ok {
-		s.agents[key] = map[string]any{"model": assignment.Model, "variant": assignment.Variant}
+		agentObj := map[string]any{"model": assignment.Model}
+		if assignment.Variant != "" {
+			agentObj["variant"] = assignment.Variant
+		}
+		s.agents[key] = agentObj
 		s.profileAgentsCreated++
 		s.configChanged = true
 		if orchestrator {
@@ -233,8 +237,13 @@ func (s *applyPolicyState) reconcileProfileAgent(profileName, key string, assign
 		existing["model"] = assignment.Model
 		changed = true
 	}
-	if jsonString(existing["variant"]) != assignment.Variant {
-		existing["variant"] = assignment.Variant
+	if assignment.Variant != "" {
+		if jsonString(existing["variant"]) != assignment.Variant {
+			existing["variant"] = assignment.Variant
+			changed = true
+		}
+	} else if _, hasVariant := existing["variant"]; hasVariant {
+		delete(existing, "variant")
 		changed = true
 	}
 	if changed {
