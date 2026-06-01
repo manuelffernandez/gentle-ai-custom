@@ -2,6 +2,35 @@
 
 > Este archivo registra decisiones e hitos del mantenimiento del overlay. No es la fuente autoritativa del último upstream mantenido; esa responsabilidad vive en `overlay/gentle-ai/state/upstream-state.json`.
 
+## 2026-06-01 — Audited v1.33.2 post-tag docs fix (21634526)
+
+Tipo de update: `git pull` upstream solamente — sin `gentle-ai sync`, sin reinstalación.
+
+WHAT cambió upstream:
+
+- Commit `21634526` (`docs: correct recent release documentation drift`) modifica `README.md`, `docs/agents.md`, `docs/components.md`, `docs/non-interactive.md`, `docs/opencode-profiles.md`, `docs/platforms.md`, `docs/usage.md`, `internal/cli/run.go`, `internal/cli/scope.go`.
+- Los cambios en Go son puramente de comentarios: actualizan la terminología para reemplazar referencias a "CLAUDE.md / ~/.claude/" por lenguaje agnóstico al agente ("system prompts / global config directory").
+
+WHY:
+
+- Corrección de documentación post-release. No hay cambio de comportamiento, no hay drift en el base prompt del orchestrator, no hay cambio en invariantes de perfil.
+
+Audit result:
+
+- `base prompt drift: no` — snapshot y metadata siguen alineados.
+- `profile phase order`, `profile orchestrator naming`, `profile task scoping invariant`, `base asset injection invariant`: todos `ok`.
+- Topología: sin cambios.
+
+Acción tomada:
+
+- Actualizado `upstream-state.json` → `last_maintained_commit` al nuevo HEAD `21634526`.
+- `gentle-ai sync` NO ejecutado — overlay intacto en disco, nada requiere re-apply.
+- Sin cambios en policy, scripts, ni documentación del overlay.
+
+Verificación:
+
+- `bash audit-gentle-ai-upstream.sh` retornó `base prompt drift: no` y todos los invariantes `ok` post-update del state.
+
 ## 2026-06-01 — Added verbose file-level output for apply-custom
 
 Razón del cambio:

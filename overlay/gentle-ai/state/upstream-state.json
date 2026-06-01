@@ -1,7 +1,7 @@
 {
   "last_maintained_version": "v1.33.2",
   "last_maintained_tag": "v1.33.2",
-  "last_maintained_commit": "0fa9f2d1d2d3a8ebd822cdd5c82fcb4bff60f0fc",
-  "last_reviewed_at": "2026-05-30T03:40:49Z",
-  "notes": "Maintained boundary updated after auditing the upstream Gentle AI range from v1.32.0 / 412eed3d39defb2f955a63e21ca13cef4df358c9 through v1.33.2 / 0fa9f2d1d2d3a8ebd822cdd5c82fcb4bff60f0fc, with no overlay policy, script, or documentation changes required."
+  "last_maintained_commit": "21634526c5a1096fd7c278841e62766f2b090b1d",
+  "last_reviewed_at": "2026-06-01T00:00:00Z",
+  "notes": "Post-tag docs fix: 21634526 corrects terminology in README.md, docs/*.md and Go comments to be agent-agnostic (no Claude Code-specific references). No base prompt drift, no invariant drift, no overlay action required. gentle-ai sync was NOT run — overlay intact."
 }
