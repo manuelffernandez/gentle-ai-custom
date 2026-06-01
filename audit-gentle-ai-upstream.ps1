@@ -2,13 +2,19 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$python = if ($env:PYTHON) { $env:PYTHON } else { 'python' }
-$pythonCommand = Get-Command $python -ErrorAction SilentlyContinue
-if (-not $pythonCommand) {
-    [Console]::Error.WriteLine('ERROR: python is required to audit the Gentle AI upstream baseline')
+$SourceDir = $PSScriptRoot
+$goName = if ($env:GO) { $env:GO } else { 'go' }
+$goCommand = Get-Command $goName -ErrorAction SilentlyContinue
+if (-not $goCommand) {
+    [Console]::Error.WriteLine('ERROR: go is required to audit the Gentle AI upstream baseline')
     exit 1
 }
 
-$scriptPath = Join-Path $PSScriptRoot 'overlay\gentle-ai\scripts\audit-gentle-ai-upstream.py'
-& $pythonCommand.Source $scriptPath
-exit $LASTEXITCODE
+Push-Location $SourceDir
+try {
+    & $goCommand.Source run .\cmd\gentle-ai-overlay --repo-root $SourceDir audit-upstream
+    exit $LASTEXITCODE
+}
+finally {
+    Pop-Location
+}

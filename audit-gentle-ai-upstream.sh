@@ -2,11 +2,12 @@
 set -euo pipefail
 
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PYTHON_CMD="${PYTHON:-python3}"
+GO_CMD="${GO:-go}"
 
-command -v "${PYTHON_CMD}" >/dev/null 2>&1 || {
-  printf 'ERROR: python3 is required to audit the Gentle AI upstream baseline\n' >&2
+command -v "${GO_CMD}" >/dev/null 2>&1 || {
+  printf 'ERROR: go is required to audit the Gentle AI upstream baseline\n' >&2
   exit 1
 }
 
-exec "${PYTHON_CMD}" "${SOURCE_DIR}/overlay/gentle-ai/scripts/audit-gentle-ai-upstream.py"
+cd "${SOURCE_DIR}"
+exec "${GO_CMD}" run ./cmd/gentle-ai-overlay --repo-root "${SOURCE_DIR}" audit-upstream
