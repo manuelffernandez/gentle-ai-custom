@@ -1,0 +1,21 @@
+# Project-level pnpm baseline
+# Commit this into the repo so local installs, Docker, and CI behave the same.
+#
+# Important: this is intentionally DIFFERENT from npm.
+# pnpm has a native reviewed allowlist model for dependency build scripts,
+# so prefer `allowBuilds` + `strictDepBuilds` instead of a blanket
+# `ignore-scripts` policy.
+
+minimumReleaseAge: 4320
+trustPolicy: no-downgrade
+blockExoticSubdeps: true
+
+# Replace this map with reviewed packages that genuinely need install/build scripts.
+# Examples from the original review included `sharp` and `esbuild`.
+# Good workflow: block first, identify what breaks, review those packages,
+# and only then add the legitimate ones here.
+allowBuilds:
+  __REVIEWED_PACKAGE__: true
+
+strictDepBuilds: true
+saveExact: true
