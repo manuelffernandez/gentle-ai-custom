@@ -221,6 +221,11 @@ func (s *applyPolicyState) reconcileProfileAgent(profileName, key string, assign
 		s.agents[key] = agentObj
 		s.profileAgentsCreated++
 		s.configChanged = true
+		detail := fmt.Sprintf("profile %s: created %s with model %s", profileName, key, quotedValue(assignment.Model))
+		if assignment.Variant != "" {
+			detail += fmt.Sprintf(" and variant %s", quotedValue(assignment.Variant))
+		}
+		s.recordVerbose(s.configPath, detail)
 		if orchestrator {
 			fmt.Printf("  profile %s: created orchestrator agent %s (no prompt; run `gentle-ai sync` to materialize)\n", profileName, key)
 		} else {
@@ -233,18 +238,24 @@ func (s *applyPolicyState) reconcileProfileAgent(profileName, key string, assign
 		return nil
 	}
 	changed := false
-	if jsonString(existing["model"]) != assignment.Model {
+	oldModel := jsonString(existing["model"])
+	if oldModel != assignment.Model {
 		existing["model"] = assignment.Model
 		changed = true
+		s.recordVerbose(s.configPath, fmt.Sprintf("profile %s: %s.model: %s -> %s", profileName, key, quotedValue(oldModel), quotedValue(assignment.Model)))
 	}
 	if assignment.Variant != "" {
-		if jsonString(existing["variant"]) != assignment.Variant {
+		oldVariant := jsonString(existing["variant"])
+		if oldVariant != assignment.Variant {
 			existing["variant"] = assignment.Variant
 			changed = true
+			s.recordVerbose(s.configPath, fmt.Sprintf("profile %s: %s.variant: %s -> %s", profileName, key, quotedValue(oldVariant), quotedValue(assignment.Variant)))
 		}
 	} else if _, hasVariant := existing["variant"]; hasVariant {
+		oldVariant := jsonString(existing["variant"])
 		delete(existing, "variant")
 		changed = true
+		s.recordVerbose(s.configPath, fmt.Sprintf("profile %s: %s.variant removed %s", profileName, key, quotedValue(oldVariant)))
 	}
 	if changed {
 		s.profileAgentsUpdated++

@@ -82,6 +82,7 @@ Todos esos wrappers son finos: delegan en la CLI Go compartida (`go run ./cmd/ge
 
 ```bash
 bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh opencode
+bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh opencode --verbose
 bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh claude
 bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh codex
 bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh gemini
@@ -99,6 +100,7 @@ bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh all
 
 ```powershell
 ~\Documentos\gentle-ai-custom\apply-gentle-ai-custom.ps1 opencode
+~\Documentos\gentle-ai-custom\apply-gentle-ai-custom.ps1 opencode --verbose
 ~\Documentos\gentle-ai-custom\apply-gentle-ai-custom.ps1 claude
 ~\Documentos\gentle-ai-custom\apply-gentle-ai-custom.ps1 codex
 ~\Documentos\gentle-ai-custom\apply-gentle-ai-custom.ps1 gemini
@@ -109,18 +111,37 @@ bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh all
 ## Flujo recomendado
 
 ```bash
+brew upgrade gentle-ai
+git -C ~/Documentos/gentle-ai pull
+
+# trabajar desde gentle-ai-custom con la skill maintainer
 bash ~/Documentos/gentle-ai-custom/audit-gentle-ai-upstream.sh
+
+# si la auditoría no exige adaptar este repo primero
 gentle-ai sync
-bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh all
+
+# mínimo para OpenCode/policy del overlay
+bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh opencode
+
+# o refresh completo multi-target
+# bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh all
 ```
 
 Orden mental correcto:
 
-1. `audit-gentle-ai-upstream` → responde **"¿es seguro avanzar con sync/reinstall?"**
-2. `gentle-ai sync` (o reinstall si la auditoría lo recomienda)
-3. `apply-gentle-ai-custom` → responde **"¿quedó materializado en disco lo que ya auditamos?"**
+1. actualizás el binario de `gentle-ai`
+2. hacés `git pull` en `/home/manuel/Documentos/gentle-ai`
+3. abrís `gentle-ai-custom`, usás la skill maintainer y corrés `audit-gentle-ai-upstream`
+4. si hace falta, actualizás este repo antes de seguir
+5. recién ahí corrés `gentle-ai sync` (o reinstall si la auditoría lo recomienda)
+6. `apply-gentle-ai-custom` → responde **"¿quedó materializado en disco lo que ya auditamos?"**
 
-Si la auditoría detecta drift de prompt base, invariantes de perfiles o cambios de topología relevantes, frená ahí y adaptá el overlay antes de correr `sync`.
+Elección del target final:
+
+- `opencode` → suficiente para re-materializar OpenCode y la policy del overlay
+- `all` → además reinstala las skills/wrappers custom en Claude, Codex, Gemini y Antigravity
+
+Si la auditoría detecta drift de prompt base, invariantes de perfiles o cambios de topología relevantes, frená ahí y adaptá el overlay antes de correr `sync` o reinstall.
 
 El flujo completo hace, en una sola pasada:
 
@@ -140,6 +161,8 @@ El flujo completo hace, en una sola pasada:
 ### Qué reporta el script
 
 Al final de cada corrida, el script imprime un bloque `Summary:` con contadores y, si corresponde, bloques `WARNING`/`NOTE`. Los más importantes:
+
+- `--verbose` — además del `Summary:`, imprime un bloque `Verbose changes:` con cada archivo tocado y el detalle concreto de lo que se escribió, regeneró, podó o actualizó.
 
 - `orchestrators kept (already applied): N` — todo estaba aplicado y el script no tuvo que hacer nada. Run idempotente.
 - `orchestrators recovered from snapshot: N` — algún `.overlay.md` faltaba en disco y se reconstruyó desde `*.last.md`. Aparece un `NOTE` adicional avisando que el snapshot puede pre-datar la versión actual de upstream — si querés capturar fresco, corré `gentle-ai sync` y volvé a correr el script.

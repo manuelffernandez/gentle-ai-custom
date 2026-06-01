@@ -38,11 +38,17 @@ type customTarget struct {
 	commands []customCommand
 }
 
+type applyCustomOptions struct {
+	verbose  bool
+	recorder *verboseRecorder
+}
+
 func RunApplyCustom(repoRoot string, args []string) int {
-	targets, exitCode := normalizeTargets(args)
+	options, targets, exitCode := normalizeTargets(args)
 	if exitCode >= 0 {
 		return exitCode
 	}
+	options.recorder = newVerboseRecorder(options.verbose)
 
 	sharedRoot := filepath.Join(repoRoot, "shared")
 	sources := customSourceFiles{
@@ -62,66 +68,88 @@ func RunApplyCustom(repoRoot string, args []string) int {
 	}
 
 	for _, targetName := range targets {
-		if err := applyCustomTarget(buildCustomTarget(targetName, sources), sharedRoot); err != nil {
+		if err := applyCustomTarget(buildCustomTarget(targetName, sources), sharedRoot, options.recorder); err != nil {
 			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+			options.recorder.print()
 			return 1
 		}
 	}
 
 	if shouldApplyGentleOverlay(targets) {
-		if code := RunApplyPolicy(repoRoot); code != 0 {
+		if code := runApplyPolicyWithOptions(repoRoot, applyPolicyOptions{verbose: options.verbose, recorder: options.recorder}); code != 0 {
 			return code
 		}
+	} else {
+		options.recorder.print()
 	}
 
 	fmt.Println("Reminder: run audit-gentle-ai-upstream before maintainer sync/reinstall work, and re-run this script after syncs, upgrades, or managed config refreshes.")
 	return 0
 }
 
-func normalizeTargets(args []string) ([]string, int) {
+func normalizeTargets(args []string) (applyCustomOptions, []string, int) {
+	var options applyCustomOptions
 	if len(args) == 0 {
 		printApplyCustomUsage(os.Stderr)
-		return nil, 1
+		return options, nil, 1
 	}
-	if len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
-		printApplyCustomUsage(os.Stdout)
-		return nil, 0
+
+	var positional []string
+	for _, arg := range args {
+		switch arg {
+		case "-h", "--help":
+			printApplyCustomUsage(os.Stdout)
+			return options, nil, 0
+		case "--verbose":
+			options.verbose = true
+		default:
+			if strings.HasPrefix(arg, "-") {
+				fmt.Fprintf(os.Stderr, "Unknown apply-custom flag: %s\n", arg)
+				printApplyCustomUsage(os.Stderr)
+				return options, nil, 1
+			}
+			positional = append(positional, arg)
+		}
 	}
-	if len(args) == 1 && args[0] == "all" {
-		return append([]string(nil), supportedTargets...), -1
+
+	if len(positional) == 0 {
+		printApplyCustomUsage(os.Stderr)
+		return options, nil, 1
+	}
+	if len(positional) == 1 && positional[0] == "all" {
+		return options, append([]string(nil), supportedTargets...), -1
 	}
 
 	seen := map[string]bool{}
 	var result []string
-	for _, target := range args {
+	for _, target := range positional {
 		switch target {
-		case "-h", "--help":
-			printApplyCustomUsage(os.Stdout)
-			return nil, 0
 		case "all":
 			fmt.Fprintln(os.Stderr, "Use 'all' by itself, or pass explicit targets only.")
-			return nil, 1
+			return options, nil, 1
 		}
 		if !isSupportedTarget(target) {
 			fmt.Fprintf(os.Stderr, "Unknown target: %s\n", target)
-			return nil, 1
+			return options, nil, 1
 		}
 		if !seen[target] {
 			seen[target] = true
 			result = append(result, target)
 		}
 	}
-	return result, -1
+	return options, result, -1
 }
 
 func printApplyCustomUsage(out *os.File) {
-	fmt.Fprintf(out, "Usage: %s all | [opencode|claude|codex|gemini|antigravity ...]\n", filepath.Base(os.Args[0]))
+	prefix := usageCommandName("apply-custom")
+	fmt.Fprintf(out, "Usage: %s [--verbose] all | [opencode|claude|codex|gemini|antigravity ...]\n", prefix)
 	fmt.Fprintln(out, "Examples:")
-	fmt.Fprintf(out, "  %s opencode\n", filepath.Base(os.Args[0]))
-	fmt.Fprintf(out, "  %s claude codex\n", filepath.Base(os.Args[0]))
-	fmt.Fprintf(out, "  %s gemini\n", filepath.Base(os.Args[0]))
-	fmt.Fprintf(out, "  %s antigravity\n", filepath.Base(os.Args[0]))
-	fmt.Fprintf(out, "  %s all\n", filepath.Base(os.Args[0]))
+	fmt.Fprintf(out, "  %s opencode\n", prefix)
+	fmt.Fprintf(out, "  %s opencode --verbose\n", prefix)
+	fmt.Fprintf(out, "  %s claude codex\n", prefix)
+	fmt.Fprintf(out, "  %s gemini\n", prefix)
+	fmt.Fprintf(out, "  %s antigravity\n", prefix)
+	fmt.Fprintf(out, "  %s all\n", prefix)
 }
 
 func isSupportedTarget(target string) bool {
@@ -198,7 +226,7 @@ func buildCustomTarget(name string, sources customSourceFiles) customTarget {
 	return target
 }
 
-func applyCustomTarget(target customTarget, sharedRoot string) error {
+func applyCustomTarget(target customTarget, sharedRoot string, recorder *verboseRecorder) error {
 	if len(target.commands) == 0 {
 		return fmt.Errorf("no commands defined for target %q", target.name)
 	}
@@ -207,17 +235,17 @@ func applyCustomTarget(target customTarget, sharedRoot string) error {
 		"pr-finalizer":        filepath.Join(sharedRoot, "skills", "pr-finalizer", "SKILL.md"),
 		"code-modularization": filepath.Join(sharedRoot, "skills", "code-modularization", "SKILL.md"),
 	}
-	if err := installSkill(target.basePath, "commit-planner", skillSources["commit-planner"]); err != nil {
+	if err := installSkill(target.basePath, "commit-planner", skillSources["commit-planner"], target.name, recorder); err != nil {
 		return err
 	}
-	if err := installSkill(target.basePath, "pr-finalizer", skillSources["pr-finalizer"]); err != nil {
+	if err := installSkill(target.basePath, "pr-finalizer", skillSources["pr-finalizer"], target.name, recorder); err != nil {
 		return err
 	}
-	if err := installSkill(target.basePath, "code-modularization", skillSources["code-modularization"]); err != nil {
+	if err := installSkill(target.basePath, "code-modularization", skillSources["code-modularization"], target.name, recorder); err != nil {
 		return err
 	}
 	for _, command := range target.commands {
-		if err := renderCustomCommand(target.basePath, command); err != nil {
+		if err := renderCustomCommand(target.basePath, command, target.name, recorder); err != nil {
 			return err
 		}
 	}
@@ -225,8 +253,16 @@ func applyCustomTarget(target customTarget, sharedRoot string) error {
 	return nil
 }
 
-func installSkill(targetDir, skillName, skillSource string) error {
-	return copyFile(skillSource, filepath.Join(targetDir, "skills", skillName, "SKILL.md"))
+func installSkill(targetDir, skillName, skillSource, targetName string, recorder *verboseRecorder) error {
+	destination := filepath.Join(targetDir, "skills", skillName, "SKILL.md")
+	status, err := copyFileWithStatus(skillSource, destination)
+	if err != nil {
+		return err
+	}
+	if shouldRecordWriteStatus(status) {
+		recorder.record(destination, fmt.Sprintf("installed %s skill for %s target (%s)", skillName, targetName, describeWriteStatus(status)))
+	}
+	return nil
 }
 
 func skillNameForCommand(command string) string {
@@ -236,14 +272,22 @@ func skillNameForCommand(command string) string {
 	return "pr-finalizer"
 }
 
-func renderCustomCommand(targetDir string, command customCommand) error {
+func renderCustomCommand(targetDir string, command customCommand, targetName string, recorder *verboseRecorder) error {
 	bodyRaw, err := os.ReadFile(command.bodyPath)
 	if err != nil {
 		return err
 	}
 	body := normalizeLF(string(bodyRaw))
 	content := buildCustomCommandContent(command, body)
-	return writeTextFile(filepath.Join(targetDir, command.fileRelPath), content)
+	destination := filepath.Join(targetDir, command.fileRelPath)
+	status, err := writeTextFileWithStatus(destination, content)
+	if err != nil {
+		return err
+	}
+	if shouldRecordWriteStatus(status) {
+		recorder.record(destination, fmt.Sprintf("rendered %s command for %s target (%s)", command.fileRelPath, targetName, describeWriteStatus(status)))
+	}
+	return nil
 }
 
 func buildCustomCommandContent(command customCommand, body string) string {

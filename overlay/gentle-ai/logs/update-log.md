@@ -2,6 +2,65 @@
 
 > Este archivo registra decisiones e hitos del mantenimiento del overlay. No es la fuente autoritativa del último upstream mantenido; esa responsabilidad vive en `overlay/gentle-ai/state/upstream-state.json`.
 
+## 2026-06-01 — Added verbose file-level output for apply-custom
+
+Razón del cambio:
+
+- El entrypoint `apply-gentle-ai-custom` ya mostraba bien los contadores del `Summary:`, pero faltaba trazabilidad humana cuando el usuario necesitaba saber QUÉ archivos se tocaron y QUÉ cambió concretamente en cada uno.
+- Ese gap hacía más difícil auditar corridas reales del overlay, sobre todo cuando el apply reescribía snapshots, prompts generados o `opencode.json` sin dejar un detalle explícito por archivo.
+
+WHAT cambió:
+
+- `internal/overlay/apply_custom.go`, `internal/overlay/apply_policy.go`, `internal/overlay/overlays.go`, `internal/overlay/profiles.go`, `internal/overlay/snapshots.go`, `internal/overlay/summary.go`, `internal/overlay/util.go`, `internal/overlay/verbose.go`, `cmd/gentle-ai-overlay/main.go`:
+  - nuevo flag `--verbose` para `apply-custom` y `apply-policy`
+  - recorder compartido de cambios por archivo
+  - output adicional `Verbose changes:` con paths tocados y detalle de escrituras, regeneraciones, poda de skills, snapshots y updates en `opencode.json`
+  - el `Summary:` previo se mantiene backward compatible
+- `apply-gentle-ai-custom.sh/.ps1`:
+  - ahora propagan el nombre real del entrypoint para que la ayuda del CLI muestre el wrapper canónico y no el subcomando interno
+- `overlay/gentle-ai/scripts/apply-gentle-ai-policy.sh` y `.ps1`:
+  - ahora forwardean args al subcomando Go y preservan ayuda/errores consistentes para `--verbose`
+- `README.md`, `overlay/gentle-ai/README.md`, `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`, `AGENTS.md`:
+  - documentado el nuevo modo verbose y su contrato operativo
+
+WHY:
+
+- Los contadores sirven para ver magnitud, pero NO alcanzan para entender el efecto real de una corrida. Cuando mantenés overlays, necesitás ver el archivo exacto y la mutación concreta para auditar sin adivinar.
+- Mantener el `Summary:` intacto evita romper hábitos o parsing existente, mientras que `--verbose` agrega el detalle solo cuando realmente se necesita.
+
+Verificación:
+
+- `gofmt -w cmd/gentle-ai-overlay/main.go internal/overlay/apply_custom.go internal/overlay/apply_policy.go internal/overlay/overlays.go internal/overlay/profiles.go internal/overlay/snapshots.go internal/overlay/summary.go internal/overlay/util.go internal/overlay/verbose.go`
+- `go test ./...`
+- `go run ./cmd/gentle-ai-overlay --help`
+- `go run ./cmd/gentle-ai-overlay apply-policy --help`
+- `go run ./cmd/gentle-ai-overlay apply-custom --help`
+
+## 2026-06-01 — Clarified maintainer workflow ordering and apply target choice
+
+Razón del cambio:
+
+- El flujo operativo ya distinguía bien auditoría pre-sync vs apply post-sync, pero la documentación todavía no dejaba explícitos dos detalles importantes para mantenimiento real: trabajar desde `gentle-ai-custom` con la skill maintainer y actualizar este repo si la auditoría upstream lo exige antes de correr `sync`.
+- Además, la documentación trataba `bash apply-gentle-ai-custom.sh all` como único cierre válido, cuando en realidad `opencode` ya alcanza para re-materializar OpenCode + la policy del overlay; `all` solo agrega el refresh de skills/wrappers custom en el resto de targets.
+
+WHAT cambió:
+
+- `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`:
+  - el camino recomendado ahora explicita el orden completo: update binario → `git pull` upstream → abrir `gentle-ai-custom`/activar maintainer → auditar → actualizar este repo si hace falta → `sync` o reinstall → `apply ... opencode|all`
+  - la regla operativa post-update ya no fuerza `all`; documenta `opencode` como mínimo y `all` como refresh multi-target
+- `README.md`, `overlay/gentle-ai/README.md`, `AGENTS.md` y `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`:
+  - alineados con el mismo orden operativo y con la distinción `opencode` vs `all`
+
+WHY:
+
+- El mantenimiento del overlay tiene dos preguntas distintas y ambas deben quedar visibles en el runbook: primero si el upstream se puede adoptar, después cómo materializar localmente lo ya auditado.
+- Si la documentación obliga siempre a `all`, mezcla la necesidad real del overlay de OpenCode con una conveniencia adicional de distribución multi-target.
+
+Verificación:
+
+- Revisión cruzada de coherencia entre `runbooks/maintain-upstream-overlay.md`, `README.md`, `overlay/gentle-ai/README.md`, `AGENTS.md` y `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`.
+- Confirmado en `internal/overlay/apply_custom.go` que `opencode` ya dispara `RunApplyPolicy()` y que `all` solo amplía la instalación de skills/wrappers custom a todos los targets soportados.
+
 ## 2026-06-01 — Completed the shared Go overlay CLI refactor
 
 Razón del cambio:

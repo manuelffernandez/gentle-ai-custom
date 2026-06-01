@@ -4,15 +4,20 @@ Este overlay mantiene una política **persistente y reaplicable** para tu stack 
 
 ## Quick path
 
-1. Actualizá Gentle AI y hacé `git pull` en tu clon upstream.
-2. Auditá ANTES de sync:
+1. Actualizá el binario de Gentle AI.
+2. Hacé `git pull` en tu clon upstream de `/home/manuel/Documentos/gentle-ai`.
+3. Abrí `gentle-ai-custom` y usá la skill maintainer para revisar el delta upstream.
+4. Auditá ANTES de sync:
    - Linux/macOS: `bash ~/Documentos/gentle-ai-custom/audit-gentle-ai-upstream.sh`
    - Windows: `~\Documentos\gentle-ai-custom\audit-gentle-ai-upstream.ps1`
-3. Si la auditoría da OK, corré tu sync o reinstall de Gentle AI.
-4. Reaplicá la capa custom completa:
-   - Linux/macOS: `bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh all`
-   - Windows: `~\Documentos\gentle-ai-custom\apply-gentle-ai-custom.ps1 all`
-5. Reiniciá OpenCode si el script tocó `opencode.json`.
+5. Si la auditoría exige cambios en este repo, actualizá primero `gentle-ai-custom`.
+6. Si la auditoría da OK, corré tu `gentle-ai sync` o reinstall según el cambio upstream auditado.
+7. Reaplicá la capa custom:
+   - Linux/macOS: `bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh opencode`
+   - Windows: `~\Documentos\gentle-ai-custom\apply-gentle-ai-custom.ps1 opencode`
+   - Usá `all` en lugar de `opencode` si también querés refrescar las skills/wrappers custom de todos los targets soportados.
+   - Agregá `--verbose` si querés ver cada archivo tocado y la modificación concreta que hizo el helper.
+8. Reiniciá OpenCode si el script tocó `opencode.json`.
 
 Cuando audités cambios del upstream con la skill maintainer, esa skill te tiene que decir además si ese delta se resuelve con `gentle-ai sync` o si requiere reinstalación completa. Si hubo cambios de topología, `sync` no alcanza.
 

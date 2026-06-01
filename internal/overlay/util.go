@@ -1,6 +1,7 @@
 package overlay
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -84,13 +85,40 @@ func copyFile(src, dst string) error {
 	return writeAtomicFile(dst, raw, 0o644)
 }
 
+func copyFileWithStatus(src, dst string) (string, error) {
+	raw, err := os.ReadFile(src)
+	if err != nil {
+		return "", err
+	}
+	return writeAtomicFileWithStatus(dst, raw, 0o644)
+}
+
 func writeTextFile(path, content string) error {
 	return writeAtomicFile(path, []byte(normalizeLFTerminated(content)), 0o644)
 }
 
+func writeTextFileWithStatus(path, content string) (string, error) {
+	return writeAtomicFileWithStatus(path, []byte(normalizeLFTerminated(content)), 0o644)
+}
+
 func writeAtomicFile(path string, data []byte, defaultMode os.FileMode) error {
+	_, err := writeAtomicFileWithStatus(path, data, defaultMode)
+	return err
+}
+
+func writeAtomicFileWithStatus(path string, data []byte, defaultMode os.FileMode) (string, error) {
+	status := "new"
+	if existing, err := os.ReadFile(path); err == nil {
+		if bytes.Equal(existing, data) {
+			return "unchanged", nil
+		} else {
+			status = "changed"
+		}
+	} else if !os.IsNotExist(err) {
+		return "", err
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
+		return "", err
 	}
 	mode := defaultMode
 	if info, err := os.Stat(path); err == nil {
@@ -98,7 +126,7 @@ func writeAtomicFile(path string, data []byte, defaultMode os.FileMode) error {
 	}
 	tmp, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".*")
 	if err != nil {
-		return err
+		return "", err
 	}
 	tmpPath := tmp.Name()
 	cleanup := func() {
@@ -107,21 +135,32 @@ func writeAtomicFile(path string, data []byte, defaultMode os.FileMode) error {
 	if _, err := tmp.Write(data); err != nil {
 		_ = tmp.Close()
 		cleanup()
-		return err
+		return "", err
 	}
 	if err := tmp.Close(); err != nil {
 		cleanup()
-		return err
+		return "", err
 	}
 	if err := os.Chmod(tmpPath, mode); err != nil {
 		cleanup()
-		return err
+		return "", err
 	}
 	if err := os.Rename(tmpPath, path); err != nil {
 		cleanup()
-		return err
+		return "", err
 	}
-	return nil
+	return status, nil
+}
+
+func usageCommandName(subcommand string) string {
+	if entrypoint := strings.TrimSpace(os.Getenv("GENTLE_AI_CUSTOM_ENTRYPOINT")); entrypoint != "" {
+		return entrypoint
+	}
+	name := filepath.Base(os.Args[0])
+	if strings.Contains(name, "gentle-ai-overlay") && subcommand != "" {
+		return name + " " + subcommand
+	}
+	return name
 }
 
 func readJSONFile(path string, target any) error {
@@ -185,12 +224,17 @@ func runGit(repo string, allowFailure bool, args ...string) (string, error) {
 }
 
 func writeJSONIndented(path string, data any) error {
+	_, err := writeJSONIndentedWithStatus(path, data)
+	return err
+}
+
+func writeJSONIndentedWithStatus(path string, data any) (string, error) {
 	raw, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
-		return err
+		return "", err
 	}
 	raw = append(raw, '\n')
-	return writeAtomicFile(path, raw, 0o644)
+	return writeAtomicFileWithStatus(path, raw, 0o644)
 }
 
 func pathExists(path string) bool {

@@ -24,18 +24,9 @@ func safeSnapshotKey(key string) (string, error) {
 // writeSnapshotWithStatus writes content to path and returns a status string
 // ("new", "changed", or "unchanged") plus updates the given counters.
 func writeSnapshotWithStatus(path, content string, counters *snapshotCounters) (string, error) {
-	normalized := normalizeLFTerminated(content)
-	status := "new"
-	if pathExists(path) {
-		existing, err := readText(path)
-		if err != nil {
-			return "", err
-		}
-		if normalizeLFTerminated(existing) == normalized {
-			status = "unchanged"
-		} else {
-			status = "changed"
-		}
+	status, err := writeTextFileWithStatus(path, content)
+	if err != nil {
+		return "", err
 	}
 	switch status {
 	case "new":
@@ -45,7 +36,7 @@ func writeSnapshotWithStatus(path, content string, counters *snapshotCounters) (
 	case "unchanged":
 		counters.Unchanged++
 	}
-	return status, writeTextFile(path, content)
+	return status, nil
 }
 
 // migrateRepoSnapshotToLocal copies a versioned repo snapshot to the local
@@ -65,6 +56,7 @@ func (s *applyPolicyState) migrateRepoSnapshotToLocal(agentKey, repoSnapshotPath
 		return
 	}
 	s.localSnapshotMigrate++
+	s.recordVerbose(localSnapshotPath, fmt.Sprintf("migrated local operational snapshot for %s from repo snapshot", agentKey))
 	fmt.Printf("  migrated snapshot %s -> %s (from repo versioned snapshot)\n", agentKey, localSnapshotPath)
 }
 
@@ -86,5 +78,6 @@ func (s *applyPolicyState) backfillRepoSnapshotFromLocal(agentKey, localSnapshot
 		return
 	}
 	s.repoSnapshotBackfill++
+	s.recordVerbose(repoSnapshotPath, fmt.Sprintf("backfilled versioned repo snapshot for %s from local operational snapshot", agentKey))
 	fmt.Printf("  backfilled repo snapshot %s -> %s (from local operational snapshot)\n", agentKey, repoSnapshotPath)
 }

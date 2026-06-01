@@ -10,4 +10,4 @@ command -v "${GO_CMD}" >/dev/null 2>&1 || {
 }
 
 cd "${SOURCE_DIR}"
-exec "${GO_CMD}" run ./cmd/gentle-ai-overlay --repo-root "${SOURCE_DIR}" apply-custom "$@"
+exec env GENTLE_AI_CUSTOM_ENTRYPOINT="$(basename "$0")" "${GO_CMD}" run ./cmd/gentle-ai-overlay --repo-root "${SOURCE_DIR}" apply-custom "$@"

@@ -13,6 +13,8 @@ import (
 // pipeline. It is created once in RunApplyPolicy and threaded through each phase.
 type applyPolicyState struct {
 	policy               Policy
+	verbose              bool
+	recorder             *verboseRecorder
 	configPath           string
 	generatedDir         string
 	repoSnapshotDir      string
@@ -50,9 +52,22 @@ type applyPolicyState struct {
 	sddPhasesSet         map[string]bool
 }
 
+type applyPolicyOptions struct {
+	verbose  bool
+	recorder *verboseRecorder
+}
+
 // RunApplyPolicy is the main entrypoint. It loads the policy, builds initial
 // state, and runs each phase of the apply pipeline in order.
-func RunApplyPolicy(repoRoot string) int {
+func RunApplyPolicy(repoRoot string, args []string) int {
+	options, exitCode := normalizeApplyPolicyArgs(args)
+	if exitCode >= 0 {
+		return exitCode
+	}
+	return runApplyPolicyWithOptions(repoRoot, options)
+}
+
+func runApplyPolicyWithOptions(repoRoot string, options applyPolicyOptions) int {
 	policy, _, err := loadPolicy(repoRoot)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
@@ -61,6 +76,8 @@ func RunApplyPolicy(repoRoot string) int {
 
 	state := &applyPolicyState{
 		policy:               policy,
+		verbose:              options.verbose,
+		recorder:             options.recorder,
 		configPath:           expandUser(policy.OpenCode.ConfigPath),
 		generatedDir:         expandUser(policy.OpenCode.GeneratedOrchestratorsDir),
 		repoSnapshotDir:      filepath.Join(repoRoot, policy.OpenCode.OrchestratorSnapshotDir),
@@ -72,6 +89,14 @@ func RunApplyPolicy(repoRoot string) int {
 		originalAgentKeys:    map[string]bool{},
 		sddPhasesSet:         map[string]bool{},
 	}
+	if state.recorder == nil {
+		state.recorder = newVerboseRecorder(options.verbose)
+	}
+	fail := func(err error) int {
+		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		state.recorder.print()
+		return 1
+	}
 	state.repoSnapshotBaseFile = filepath.Join(state.repoSnapshotDir, policy.OpenCode.BaseOrchestratorKey+".last.md")
 	for _, phase := range policy.OpenCode.SDDPhases {
 		state.sddPhasesSet[phase] = true
@@ -79,8 +104,7 @@ func RunApplyPolicy(repoRoot string) int {
 
 	fmt.Println("Applying Gentle AI overlay policy...")
 	if err := state.pruneSkills(); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
-		return 1
+		return fail(err)
 	}
 
 	if !pathExists(state.configPath) {
@@ -90,34 +114,54 @@ func RunApplyPolicy(repoRoot string) int {
 	}
 
 	if err := state.loadOpenCodeConfig(); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
-		return 1
+		return fail(err)
 	}
 	if err := state.loadAuditedBaseline(repoRoot); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
-		return 1
+		return fail(err)
 	}
 
 	state.applyAgentOverrides()
 	if err := state.reconcileProfiles(); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
-		return 1
+		return fail(err)
 	}
 	state.detectTopologyDrift()
 	if err := state.generateOverlays(); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
-		return 1
+		return fail(err)
 	}
 	if err := state.persistConfig(); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
-		return 1
+		return fail(err)
 	}
 	if err := state.verifyPersistedState(); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
-		return 1
+		return fail(err)
 	}
 	state.printSummary()
 	return 0
+}
+
+func normalizeApplyPolicyArgs(args []string) (applyPolicyOptions, int) {
+	var options applyPolicyOptions
+	for _, arg := range args {
+		switch arg {
+		case "-h", "--help":
+			printApplyPolicyUsage(os.Stdout)
+			return options, 0
+		case "--verbose":
+			options.verbose = true
+		default:
+			if strings.HasPrefix(arg, "-") {
+				fmt.Fprintf(os.Stderr, "Unknown apply-policy flag: %s\n", arg)
+			} else {
+				fmt.Fprintf(os.Stderr, "apply-policy does not accept positional argument: %s\n", arg)
+			}
+			printApplyPolicyUsage(os.Stderr)
+			return options, 1
+		}
+	}
+	return options, -1
+}
+
+func printApplyPolicyUsage(out *os.File) {
+	fmt.Fprintf(out, "Usage: %s [--verbose]\n", usageCommandName("apply-policy"))
 }
 
 // --- Skills ---
@@ -139,6 +183,7 @@ func (s *applyPolicyState) pruneSkills() error {
 					return fmt.Errorf("failed to remove skill %s: %w", skillPath, err)
 				}
 				s.prunedCount++
+				s.recordVerbose(skillPath, fmt.Sprintf("removed pruned skill directory %q", skill))
 				fmt.Printf("  removed %s\n", skill)
 			} else {
 				fmt.Printf("  already absent %s\n", skill)
@@ -233,20 +278,27 @@ func (s *applyPolicyState) applyAgentOverrides() {
 			current = map[string]any{}
 			s.agents[override.Key] = current
 			s.createdOverrides = append(s.createdOverrides, override.Key)
+			s.recordVerbose(s.configPath, fmt.Sprintf("agent.%s: created missing object before applying override", override.Key))
 			fmt.Printf("  agent override %s reset to object before applying model\n", override.Key)
 		}
-		if jsonString(current["model"]) != override.Model {
+		oldModel := jsonString(current["model"])
+		if oldModel != override.Model {
 			current["model"] = override.Model
 			s.configChanged = true
+			s.recordVerbose(s.configPath, fmt.Sprintf("agent.%s.model: %s -> %s", override.Key, quotedValue(oldModel), quotedValue(override.Model)))
 		}
 		if override.Variant != "" {
-			if jsonString(current["variant"]) != override.Variant {
+			oldVariant := jsonString(current["variant"])
+			if oldVariant != override.Variant {
 				current["variant"] = override.Variant
 				s.configChanged = true
+				s.recordVerbose(s.configPath, fmt.Sprintf("agent.%s.variant: %s -> %s", override.Key, quotedValue(oldVariant), quotedValue(override.Variant)))
 			}
 		} else if _, hasVariant := current["variant"]; hasVariant {
+			oldVariant := jsonString(current["variant"])
 			delete(current, "variant")
 			s.configChanged = true
+			s.recordVerbose(s.configPath, fmt.Sprintf("agent.%s.variant: removed %s", override.Key, quotedValue(oldVariant)))
 		}
 		suffix := ""
 		if override.Variant != "" {
@@ -310,7 +362,14 @@ func (s *applyPolicyState) persistConfig() error {
 	if !s.configChanged {
 		return nil
 	}
-	return writeJSONIndented(s.configPath, s.configData)
+	status, err := writeJSONIndentedWithStatus(s.configPath, s.configData)
+	if err != nil {
+		return err
+	}
+	if shouldRecordWriteStatus(status) {
+		s.recordVerbose(s.configPath, fmt.Sprintf("saved OpenCode config (%s)", describeWriteStatus(status)))
+	}
+	return nil
 }
 
 func (s *applyPolicyState) verifyPersistedState() error {

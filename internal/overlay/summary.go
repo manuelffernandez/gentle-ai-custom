@@ -22,7 +22,7 @@ func (s *applyPolicyState) printSummary() {
 	fmt.Printf("  local snapshot migrations from repo: %d\n", s.localSnapshotMigrate)
 	fmt.Printf("  repo snapshot backfills from local: %d\n", s.repoSnapshotBackfill)
 	fmt.Printf("  topology warnings: %d\n", len(s.topologyWarnings))
-	fmt.Printf("  SDD profiles managed: %d\n", s.profilesManagedCount)
+	fmt.Printf("  SDD profiles in local config: %d\n", s.profilesManagedCount)
 	fmt.Printf("  SDD profile agents created: %d\n", s.profileAgentsCreated)
 	fmt.Printf("  SDD profile agents updated: %d\n", s.profileAgentsUpdated)
 	fmt.Printf("  SDD profile agents unchanged: %d\n", s.profileAgentsSame)
@@ -71,6 +71,7 @@ func (s *applyPolicyState) printSummary() {
 		fmt.Println()
 		fmt.Println("NOTE: topology drift detected. Review the topology: warnings above and update policy/intent if needed.")
 	}
+	s.recorder.print()
 	fmt.Println()
 	fmt.Println("Done. Restart OpenCode if opencode.json changed.")
 }
@@ -87,5 +88,6 @@ func (s *applyPolicyState) printMissingOpenCodeSummary() {
 			fmt.Printf("    - %s\n", entry)
 		}
 	}
+	s.recorder.print()
 	fmt.Println("Done.")
 }

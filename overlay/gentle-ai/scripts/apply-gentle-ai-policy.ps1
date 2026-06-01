@@ -13,7 +13,8 @@ if (-not $goCommand) {
 
 Push-Location $RepoRoot
 try {
-    & $goCommand.Source run .\cmd\gentle-ai-overlay --repo-root $RepoRoot apply-policy
+    $env:GENTLE_AI_CUSTOM_ENTRYPOINT = Split-Path -Leaf $PSCommandPath
+    & $goCommand.Source run .\cmd\gentle-ai-overlay --repo-root $RepoRoot apply-policy @args
     exit $LASTEXITCODE
 }
 finally {

@@ -4,7 +4,7 @@ description: "Trigger: gentle ai update, auditar gentle ai, depurar gentle ai, r
 license: Apache-2.0
 metadata:
   author: gentleman-programming
-  version: "1.3"
+  version: "1.4"
 ---
 
 # Gentle AI Overlay Maintainer
@@ -21,6 +21,7 @@ Use this skill when:
 
 - Work from `gentle-ai-custom`, not from the upstream repo.
 - Treat `/home/manuel/Documentos/gentle-ai` as upstream input only.
+- Follow this order for maintainer updates: update `gentle-ai` binary -> `git pull` upstream -> audit from `gentle-ai-custom` -> update this repo if needed -> run `gentle-ai sync` or reinstall -> run `apply-gentle-ai-custom`.
 - ALWAYS triage the update type before deciding what to audit (see Update-Type Triage). The triage table itself describes what state the overlay is in for each path.
 - After auditing upstream drift, ALWAYS translate the findings into an explicit adoption recommendation: `gentle-ai sync` when topology is unchanged, full reinstall when topology changed or sync cannot materialize the new upstream shape.
 - Read semantic intent before making maintenance decisions.
@@ -48,7 +49,7 @@ Re-apply paths are mandatory regardless of whether upstream content changed — 
 | If | Then |
 |---|---|
 | User updated upstream (`git pull`) but has NOT run `gentle-ai sync` yet | Run `bash audit-gentle-ai-upstream.sh` FIRST. Use it to detect base prompt drift + profile invariants before recommending sync/reinstall. |
-| User just ran `gentle-ai sync` | Re-apply overlay immediately (`bash apply-gentle-ai-custom.sh all`). The apply entrypoint now auto-verifies the materialized `gentle-orchestrator` against the last audited baseline. |
+| User just ran `gentle-ai sync` | Re-apply overlay immediately (`bash apply-gentle-ai-custom.sh opencode` minimum, or `all` if they also want to refresh every custom target). The apply entrypoint now auto-verifies the materialized `gentle-orchestrator` against the last audited baseline. |
 | User just ran TUI reinstall | Audit topology BEFORE re-applying. New/renamed/removed agents may require policy updates first. |
 | Script printed `topology: ...` warnings | Investigate each warning. New explicit orchestrators need policy entries; missing/created entries need maintenance-intent updates. STOP and ask the user before mutating policy. Note: `sdd-orchestrator-<name>` orchestrators are deliberately suppressed from prefix-only topology warnings; they belong to the SDD profile local config, not the versioned policy. |
 | Script printed `WARNING - unmanaged SDD profiles left untouched` | A profile exists in `opencode.json` but is not named in `~/.config/gentle-ai-custom/opencode-sdd-profiles.json`. Ask the user whether to add it to the local config (to manage) or delete its agent keys manually (to remove). NEVER delete it automatically. |
@@ -67,26 +68,28 @@ Re-apply paths are mandatory regardless of whether upstream content changed — 
 
 ## Execution Steps
 
-1. **Triage**: determine update type (see Update-Type Triage). If unclear, ask the user.
-2. Read `overlay/gentle-ai/policy/maintenance-intent.md`.
-3. Read `overlay/gentle-ai/policy/gentle-ai-policy.json`.
-4. Read `overlay/gentle-ai/state/upstream-state.json`.
-5. Read `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`.
-6. If the user has NOT run `gentle-ai sync` yet, run `bash audit-gentle-ai-upstream.sh` (or `.ps1` on Windows) FIRST and capture its full output.
-7. Inspect upstream `/home/manuel/Documentos/gentle-ai` and determine the current relevant version boundary (tag and/or commit).
-8. If `last_maintained_commit` exists, review the upstream change range from `last_maintained_commit` to the current upstream state, including intermediate minor releases or commits in that range.
-9. Classify findings into:
+1. **Confirm the workflow order**: binary update -> upstream `git pull` -> maintainer audit from `gentle-ai-custom` -> overlay repo updates if needed -> `gentle-ai sync` or reinstall -> overlay apply.
+2. **Triage**: determine update type (see Update-Type Triage). If unclear, ask the user.
+3. Read `overlay/gentle-ai/policy/maintenance-intent.md`.
+4. Read `overlay/gentle-ai/policy/gentle-ai-policy.json`.
+5. Read `overlay/gentle-ai/state/upstream-state.json`.
+6. Read `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`.
+7. If the user has NOT run `gentle-ai sync` yet, work from `gentle-ai-custom`, activate the maintainer workflow, run `bash audit-gentle-ai-upstream.sh` (or `.ps1` on Windows) FIRST, and capture its full output.
+8. Inspect upstream `/home/manuel/Documentos/gentle-ai` and determine the current relevant version boundary (tag and/or commit).
+9. If `last_maintained_commit` exists, review the upstream change range from `last_maintained_commit` to the current upstream state, including intermediate minor releases or commits in that range.
+10. Classify findings into:
    - base prompt drift (`gentle-orchestrator`)
    - profile-generation invariant drift
    - behavior / workflow / feature changes relevant to the overlay
    - topology changes (renamed/added/removed agents)
    - recommended upstream adoption path: `gentle-ai sync` vs full reinstall
    - likely low-priority bugfix / chore noise
-10. If relevant changes affect keep/prune intent, sanitization behavior, or topology, STOP and ask the user what to preserve or depure before editing anything. In that same handoff, explicitly tell the user whether the audited upstream delta should be applied with `gentle-ai sync` or with a full reinstall, and why.
-11. After approval, update scripts, policy, docs, state, snapshots, metadata, and logs together.
-12. **Run the apply entrypoint**: `bash apply-gentle-ai-custom.sh all` (or `.ps1` on Windows). Capture full output, including the `topology:` lines and the final `Summary:` block.
-13. **Read the summary** and act on each signal (see Decision Gates).
-14. **Verify post-state on disk** (read-only checks; ALL must pass):
+11. If relevant changes affect keep/prune intent, sanitization behavior, or topology, STOP and ask the user what to preserve or depure before editing anything. In that same handoff, explicitly tell the user whether the audited upstream delta should be applied with `gentle-ai sync` or with a full reinstall, and why.
+12. After approval, update this repo if needed: scripts, policy, docs, state, snapshots, metadata, and logs together.
+13. Only after that, run the upstream refresh path recommended by the audit: `gentle-ai sync` or full reinstall.
+14. **Run the apply entrypoint**: `bash apply-gentle-ai-custom.sh opencode` minimum (or `all` if the user also wants every custom target refreshed). Capture full output, including the `topology:` lines and the final `Summary:` block.
+15. **Read the summary** and act on each signal (see Decision Gates).
+16. **Verify post-state on disk** (read-only checks; ALL must pass):
     - For each path in `gentle-ai-policy.json` → `skills.targets`: none of `skills.prune` entries may exist as directories inside it.
     - For each `agent_overrides` entry: `~/.config/opencode/opencode.json` → `agent.<key>.model` must equal the policy value; `variant` must equal the policy value when set.
     - For each `orchestrator_agent_keys` entry: `agent.<key>.prompt` must be a `{file:...}` reference, and the referenced file must exist on disk.
@@ -94,7 +97,7 @@ Re-apply paths are mandatory regardless of whether upstream content changed — 
     - `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/` must contain the operational snapshot for `gentle-orchestrator`, plus any managed `sdd-orchestrator-<name>` snapshots.
     - If `~/.config/gentle-ai-custom/opencode-sdd-profiles.json` exists: for each profile `<name>` in it, `agent.sdd-orchestrator-<name>` and `agent.sdd-<phase>-<name>` (10 phases) must exist with matching `model` + `variant`.
     - `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.meta.yaml` must exist and match `upstream-state.json` + the SHA-256 of `gentle-orchestrator.last.md`.
-15. Record the decision in `overlay/gentle-ai/logs/update-log.md` (include update type, topology findings, base prompt drift, profile invariant drift, recovery events, and any policy mutations).
+17. Record the decision in `overlay/gentle-ai/logs/update-log.md` (include update type, topology findings, base prompt drift, profile invariant drift, recovery events, and any policy mutations).
 
 ## Hardening option: external-single-active strategy
 

@@ -55,11 +55,21 @@ El directorio `~/.config/opencode/profiles/` en este setup está vacío, por lo 
 
 ### Regla operativa invariante
 
-**Después de cualquier operación de Gentle AI que no sea solo `brew upgrade`, es obligatorio correr:**
+**Después de cualquier operación de Gentle AI que no sea solo `brew upgrade`, es obligatorio re-aplicar la capa custom.**
+
+Mínimo para OpenCode y la policy del overlay:
+
+```bash
+bash apply-gentle-ai-custom.sh opencode
+```
+
+Si además querés refrescar las skills/wrappers custom en todos los targets soportados:
 
 ```bash
 bash apply-gentle-ai-custom.sh all
 ```
+
+`opencode` alcanza para refrescar OpenCode, orchestrators y overrides. `all` además reinstala wrappers/skills custom en el resto de los targets soportados.
 
 Esto re-aplica el overlay completo:
 - poda las skills no deseadas (branch-pr, chained-pr, issue-creation, work-unit-commits)
@@ -90,21 +100,24 @@ Durante esta auditoría, la skill maintainer debe devolver esta recomendación d
 
 ### Camino recomendado (simple)
 
-1. **Actualizá Gentle AI**
+1. **Actualizá el binario de Gentle AI**
    - ejemplo: `brew upgrade gentle-ai`
 2. **Actualizá el repo upstream de Gentle AI**
    - en tu clon de `/home/manuel/Documentos/gentle-ai`: `git pull`
-3. **Auditá ANTES de sync**
+3. **Abrí `gentle-ai-custom` y activá el flujo maintainer**
+   - trabajá desde este repo
+   - usá la skill/agente maintainer para auditar el delta upstream y decidir la adopción
    - corré: `bash audit-gentle-ai-upstream.sh`
    - este paso compara el `gentle-orchestrator` base contra el baseline auditado (`gentle-orchestrator.last.md` + `.meta.yaml`) y chequea invariantes upstream de perfiles
-4. **Leé el resumen y decidí**
-   - si el auditor detecta drift o topología nueva, primero adaptá el overlay
+4. **Leé el resumen y actualizá `gentle-ai-custom` si hace falta**
+   - si el auditor detecta drift o topología nueva, primero adaptá este repo: docs, policy, sanitizador, state, snapshots o log según corresponda
    - si recomienda reinstall, no sigas con sync
-5. **Recién cuando la auditoría dé OK, corré el refresh upstream**
+5. **Recién cuando la auditoría dé OK y este repo ya esté alineado, corré el refresh upstream**
    - `gentle-ai sync`
    - o reinstalación completa si esa fue la recomendación
 6. **Re-aplicá tu capa custom**
-   - `bash apply-gentle-ai-custom.sh all`
+   - `bash apply-gentle-ai-custom.sh opencode` si solo querés re-materializar OpenCode + policy del overlay
+   - `bash apply-gentle-ai-custom.sh all` si además querés refrescar las skills/wrappers custom en todos los targets soportados
    - este paso ahora incluye la verificación automática fail-closed del baseline auditado
 7. **Si todo salió bien, recién ahí cerrá el mantenimiento**
    - revisá el diff de snapshots versionados si cambió el baseline base
@@ -118,7 +131,7 @@ Durante esta auditoría, la skill maintainer debe devolver esta recomendación d
 
 ### Señales del script para actuar
 
-Después de cada corrida del script, leé el bloque `Summary:` y los `topology:` warnings. Cada señal mapea a una acción concreta:
+Después de cada corrida del script, leé el bloque `Summary:` y los `topology:` warnings. Si necesitás trazabilidad completa de la materialización, corré `apply-gentle-ai-custom ... --verbose`: agrega un bloque `Verbose changes:` con cada archivo tocado y la modificación concreta. Cada señal mapea a una acción concreta:
 
 | Señal en el output | Significa | Acción |
 |---|---|---|

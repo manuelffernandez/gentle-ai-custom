@@ -11,4 +11,4 @@ command -v "${GO_CMD}" >/dev/null 2>&1 || {
 }
 
 cd "${REPO_ROOT}"
-exec "${GO_CMD}" run ./cmd/gentle-ai-overlay --repo-root "${REPO_ROOT}" apply-policy
+exec env GENTLE_AI_CUSTOM_ENTRYPOINT="$(basename "$0")" "${GO_CMD}" run ./cmd/gentle-ai-overlay --repo-root "${REPO_ROOT}" apply-policy "$@"

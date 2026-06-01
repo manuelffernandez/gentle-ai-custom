@@ -18,6 +18,7 @@ if (-not $goCommand) {
 
 Push-Location $SourceDir
 try {
+    $env:GENTLE_AI_CUSTOM_ENTRYPOINT = Split-Path -Leaf $PSCommandPath
     & $goCommand.Source run .\cmd\gentle-ai-overlay --repo-root $SourceDir apply-custom @Targets
     exit $LASTEXITCODE
 }

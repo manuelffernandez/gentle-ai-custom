@@ -105,10 +105,16 @@ func (s *applyPolicyState) generateOverlays() error {
 			if err != nil {
 				return err
 			}
+			if shouldRecordWriteStatus(localStatus) {
+				s.recordVerbose(localSnapshotPath, fmt.Sprintf("local snapshot for %s (%s)", key, describeWriteStatus(localStatus)))
+			}
 			if s.shouldWriteRepoSnapshot(key) {
 				repoStatus, err := writeSnapshotWithStatus(repoSnapshotPath, inlinePrompt, &s.repoSnapshots)
 				if err != nil {
 					return err
+				}
+				if shouldRecordWriteStatus(repoStatus) {
+					s.recordVerbose(repoSnapshotPath, fmt.Sprintf("versioned repo snapshot for %s (%s)", key, describeWriteStatus(repoStatus)))
 				}
 				snapshotStatus = fmt.Sprintf("local: %s, repo: %s", localStatus, repoStatus)
 			} else {
@@ -116,12 +122,15 @@ func (s *applyPolicyState) generateOverlays() error {
 			}
 		}
 
-		if err := writeTextFile(generatedPath, sanitized); err != nil {
+		overlayStatus, err := writeTextFileWithStatus(generatedPath, sanitized)
+		if err != nil {
 			return err
 		}
-		if jsonString(agent["prompt"]) != desiredPrompt {
+		oldPrompt := jsonString(agent["prompt"])
+		if oldPrompt != desiredPrompt {
 			agent["prompt"] = desiredPrompt
 			s.configChanged = true
+			s.recordVerbose(s.configPath, fmt.Sprintf("agent.%s.prompt: %s -> %s", key, summarizePromptValue(oldPrompt), desiredPrompt))
 		}
 		if key == s.policy.OpenCode.BaseOrchestratorKey {
 			s.baseRuntimePrompt = inlinePrompt
@@ -130,9 +139,15 @@ func (s *applyPolicyState) generateOverlays() error {
 		s.writtenOrchestrators[key] = true
 		if recovered {
 			s.recoveredCount++
+			if shouldRecordWriteStatus(overlayStatus) {
+				s.recordVerbose(generatedPath, fmt.Sprintf("recovered sanitized overlay for %s from local snapshot (%s)", key, describeWriteStatus(overlayStatus)))
+			}
 			fmt.Printf("  recovered %s -> %s (from snapshot)\n", key, generatedPath)
 		} else {
 			s.generatedCount++
+			if shouldRecordWriteStatus(overlayStatus) {
+				s.recordVerbose(generatedPath, fmt.Sprintf("sanitized overlay for %s (%s)", key, describeWriteStatus(overlayStatus)))
+			}
 			fmt.Printf("  generated %s -> %s (snapshot: %s)\n", key, generatedPath, snapshotStatus)
 		}
 	}

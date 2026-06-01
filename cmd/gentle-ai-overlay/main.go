@@ -42,7 +42,7 @@ func run(args []string) int {
 	case "apply-custom":
 		return overlay.RunApplyCustom(repoRoot, rest[1:])
 	case "apply-policy":
-		return overlay.RunApplyPolicy(repoRoot)
+		return overlay.RunApplyPolicy(repoRoot, rest[1:])
 	case "audit-upstream":
 		return overlay.RunAuditUpstream(repoRoot)
 	case "-h", "--help", "help":
@@ -81,7 +81,7 @@ func parseGlobalArgs(args []string) (string, []string, error) {
 func printMainUsage(out *os.File) {
 	fmt.Fprintln(out, "Usage: gentle-ai-overlay [--repo-root <path>] <subcommand> [args]")
 	fmt.Fprintln(out, "Subcommands:")
-	fmt.Fprintln(out, "  apply-custom [all|opencode|claude|codex|gemini|antigravity ...]")
-	fmt.Fprintln(out, "  apply-policy")
+	fmt.Fprintln(out, "  apply-custom [--verbose] [all|opencode|claude|codex|gemini|antigravity ...]")
+	fmt.Fprintln(out, "  apply-policy [--verbose]")
 	fmt.Fprintln(out, "  audit-upstream")
 }
