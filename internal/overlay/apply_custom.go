@@ -9,16 +9,22 @@ import (
 
 var supportedTargets = []string{"opencode", "claude", "codex", "gemini", "antigravity"}
 
+// customSkills is the single source of truth for installable skills.
+// To add a new skill: add its directory name here. If the skill has an
+// assets/ subdirectory it will be installed automatically.
+var customSkills = []string{
+	"commit-planner",
+	"pr-finalizer",
+	"code-modularization",
+	"package-security",
+}
+
 type customSourceFiles struct {
-	commitSkill             string
-	prSkill                 string
-	codeModularizationSkill string
-	packageSecuritySkill    string
-	planBody                string
-	applyBody               string
-	fastBody                string
-	prCreateBody            string
-	prRegenerateBody        string
+	planBody         string
+	applyBody        string
+	fastBody         string
+	prCreateBody     string
+	prRegenerateBody string
 }
 
 type customCommand struct {
@@ -53,18 +59,14 @@ func RunApplyCustom(repoRoot string, args []string) int {
 
 	sharedRoot := filepath.Join(repoRoot, "shared")
 	sources := customSourceFiles{
-		commitSkill:             filepath.Join(sharedRoot, "skills", "commit-planner", "SKILL.md"),
-		prSkill:                 filepath.Join(sharedRoot, "skills", "pr-finalizer", "SKILL.md"),
-		codeModularizationSkill: filepath.Join(sharedRoot, "skills", "code-modularization", "SKILL.md"),
-		packageSecuritySkill:    filepath.Join(sharedRoot, "skills", "package-security", "SKILL.md"),
-		planBody:                filepath.Join(sharedRoot, "commands", "commit-plan-body.md"),
-		applyBody:               filepath.Join(sharedRoot, "commands", "commit-apply-body.md"),
-		fastBody:                filepath.Join(sharedRoot, "commands", "commit-fast-body.md"),
-		prCreateBody:            filepath.Join(sharedRoot, "commands", "pr-create-body.md"),
-		prRegenerateBody:        filepath.Join(sharedRoot, "commands", "pr-regenerate-body.md"),
+		planBody:         filepath.Join(sharedRoot, "commands", "commit-plan-body.md"),
+		applyBody:        filepath.Join(sharedRoot, "commands", "commit-apply-body.md"),
+		fastBody:         filepath.Join(sharedRoot, "commands", "commit-fast-body.md"),
+		prCreateBody:     filepath.Join(sharedRoot, "commands", "pr-create-body.md"),
+		prRegenerateBody: filepath.Join(sharedRoot, "commands", "pr-regenerate-body.md"),
 	}
 
-	if err := validateCustomSources(sources); err != nil {
+	if err := validateCustomSources(sharedRoot, sources); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		return 1
 	}
@@ -163,12 +165,14 @@ func isSupportedTarget(target string) bool {
 	return false
 }
 
-func validateCustomSources(sources customSourceFiles) error {
+func validateCustomSources(sharedRoot string, sources customSourceFiles) error {
+	for _, skillName := range customSkills {
+		src := filepath.Join(sharedRoot, "skills", skillName, "SKILL.md")
+		if _, err := os.Stat(src); err != nil {
+			return fmt.Errorf("Missing source: %s", src)
+		}
+	}
 	for _, source := range []string{
-		sources.commitSkill,
-		sources.prSkill,
-		sources.codeModularizationSkill,
-		sources.packageSecuritySkill,
 		sources.planBody,
 		sources.applyBody,
 		sources.fastBody,
@@ -233,27 +237,15 @@ func applyCustomTarget(target customTarget, sharedRoot string, recorder *verbose
 	if len(target.commands) == 0 {
 		return fmt.Errorf("no commands defined for target %q", target.name)
 	}
-	skillSources := map[string]string{
-		"commit-planner":      filepath.Join(sharedRoot, "skills", "commit-planner", "SKILL.md"),
-		"pr-finalizer":        filepath.Join(sharedRoot, "skills", "pr-finalizer", "SKILL.md"),
-		"code-modularization": filepath.Join(sharedRoot, "skills", "code-modularization", "SKILL.md"),
-		"package-security":    filepath.Join(sharedRoot, "skills", "package-security", "SKILL.md"),
-	}
-	if err := installSkill(target.basePath, "commit-planner", skillSources["commit-planner"], target.name, recorder); err != nil {
-		return err
-	}
-	if err := installSkill(target.basePath, "pr-finalizer", skillSources["pr-finalizer"], target.name, recorder); err != nil {
-		return err
-	}
-	if err := installSkill(target.basePath, "code-modularization", skillSources["code-modularization"], target.name, recorder); err != nil {
-		return err
-	}
-	if err := installSkill(target.basePath, "package-security", skillSources["package-security"], target.name, recorder); err != nil {
-		return err
-	}
-	pkgSecAssetsDir := filepath.Join(sharedRoot, "skills", "package-security", "assets")
-	if err := installSkillAssets(target.basePath, "package-security", pkgSecAssetsDir, target.name, recorder); err != nil {
-		return err
+	for _, skillName := range customSkills {
+		src := filepath.Join(sharedRoot, "skills", skillName, "SKILL.md")
+		if err := installSkill(target.basePath, skillName, src, target.name, recorder); err != nil {
+			return err
+		}
+		assetsDir := filepath.Join(sharedRoot, "skills", skillName, "assets")
+		if err := installSkillAssets(target.basePath, skillName, assetsDir, target.name, recorder); err != nil {
+			return err
+		}
 	}
 	for _, command := range target.commands {
 		if err := renderCustomCommand(target.basePath, command, target.name, recorder); err != nil {
