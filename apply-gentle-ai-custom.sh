@@ -336,4 +336,4 @@ if should_apply_gentle_overlay; then
   bash "${SOURCE_DIR}/overlay/gentle-ai/scripts/apply-gentle-ai-policy.sh"
 fi
 
-printf 'Reminder: re-run this script after syncs, upgrades, or managed config refreshes.\n'
+printf 'Reminder: run audit-gentle-ai-upstream before maintainer sync/reinstall work, and re-run this script after syncs, upgrades, or managed config refreshes.\n'

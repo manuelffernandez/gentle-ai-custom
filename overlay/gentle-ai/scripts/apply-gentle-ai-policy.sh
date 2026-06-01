@@ -99,6 +99,7 @@ fi
 
 redirect_output="$(${PYTHON_CMD} - "${OPENCODE_CONFIG}" "${GENERATED_DIR}" "${REPO_SNAPSHOT_DIR}" "${LOCAL_SNAPSHOT_DIR}" "${POLICY_FILE}" "${LOCAL_PROFILES_CONFIG}" <<'PY'
 import json
+import hashlib
 import os
 import re
 import sys
@@ -128,6 +129,7 @@ with open(policy_path, 'r', encoding='utf-8') as fh:
 
 opencode = policy['opencode']
 sanitizer = policy['sanitizer']
+maintenance = policy['maintenance']
 agents = data.get('agent')
 if not isinstance(agents, dict):
     die('OpenCode config does not contain an agent map')
@@ -138,6 +140,10 @@ orchestrator_keys = set(opencode.get('orchestrator_agent_keys', []))
 orchestrator_prefixes = tuple(opencode.get('orchestrator_agent_prefixes', []))
 profile_orch_prefix = opencode.get('profile_orchestrator_prefix', '')
 sdd_phases = list(opencode.get('sdd_phases', []))
+base_orchestrator_key = opencode.get('base_orchestrator_key', 'gentle-orchestrator')
+repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(policy_path))))
+state_file = os.path.join(repo_root, maintenance['state_file'])
+repo_snapshot_meta_file = os.path.join(repo_root, opencode['orchestrator_snapshot_metadata_file'])
 if not sdd_phases:
     die('policy.opencode.sdd_phases is empty or missing; cannot reconcile SDD profiles')
 sdd_phases_set = set(sdd_phases)
@@ -160,6 +166,9 @@ profile_agents_created = 0
 profile_agents_updated = 0
 profile_agents_unchanged = 0
 unmanaged_profiles_warnings = []
+repo_snapshot_baseline = None
+base_runtime_prompt = None
+base_generated_path = None
 
 def is_orchestrator(agent_key: str) -> bool:
     return agent_key in orchestrator_keys or agent_key.startswith(orchestrator_prefixes)
@@ -184,7 +193,27 @@ def write_utf8(path: str, content: str) -> None:
             fh.write('\n')
 
 def normalize_lf_terminated(content: str) -> str:
-    return content if content.endswith('\n') else content + '\n'
+    normalized = content.replace('\r\n', '\n').replace('\r', '\n')
+    return normalized if normalized.endswith('\n') else normalized + '\n'
+
+def normalized_sha256(content: str) -> str:
+    return hashlib.sha256(normalize_lf_terminated(content).encode('utf-8')).hexdigest()
+
+def parse_simple_yaml(path: str) -> dict:
+    parsed = {}
+    try:
+        with open(path, 'r', encoding='utf-8') as fh:
+            for idx, raw_line in enumerate(fh, start=1):
+                line = raw_line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                if ':' not in raw_line:
+                    die(f'invalid metadata line {idx} in {path}: missing ":" separator')
+                key, value = raw_line.split(':', 1)
+                parsed[key.strip()] = value.strip()
+    except OSError as e:
+        die(f'Cannot read audited snapshot metadata at {path}: {e}')
+    return parsed
 
 def write_snapshot_with_status(path: str, content: str, counters) -> str:
     normalized = normalize_lf_terminated(content)
@@ -306,6 +335,60 @@ def sanitize_prompt(text: str) -> str:
         if marker in text:
             die(f'forbidden marker still present after sanitizing: {marker}')
     return text
+
+repo_snapshot_baseline_path = os.path.join(repo_snapshot_dir, f'{base_orchestrator_key}.last.md')
+if not os.path.isfile(repo_snapshot_baseline_path):
+    die(
+        f'audited base snapshot missing for orchestrator {base_orchestrator_key!r} at {repo_snapshot_baseline_path}. '
+        f'Restore the committed baseline before re-running apply.'
+    )
+try:
+    with open(repo_snapshot_baseline_path, 'r', encoding='utf-8') as fh:
+        repo_snapshot_baseline = fh.read().rstrip('\r\n')
+except OSError as e:
+    die(f'Cannot read audited base snapshot at {repo_snapshot_baseline_path}: {e}')
+
+try:
+    with open(state_file, 'r', encoding='utf-8') as fh:
+        state = json.load(fh)
+except json.JSONDecodeError as e:
+    die(f'state file at {state_file} is not valid JSON: {e}')
+except OSError as e:
+    die(f'Cannot read state file at {state_file}: {e}')
+
+metadata = parse_simple_yaml(repo_snapshot_meta_file)
+expected_metadata = {
+    'schema_version': '1',
+    'snapshot_file': os.path.basename(repo_snapshot_baseline_path),
+    'snapshot_source': 'upstream-opencode-inline-asset',
+    'state_file': maintenance['state_file'],
+    'upstream_repo_name': os.path.basename(os.path.expanduser(policy['upstream']['repo_path'])),
+    'upstream_prompt_rel_path': policy['upstream']['orchestrator_prompt_path'],
+    'upstream_inject_source_rel_path': 'internal/components/sdd/inject.go',
+    'upstream_profiles_source_rel_path': 'internal/components/sdd/profiles.go',
+    'last_maintained_version': str(state.get('last_maintained_version', '')),
+    'last_maintained_tag': str(state.get('last_maintained_tag', '')),
+    'last_maintained_commit': str(state.get('last_maintained_commit', '')),
+    'last_reviewed_at': str(state.get('last_reviewed_at', '')),
+    'base_orchestrator_key': base_orchestrator_key,
+    'profile_orchestrator_prefix': profile_orch_prefix,
+    'profile_phase_order_csv': ','.join(sdd_phases),
+    'profile_task_scope_rule': 'deny-all-then-allow-suffixed-phases-and-global-jd',
+}
+for field, expected_value in expected_metadata.items():
+    actual_value = metadata.get(field)
+    if actual_value != expected_value:
+        die(
+            f'audited snapshot metadata mismatch: field {field!r} in {repo_snapshot_meta_file} is '
+            f'{actual_value!r}, expected {expected_value!r}. Repair the committed baseline before re-running apply.'
+        )
+actual_snapshot_hash = normalized_sha256(repo_snapshot_baseline)
+if metadata.get('snapshot_sha256') != actual_snapshot_hash:
+    die(
+        f'audited snapshot metadata mismatch: snapshot_sha256 in {repo_snapshot_meta_file} is '
+        f'{metadata.get("snapshot_sha256")!r}, expected {actual_snapshot_hash!r} from {repo_snapshot_baseline_path}. '
+        f'Repair the committed baseline before re-running apply.'
+    )
 
 # --- Apply agent overrides ---
 # Snapshot original agent keys BEFORE the override loop creates any stubs,
@@ -588,6 +671,13 @@ for key in sorted(agents.keys()):
                     f'Run `gentle-ai sync` to capture fresh upstream, then re-run this script.'
                 )
         print(f'  keep {key}: already points to generated overlay prompt', file=sys.stderr)
+        if key == base_orchestrator_key:
+            try:
+                with open(local_snapshot_path, 'r', encoding='utf-8') as fh:
+                    base_runtime_prompt = fh.read().rstrip('\r\n')
+            except OSError as e:
+                die(f'Cannot read local operational snapshot for audited base orchestrator at {local_snapshot_path}: {e}')
+            base_generated_path = generated_path
         written_orchestrator_keys.add(key)
         kept_count += 1
         continue
@@ -648,6 +738,10 @@ for key in sorted(agents.keys()):
         agent['prompt'] = desired_prompt
         config_changed = True
 
+    if key == base_orchestrator_key:
+        base_runtime_prompt = inline_prompt
+        base_generated_path = generated_path
+
     written_orchestrator_keys.add(key)
     if recovered_from_snapshot:
         recovered_count += 1
@@ -656,7 +750,7 @@ for key in sorted(agents.keys()):
         generated_count += 1
         print(f'  generated {key} -> {generated_path} (snapshot: {snapshot_status})', file=sys.stderr)
 
-# --- Atomic write of opencode.json + post-write verification ---
+# --- Atomic write of opencode.json ---
 if config_changed:
     fd, temp_path = tempfile.mkstemp(prefix='opencode.', suffix='.json', dir=os.path.dirname(config_path))
     try:
@@ -671,57 +765,84 @@ if config_changed:
             pass
         raise
 
-    # Re-read and verify the override values and orchestrator refs actually
-    # persisted. This catches serialization bugs and races between processes.
-    with open(config_path, 'r', encoding='utf-8') as fh:
-        verify_data = json.load(fh)
-    verify_agents = verify_data.get('agent') or {}
 
-    for override in policy.get('agent_overrides', []):
-        key = override['key']
-        expected_model = override['model']
-        expected_variant = override.get('variant')
-        actual = verify_agents.get(key) or {}
-        if actual.get('model') != expected_model:
+# --- Verification from persisted opencode.json ---
+with open(config_path, 'r', encoding='utf-8') as fh:
+    verify_data = json.load(fh)
+verify_agents = verify_data.get('agent') or {}
+
+for override in policy.get('agent_overrides', []):
+    key = override['key']
+    expected_model = override['model']
+    expected_variant = override.get('variant')
+    actual = verify_agents.get(key) or {}
+    if actual.get('model') != expected_model:
+        die(
+            f'post-write verification failed: agent {key!r} model is '
+            f'{actual.get("model")!r} after write, expected {expected_model!r}'
+        )
+    if expected_variant and actual.get('variant') != expected_variant:
+        die(
+            f'post-write verification failed: agent {key!r} variant is '
+            f'{actual.get("variant")!r} after write, expected {expected_variant!r}'
+        )
+
+for key in sorted(written_orchestrator_keys):
+    expected_ref = '{file:' + os.path.join(generated_dir, f'{key}.overlay.md') + '}'
+    actual = (verify_agents.get(key) or {}).get('prompt')
+    if actual != expected_ref:
+        die(
+            f'post-write verification failed: orchestrator {key!r} prompt is '
+            f'{actual!r} after write, expected {expected_ref!r}'
+        )
+    overlay_path = os.path.join(generated_dir, f'{key}.overlay.md')
+    if not os.path.isfile(overlay_path):
+        die(
+            f'post-write verification failed: overlay file missing for {key!r} at {overlay_path}'
+        )
+
+# Verify profile reconciliation persisted.
+for profile_name in sorted(managed_profile_names):
+    orch_key = f'sdd-orchestrator-{profile_name}'
+    if orch_key not in verify_agents:
+        die(
+            f'post-write verification failed: profile {profile_name!r} orchestrator agent '
+            f'{orch_key!r} missing from {config_path} after write'
+        )
+    for phase_name in sdd_phases:
+        phase_key = f'{phase_name}-{profile_name}'
+        if phase_key not in verify_agents:
             die(
-                f'post-write verification failed: agent {key!r} model is '
-                f'{actual.get("model")!r} after write, expected {expected_model!r}'
-            )
-        if expected_variant and actual.get('variant') != expected_variant:
-            die(
-                f'post-write verification failed: agent {key!r} variant is '
-                f'{actual.get("variant")!r} after write, expected {expected_variant!r}'
+                f'post-write verification failed: profile {profile_name!r} phase agent '
+                f'{phase_key!r} missing from {config_path} after write'
             )
 
-    for key in sorted(written_orchestrator_keys):
-        expected_ref = '{file:' + os.path.join(generated_dir, f'{key}.overlay.md') + '}'
-        actual = (verify_agents.get(key) or {}).get('prompt')
-        if actual != expected_ref:
-            die(
-                f'post-write verification failed: orchestrator {key!r} prompt is '
-                f'{actual!r} after write, expected {expected_ref!r}'
-            )
-        overlay_path = os.path.join(generated_dir, f'{key}.overlay.md')
-        if not os.path.isfile(overlay_path):
-            die(
-                f'post-write verification failed: overlay file missing for {key!r} at {overlay_path}'
-            )
+if base_runtime_prompt is None or base_generated_path is None:
+    die(
+        f'audited baseline verification failed: orchestrator {base_orchestrator_key!r} was not materialized during apply. '
+        f'Run `gentle-ai sync` to restore the inline upstream prompt, then re-run this script.'
+    )
 
-    # Verify profile reconciliation persisted.
-    for profile_name in sorted(managed_profile_names):
-        orch_key = f'sdd-orchestrator-{profile_name}'
-        if orch_key not in verify_agents:
-            die(
-                f'post-write verification failed: profile {profile_name!r} orchestrator agent '
-                f'{orch_key!r} missing from {config_path} after write'
-            )
-        for phase_name in sdd_phases:
-            phase_key = f'{phase_name}-{profile_name}'
-            if phase_key not in verify_agents:
-                die(
-                    f'post-write verification failed: profile {profile_name!r} phase agent '
-                    f'{phase_key!r} missing from {config_path} after write'
-                )
+if normalize_lf_terminated(base_runtime_prompt) != normalize_lf_terminated(repo_snapshot_baseline):
+    die(
+        f'audited baseline mismatch for orchestrator {base_orchestrator_key!r}: runtime source prompt does not match '
+        f'{repo_snapshot_baseline_path}. Run `bash audit-gentle-ai-upstream.sh` before adopting a new upstream baseline, '
+        f'then re-run `gentle-ai sync` and this script.'
+    )
+
+expected_base_overlay = sanitize_prompt(repo_snapshot_baseline)
+try:
+    with open(base_generated_path, 'r', encoding='utf-8') as fh:
+        actual_base_overlay = fh.read().rstrip('\r\n')
+except OSError as e:
+    die(f'Cannot read generated overlay for audited base orchestrator at {base_generated_path}: {e}')
+
+if normalize_lf_terminated(actual_base_overlay) != normalize_lf_terminated(expected_base_overlay):
+    die(
+        f'audited baseline mismatch for orchestrator {base_orchestrator_key!r}: generated overlay at {base_generated_path} '
+        f'does not match the sanitized audited snapshot. Re-run apply after restoring the audited baseline, '
+        f'or run `gentle-ai sync` if local runtime state is stale.'
+    )
 
 print(f'CONFIG_STATUS={"updated" if config_changed else "unchanged"}')
 print(f'GENERATED_COUNT={generated_count}')
@@ -768,6 +889,7 @@ info "  SDD profile agents created: ${PROFILE_AGENTS_CREATED}"
 info "  SDD profile agents updated: ${PROFILE_AGENTS_UPDATED}"
 info "  SDD profile agents unchanged: ${PROFILE_AGENTS_UNCHANGED}"
 info "  SDD profiles unmanaged (present in opencode.json, absent from local config): ${UNMANAGED_PROFILES_COUNT}"
+info "  audited base baseline verification: ok"
 
 if [[ -n "${UNMANAGED_PROFILES_NAMES}" ]]; then
   info ""

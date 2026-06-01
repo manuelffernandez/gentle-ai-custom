@@ -2,6 +2,49 @@
 
 > Este archivo registra decisiones e hitos del mantenimiento del overlay. No es la fuente autoritativa del último upstream mantenido; esa responsabilidad vive en `overlay/gentle-ai/state/upstream-state.json`.
 
+## 2026-06-01 — Separate pre-sync upstream audit from apply helper
+
+Razón del cambio:
+
+- El helper `apply-gentle-ai-policy` estaba cargando demasiadas responsabilidades a la vez: aplicar la capa custom, reconstruir overlays, recuperar desde snapshots y, al mismo tiempo, actuar como detector principal de drift upstream.
+- Eso generaba un problema operativo: antes de `gentle-ai sync`, `opencode.json` todavía refleja el estado previamente overlay-applied, así que el helper no puede detectar de forma confiable el drift del prompt inline nuevo sin materializar primero el upstream. Necesitábamos un auditor pre-sync separado.
+
+WHAT cambió:
+
+- Nuevos entrypoints públicos:
+  - `audit-gentle-ai-upstream.sh`
+  - `audit-gentle-ai-upstream.ps1`
+- Nuevo motor compartido:
+  - `overlay/gentle-ai/scripts/audit-gentle-ai-upstream.py`
+  - lee directamente el repo upstream de Gentle AI
+  - compara el prompt base upstream (`internal/assets/opencode/sdd-orchestrator.md`) contra `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md`
+  - valida el sidecar metadata file `gentle-orchestrator.last.meta.yaml`
+  - chequea invariantes upstream de perfiles (`profilePhaseOrder`, prefix `sdd-orchestrator-`, task scoping deny-all-then-allow-profile-phases-and-JD, binding del asset base en `inject.go`)
+- Nuevo sidecar versionado:
+  - `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.meta.yaml`
+  - endurece la alineación entre snapshot base, `upstream-state.json` y la fuente upstream auditada
+- `apply-gentle-ai-policy.sh` y `.ps1`:
+  - ya no son el auditor semántico principal del upstream
+  - siguen materializando, sanitizando, reconciliando perfiles y recuperando desde snapshots
+  - agregan verificación automática fail-closed del baseline auditado: el `gentle-orchestrator` materializado después de `sync`/apply debe coincidir con `gentle-orchestrator.last.md` + `.meta.yaml`
+- `apply-gentle-ai-custom.sh` y `.ps1`:
+  - el flujo normal de apply ahora incluye esa verificación automáticamente; no hay paso manual extra de verificación
+- `README.md`, `AGENTS.md`, `overlay/gentle-ai/README.md`, `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`, `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`:
+  - documentado el flujo nuevo: audit pre-sync → decidir/adaptar → sync/reinstall → apply con auto-verificación fail-closed
+
+WHY:
+
+- El `gentle-orchestrator` base es la única fuente de verdad necesaria para auditar drift del prompt. Los prompts `sdd-orchestrator-<perfil>` son derivados de esa base por lógica de upstream; no hacía falta diffear sus snapshots para auditar cambios semánticos.
+- Separar auditoría pre-sync de materialización post-sync simplifica el mantenimiento y hace explícita la pregunta correcta en cada fase:
+  - `audit-gentle-ai-upstream` => “¿es seguro avanzar con sync/reinstall?”
+  - `apply-gentle-ai-custom` => “¿quedó materializado en disco lo que ya auditamos?”
+
+Verificación:
+
+- `bash audit-gentle-ai-upstream.sh` => OK; metadata alineada, hash verificado, base prompt sin drift, invariantes de perfiles OK.
+- `bash apply-gentle-ai-custom.sh all` => OK; `audited base baseline verification: ok`, 0 topology warnings, 3 perfiles SDD gestionados, sin drift local/repo.
+- Parity PowerShell por inspección: wrapper `.ps1` invoca el mismo motor Python y el helper `.ps1` implementa la misma verificación fail-closed del baseline auditado.
+
 ## 2026-05-30 — Profile orchestrator snapshots moved out of the repo
 
 Razón del cambio:

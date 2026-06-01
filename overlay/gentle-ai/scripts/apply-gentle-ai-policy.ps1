@@ -85,6 +85,47 @@ function Normalize-Lf {
     return ($Content -replace "`r`n", "`n")
 }
 
+function Get-Sha256Hex {
+    param([string]$Content)
+
+    $Normalized = Ensure-LfTerminated (Normalize-Lf $Content)
+    $Bytes = [System.Text.Encoding]::UTF8.GetBytes($Normalized)
+    $Sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return (($Sha256.ComputeHash($Bytes) | ForEach-Object { $_.ToString('x2') }) -join '')
+    }
+    finally {
+        $Sha256.Dispose()
+    }
+}
+
+function Read-SimpleYamlMap {
+    param([string]$Path)
+
+    $Map = @{}
+    try {
+        $Lines = Get-Content -LiteralPath $Path
+    }
+    catch {
+        Die ("Cannot read audited snapshot metadata at {0}: {1}" -f $Path, $_.Exception.Message)
+    }
+
+    for ($i = 0; $i -lt $Lines.Count; $i++) {
+        $RawLine = [string]$Lines[$i]
+        $Line = $RawLine.Trim()
+        if ([string]::IsNullOrWhiteSpace($Line) -or $Line.StartsWith('#')) {
+            continue
+        }
+        $Parts = $RawLine.Split(':', 2)
+        if ($Parts.Count -ne 2) {
+            Die ("invalid metadata line {0} in {1}: missing ':' separator" -f ($i + 1), $Path)
+        }
+        $Map[$Parts[0].Trim()] = $Parts[1].Trim()
+    }
+
+    return $Map
+}
+
 function Unescape-NonAsciiUnicode {
     param([string]$Json)
 
@@ -356,10 +397,13 @@ if (-not (Test-Path -LiteralPath $PolicyFile)) {
 
 $Policy = Get-Content -LiteralPath $PolicyFile -Raw | ConvertFrom-Json
 $OpenCodeConfig = Resolve-UserPath $Policy.opencode.config_path
+$BaseOrchestratorKey = [string]$Policy.opencode.base_orchestrator_key
 $GeneratedDir = Resolve-UserPath $Policy.opencode.generated_orchestrators_dir
 $RepoSnapshotDir = Join-Path $RepoRoot $Policy.opencode.orchestrator_snapshot_dir
+$RepoSnapshotMetadataFile = Join-Path $RepoRoot $Policy.opencode.orchestrator_snapshot_metadata_file
 $LocalSnapshotDir = Resolve-UserPath $Policy.opencode.local_orchestrator_snapshot_dir
 $LocalProfilesConfig = Resolve-UserPath $Policy.opencode.sdd_profiles_local_config_path
+$StateFile = Join-Path $RepoRoot $Policy.maintenance.state_file
 $ProfileOrchPrefix = [string]$Policy.opencode.profile_orchestrator_prefix
 $SddPhases = @($Policy.opencode.sdd_phases)
 if ($SddPhases.Count -eq 0) {
@@ -433,6 +477,48 @@ if (-not $Config.agent) {
     Die 'OpenCode config does not contain an agent map'
 }
 
+try {
+    $State = (Get-Content -LiteralPath $StateFile -Raw) | ConvertFrom-Json
+}
+catch {
+    Die ("state file at {0} is not valid JSON: {1}" -f $StateFile, $_.Exception.Message)
+}
+
+$RepoSnapshotBaselinePath = Join-Path $RepoSnapshotDir ($BaseOrchestratorKey + '.last.md')
+if (-not (Test-Path -LiteralPath $RepoSnapshotBaselinePath -PathType Leaf)) {
+    Die ("audited base snapshot missing for orchestrator '{0}' at {1}. Restore the committed baseline before re-running apply." -f $BaseOrchestratorKey, $RepoSnapshotBaselinePath)
+}
+$RepoSnapshotBaseline = (Get-Content -LiteralPath $RepoSnapshotBaselinePath -Raw).TrimEnd("`n", "`r")
+$SnapshotMetadata = Read-SimpleYamlMap -Path $RepoSnapshotMetadataFile
+$ExpectedMetadata = [ordered]@{
+    schema_version = '1'
+    snapshot_file = [System.IO.Path]::GetFileName($RepoSnapshotBaselinePath)
+    snapshot_source = 'upstream-opencode-inline-asset'
+    state_file = [string]$Policy.maintenance.state_file
+    upstream_repo_name = [System.IO.Path]::GetFileName((Resolve-UserPath ([string]$Policy.upstream.repo_path)).TrimEnd('\', '/'))
+    upstream_prompt_rel_path = [string]$Policy.upstream.orchestrator_prompt_path
+    upstream_inject_source_rel_path = 'internal/components/sdd/inject.go'
+    upstream_profiles_source_rel_path = 'internal/components/sdd/profiles.go'
+    last_maintained_version = [string]$State.last_maintained_version
+    last_maintained_tag = [string]$State.last_maintained_tag
+    last_maintained_commit = [string]$State.last_maintained_commit
+    last_reviewed_at = [string]$State.last_reviewed_at
+    base_orchestrator_key = $BaseOrchestratorKey
+    profile_orchestrator_prefix = $ProfileOrchPrefix
+    profile_phase_order_csv = ($SddPhases -join ',')
+    profile_task_scope_rule = 'deny-all-then-allow-suffixed-phases-and-global-jd'
+}
+foreach ($Entry in $ExpectedMetadata.GetEnumerator()) {
+    $ActualValue = if ($SnapshotMetadata.ContainsKey($Entry.Key)) { [string]$SnapshotMetadata[$Entry.Key] } else { $null }
+    if ($ActualValue -ne [string]$Entry.Value) {
+        Die ("audited snapshot metadata mismatch: field '{0}' in {1} is '{2}', expected '{3}'. Repair the committed baseline before re-running apply." -f $Entry.Key, $RepoSnapshotMetadataFile, $ActualValue, [string]$Entry.Value)
+    }
+}
+$ActualSnapshotHash = Get-Sha256Hex -Content $RepoSnapshotBaseline
+if ([string]$SnapshotMetadata['snapshot_sha256'] -ne $ActualSnapshotHash) {
+    Die ("audited snapshot metadata mismatch: snapshot_sha256 in {0} is '{1}', expected '{2}' from {3}. Repair the committed baseline before re-running apply." -f $RepoSnapshotMetadataFile, [string]$SnapshotMetadata['snapshot_sha256'], $ActualSnapshotHash, $RepoSnapshotBaselinePath)
+}
+
 $ConfigChanged = $false
 $GeneratedCount = 0
 $RecoveredCount = 0
@@ -456,6 +542,8 @@ $ProfileAgentsUpdated = 0
 $ProfileAgentsUnchanged = 0
 $UnmanagedProfileNames = New-Object System.Collections.Generic.List[string]
 $ManagedProfileNames = New-Object System.Collections.Generic.HashSet[string]
+$BaseRuntimePrompt = $null
+$BaseGeneratedPath = $null
 
 # Snapshot original agent keys BEFORE the override loop creates any stubs,
 # so topology drift checks can tell which override targets had to be invented.
@@ -826,6 +914,10 @@ foreach ($AgentKey in $AgentKeys) {
             }
         }
         Write-Info "  keep $AgentKey`: already points to generated overlay prompt"
+        if ($AgentKey -eq $BaseOrchestratorKey) {
+            $BaseRuntimePrompt = (Get-Content -LiteralPath $LocalSnapshotPath -Raw).TrimEnd("`n", "`r")
+            $BaseGeneratedPath = $GeneratedPath
+        }
         [void]$WrittenOrchestratorKeys.Add($AgentKey)
         $KeptCount++
         continue
@@ -887,6 +979,11 @@ foreach ($AgentKey in $AgentKeys) {
         $ConfigChanged = $true
     }
 
+    if ($AgentKey -eq $BaseOrchestratorKey) {
+        $BaseRuntimePrompt = $InlinePrompt
+        $BaseGeneratedPath = $GeneratedPath
+    }
+
     [void]$WrittenOrchestratorKeys.Add($AgentKey)
     if ($RecoveredFromSnapshot) {
         $RecoveredCount++
@@ -898,7 +995,7 @@ foreach ($AgentKey in $AgentKeys) {
     }
 }
 
-# --- Atomic write of opencode.json + post-write verification ---
+# --- Atomic write of opencode.json ---
 if ($ConfigChanged) {
     $Json = $Config | ConvertTo-Json -Depth 100
     # PS 5.1 ConvertTo-Json escapes non-ASCII to \uXXXX. Bash/Python writes raw
@@ -908,60 +1005,76 @@ if ($ConfigChanged) {
     Write-Utf8NoBomAtomic -Path $OpenCodeConfig -Content (Ensure-LfTerminated $Json)
     $ConfigStatus = 'updated'
 
-    $VerifyConfig = Get-Content -LiteralPath $OpenCodeConfig -Raw | ConvertFrom-Json
-
-    foreach ($Override in $Policy.agent_overrides) {
-        $Key = [string]$Override.key
-        $ExpectedModel = [string]$Override.model
-        $ExpectedVariant = [string]$Override.variant
-
-        if (-not ($VerifyConfig.agent.PSObject.Properties.Name -contains $Key)) {
-            Die "post-write verification failed: agent '$Key' is missing from $OpenCodeConfig after write"
-        }
-        $ActualAgent = $VerifyConfig.agent.$Key
-        $ActualModel = [string](Get-AgentPropertyValue -Agent $ActualAgent -Name 'model')
-        if ($ActualModel -ne $ExpectedModel) {
-            Die "post-write verification failed: agent '$Key' model is '$ActualModel' after write, expected '$ExpectedModel'"
-        }
-        if ($ExpectedVariant) {
-            $ActualVariant = [string](Get-AgentPropertyValue -Agent $ActualAgent -Name 'variant')
-            if ($ActualVariant -ne $ExpectedVariant) {
-                Die "post-write verification failed: agent '$Key' variant is '$ActualVariant' after write, expected '$ExpectedVariant'"
-            }
-        }
-    }
-
-    foreach ($Key in ($WrittenOrchestratorKeys | Sort-Object)) {
-        $ExpectedRef = '{file:' + (Join-Path $GeneratedDir ($Key + '.overlay.md')) + '}'
-        if (-not ($VerifyConfig.agent.PSObject.Properties.Name -contains $Key)) {
-            Die "post-write verification failed: orchestrator '$Key' is missing from $OpenCodeConfig after write"
-        }
-        $ActualPrompt = [string](Get-AgentPropertyValue -Agent $VerifyConfig.agent.$Key -Name 'prompt')
-        if ($ActualPrompt -ne $ExpectedRef) {
-            Die "post-write verification failed: orchestrator '$Key' prompt is '$ActualPrompt' after write, expected '$ExpectedRef'"
-        }
-        $OverlayPath = Join-Path $GeneratedDir ($Key + '.overlay.md')
-        if (-not (Test-Path -LiteralPath $OverlayPath -PathType Leaf)) {
-            Die "post-write verification failed: overlay file missing for '$Key' at $OverlayPath"
-        }
-    }
-
-    # Profile reconciliation post-write verification.
-    foreach ($Pname in ($ManagedProfileNames | Sort-Object)) {
-        $OrchKey = "sdd-orchestrator-$Pname"
-        if (-not ($VerifyConfig.agent.PSObject.Properties.Name -contains $OrchKey)) {
-            Die "post-write verification failed: profile '$Pname' orchestrator agent '$OrchKey' missing from $OpenCodeConfig after write"
-        }
-        foreach ($P in $SddPhases) {
-            $PhaseKey = "$P-$Pname"
-            if (-not ($VerifyConfig.agent.PSObject.Properties.Name -contains $PhaseKey)) {
-                Die "post-write verification failed: profile '$Pname' phase agent '$PhaseKey' missing from $OpenCodeConfig after write"
-            }
-        }
-    }
 }
 else {
     $ConfigStatus = 'unchanged'
+}
+
+# --- Verification from persisted opencode.json ---
+$VerifyConfig = Get-Content -LiteralPath $OpenCodeConfig -Raw | ConvertFrom-Json
+
+foreach ($Override in $Policy.agent_overrides) {
+    $Key = [string]$Override.key
+    $ExpectedModel = [string]$Override.model
+    $ExpectedVariant = [string]$Override.variant
+
+    if (-not ($VerifyConfig.agent.PSObject.Properties.Name -contains $Key)) {
+        Die "post-write verification failed: agent '$Key' is missing from $OpenCodeConfig after write"
+    }
+    $ActualAgent = $VerifyConfig.agent.$Key
+    $ActualModel = [string](Get-AgentPropertyValue -Agent $ActualAgent -Name 'model')
+    if ($ActualModel -ne $ExpectedModel) {
+        Die "post-write verification failed: agent '$Key' model is '$ActualModel' after write, expected '$ExpectedModel'"
+    }
+    if ($ExpectedVariant) {
+        $ActualVariant = [string](Get-AgentPropertyValue -Agent $ActualAgent -Name 'variant')
+        if ($ActualVariant -ne $ExpectedVariant) {
+            Die "post-write verification failed: agent '$Key' variant is '$ActualVariant' after write, expected '$ExpectedVariant'"
+        }
+    }
+}
+
+foreach ($Key in ($WrittenOrchestratorKeys | Sort-Object)) {
+    $ExpectedRef = '{file:' + (Join-Path $GeneratedDir ($Key + '.overlay.md')) + '}'
+    if (-not ($VerifyConfig.agent.PSObject.Properties.Name -contains $Key)) {
+        Die "post-write verification failed: orchestrator '$Key' is missing from $OpenCodeConfig after write"
+    }
+    $ActualPrompt = [string](Get-AgentPropertyValue -Agent $VerifyConfig.agent.$Key -Name 'prompt')
+    if ($ActualPrompt -ne $ExpectedRef) {
+        Die "post-write verification failed: orchestrator '$Key' prompt is '$ActualPrompt' after write, expected '$ExpectedRef'"
+    }
+    $OverlayPath = Join-Path $GeneratedDir ($Key + '.overlay.md')
+    if (-not (Test-Path -LiteralPath $OverlayPath -PathType Leaf)) {
+        Die "post-write verification failed: overlay file missing for '$Key' at $OverlayPath"
+    }
+}
+
+# Profile reconciliation post-write verification.
+foreach ($Pname in ($ManagedProfileNames | Sort-Object)) {
+    $OrchKey = "sdd-orchestrator-$Pname"
+    if (-not ($VerifyConfig.agent.PSObject.Properties.Name -contains $OrchKey)) {
+        Die "post-write verification failed: profile '$Pname' orchestrator agent '$OrchKey' missing from $OpenCodeConfig after write"
+    }
+    foreach ($P in $SddPhases) {
+        $PhaseKey = "$P-$Pname"
+        if (-not ($VerifyConfig.agent.PSObject.Properties.Name -contains $PhaseKey)) {
+            Die "post-write verification failed: profile '$Pname' phase agent '$PhaseKey' missing from $OpenCodeConfig after write"
+        }
+    }
+}
+
+if ($null -eq $BaseRuntimePrompt -or [string]::IsNullOrEmpty([string]$BaseGeneratedPath)) {
+    Die ("audited baseline verification failed: orchestrator '{0}' was not materialized during apply. Run ``gentle-ai sync`` to restore the inline upstream prompt, then re-run this script." -f $BaseOrchestratorKey)
+}
+
+if ((Normalize-Lf (Ensure-LfTerminated $BaseRuntimePrompt)) -ne (Normalize-Lf (Ensure-LfTerminated $RepoSnapshotBaseline))) {
+    Die ("audited baseline mismatch for orchestrator '{0}': runtime source prompt does not match {1}. Run ``bash audit-gentle-ai-upstream.sh`` before adopting a new upstream baseline, then re-run ``gentle-ai sync`` and this script." -f $BaseOrchestratorKey, $RepoSnapshotBaselinePath)
+}
+
+$ExpectedBaseOverlay = Sanitize-OrchestratorPrompt -Prompt $RepoSnapshotBaseline -SanitizerPolicy $Policy.sanitizer
+$ActualBaseOverlay = (Get-Content -LiteralPath $BaseGeneratedPath -Raw).TrimEnd("`n", "`r")
+if ((Normalize-Lf (Ensure-LfTerminated $ActualBaseOverlay)) -ne (Normalize-Lf (Ensure-LfTerminated $ExpectedBaseOverlay))) {
+    Die ("audited baseline mismatch for orchestrator '{0}': generated overlay at {1} does not match the sanitized audited snapshot. Re-run apply after restoring the audited baseline, or run ``gentle-ai sync`` if local runtime state is stale." -f $BaseOrchestratorKey, $BaseGeneratedPath)
 }
 
 Write-Info ''
@@ -982,6 +1095,7 @@ Write-Info "  SDD profile agents created: $ProfileAgentsCreated"
 Write-Info "  SDD profile agents updated: $ProfileAgentsUpdated"
 Write-Info "  SDD profile agents unchanged: $ProfileAgentsUnchanged"
 Write-Info "  SDD profiles unmanaged (present in opencode.json, absent from local config): $($UnmanagedProfileNames.Count)"
+Write-Info '  audited base baseline verification: ok'
 
 if ($UnmanagedProfileNames.Count -gt 0) {
     Write-Info ''

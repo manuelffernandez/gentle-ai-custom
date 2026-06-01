@@ -422,4 +422,4 @@ if ($shouldApplyGentleOverlay) {
     & (Join-Path $PSScriptRoot 'overlay\gentle-ai\scripts\apply-gentle-ai-policy.ps1')
 }
 
-Write-Host 'Reminder: re-run this script after syncs, upgrades, or managed config refreshes.'
+Write-Host 'Reminder: run audit-gentle-ai-upstream before maintainer sync/reinstall work, and re-run this script after syncs, upgrades, or managed config refreshes.'
