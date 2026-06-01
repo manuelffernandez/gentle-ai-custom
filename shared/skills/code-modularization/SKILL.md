@@ -70,6 +70,26 @@ Start with the fewest files that honestly separate the concerns. Do not pre-spli
 - **Stop when what remains is genuinely cohesive.** If the residual core is the real orchestrator or pipeline, it belongs together even if it is still large.
 - **No catch-all files.** Do not create `utils`, `helpers`, `common`, or `misc` units. These are where cohesion goes to die.
 
+## Replace Repetition with Data
+
+When adding a new item of the same kind requires touching more than one place,
+the variation is likely **data**, not behavior.
+
+**N-touch test**: if adding one conceptual unit (a config entry, a handler, a validator) forces
+edits in N > 1 locations, extract the varying part to a declarative structure
+and iterate over it once.
+
+Apply when: items have the same shape and the only difference between them is
+identity (name, path, key).
+
+Do not apply when: items have genuinely different behavior — use polymorphism
+or strategy instead. Or when only two instances exist and abstraction cost
+exceeds the gain.
+
+**Catch it early**: the highest-value moment is when the second or third item
+appears. Recognizing it then costs far less than unwinding five duplicated
+blocks later.
+
 ## Anti-Patterns
 
 - Extracting single-use helpers only to reduce line count.
@@ -77,3 +97,4 @@ Start with the fewest files that honestly separate the concerns. Do not pre-spli
 - Hiding a god object by distributing its fields across files. The coupling remains; only the visibility changes.
 - Creating more than one level of nesting just to organize code that has only one reason to change.
 - Proposing a split when you cannot clearly name both resulting units.
+- Adding a new case by copying an imperative block when the only variation is data.
