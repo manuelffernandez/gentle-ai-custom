@@ -194,6 +194,13 @@ The maintenance model is intentionally split into:
 - **Purpose**: generate or regenerate PR content from committed diff.
 - **Commands**: `/pr-create`, `/pr-regenerate`
 
+### `package-security`
+
+- **Source**: `shared/skills/package-security/SKILL.md`
+- **Purpose**: enforce package security posture across npm/pnpm projects — covers global config, project-level config, and CI install commands.
+- **Use when**: installing or updating dependencies, hardening supply chain, reviewing `.npmrc` or `pnpm-workspace.yaml`, or evaluating CI pipeline install steps.
+- **Assets**: `shared/skills/package-security/assets/` contains ready-to-adapt templates for global and project-level config, plus a platform-agnostic CI guide.
+
 ### `gentle-ai-overlay-maintainer`
 
 - **Source**: `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`

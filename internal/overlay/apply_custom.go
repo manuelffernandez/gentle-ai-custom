@@ -13,6 +13,7 @@ type customSourceFiles struct {
 	commitSkill             string
 	prSkill                 string
 	codeModularizationSkill string
+	packageSecuritySkill    string
 	planBody                string
 	applyBody               string
 	fastBody                string
@@ -55,6 +56,7 @@ func RunApplyCustom(repoRoot string, args []string) int {
 		commitSkill:             filepath.Join(sharedRoot, "skills", "commit-planner", "SKILL.md"),
 		prSkill:                 filepath.Join(sharedRoot, "skills", "pr-finalizer", "SKILL.md"),
 		codeModularizationSkill: filepath.Join(sharedRoot, "skills", "code-modularization", "SKILL.md"),
+		packageSecuritySkill:    filepath.Join(sharedRoot, "skills", "package-security", "SKILL.md"),
 		planBody:                filepath.Join(sharedRoot, "commands", "commit-plan-body.md"),
 		applyBody:               filepath.Join(sharedRoot, "commands", "commit-apply-body.md"),
 		fastBody:                filepath.Join(sharedRoot, "commands", "commit-fast-body.md"),
@@ -166,6 +168,7 @@ func validateCustomSources(sources customSourceFiles) error {
 		sources.commitSkill,
 		sources.prSkill,
 		sources.codeModularizationSkill,
+		sources.packageSecuritySkill,
 		sources.planBody,
 		sources.applyBody,
 		sources.fastBody,
@@ -234,6 +237,7 @@ func applyCustomTarget(target customTarget, sharedRoot string, recorder *verbose
 		"commit-planner":      filepath.Join(sharedRoot, "skills", "commit-planner", "SKILL.md"),
 		"pr-finalizer":        filepath.Join(sharedRoot, "skills", "pr-finalizer", "SKILL.md"),
 		"code-modularization": filepath.Join(sharedRoot, "skills", "code-modularization", "SKILL.md"),
+		"package-security":    filepath.Join(sharedRoot, "skills", "package-security", "SKILL.md"),
 	}
 	if err := installSkill(target.basePath, "commit-planner", skillSources["commit-planner"], target.name, recorder); err != nil {
 		return err
@@ -242,6 +246,13 @@ func applyCustomTarget(target customTarget, sharedRoot string, recorder *verbose
 		return err
 	}
 	if err := installSkill(target.basePath, "code-modularization", skillSources["code-modularization"], target.name, recorder); err != nil {
+		return err
+	}
+	if err := installSkill(target.basePath, "package-security", skillSources["package-security"], target.name, recorder); err != nil {
+		return err
+	}
+	pkgSecAssetsDir := filepath.Join(sharedRoot, "skills", "package-security", "assets")
+	if err := installSkillAssets(target.basePath, "package-security", pkgSecAssetsDir, target.name, recorder); err != nil {
 		return err
 	}
 	for _, command := range target.commands {
@@ -261,6 +272,31 @@ func installSkill(targetDir, skillName, skillSource, targetName string, recorder
 	}
 	if shouldRecordWriteStatus(status) {
 		recorder.record(destination, fmt.Sprintf("installed %s skill for %s target (%s)", skillName, targetName, describeWriteStatus(status)))
+	}
+	return nil
+}
+
+func installSkillAssets(targetDir, skillName, assetsDir, targetName string, recorder *verboseRecorder) error {
+	entries, err := os.ReadDir(assetsDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		src := filepath.Join(assetsDir, entry.Name())
+		dst := filepath.Join(targetDir, "skills", skillName, "assets", entry.Name())
+		status, err := copyFileWithStatus(src, dst)
+		if err != nil {
+			return err
+		}
+		if shouldRecordWriteStatus(status) {
+			recorder.record(dst, fmt.Sprintf("installed %s/%s asset for %s target (%s)", skillName, entry.Name(), targetName, describeWriteStatus(status)))
+		}
 	}
 	return nil
 }
