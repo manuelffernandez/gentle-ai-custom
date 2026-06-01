@@ -41,6 +41,9 @@ Cada una cumple un rol distinto:
 - `shared/skills/commit-planner/SKILL.md` — source of truth neutral para planificación/aplicación de commits
 - `shared/skills/pr-finalizer/SKILL.md` — source of truth neutral para creación/regeneración de PRs
 - `shared/commands/*.md` — cuerpos compartidos para wrappers/prompts por agente
+- `go.mod` — módulo Go del runtime compartido
+- `cmd/gentle-ai-overlay/main.go` — CLI Go compartida para `apply-custom`, `apply-policy` y `audit-upstream`
+- `internal/overlay/*.go` — implementación compartida del overlay, auditoría upstream y sanitización
 - `overlay/gentle-ai/README.md` — guía del control-plane de Gentle AI
 - `overlay/gentle-ai/policy/gentle-ai-policy.json` — política machine-readable del overlay
 - `overlay/gentle-ai/policy/maintenance-intent.md` — intención de mantenimiento del overlay en lenguaje humano/LLM
@@ -48,9 +51,8 @@ Cada una cumple un rol distinto:
 - `overlay/gentle-ai/state/upstream-state.json` — estado operativo de la última versión/commit upstream mantenido
 - `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md` — runbook humano para mantenimiento incremental
 - `overlay/gentle-ai/logs/update-log.md` — historial de decisiones del overlay
-- `overlay/gentle-ai/scripts/apply-gentle-ai-policy.sh` — helper bash interno para depurar Gentle AI
-- `overlay/gentle-ai/scripts/apply-gentle-ai-policy.ps1` — helper PowerShell interno equivalente
-- `overlay/gentle-ai/scripts/audit-gentle-ai-upstream.py` — lógica compartida del audit upstream base + metadata + invariants
+- `overlay/gentle-ai/scripts/apply-gentle-ai-policy.sh` — wrapper bash interno fino hacia la CLI Go compartida
+- `overlay/gentle-ai/scripts/apply-gentle-ai-policy.ps1` — wrapper PowerShell interno fino equivalente
 - `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md` — skill de mantenimiento del overlay
 - `AGENTS.md` — contrato operativo para agentes
 
@@ -73,6 +75,8 @@ Para mantenimiento upstream, hay además un par público separado:
 
 - `audit-gentle-ai-upstream.sh`
 - `audit-gentle-ai-upstream.ps1`
+
+Todos esos wrappers son finos: delegan en la CLI Go compartida (`go run ./cmd/gentle-ai-overlay ...`) y no duplican la lógica de negocio entre shell, PowerShell y Python.
 
 ### Linux / macOS
 

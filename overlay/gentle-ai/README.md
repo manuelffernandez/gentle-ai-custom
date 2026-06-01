@@ -31,9 +31,9 @@ Cuando audités cambios del upstream con la skill maintainer, esa skill te tiene
 - `logs/update-log.md`  
   Log incremental de decisiones y updates aplicados.
 - `scripts/apply-gentle-ai-policy.sh` y `.ps1`  
-  Helpers internos que podan skills, aplican `agent_overrides`, reconcilian perfiles SDD desde el config local (`~/.config/gentle-ai-custom/opencode-sdd-profiles.json`), capturan prompts inline y generan orchestrators derivados bajo `~/.config/opencode/prompts/sdd/orchestrators/`. Mantienen el snapshot versionado de `gentle-orchestrator` en el repo, mantienen snapshots operativos locales bajo `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`, recuperan desde snapshot si un `.overlay.md` faltó en disco, detectan drift de topología (orchestrators desconocidos/faltantes), validan estrictamente el config local de perfiles antes de cualquier escritura (fail-closed) y verifican automáticamente que el `gentle-orchestrator` materializado siga alineado con el último baseline auditado.
- - `scripts/audit-gentle-ai-upstream.py` + wrappers `audit-gentle-ai-upstream.sh/.ps1`
-  Auditor read-only pre-sync. Compara el prompt base upstream de `gentle-orchestrator` contra el baseline versionado (`gentle-orchestrator.last.md` + `.meta.yaml`) y chequea invariantes de generación de perfiles en upstream.
+  Wrappers internos finos hacia la CLI Go compartida. La implementación real vive en `cmd/gentle-ai-overlay` + `internal/overlay` y poda skills, aplica `agent_overrides`, reconcilia perfiles SDD desde el config local (`~/.config/gentle-ai-custom/opencode-sdd-profiles.json`), captura prompts inline y genera orchestrators derivados bajo `~/.config/opencode/prompts/sdd/orchestrators/`. Mantiene el snapshot versionado de `gentle-orchestrator` en el repo, mantiene snapshots operativos locales bajo `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`, recupera desde snapshot si un `.overlay.md` faltó en disco, detecta drift de topología (orchestrators desconocidos/faltantes), valida estrictamente el config local de perfiles antes de cualquier escritura (fail-closed) y verifica automáticamente que el `gentle-orchestrator` materializado siga alineado con el último baseline auditado.
+- `cmd/gentle-ai-overlay/main.go` + `internal/overlay/*.go`
+  CLI Go compartida para `apply-custom`, `apply-policy` y `audit-upstream`.
 
 ### Config externo gestionado fuera del repo
 

@@ -2,6 +2,40 @@
 
 > Este archivo registra decisiones e hitos del mantenimiento del overlay. No es la fuente autoritativa del último upstream mantenido; esa responsabilidad vive en `overlay/gentle-ai/state/upstream-state.json`.
 
+## 2026-06-01 — Completed the shared Go overlay CLI refactor
+
+Razón del cambio:
+
+- El refactor a Go había quedado a mitad de camino: la CLI nueva ya existía, pero `audit-upstream` seguía viviendo solo en Python y los wrappers públicos e internos seguían cargando lógica pesada o referencias stale.
+- Eso dejaba el repo en un estado inconsistente: no compilaba, no había una única implementación compartida y la documentación seguía describiendo la arquitectura anterior.
+
+WHAT cambió:
+
+- `internal/overlay/audit_upstream.go`:
+  - nuevo comando Go `audit-upstream`
+  - valida alineación de `gentle-orchestrator.last.md`, `.meta.yaml` y `upstream-state.json`
+  - compara el prompt base upstream contra el baseline versionado
+  - chequea invariantes de perfiles (`profilePhaseOrder`, naming `sdd-orchestrator-*`, deny-all task scoping, binding del asset base en `inject.go`)
+- `apply-gentle-ai-custom.sh/.ps1`, `audit-gentle-ai-upstream.sh/.ps1`, `overlay/gentle-ai/scripts/apply-gentle-ai-policy.sh/.ps1`:
+  - convertidos en wrappers finos que delegan a `go run ./cmd/gentle-ai-overlay ...`
+  - sin lógica operativa duplicada en shell o PowerShell
+- `overlay/gentle-ai/scripts/audit-gentle-ai-upstream.py`:
+  - eliminado por quedar totalmente supersedido por la implementación Go
+- `README.md`, `AGENTS.md`, `overlay/gentle-ai/README.md`, `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`, `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`:
+  - actualizadas para reflejar la arquitectura Go compartida y remover referencias stale a Python o a sanitizadores duplicados por script
+
+WHY:
+
+- El objetivo del refactor era tener una sola implementación compartida y verificable. Mientras la auditoría y los wrappers siguieran repartidos entre Go, shell, PowerShell y Python, esa promesa era falsa.
+- Mover todo el comportamiento a Go reduce drift entre plataformas y hace que `go test ./...` sea una verificación real del runtime principal.
+
+Verificación:
+
+- `go test ./...`
+- `bash audit-gentle-ai-upstream.sh`
+- `bash apply-gentle-ai-custom.sh all`
+- Parity PowerShell por inspección: los wrappers `.ps1` ahora delegan al mismo entrypoint Go que los `.sh`.
+
 ## 2026-06-01 — Separate pre-sync upstream audit from apply helper
 
 Razón del cambio:

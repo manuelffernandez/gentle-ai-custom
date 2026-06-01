@@ -16,7 +16,7 @@ Este mantenimiento se apoya en cuatro capas explícitas:
 No cumplen el mismo rol:
 
 - el **intento** describe el criterio del usuario
-- la **política** alimenta los scripts runtime
+- la **política** alimenta la CLI Go runtime y sus wrappers finos
 - el **estado** marca desde dónde hay que auditar el upstream
 - el **log** deja historial narrativo de mantenimiento
 
@@ -208,9 +208,8 @@ Crear un archivo `*.json` directamente bajo `~/.config/opencode/profiles/` (no e
 4. Leé el estado en `overlay/gentle-ai/state/upstream-state.json`.
 5. Determiná el rango a auditar desde `last_maintained_commit` / `last_maintained_tag` hasta el estado actual del upstream.
 6. Revisá snapshots versionados en `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/` y snapshots operativos en `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`.
-7. Si cambió la estructura del orchestrator, ajustá el sanitizador en ambos scripts:
-   - `overlay/gentle-ai/scripts/apply-gentle-ai-policy.sh`
-   - `overlay/gentle-ai/scripts/apply-gentle-ai-policy.ps1`
+7. Si cambió la estructura del orchestrator, ajustá el sanitizador en la implementación Go compartida:
+   - `internal/overlay/apply_policy.go`
 8. Revisá también el metadata file versionado `gentle-orchestrator.last.meta.yaml` para confirmar que sigue alineado con `upstream-state.json`.
 9. Separá cambios relevantes del overlay de bugfix/chore noise.
 10. Si hay cambios relevantes de comportamiento o nuevas convenciones, frená y pedile al usuario una decisión explícita.

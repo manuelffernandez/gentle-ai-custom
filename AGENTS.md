@@ -24,6 +24,8 @@ This repo now has three script pairs:
 - `audit-gentle-ai-upstream.sh` / `audit-gentle-ai-upstream.ps1` → canonical maintainer-facing upstream audit entrypoints
 - `overlay/gentle-ai/scripts/apply-gentle-ai-policy.sh` / `.ps1` → internal Gentle AI depuration helpers
 
+All three pairs are thin wrappers over the shared Go CLI in `cmd/gentle-ai-overlay` + `internal/overlay`.
+
 If one side changes, the paired script must be updated in the same commit.
 
 **Canonical entrypoint parity items:**
@@ -107,13 +109,23 @@ gentle-ai-custom/
 │       ├── logs/
 │       │   └── update-log.md                   # Incremental decision history
 │       ├── scripts/
-│       │   ├── apply-gentle-ai-policy.sh       # Internal helper: depure Gentle AI runtime assets
-│       │   ├── apply-gentle-ai-policy.ps1      # Internal helper: Windows equivalent
-│       │   └── audit-gentle-ai-upstream.py     # Shared maintainer audit logic for base prompt + metadata + invariants
+│       │   ├── apply-gentle-ai-policy.sh       # Thin internal helper: delegates to the shared Go CLI
+│       │   └── apply-gentle-ai-policy.ps1      # Thin internal helper: Windows equivalent
 │       └── snapshots/
 │           └── upstream/
 │               └── opencode/
 │                   └── orchestrators/          # Versioned baseline snapshot + metadata (gentle-orchestrator.last.md + .meta.yaml)
+├── cmd/
+│   └── gentle-ai-overlay/
+│       └── main.go                             # Shared Go CLI entrypoint for apply/audit commands
+├── internal/
+│   └── overlay/
+│       ├── apply_custom.go                     # Custom wrapper/skill installation logic
+│       ├── apply_policy.go                     # Overlay depuration, sanitization, profiles, verification
+│       ├── audit_upstream.go                   # Upstream baseline + metadata + invariant audit
+│       ├── policy.go                           # Policy/state loading types
+│       └── util.go                             # Shared helpers for files, JSON, hashing, git
+├── go.mod
 ├── shared/
 │   ├── skills/
 │   │   ├── commit-planner/

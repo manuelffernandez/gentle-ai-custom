@@ -60,7 +60,7 @@ Re-apply paths are mandatory regardless of whether upstream content changed — 
 | Script summary shows `local snapshot migrations from repo: N > 0` | Legacy repo snapshots were copied into the local operational directory. After verification, remove the old versioned profile snapshots from the repo so only `gentle-orchestrator.last.md` remains tracked. |
 | Script printed `orchestrators recovered from snapshot: N > 0` | User-side state was broken (deleted overlay files). Now consistent again. Worth noting in the log. |
 | Script raised `broken state for orchestrator X` | Run `gentle-ai sync` to reset prompts to inline, then re-run the script. Record the cause in the log. |
-| Sanitizer fails (`missing required marker` / `missing expected block`) | Upstream changed orchestrator structure. Update the sanitizers in both scripts before applying the overlay. |
+| Sanitizer fails (`missing required marker` / `missing expected block`) | Upstream changed orchestrator structure. Update the sanitizer in `internal/overlay/apply_policy.go` before applying the overlay. |
 | Upstream topology changed (agents/presets added, removed, renamed, or upstream shape no longer matches what sync can refresh) | STOP, summarize the impact, ask the user what to preserve or depure, and explicitly recommend a full reinstall before re-applying the overlay. `gentle-ai sync` alone is not enough for topology drift. |
 | Upstream added new skills or workflow behavior without topology drift | STOP, summarize the impact, ask the user what to keep or depure, and explicitly say that `gentle-ai sync` is the correct upstream refresh path before re-applying the overlay. |
 | The script can no longer sanitize safely | Fail closed, refresh docs, and record the blocker. |
