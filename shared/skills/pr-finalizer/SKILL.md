@@ -4,7 +4,7 @@ description: >
   Complement repository PR workflows by generating or regenerating pull request content from committed changes only,
   detecting repository PR conventions and a sensible base branch, and optionally creating or updating the PR after
   explicit approval.
-  Trigger: When the user asks to draft, regenerate, update, or sync a pull request from committed changes.
+  Trigger: When the user asks to draft, regenerate, update, or sync a pull request from committed changes. (Also triggers on Spanish requests like "crear PR", "hacer un pull request", "creame la PR").
 license: Apache-2.0
 metadata:
   author: manuelfernandez

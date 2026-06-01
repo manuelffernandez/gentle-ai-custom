@@ -3,7 +3,7 @@ name: commit-planner
 description: >
   Propose and optionally execute a post-SDD commit plan by grouping changed files into coherent local commits,
   detecting repository commit conventions first and falling back to Conventional Commits.
-  Trigger: When the user asks for a commit plan, commit grouping, post-SDD finalization, or to commit current changes.
+  Trigger: When the user asks for a commit plan, commit grouping, post-SDD finalization, or to commit current changes. (Also triggers on Spanish requests like "hacer commits", "planear commits", "commitear los cambios", "agrupar commits").
 license: Apache-2.0
 metadata:
   author: manuelfernandez
