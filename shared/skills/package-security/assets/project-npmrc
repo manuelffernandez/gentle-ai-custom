@@ -1,0 +1,14 @@
+# Project-level npm baseline (npm 11+)
+# Commit this into the repo so Docker, CI, and all developers enforce the same policy.
+#
+# Important: npm does not have a native reviewed allowlist equivalent to
+# pnpm's `allowBuilds` + `strictDepBuilds`, so this uses the strongest
+# built-in control: block dependency lifecycle scripts entirely.
+#
+# If a specific project truly cannot work with this, treat it as an
+# explicit exception and compensate with stronger review and extra tooling.
+
+ignore-scripts=true
+allow-git=none
+min-release-age=3
+save-exact=true

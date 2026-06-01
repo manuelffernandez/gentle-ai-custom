@@ -16,7 +16,7 @@ Este mantenimiento se apoya en cuatro capas explícitas:
 No cumplen el mismo rol:
 
 - el **intento** describe el criterio del usuario
-- la **política** alimenta los scripts runtime
+- la **política** alimenta la CLI Go runtime y sus wrappers finos
 - el **estado** marca desde dónde hay que auditar el upstream
 - el **log** deja historial narrativo de mantenimiento
 
@@ -55,11 +55,21 @@ El directorio `~/.config/opencode/profiles/` en este setup está vacío, por lo 
 
 ### Regla operativa invariante
 
-**Después de cualquier operación de Gentle AI que no sea solo `brew upgrade`, es obligatorio correr:**
+**Después de cualquier operación de Gentle AI que no sea solo `brew upgrade`, es obligatorio re-aplicar la capa custom.**
+
+Mínimo para OpenCode y la policy del overlay:
+
+```bash
+bash apply-gentle-ai-custom.sh opencode
+```
+
+Si además querés refrescar las skills/wrappers custom en todos los targets soportados:
 
 ```bash
 bash apply-gentle-ai-custom.sh all
 ```
+
+`opencode` alcanza para refrescar OpenCode, orchestrators y overrides. `all` además reinstala wrappers/skills custom en el resto de los targets soportados.
 
 Esto re-aplica el overlay completo:
 - poda las skills no deseadas (branch-pr, chained-pr, issue-creation, work-unit-commits)
@@ -88,20 +98,40 @@ Durante esta auditoría, la skill maintainer debe devolver esta recomendación d
 
 ### Flujo completo post-actualización
 
-```
-brew upgrade gentle-ai          ← actualiza el binario
-git pull (gentle-ai repo)       ← actualiza el clon local del upstream
-gentle-ai sync                  ← reaplica config managed (resetea prompts + skills)
-bash apply-gentle-ai-custom.sh all  ← re-aplica el overlay custom (OBLIGATORIO)
-git diff overlay/gentle-ai/snapshots/  ← verificá qué cambió en los prompts upstream
-git add -p && git commit        ← commitea el nuevo estado de los snapshots
-```
+### Camino recomendado (simple)
 
-Si la actualización requiere reinstalación, el agente de mantenimiento debe auditar primero antes de correr el script.
+1. **Actualizá el binario de Gentle AI**
+   - ejemplo: `brew upgrade gentle-ai`
+2. **Actualizá el repo upstream de Gentle AI**
+   - en tu clon de `/home/manuel/Documentos/gentle-ai`: `git pull`
+3. **Abrí `gentle-ai-custom` y activá el flujo maintainer**
+   - trabajá desde este repo
+   - usá la skill/agente maintainer para auditar el delta upstream y decidir la adopción
+   - corré: `bash audit-gentle-ai-upstream.sh`
+   - este paso compara el `gentle-orchestrator` base contra el baseline auditado (`gentle-orchestrator.last.md` + `.meta.yaml`) y chequea invariantes upstream de perfiles
+4. **Leé el resumen y actualizá `gentle-ai-custom` si hace falta**
+   - si el auditor detecta drift o topología nueva, primero adaptá este repo: docs, policy, sanitizador, state, snapshots o log según corresponda
+   - si recomienda reinstall, no sigas con sync
+5. **Recién cuando la auditoría dé OK y este repo ya esté alineado, corré el refresh upstream**
+   - `gentle-ai sync`
+   - o reinstalación completa si esa fue la recomendación
+6. **Re-aplicá tu capa custom**
+   - `bash apply-gentle-ai-custom.sh opencode` si solo querés re-materializar OpenCode + policy del overlay
+   - `bash apply-gentle-ai-custom.sh all` si además querés refrescar las skills/wrappers custom en todos los targets soportados
+   - este paso ahora incluye la verificación automática fail-closed del baseline auditado
+7. **Si todo salió bien, recién ahí cerrá el mantenimiento**
+   - revisá el diff de snapshots versionados si cambió el baseline base
+   - actualizá `upstream-state.json`, docs y log si aceptaste una nueva frontera upstream
+   - commiteá
+
+### Regla mental corta
+
+- `audit-gentle-ai-upstream` responde: **"¿es seguro avanzar con sync/reinstall?"**
+- `apply-gentle-ai-custom` responde: **"¿quedó materializado en disco lo que ya auditamos?"**
 
 ### Señales del script para actuar
 
-Después de cada corrida del script, leé el bloque `Summary:` y los `topology:` warnings. Cada señal mapea a una acción concreta:
+Después de cada corrida del script, leé el bloque `Summary:` y los `topology:` warnings. Si necesitás trazabilidad completa de la materialización, corré `apply-gentle-ai-custom ... --verbose`: agrega un bloque `Verbose changes:` con cada archivo tocado y la modificación concreta. Cada señal mapea a una acción concreta:
 
 | Señal en el output | Significa | Acción |
 |---|---|---|
@@ -122,6 +152,8 @@ Después de cada corrida del script, leé el bloque `Summary:` y los `topology:`
 | `ERROR: broken state for orchestrator 'X': opencode.json prompt is '{file:...}' but the target file is missing and ...` | `opencode.json` apunta a un `{file:...}` inexistente y no existe el snapshot recuperable requerido (local para profiles; local o repo versionado para `gentle-orchestrator`). | Correr `gentle-ai sync` para resetear los prompts a inline upstream, después re-correr el script. |
 | `ERROR: post-write verification failed: agent X model is Y after write, expected Z` | El JSON se escribió pero al re-leer los valores no coinciden con lo esperado. | Bug serio: investigar si hay otro proceso escribiendo `opencode.json` (race) o si el script tiene un bug de serialización. |
 | `ERROR: post-write verification failed: orchestrator X prompt is Y after write, expected Z` | Idem anterior pero para la referencia `{file:...}` del orchestrator. | Idem anterior. |
+| `ERROR: audited snapshot metadata mismatch ...` | El baseline auditado del repo quedó inconsistente entre `gentle-orchestrator.last.md`, `gentle-orchestrator.last.meta.yaml`, policy y `upstream-state.json`. | Repará el baseline auditado antes de volver a aplicar. No sigas hasta que el metadata vuelva a coincidir. |
+| `ERROR: audited baseline mismatch for orchestrator 'gentle-orchestrator' ...` | El `gentle-orchestrator` materializado después de sync/apply no coincide con el último baseline auditado. | Antes de aplicar una nueva versión upstream, corré `bash audit-gentle-ai-upstream.sh`. Si aceptaste el cambio, actualizá snapshot + `.meta.yaml` + `upstream-state.json` y después repetí `sync` + `apply`. |
 | `ERROR: OpenCode config at ... is not valid JSON: ...` | `opencode.json` está corrupto y no se puede parsear. | Restaurar desde `~/.gentle-ai/backups/<timestamp>/` o correr `gentle-ai sync` para regenerar. |
 | `ERROR: unsafe agent key for snapshot path: 'X'` | Un agente en `opencode.json` tiene un key con `/`, `\`, `..` o caracteres nulos que harían path traversal al escribir el snapshot. | Investigar de dónde salió ese key en `opencode.json`; no debería pasar bajo flujos normales. |
 
@@ -189,13 +221,13 @@ Crear un archivo `*.json` directamente bajo `~/.config/opencode/profiles/` (no e
 4. Leé el estado en `overlay/gentle-ai/state/upstream-state.json`.
 5. Determiná el rango a auditar desde `last_maintained_commit` / `last_maintained_tag` hasta el estado actual del upstream.
 6. Revisá snapshots versionados en `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/` y snapshots operativos en `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`.
-7. Si cambió la estructura del orchestrator, ajustá el sanitizador en ambos scripts:
-   - `overlay/gentle-ai/scripts/apply-gentle-ai-policy.sh`
-   - `overlay/gentle-ai/scripts/apply-gentle-ai-policy.ps1`
-8. Separá cambios relevantes del overlay de bugfix/chore noise.
-9. Si hay cambios relevantes de comportamiento o nuevas convenciones, frená y pedile al usuario una decisión explícita.
-10. Actualizá docs, skill, política y estado si cambió el workflow.
-11. Registrá la decisión en `overlay/gentle-ai/logs/update-log.md`.
+7. Si cambió la estructura del orchestrator, ajustá el sanitizador en la implementación Go compartida:
+   - `internal/overlay/apply_policy.go`
+8. Revisá también el metadata file versionado `gentle-orchestrator.last.meta.yaml` para confirmar que sigue alineado con `upstream-state.json`.
+9. Separá cambios relevantes del overlay de bugfix/chore noise.
+10. Si hay cambios relevantes de comportamiento o nuevas convenciones, frená y pedile al usuario una decisión explícita.
+11. Actualizá docs, skill, política, metadata y estado si cambió el workflow o si aceptaste una nueva frontera upstream.
+12. Registrá la decisión en `overlay/gentle-ai/logs/update-log.md`.
 
 ## Gate humana
 
@@ -215,6 +247,7 @@ El agente debe pedir aprobación humana cuando aparezcan cambios que puedan afec
 - [ ] `upstream-state.json` apunta a la última versión/commit realmente mantenida.
 - [ ] Los scripts siguen generando prompts derivados bajo `~/.config/opencode/prompts/sdd/orchestrators/`.
 - [ ] `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/` conserva solo `gentle-orchestrator.last.md`.
+- [ ] `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.meta.yaml` existe y sigue alineado con `upstream-state.json`.
 - [ ] `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/` contiene `gentle-orchestrator.last.md` y los snapshots `sdd-orchestrator-<profile>.last.md` gestionados localmente.
 - [ ] El sanitizador todavía remueve PR/budget/chained-PR/review-workload sin romper `## Model Assignments`.
 - [ ] `agent.general` sigue en `openai/gpt-5.4` / `high`.

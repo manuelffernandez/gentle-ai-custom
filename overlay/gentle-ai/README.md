@@ -4,11 +4,20 @@ Este overlay mantiene una política **persistente y reaplicable** para tu stack 
 
 ## Quick path
 
-1. Ejecutá tu sync normal de Gentle AI.
-2. Reaplicá la capa custom completa:
-   - Linux/macOS: `bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh all`
-   - Windows: `~\Documentos\gentle-ai-custom\apply-gentle-ai-custom.ps1 all`
-3. Reiniciá OpenCode si el script tocó `opencode.json`.
+1. Actualizá el binario de Gentle AI.
+2. Hacé `git pull` en tu clon upstream de `/home/manuel/Documentos/gentle-ai`.
+3. Abrí `gentle-ai-custom` y usá la skill maintainer para revisar el delta upstream.
+4. Auditá ANTES de sync:
+   - Linux/macOS: `bash ~/Documentos/gentle-ai-custom/audit-gentle-ai-upstream.sh`
+   - Windows: `~\Documentos\gentle-ai-custom\audit-gentle-ai-upstream.ps1`
+5. Si la auditoría exige cambios en este repo, actualizá primero `gentle-ai-custom`.
+6. Si la auditoría da OK, corré tu `gentle-ai sync` o reinstall según el cambio upstream auditado.
+7. Reaplicá la capa custom:
+   - Linux/macOS: `bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh opencode`
+   - Windows: `~\Documentos\gentle-ai-custom\apply-gentle-ai-custom.ps1 opencode`
+   - Usá `all` en lugar de `opencode` si también querés refrescar las skills/wrappers custom de todos los targets soportados.
+   - Agregá `--verbose` si querés ver cada archivo tocado y la modificación concreta que hizo el helper.
+8. Reiniciá OpenCode si el script tocó `opencode.json`.
 
 Cuando audités cambios del upstream con la skill maintainer, esa skill te tiene que decir además si ese delta se resuelve con `gentle-ai sync` o si requiere reinstalación completa. Si hubo cambios de topología, `sync` no alcanza.
 
@@ -27,7 +36,9 @@ Cuando audités cambios del upstream con la skill maintainer, esa skill te tiene
 - `logs/update-log.md`  
   Log incremental de decisiones y updates aplicados.
 - `scripts/apply-gentle-ai-policy.sh` y `.ps1`  
-  Helpers internos que podan skills, aplican `agent_overrides`, reconcilian perfiles SDD desde el config local (`~/.config/gentle-ai-custom/opencode-sdd-profiles.json`), capturan prompts inline y generan orchestrators derivados bajo `~/.config/opencode/prompts/sdd/orchestrators/`. Mantienen el snapshot versionado de `gentle-orchestrator` en el repo, mantienen snapshots operativos locales bajo `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`, recuperan desde snapshot si un `.overlay.md` faltó en disco, detectan drift de topología (orchestrators desconocidos/faltantes), validan estrictamente el config local de perfiles antes de cualquier escritura (fail-closed) y verifican post-write que `opencode.json` quedó consistente.
+  Wrappers internos finos hacia la CLI Go compartida. La implementación real vive en `cmd/gentle-ai-overlay` + `internal/overlay` y poda skills, aplica `agent_overrides`, reconcilia perfiles SDD desde el config local (`~/.config/gentle-ai-custom/opencode-sdd-profiles.json`), captura prompts inline y genera orchestrators derivados bajo `~/.config/opencode/prompts/sdd/orchestrators/`. Mantiene el snapshot versionado de `gentle-orchestrator` en el repo, mantiene snapshots operativos locales bajo `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`, recupera desde snapshot si un `.overlay.md` faltó en disco, detecta drift de topología (orchestrators desconocidos/faltantes), valida estrictamente el config local de perfiles antes de cualquier escritura (fail-closed) y verifica automáticamente que el `gentle-orchestrator` materializado siga alineado con el último baseline auditado.
+- `cmd/gentle-ai-overlay/main.go` + `internal/overlay/*.go`
+  CLI Go compartida para `apply-custom`, `apply-policy` y `audit-upstream`.
 
 ### Config externo gestionado fuera del repo
 

@@ -1,0 +1,17 @@
+schema_version: 1
+snapshot_file: gentle-orchestrator.last.md
+snapshot_source: upstream-opencode-inline-asset
+snapshot_sha256: e55d70d42eeed30e72cd4e2c405f40c3f5fbc932deec90291bd9562b446e8335
+state_file: overlay/gentle-ai/state/upstream-state.json
+upstream_repo_name: gentle-ai
+upstream_prompt_rel_path: internal/assets/opencode/sdd-orchestrator.md
+upstream_inject_source_rel_path: internal/components/sdd/inject.go
+upstream_profiles_source_rel_path: internal/components/sdd/profiles.go
+last_maintained_version: v1.33.2
+last_maintained_tag: v1.33.2
+last_maintained_commit: 0fa9f2d1d2d3a8ebd822cdd5c82fcb4bff60f0fc
+last_reviewed_at: 2026-05-30T03:40:49Z
+base_orchestrator_key: gentle-orchestrator
+profile_orchestrator_prefix: sdd-orchestrator-
+profile_phase_order_csv: sdd-init,sdd-explore,sdd-propose,sdd-spec,sdd-design,sdd-tasks,sdd-apply,sdd-verify,sdd-archive,sdd-onboard
+profile_task_scope_rule: deny-all-then-allow-suffixed-phases-and-global-jd

@@ -18,17 +18,27 @@ This includes:
 
 ### 2. Exact parity between paired automation scripts
 
-This repo now has two script pairs:
+This repo now has three script pairs:
 
 - `apply-gentle-ai-custom.sh` / `apply-gentle-ai-custom.ps1` → canonical user-facing entrypoints
+- `audit-gentle-ai-upstream.sh` / `audit-gentle-ai-upstream.ps1` → canonical maintainer-facing upstream audit entrypoints
 - `overlay/gentle-ai/scripts/apply-gentle-ai-policy.sh` / `.ps1` → internal Gentle AI depuration helpers
+
+All three pairs are thin wrappers over the shared Go CLI in `cmd/gentle-ai-overlay` + `internal/overlay`.
 
 If one side changes, the paired script must be updated in the same commit.
 
 **Canonical entrypoint parity items:**
 - target parsing and usage/help behavior
+- `--verbose` flag support and file-level change reporting
 - installation of custom skills/wrappers
 - invocation of the Gentle AI overlay helper
+
+**Maintainer audit parity items:**
+- invocation of the shared upstream audit logic
+- upstream prompt + metadata alignment checks
+- profile-generation invariant checks
+- fail/success criteria and actionable error output
 
 **Overlay helper parity items:**
 - keep/prune skill policy
@@ -100,12 +110,23 @@ gentle-ai-custom/
 │       ├── logs/
 │       │   └── update-log.md                   # Incremental decision history
 │       ├── scripts/
-│       │   ├── apply-gentle-ai-policy.sh       # Internal helper: depure Gentle AI runtime assets
-│       │   └── apply-gentle-ai-policy.ps1      # Internal helper: Windows equivalent
+│       │   ├── apply-gentle-ai-policy.sh       # Thin internal helper: delegates to the shared Go CLI
+│       │   └── apply-gentle-ai-policy.ps1      # Thin internal helper: Windows equivalent
 │       └── snapshots/
 │           └── upstream/
 │               └── opencode/
-│                   └── orchestrators/          # Versioned baseline snapshots (repo keeps only gentle-orchestrator.last.md)
+│                   └── orchestrators/          # Versioned baseline snapshot + metadata (gentle-orchestrator.last.md + .meta.yaml)
+├── cmd/
+│   └── gentle-ai-overlay/
+│       └── main.go                             # Shared Go CLI entrypoint for apply/audit commands
+├── internal/
+│   └── overlay/
+│       ├── apply_custom.go                     # Custom wrapper/skill installation logic
+│       ├── apply_policy.go                     # Overlay depuration, sanitization, profiles, verification
+│       ├── audit_upstream.go                   # Upstream baseline + metadata + invariant audit
+│       ├── policy.go                           # Policy/state loading types
+│       └── util.go                             # Shared helpers for files, JSON, hashing, git
+├── go.mod
 ├── shared/
 │   ├── skills/
 │   │   ├── commit-planner/
@@ -120,6 +141,8 @@ gentle-ai-custom/
 │       └── pr-regenerate-body.md
 ├── apply-gentle-ai-custom.sh                   # Canonical Linux/macOS entrypoint (public)
 ├── apply-gentle-ai-custom.ps1                  # Canonical Windows entrypoint (public)
+├── audit-gentle-ai-upstream.sh                 # Canonical Linux/macOS maintainer audit entrypoint (public)
+├── audit-gentle-ai-upstream.ps1                # Canonical Windows maintainer audit entrypoint (public)
 ├── AGENTS.md
 ├── CLAUDE.md
 └── README.md
@@ -139,6 +162,7 @@ It does two classes of work:
    - generated wrappers/commands per target
 
 2. **Maintenance/depuration of upstream Gentle AI behavior**
+   - audit the upstream `gentle-orchestrator` asset before sync/reinstall work
    - prune unwanted workflow skills
    - set runtime model overrides for built-in OpenCode agents
    - capture inline orchestrators from OpenCode config
@@ -169,6 +193,13 @@ The maintenance model is intentionally split into:
 - **Source**: `shared/skills/pr-finalizer/SKILL.md`
 - **Purpose**: generate or regenerate PR content from committed diff.
 - **Commands**: `/pr-create`, `/pr-regenerate`
+
+### `package-security`
+
+- **Source**: `shared/skills/package-security/SKILL.md`
+- **Purpose**: enforce package security posture across npm/pnpm projects — covers global config, project-level config, and CI install commands.
+- **Use when**: installing or updating dependencies, hardening supply chain, reviewing `.npmrc` or `pnpm-workspace.yaml`, or evaluating CI pipeline install steps.
+- **Assets**: `shared/skills/package-security/assets/` contains ready-to-adapt templates for global and project-level config, plus a platform-agnostic CI guide.
 
 ### `gentle-ai-overlay-maintainer`
 
@@ -201,7 +232,7 @@ Built-in OpenCode agent overrides:
 
 SDD profile orchestrators (`sdd-orchestrator-<name>` and `sdd-<phase>-<name>`) are **NOT** baked into the versioned policy. They are reconciled from a per-machine local config — see `## SDD profile local config` below. The versioned policy keeps only portable baseline keys (`gentle-orchestrator`) so the repo never carries machine-specific model/variant choices.
 
-Profile orchestrator snapshots also stay out of the versioned repo. The repo keeps only `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md`; the helper keeps operational snapshots per machine under `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`.
+Profile orchestrator snapshots also stay out of the versioned repo. The repo keeps the portable `gentle-orchestrator.last.md` baseline plus `gentle-orchestrator.last.meta.yaml`; the helper keeps operational snapshots per machine under `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`.
 
 The maintainer must not infer evolving user intent only from the JSON policy. Intent changes belong first in `maintenance-intent.md`, then in policy/runtime artifacts if the user approves them.
 
@@ -268,14 +299,16 @@ The helper only manages `model`/`variant` on profile orchestrators. Orchestrator
 
 ## Orchestrator rule
 
-The OpenCode orchestrator is inline upstream by design. The helper scripts must therefore:
+The OpenCode orchestrator is inline upstream by design. The maintainer audit/apply flow must therefore:
 
-1. read the inline prompt from `opencode.json`
-2. snapshot every orchestrator into `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`
-3. additionally keep `gentle-orchestrator.last.md` versioned under `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/`
-4. sanitize PR/budget/chained-PR/review-workload flow
-5. generate `~/.config/opencode/prompts/sdd/orchestrators/<agent>.overlay.md`
-6. repoint the orchestrator to that generated file
+1. audit the upstream base asset with `bash audit-gentle-ai-upstream.sh` before maintainer sync/reinstall work
+2. read the inline prompt from `opencode.json`
+3. snapshot every orchestrator into `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`
+4. additionally keep `gentle-orchestrator.last.md` plus `gentle-orchestrator.last.meta.yaml` versioned under `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/`
+5. sanitize PR/budget/chained-PR/review-workload flow
+6. generate `~/.config/opencode/prompts/sdd/orchestrators/<agent>.overlay.md`
+7. repoint the orchestrator to that generated file
+8. fail closed if the materialized `gentle-orchestrator` does not match the last audited baseline/metadata
 
 Recovery rules:
 
@@ -290,19 +323,42 @@ If sanitization anchors are missing, fail closed and surface the warning.
 
 ## Update flow
 
-After any Gentle AI operation other than a bare `brew upgrade`, always run:
+The maintainer workflow order is:
+
+1. update the `gentle-ai` binary
+2. `git pull` in `/home/manuel/Documentos/gentle-ai`
+3. open `gentle-ai-custom` and run the maintainer audit
+4. if the audit reveals overlay-relevant drift, update this repo first
+5. run `gentle-ai sync` or a full reinstall depending on the audited upstream change
+6. re-apply the overlay with `apply-gentle-ai-custom.sh opencode` or `apply-gentle-ai-custom.sh all`
+
+Before maintainer sync/reinstall work, run:
+
+```bash
+bash audit-gentle-ai-upstream.sh
+```
+
+After any Gentle AI operation other than a bare `brew upgrade`, always re-apply the custom layer.
+
+Minimum for OpenCode + overlay policy:
+
+```bash
+bash apply-gentle-ai-custom.sh opencode
+```
+
+If you also want to refresh custom skills/wrappers across every supported target, run:
 
 ```bash
 bash apply-gentle-ai-custom.sh all
 ```
 
-**Why**: `gentle-ai sync` resets orchestrator prompts to upstream inline content and reinstalls all skills (including pruned ones). The script re-applies the full overlay: skill pruning, model overrides, snapshot capture, sanitization, and `{file:...}` rewrite.
+**Why**: `gentle-ai sync` resets orchestrator prompts to upstream inline content and reinstalls all skills (including pruned ones). The audit script catches upstream base-prompt or profile-invariant drift before you sync. If the audit shows overlay-relevant drift, update this repo before touching runtime state. The apply script then re-applies the full overlay: skill pruning, model overrides, snapshot capture, sanitization, `{file:...}` rewrite, and automatic verification that `gentle-orchestrator` still matches the last audited baseline. Use `opencode` when only the OpenCode overlay needs refreshing; use `all` when you also want the repo's custom wrappers/skills refreshed across every supported target.
 
 | Operation | Resets prompts | Restores pruned skills | Run script after |
 |---|---|---|---|
 | `brew upgrade` only | No | No | No |
-| `gentle-ai sync` | **Yes** | **Yes** | **Always** |
-| TUI reinstall | **Yes** (topology may change) | **Yes** | **Always** (audit first) |
+| `gentle-ai sync` | **Yes** | **Yes** | **Always** (`opencode` minimum; `all` for multi-target refresh) |
+| TUI reinstall | **Yes** (topology may change) | **Yes** | **Always** (`opencode` minimum; audit first, `all` for multi-target refresh) |
 
 When reinstalling, the overlay maintainer agent must audit before running the script in case agent topology changed.
 

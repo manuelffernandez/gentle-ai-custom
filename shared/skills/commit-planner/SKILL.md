@@ -3,7 +3,7 @@ name: commit-planner
 description: >
   Propose and optionally execute a post-SDD commit plan by grouping changed files into coherent local commits,
   detecting repository commit conventions first and falling back to Conventional Commits.
-  Trigger: When the user asks for a commit plan, commit grouping, post-SDD finalization, or to commit current changes.
+  Trigger: When the user asks for a commit plan, commit grouping, post-SDD finalization, or to commit current changes. (Also triggers on Spanish requests like "hacer commits", "planear commits", "commitear los cambios", "agrupar commits").
 license: Apache-2.0
 metadata:
   author: manuelfernandez
@@ -19,6 +19,23 @@ Use this skill when:
 - You need to decide whether the current working tree should become one commit or several meaningful local commits
 
 Do **not** use this skill as part of the default SDD flow. This is a **post-SDD**, user-invoked finalization step.
+
+## Invocation Scope — HARD RULE
+
+This skill is **single-shot and non-persistent**. A prior invocation in the same conversation does NOT carry forward.
+
+**After any mode executes** (plan, apply, or auto/fast), the agent returns to neutral mode. Committing is no longer assumed or implied for any future task in the session.
+
+**Critical anti-pattern to avoid**:
+> The user invoked `/commit-fast` → you committed → the user asked you to implement more changes → you implemented them → **you MUST NOT commit again**.
+
+The user will ask explicitly if they want another commit. Completing implementation work is never an implicit trigger.
+
+**Activation requires one of these in the current user message**:
+- An explicit command: `/commit-fast`, `/commit-apply`, `/commit-plan`
+- A natural-language phrase listed in the `## Commands` section below
+
+If neither is present in the current message, this skill does not apply — regardless of what happened earlier in the conversation.
 
 ## Critical Patterns
 
@@ -126,7 +143,7 @@ Return this structure after execution:
 
 Triggered by `/commit-fast` or natural-language cues like `commiteá directamente`, `aplicá sin preguntar`, `commit rápido`.
 
-**Single-invocation rule**: `auto` mode applies to the changes present at the moment it is invoked. It does NOT carry over to subsequent changes in the same session. Each new set of changes requires an explicit new invocation — never assume `auto` mode is the default going forward.
+**Single-invocation rule**: `auto` mode applies only to the changes present at the moment it is invoked. Once execution completes, this mode is over — it does NOT persist, carry over, or re-activate for any subsequent changes in the same session. Completing implementation work requested after a `/commit-fast` is NOT a trigger to run another commit. Wait for an explicit new invocation.
 
 1. Generate the plan using the same rules as `plan` mode.
 2. Display the full plan in the output **before** executing — for audit visibility, not for approval.

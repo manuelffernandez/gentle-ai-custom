@@ -2,6 +2,142 @@
 
 > Este archivo registra decisiones e hitos del mantenimiento del overlay. No es la fuente autoritativa del último upstream mantenido; esa responsabilidad vive en `overlay/gentle-ai/state/upstream-state.json`.
 
+## 2026-06-01 — Added verbose file-level output for apply-custom
+
+Razón del cambio:
+
+- El entrypoint `apply-gentle-ai-custom` ya mostraba bien los contadores del `Summary:`, pero faltaba trazabilidad humana cuando el usuario necesitaba saber QUÉ archivos se tocaron y QUÉ cambió concretamente en cada uno.
+- Ese gap hacía más difícil auditar corridas reales del overlay, sobre todo cuando el apply reescribía snapshots, prompts generados o `opencode.json` sin dejar un detalle explícito por archivo.
+
+WHAT cambió:
+
+- `internal/overlay/apply_custom.go`, `internal/overlay/apply_policy.go`, `internal/overlay/overlays.go`, `internal/overlay/profiles.go`, `internal/overlay/snapshots.go`, `internal/overlay/summary.go`, `internal/overlay/util.go`, `internal/overlay/verbose.go`, `cmd/gentle-ai-overlay/main.go`:
+  - nuevo flag `--verbose` para `apply-custom` y `apply-policy`
+  - recorder compartido de cambios por archivo
+  - output adicional `Verbose changes:` con paths tocados y detalle de escrituras, regeneraciones, poda de skills, snapshots y updates en `opencode.json`
+  - el `Summary:` previo se mantiene backward compatible
+- `apply-gentle-ai-custom.sh/.ps1`:
+  - ahora propagan el nombre real del entrypoint para que la ayuda del CLI muestre el wrapper canónico y no el subcomando interno
+- `overlay/gentle-ai/scripts/apply-gentle-ai-policy.sh` y `.ps1`:
+  - ahora forwardean args al subcomando Go y preservan ayuda/errores consistentes para `--verbose`
+- `README.md`, `overlay/gentle-ai/README.md`, `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`, `AGENTS.md`:
+  - documentado el nuevo modo verbose y su contrato operativo
+
+WHY:
+
+- Los contadores sirven para ver magnitud, pero NO alcanzan para entender el efecto real de una corrida. Cuando mantenés overlays, necesitás ver el archivo exacto y la mutación concreta para auditar sin adivinar.
+- Mantener el `Summary:` intacto evita romper hábitos o parsing existente, mientras que `--verbose` agrega el detalle solo cuando realmente se necesita.
+
+Verificación:
+
+- `gofmt -w cmd/gentle-ai-overlay/main.go internal/overlay/apply_custom.go internal/overlay/apply_policy.go internal/overlay/overlays.go internal/overlay/profiles.go internal/overlay/snapshots.go internal/overlay/summary.go internal/overlay/util.go internal/overlay/verbose.go`
+- `go test ./...`
+- `go run ./cmd/gentle-ai-overlay --help`
+- `go run ./cmd/gentle-ai-overlay apply-policy --help`
+- `go run ./cmd/gentle-ai-overlay apply-custom --help`
+
+## 2026-06-01 — Clarified maintainer workflow ordering and apply target choice
+
+Razón del cambio:
+
+- El flujo operativo ya distinguía bien auditoría pre-sync vs apply post-sync, pero la documentación todavía no dejaba explícitos dos detalles importantes para mantenimiento real: trabajar desde `gentle-ai-custom` con la skill maintainer y actualizar este repo si la auditoría upstream lo exige antes de correr `sync`.
+- Además, la documentación trataba `bash apply-gentle-ai-custom.sh all` como único cierre válido, cuando en realidad `opencode` ya alcanza para re-materializar OpenCode + la policy del overlay; `all` solo agrega el refresh de skills/wrappers custom en el resto de targets.
+
+WHAT cambió:
+
+- `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`:
+  - el camino recomendado ahora explicita el orden completo: update binario → `git pull` upstream → abrir `gentle-ai-custom`/activar maintainer → auditar → actualizar este repo si hace falta → `sync` o reinstall → `apply ... opencode|all`
+  - la regla operativa post-update ya no fuerza `all`; documenta `opencode` como mínimo y `all` como refresh multi-target
+- `README.md`, `overlay/gentle-ai/README.md`, `AGENTS.md` y `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`:
+  - alineados con el mismo orden operativo y con la distinción `opencode` vs `all`
+
+WHY:
+
+- El mantenimiento del overlay tiene dos preguntas distintas y ambas deben quedar visibles en el runbook: primero si el upstream se puede adoptar, después cómo materializar localmente lo ya auditado.
+- Si la documentación obliga siempre a `all`, mezcla la necesidad real del overlay de OpenCode con una conveniencia adicional de distribución multi-target.
+
+Verificación:
+
+- Revisión cruzada de coherencia entre `runbooks/maintain-upstream-overlay.md`, `README.md`, `overlay/gentle-ai/README.md`, `AGENTS.md` y `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`.
+- Confirmado en `internal/overlay/apply_custom.go` que `opencode` ya dispara `RunApplyPolicy()` y que `all` solo amplía la instalación de skills/wrappers custom a todos los targets soportados.
+
+## 2026-06-01 — Completed the shared Go overlay CLI refactor
+
+Razón del cambio:
+
+- El refactor a Go había quedado a mitad de camino: la CLI nueva ya existía, pero `audit-upstream` seguía viviendo solo en Python y los wrappers públicos e internos seguían cargando lógica pesada o referencias stale.
+- Eso dejaba el repo en un estado inconsistente: no compilaba, no había una única implementación compartida y la documentación seguía describiendo la arquitectura anterior.
+
+WHAT cambió:
+
+- `internal/overlay/audit_upstream.go`:
+  - nuevo comando Go `audit-upstream`
+  - valida alineación de `gentle-orchestrator.last.md`, `.meta.yaml` y `upstream-state.json`
+  - compara el prompt base upstream contra el baseline versionado
+  - chequea invariantes de perfiles (`profilePhaseOrder`, naming `sdd-orchestrator-*`, deny-all task scoping, binding del asset base en `inject.go`)
+- `apply-gentle-ai-custom.sh/.ps1`, `audit-gentle-ai-upstream.sh/.ps1`, `overlay/gentle-ai/scripts/apply-gentle-ai-policy.sh/.ps1`:
+  - convertidos en wrappers finos que delegan a `go run ./cmd/gentle-ai-overlay ...`
+  - sin lógica operativa duplicada en shell o PowerShell
+- `overlay/gentle-ai/scripts/audit-gentle-ai-upstream.py`:
+  - eliminado por quedar totalmente supersedido por la implementación Go
+- `README.md`, `AGENTS.md`, `overlay/gentle-ai/README.md`, `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`, `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`:
+  - actualizadas para reflejar la arquitectura Go compartida y remover referencias stale a Python o a sanitizadores duplicados por script
+
+WHY:
+
+- El objetivo del refactor era tener una sola implementación compartida y verificable. Mientras la auditoría y los wrappers siguieran repartidos entre Go, shell, PowerShell y Python, esa promesa era falsa.
+- Mover todo el comportamiento a Go reduce drift entre plataformas y hace que `go test ./...` sea una verificación real del runtime principal.
+
+Verificación:
+
+- `go test ./...`
+- `bash audit-gentle-ai-upstream.sh`
+- `bash apply-gentle-ai-custom.sh all`
+- Parity PowerShell por inspección: los wrappers `.ps1` ahora delegan al mismo entrypoint Go que los `.sh`.
+
+## 2026-06-01 — Separate pre-sync upstream audit from apply helper
+
+Razón del cambio:
+
+- El helper `apply-gentle-ai-policy` estaba cargando demasiadas responsabilidades a la vez: aplicar la capa custom, reconstruir overlays, recuperar desde snapshots y, al mismo tiempo, actuar como detector principal de drift upstream.
+- Eso generaba un problema operativo: antes de `gentle-ai sync`, `opencode.json` todavía refleja el estado previamente overlay-applied, así que el helper no puede detectar de forma confiable el drift del prompt inline nuevo sin materializar primero el upstream. Necesitábamos un auditor pre-sync separado.
+
+WHAT cambió:
+
+- Nuevos entrypoints públicos:
+  - `audit-gentle-ai-upstream.sh`
+  - `audit-gentle-ai-upstream.ps1`
+- Nuevo motor compartido:
+  - `overlay/gentle-ai/scripts/audit-gentle-ai-upstream.py`
+  - lee directamente el repo upstream de Gentle AI
+  - compara el prompt base upstream (`internal/assets/opencode/sdd-orchestrator.md`) contra `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md`
+  - valida el sidecar metadata file `gentle-orchestrator.last.meta.yaml`
+  - chequea invariantes upstream de perfiles (`profilePhaseOrder`, prefix `sdd-orchestrator-`, task scoping deny-all-then-allow-profile-phases-and-JD, binding del asset base en `inject.go`)
+- Nuevo sidecar versionado:
+  - `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.meta.yaml`
+  - endurece la alineación entre snapshot base, `upstream-state.json` y la fuente upstream auditada
+- `apply-gentle-ai-policy.sh` y `.ps1`:
+  - ya no son el auditor semántico principal del upstream
+  - siguen materializando, sanitizando, reconciliando perfiles y recuperando desde snapshots
+  - agregan verificación automática fail-closed del baseline auditado: el `gentle-orchestrator` materializado después de `sync`/apply debe coincidir con `gentle-orchestrator.last.md` + `.meta.yaml`
+- `apply-gentle-ai-custom.sh` y `.ps1`:
+  - el flujo normal de apply ahora incluye esa verificación automáticamente; no hay paso manual extra de verificación
+- `README.md`, `AGENTS.md`, `overlay/gentle-ai/README.md`, `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`, `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`:
+  - documentado el flujo nuevo: audit pre-sync → decidir/adaptar → sync/reinstall → apply con auto-verificación fail-closed
+
+WHY:
+
+- El `gentle-orchestrator` base es la única fuente de verdad necesaria para auditar drift del prompt. Los prompts `sdd-orchestrator-<perfil>` son derivados de esa base por lógica de upstream; no hacía falta diffear sus snapshots para auditar cambios semánticos.
+- Separar auditoría pre-sync de materialización post-sync simplifica el mantenimiento y hace explícita la pregunta correcta en cada fase:
+  - `audit-gentle-ai-upstream` => “¿es seguro avanzar con sync/reinstall?”
+  - `apply-gentle-ai-custom` => “¿quedó materializado en disco lo que ya auditamos?”
+
+Verificación:
+
+- `bash audit-gentle-ai-upstream.sh` => OK; metadata alineada, hash verificado, base prompt sin drift, invariantes de perfiles OK.
+- `bash apply-gentle-ai-custom.sh all` => OK; `audited base baseline verification: ok`, 0 topology warnings, 3 perfiles SDD gestionados, sin drift local/repo.
+- Parity PowerShell por inspección: wrapper `.ps1` invoca el mismo motor Python y el helper `.ps1` implementa la misma verificación fail-closed del baseline auditado.
+
 ## 2026-05-30 — Profile orchestrator snapshots moved out of the repo
 
 Razón del cambio:
