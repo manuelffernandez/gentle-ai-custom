@@ -15,7 +15,7 @@ var supportedTargets = []string{"opencode", "claude", "codex", "gemini", "antigr
 var customSkills = []string{
 	"commit-planner",
 	"pr-finalizer",
-	"code-modularization",
+	"code-design",
 	"package-security",
 }
 

@@ -1,21 +1,21 @@
 ---
-name: code-modularization
-description: >
-  Apply consistent modularization judgment when writing or refactoring code, across any language or paradigm.
-  Trigger: When writing new code from scratch, or when asked to refactor, restructure, or split existing code.
+name: code-design
+description: "Trigger: refactor, split, new code, comment, repetition, too big, code review, restructure. Apply structural code design judgment across any language and paradigm: when to split responsibilities, when to extract repetition into data, and how to comment intent over implementation."
 license: Apache-2.0
 metadata:
   author: manuelfernandez
-  version: "1.0"
+  version: "1.1"
 ---
 
 ## When to Use
 
 Use this skill:
 
-- When writing **new code from scratch** — think about file/module structure before writing the first line
+- When writing **new code from scratch** — think about structure before the first line
 - When **refactoring or splitting** existing code the user explicitly wants restructured
 - When a file, class, or module is described as "too big" or "hard to follow"
+- When deciding **whether and how to comment** code — what earns a comment vs. what is noise
+- When adding a new item of an existing kind and it requires touching multiple places
 
 Do **not** apply this skill to refactor code the user did not ask to change. Never propose unsolicited splits.
 
@@ -90,6 +90,20 @@ exceeds the gain.
 appears. Recognizing it then costs far less than unwinding five duplicated
 blocks later.
 
+## Comment the Why, Not the What
+
+A comment earns its place only when it explains something the code cannot express by itself.
+
+**Keep** when:
+- A decision looks wrong but is intentional — document the constraint or tradeoff
+- An implicit contract exists that the signature alone doesn't reveal
+- A no-op or unconditional call would otherwise invite "cleanup" that breaks behavior
+
+**Delete** when the comment restates what the code already says clearly.
+
+**The test**: would removing this comment force a reader to infer something non-obvious?
+If yes, keep it. If no, it's noise.
+
 ## Anti-Patterns
 
 - Extracting single-use helpers only to reduce line count.
@@ -98,3 +112,4 @@ blocks later.
 - Creating more than one level of nesting just to organize code that has only one reason to change.
 - Proposing a split when you cannot clearly name both resulting units.
 - Adding a new case by copying an imperative block when the only variation is data.
+- Writing comments that describe what the code does instead of why it exists.
