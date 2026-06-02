@@ -1,10 +1,31 @@
 # gentle-ai-custom
 
-Configuración custom **fuera del árbol gestionado por `gentle-ai sync`**.
+Un overlay personalizable para [Gentle AI](https://github.com/Gentleman-Programming/gentle-ai): una capa pensada para extender la experiencia base con tus propias skills, prompts, wrappers y política operativa, sin pelearte con lo que `gentle-ai sync` vuelve a materializar.
+
+## Qué es Gentle AI
+
+[Gentle AI](https://github.com/Gentleman-Programming/gentle-ai) es el proyecto original de Gentleman Programming para mejorar de forma MUY fuerte la experiencia de desarrollo con IA: agentes, skills, orquestación SDD, perfiles y tooling real para trabajar mejor con asistentes en el código.
+
+Este repo existe sobre esa base, no en reemplazo. La idea es dar el crédito que corresponde al proyecto upstream y, al mismo tiempo, construir una capa más adaptable para workflows concretos.
+
+## Por qué existe este repo
+
+Gentle AI resuelve gran parte de la experiencia, pero hay decisiones del upstream que no siempre encajan con mi flujo diario. Por eso este repo actúa como **overlay**:
+
+- conserva lo mejor del upstream
+- depura lo que no se adapta a mi forma de trabajar
+- agrega skills y wrappers que sí uso todos los días
+- sirve como base de experimentación para seguir evolucionando una capa custom más amigable sobre Gentle AI
+
+Hoy sigue estando orientado principalmente a mi flujo de trabajo. La idea es seguir iterándolo para que, con el tiempo, resulte más simple de adaptar y usar también en otros contextos.
+
+## Visión
+
+La dirección de este repo es seguir mejorando la experiencia con una capa cada vez más amigable: un instalador TUI más personalizado, mejor ergonomía operativa y más posibilidades de expansión para skills, overlays y flujos de trabajo reales.
 
 ## Objetivo
 
-Este repo ya no es solo un instalador de dos skills custom. Ahora funciona como una **capa unificada de personalización y mantenimiento** sobre Gentle AI:
+Hoy este repo funciona como una **capa unificada de personalización y mantenimiento** sobre Gentle AI:
 
 - instala tus skills y wrappers propios
 - reaplica tu política local después de `gentle-ai sync`
@@ -31,6 +52,12 @@ Cada una cumple un rol distinto:
 - `gentle-ai-policy.json` alimenta la lógica operativa de los scripts
 - `upstream-state.json` guarda desde qué versión/tag/commit hay que auditar el upstream (última versión mantenida)
 - `update-log.md` deja historial narrativo de decisiones de mantenimiento
+
+## Por qué Go
+
+La automatización principal vive en Go porque permite mantener **un solo lugar de verdad** para la lógica compartida entre los entrypoints `.sh` y `.ps1`. En vez de duplicar comportamiento entre Bash y PowerShell, ambos wrappers delegan en la misma CLI.
+
+Además, Go ya forma parte natural del stack porque es una dependencia directa de Engram. Reutilizarlo acá simplifica el ecosistema, reduce drift entre plataformas y hace más sostenible la evolución del overlay.
 
 ## Estructura
 
@@ -76,7 +103,7 @@ Para mantenimiento upstream, hay además un par público separado:
 - `audit-gentle-ai-upstream.sh`
 - `audit-gentle-ai-upstream.ps1`
 
-Todos esos wrappers son finos: delegan en la CLI Go compartida (`go run ./cmd/gentle-ai-overlay ...`) y no duplican la lógica de negocio entre shell, PowerShell y Python.
+Todos esos wrappers son finos: delegan en la CLI Go compartida (`go run ./cmd/gentle-ai-overlay ...`) y no duplican la lógica de negocio entre shell y PowerShell.
 
 ### Linux / macOS
 

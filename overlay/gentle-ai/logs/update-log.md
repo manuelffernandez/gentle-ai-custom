@@ -2,6 +2,33 @@
 
 > Este archivo registra decisiones e hitos del mantenimiento del overlay. No es la fuente autoritativa del último upstream mantenido; esa responsabilidad vive en `overlay/gentle-ai/state/upstream-state.json`.
 
+## 2026-06-02 — Reframed root README as a reusable Gentle AI overlay
+
+Razón del cambio:
+
+- El README raíz explicaba bien la mecánica del repo, pero seguía sonando demasiado interno y poco inspirador para alguien que llegue desde afuera.
+- Faltaba referenciar explícitamente al proyecto upstream `gentle-ai`, darle el crédito correcto a su autor y dejar más claro que este repo puede servirle también a otras personas como base para sus propios overlays y skills.
+
+WHAT cambió:
+
+- `README.md`:
+  - agregado un posicionamiento inicial más amigable/comercial del repo como overlay sobre `gentle-ai`
+  - agregada referencia explícita al repo oficial `https://github.com/Gentleman-Programming/gentle-ai`
+  - incorporada una explicación breve de para qué sirve Gentle AI y por qué mejora la experiencia de desarrollo con IA
+  - aclarado que este repo conserva la base upstream, depura lo que no encaja con el workflow diario y suma skills/wrappers propios
+  - ajustado el mensaje para no sobreprometer reutilización inmediata por terceros: hoy el repo sigue orientado principalmente al flujo de trabajo del autor y la apertura a otros contextos queda planteada como visión, no como estado actual
+  - explicitada la visión futura de evolucionar hacia un instalador TUI más personalizado y expandir funcionalidades
+  - documentada la razón de usar Go como única fuente de verdad entre wrappers `.sh` y `.ps1`, reutilizando además una dependencia ya presente en el stack por Engram
+
+WHY:
+
+- Un overlay útil no debería leerse como un parche privado incomprensible. Tiene más valor cuando comunica rápido qué resuelve, sobre qué proyecto se apoya y cómo puede adaptarlo otra persona.
+- Explicar por qué la automatización vive en Go evita que parezca una elección arbitraria: la decisión responde a paridad cross-platform y reutilización coherente del stack existente.
+
+Verificación:
+
+- Revisión manual de `README.md` para confirmar que la nueva introducción referencia correctamente al upstream, mantiene el contrato operativo del repo y mejora el tono de presentación sin cambiar comportamiento.
+
 ## 2026-06-01 — Audited v1.33.2 post-tag docs fix (21634526)
 
 Tipo de update: `git pull` upstream solamente — sin `gentle-ai sync`, sin reinstalación.
