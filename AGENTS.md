@@ -86,6 +86,38 @@ Rule 3 = live state. Rule 4 = decision history. Both deliverables are required f
 
 A change that updates docs (rule 3) without logging the decision (rule 4) is incomplete. Likewise, logging a decision (rule 4) without updating the docs that describe current behavior (rule 3) leaves the live docs lying about the system.
 
+### 5. Locate a skill before editing it (MANDATORY)
+
+Before reading or modifying any skill file, map every location where that skill exists:
+
+| Location | Path pattern | Scope |
+|---|---|---|
+| Project agents | `.agents/skills/<name>/SKILL.md` | This repo only |
+| Project shared | `shared/skills/<name>/SKILL.md` | Canonical source for installed skills |
+| Global runtime | `~/.config/opencode/skills/<name>/SKILL.md` (and equivalents for other agents) | Installed copy, runtime-only |
+
+**Resolution rules:**
+
+- **Found in one place only** → proceed with that file without asking.
+- **Found in multiple places** → stop and ask the user which copies to update: one specific location, a subset, or all of them. Do not assume.
+
+The most common pattern in this repo is `shared/skills/<name>/` + global runtime coexisting. `.agents/skills/` skills are project-exclusive and never appear in the global runtime.
+
+### 6. Propagate canonical skill changes through the installer (MANDATORY)
+
+`shared/skills/<name>/SKILL.md` is the canonical source for any skill that gets installed globally. The global runtime copy is a derived artifact — never the source of truth.
+
+**Rules:**
+
+- Modify `shared/skills/<name>/SKILL.md` (the canonical source), never the global copy directly.
+- After modifying the canonical source, propagate by running:
+  ```bash
+  bash apply-gentle-ai-custom.sh opencode
+  ```
+  This ensures the global copy is written by the installer, which may apply transformations, wrappers, or path rewrites that a manual copy would miss — the exact source of drift if bypassed.
+- If the user declines to run the installer in the same session, surface a reminder that the global copy is now stale.
+- Skills under `.agents/skills/` are project-exclusive. They are never propagated and require no installer step.
+
 ---
 
 ## Repository structure
