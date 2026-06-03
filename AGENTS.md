@@ -38,6 +38,7 @@ If one side changes, the paired script must be updated in the same commit.
 - invocation of the shared upstream audit logic
 - upstream prompt + metadata alignment checks
 - profile-generation invariant checks
+- brief human-readable drift summary output when drift is detected (especially for base prompt drift)
 - fail/success criteria and actionable error output
 
 **Overlay helper parity items:**
@@ -360,9 +361,10 @@ The maintainer workflow order is:
 1. update the `gentle-ai` binary
 2. `git pull` in `/home/manuel/Documentos/gentle-ai`
 3. open `gentle-ai-custom` and run the maintainer audit
-4. if the audit reveals overlay-relevant drift, update this repo first
-5. run `gentle-ai sync` or a full reinstall depending on the audited upstream change
-6. re-apply the overlay with `apply-gentle-ai-custom.sh opencode` or `apply-gentle-ai-custom.sh all`
+4. read `Summary:` and, if drift was detected, the brief `Drift summary:` before deciding whether the delta is overlay-relevant
+5. if the audit reveals overlay-relevant drift, update this repo first
+6. run `gentle-ai sync` or a full reinstall depending on the audited upstream change
+7. re-apply the overlay with `apply-gentle-ai-custom.sh opencode` or `apply-gentle-ai-custom.sh all`
 
 Before maintainer sync/reinstall work, run:
 
@@ -384,7 +386,7 @@ If you also want to refresh custom skills/wrappers across every supported target
 bash apply-gentle-ai-custom.sh all
 ```
 
-**Why**: `gentle-ai sync` resets orchestrator prompts to upstream inline content and reinstalls all skills (including pruned ones). The audit script catches upstream base-prompt or profile-invariant drift before you sync. If the audit shows overlay-relevant drift, update this repo before touching runtime state. The apply script then re-applies the full overlay: skill pruning, model overrides, snapshot capture, sanitization, `{file:...}` rewrite, and automatic verification that `gentle-orchestrator` still matches the last audited baseline. Use `opencode` when only the OpenCode overlay needs refreshing; use `all` when you also want the repo's custom wrappers/skills refreshed across every supported target.
+**Why**: `gentle-ai sync` resets orchestrator prompts to upstream inline content and reinstalls all skills (including pruned ones). The audit script catches upstream base-prompt or profile-invariant drift before you sync, and its `Drift summary:` gives a quick human-readable explanation of what changed and why it may matter. If the audit shows overlay-relevant drift, update this repo before touching runtime state. The apply script then re-applies the full overlay: skill pruning, model overrides, snapshot capture, sanitization, `{file:...}` rewrite, and automatic verification that `gentle-orchestrator` still matches the last audited baseline. Use `opencode` when only the OpenCode overlay needs refreshing; use `all` when you also want the repo's custom wrappers/skills refreshed across every supported target.
 
 | Operation | Resets prompts | Restores pruned skills | Run script after |
 |---|---|---|---|

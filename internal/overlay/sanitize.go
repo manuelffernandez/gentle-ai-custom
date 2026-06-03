@@ -24,7 +24,10 @@ func sanitizePrompt(text string, policy Policy) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	text, err = replaceOnce(text, `Respondé con "usar recomendado" o con códigos como: A1, B1, C1, D1.`, `Respondé con "usar recomendado" o con códigos como: A1, B1.`, "spanish preflight codes")
+	text, err = replaceAnyOnce(text, []string{
+		`Respondé con "usar recomendado" o con códigos como: A1, B1, C1, D1.`,
+		`Responda con "usar recomendado" o con códigos como: A1, B1, C1, D1.`,
+	}, `Respondé con "usar recomendado" o con códigos como: A1, B1.`, "spanish preflight codes")
 	if err != nil {
 		return "", err
 	}
@@ -84,6 +87,16 @@ func replaceOnce(text, old, new, label string) (string, error) {
 		return "", fmt.Errorf("missing expected text: %s", label)
 	}
 	return text[:idx] + new + text[idx+len(old):], nil
+}
+
+func replaceAnyOnce(text string, olds []string, new, label string) (string, error) {
+	for _, old := range olds {
+		idx := strings.Index(text, old)
+		if idx >= 0 {
+			return text[:idx] + new + text[idx+len(old):], nil
+		}
+	}
+	return "", fmt.Errorf("missing expected text: %s", label)
 }
 
 func removeBlock(text, pattern, label string) (string, error) {

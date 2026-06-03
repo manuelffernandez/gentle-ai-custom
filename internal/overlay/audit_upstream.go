@@ -173,6 +173,7 @@ func RunAuditUpstream(repoRoot string) int {
 	taskScopingOK := containsAll(upstreamProfilesText, requiredProfilesSnippets)
 	baseAssetInjectionOK := containsAll(upstreamInjectText, requiredInjectSnippets)
 	phaseOrderOK := len(phaseOrder) > 0 && sameStrings(phaseOrder, policy.OpenCode.SDDPhases)
+	driftSummary := buildAuditDriftSummary(metadataOK, promptMatches, snapshotText, upstreamPromptText, phaseOrderOK, profileNamingOK, taskScopingOK, baseAssetInjectionOK)
 
 	fmt.Println("Auditing Gentle AI upstream baseline...")
 	fmt.Printf("- Repo root: %s\n", repoRoot)
@@ -195,6 +196,13 @@ func RunAuditUpstream(repoRoot string) int {
 	fmt.Printf("  profile orchestrator naming: %s\n", statusWord(profileNamingOK))
 	fmt.Printf("  profile task scoping invariant: %s\n", statusWord(taskScopingOK))
 	fmt.Printf("  base asset injection invariant: %s\n", statusWord(baseAssetInjectionOK))
+	if len(driftSummary) > 0 {
+		fmt.Println()
+		fmt.Println("Drift summary:")
+		for _, item := range driftSummary {
+			fmt.Printf("  - %s\n", item)
+		}
+	}
 
 	if len(notes) > 0 {
 		fmt.Println()
@@ -212,7 +220,7 @@ func RunAuditUpstream(repoRoot string) int {
 		fmt.Println("Action:")
 		fmt.Println("1. Review the upstream delta against the committed baseline.")
 		fmt.Println("2. Update `gentle-orchestrator.last.md`, `.meta.yaml`, `upstream-state.json`, docs, and the update log if the new upstream state is accepted.")
-		fmt.Println("3. Run `gentle-ai sync` or reinstall as appropriate, then re-run `bash apply-gentle-ai-custom.sh all` so runtime verification passes.")
+		fmt.Println("3. Run `gentle-ai sync` or reinstall as appropriate, then re-run `bash apply-gentle-ai-custom.sh opencode` (or `all` if you also want the multi-target refresh) so runtime verification passes.")
 		return 1
 	}
 
@@ -262,4 +270,95 @@ func statusWord(ok bool) string {
 		return "ok"
 	}
 	return "mismatch"
+}
+
+func buildAuditDriftSummary(metadataOK, promptMatches bool, snapshotText, upstreamPromptText string, phaseOrderOK, profileNamingOK, taskScopingOK, baseAssetInjectionOK bool) []string {
+	var summary []string
+
+	if !metadataOK {
+		summary = append(summary, "The committed baseline metadata is out of sync with the repo snapshot/state, so repair the local audited baseline before trusting this audit result.")
+	}
+
+	if !promptMatches {
+		summary = append(summary, summarizePromptDrift(snapshotText, upstreamPromptText)...)
+		if phaseOrderOK && profileNamingOK && taskScopingOK && baseAssetInjectionOK {
+			summary = append(summary, "No profile-generation or base-asset binding drift was detected alongside this prompt change, so this looks like prompt-content guidance rather than topology or materialization drift.")
+		}
+	}
+
+	if !phaseOrderOK {
+		summary = append(summary, "The upstream SDD profile phase order changed. Review generated phase sequencing before adopting the new baseline.")
+	}
+	if !profileNamingOK {
+		summary = append(summary, "The upstream `sdd-orchestrator-*` naming/key-building logic changed. The overlay may no longer target the right generated agent keys.")
+	}
+	if !taskScopingOK {
+		summary = append(summary, "The upstream profile task-permission scoping changed. Review task allow/deny assumptions before adopting the new baseline.")
+	}
+	if !baseAssetInjectionOK {
+		summary = append(summary, "The upstream base orchestrator asset binding changed. Verify the overlay is still sanitizing the same source prompt before sync/apply.")
+	}
+
+	return summary
+}
+
+func summarizePromptDrift(snapshotText, upstreamPromptText string) []string {
+	var summary []string
+
+	addedHeadings := diffStrings(extractMarkdownHeadings(upstreamPromptText), extractMarkdownHeadings(snapshotText))
+	if len(addedHeadings) == 1 {
+		summary = append(summary, fmt.Sprintf("New prompt section added: %s.", addedHeadings[0]))
+	} else if len(addedHeadings) > 1 {
+		summary = append(summary, fmt.Sprintf("New prompt sections added: %s.", strings.Join(addedHeadings, ", ")))
+	}
+
+	if strings.Contains(upstreamPromptText, "### Language Domain Contract") && !strings.Contains(snapshotText, "### Language Domain Contract") {
+		summary = append(summary, "The prompt now separates direct user conversation from generated technical artifacts, so persona tone should not leak into code, docs, or other outputs.")
+	}
+	if strings.Contains(upstreamPromptText, "Generated technical artifacts default to English") && !strings.Contains(snapshotText, "Generated technical artifacts default to English") {
+		summary = append(summary, "Generated technical artifacts now default to English even when the active persona or chat language is different.")
+	}
+	if strings.Contains(upstreamPromptText, "neutral/professional Spanish") && !strings.Contains(snapshotText, "neutral/professional Spanish") {
+		summary = append(summary, "Spanish artifact fallback is now explicitly neutral/professional instead of inheriting a conversational regional tone.")
+	}
+	if strings.Contains(snapshotText, "¿Querés ajustar algo o continuamos?") && strings.Contains(upstreamPromptText, "¿Quiere ajustar algo o continuamos?") {
+		summary = append(summary, "The Spanish fallback copy shifted from Rioplatense voseo to neutral/professional wording in the base prompt.")
+	}
+
+	if len(summary) == 0 {
+		summary = append(summary, "The base prompt content changed, but the audit could not reduce it to a known heuristic. Inspect the full diff before adopting the new baseline.")
+	}
+
+	return summary
+}
+
+func extractMarkdownHeadings(text string) []string {
+	var headings []string
+	for _, line := range strings.Split(text, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		heading := strings.TrimSpace(strings.TrimLeft(trimmed, "#"))
+		if heading == "" {
+			continue
+		}
+		headings = append(headings, heading)
+	}
+	return headings
+}
+
+func diffStrings(current, previous []string) []string {
+	seen := make(map[string]struct{}, len(previous))
+	for _, item := range previous {
+		seen[item] = struct{}{}
+	}
+	var diff []string
+	for _, item := range current {
+		if _, ok := seen[item]; ok {
+			continue
+		}
+		diff = append(diff, item)
+	}
+	return diff
 }

@@ -159,16 +159,17 @@ Orden mental correcto:
 1. actualizás el binario de `gentle-ai`
 2. hacés `git pull` en `/home/manuel/Documentos/gentle-ai`
 3. abrís `gentle-ai-custom`, usás la skill maintainer y corrés `audit-gentle-ai-upstream`
-4. si hace falta, actualizás este repo antes de seguir
-5. recién ahí corrés `gentle-ai sync` (o reinstall si la auditoría lo recomienda)
-6. `apply-gentle-ai-custom` → responde **"¿quedó materializado en disco lo que ya auditamos?"**
+4. leés `Summary:` y, si hubo drift, el bloque breve `Drift summary:` para decidir si hay algo nuevo que realmente te importe
+5. si hace falta, actualizás este repo antes de seguir
+6. recién ahí corrés `gentle-ai sync` (o reinstall si la auditoría lo recomienda)
+7. `apply-gentle-ai-custom` → responde **"¿quedó materializado en disco lo que ya auditamos?"**
 
 Elección del target final:
 
 - `opencode` → suficiente para re-materializar OpenCode y la policy del overlay
 - `all` → además reinstala las skills/wrappers custom en Claude, Codex, Gemini y Antigravity
 
-Si la auditoría detecta drift de prompt base, invariantes de perfiles o cambios de topología relevantes, frená ahí y adaptá el overlay antes de correr `sync` o reinstall.
+Si la auditoría detecta drift de prompt base, invariantes de perfiles o cambios de topología relevantes, frená ahí y adaptá el overlay antes de correr `sync` o reinstall. El auditor ahora también imprime un `Drift summary:` corto en lenguaje humano para ayudarte a distinguir si el delta parece relevante para el overlay o si probablemente es ruido de baja prioridad.
 
 El flujo completo hace, en una sola pasada:
 
@@ -209,6 +210,15 @@ Al final de cada corrida, el script imprime un bloque `Summary:` con contadores 
 - `ERROR: audited baseline mismatch for orchestrator 'gentle-orchestrator' ...` — corriste `sync`/apply contra un upstream distinto del último baseline auditado, o el snapshot local quedó stale. Solución: auditá primero con `bash audit-gentle-ai-upstream.sh`, actualizá el baseline si corresponde, después `gentle-ai sync` y `apply` de nuevo.
 
 Detalle completo de cada señal en `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`.
+
+### Qué reporta la auditoría upstream
+
+`audit-gentle-ai-upstream` sigue siendo read-only, pero ya no te deja solo con `base prompt drift: yes/no`.
+
+- Siempre imprime `Summary:` con el estado del baseline, metadata e invariantes.
+- Si detecta drift, imprime además `Drift summary:` con bullets cortos en lenguaje humano.
+- Para drift del prompt base, ese resumen debe decir qué cambió y por qué puede importarte: secciones nuevas, cambios de contrato de lenguaje/tono, separación entre conversación directa y artifacts técnicos, y si el delta parece afectar el overlay o más bien ser ruido menor.
+- Ejemplo del tipo de drift que ahora resume: puede aparecer una sección nueva como `Language Domain Contract`, cambiar el contrato entre voz conversacional y artifacts técnicos, o moverse el fallback de español hacia wording neutral/profesional. Ese tipo de cambio puede importarte por policy/tono, aunque no sugiera por sí mismo drift de topología o de generación de perfiles.
 
 ## Política actual
 

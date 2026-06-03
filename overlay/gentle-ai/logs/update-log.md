@@ -2,6 +2,90 @@
 
 > Este archivo registra decisiones e hitos del mantenimiento del overlay. No es la fuente autoritativa del último upstream mantenido; esa responsabilidad vive en `overlay/gentle-ai/state/upstream-state.json`.
 
+## 2026-06-03 — Adopted upstream v1.34.0 baseline after prompt-language audit
+
+Tipo de update: `git pull` upstream + actualización del baseline auditado en este repo. `gentle-ai sync` todavía NO ejecutado.
+
+WHAT cambió upstream:
+
+- Commit `55a5bfe` (`feat(persona): enforce artifact language contract`) agrega `Language Domain Contract` al prompt base de `gentle-orchestrator`.
+- El prompt upstream ahora separa explícitamente conversación/persona de idioma de artifacts técnicos, deja artifacts técnicos en inglés por defecto y mueve el fallback español a wording neutral/profesional.
+- No hubo drift de topología ni de invariantes de perfiles.
+
+WHAT cambió en el overlay:
+
+- `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md`:
+  - actualizado al baseline upstream `v1.34.0`
+- `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.meta.yaml`:
+  - actualizado para reflejar hash, tag, commit y fecha del nuevo baseline
+- `overlay/gentle-ai/state/upstream-state.json`:
+  - movido a `v1.34.0` / `55a5bfe43594d6409307c4bcdf3a1d22a8c42560`
+  - documentado que el repo overlay ya aceptó el nuevo baseline pero el `sync` todavía no se ejecutó
+- `README.md`:
+  - el ejemplo de `Drift summary:` pasó de hablar del drift "actual" a explicar el tipo de drift que el auditor puede resumir
+
+WHY:
+
+- La auditoría mostró un cambio real de guidance que sí convenía aceptar en el baseline, pero no obligaba a reinstalación ni a cambios de topología.
+- Actualizar primero el baseline auditado evita que el siguiente `sync` + `apply` falle por quedar comparando contra una foto vieja del upstream.
+
+Verificación:
+
+- `go test ./...`
+- `bash audit-gentle-ai-upstream.sh`
+
+## 2026-06-03 — Patched sanitizer for upstream neutral-Spanish preflight wording
+
+Razón del cambio:
+
+- Durante la auditoría de `v1.34.0` apareció un drift puntual en el prompt base: el upstream cambió la línea del preflight en español de `Respondé con ...` a `Responda con ...`.
+- El sanitizador del overlay matcheaba esa línea por texto exacto, así que adoptar el nuevo baseline sin parchearlo iba a romper el apply con un `missing expected text` aunque no hubiera drift de topología ni de invariantes.
+
+WHAT cambió:
+
+- `internal/overlay/sanitize.go`:
+  - el reemplazo de la línea `usar recomendado` en español ahora acepta tanto la variante vieja (`Respondé`) como la nueva (`Responda`)
+  - el output sanitizado sigue reescribiendo esa línea al wording corto del overlay con voseo y solo dos opciones (`A1, B1`)
+
+WHY:
+
+- Este cambio no altera la política del overlay: solo evita que un ajuste de tono upstream rompa un matcher demasiado frágil.
+- Mantener el output sanitizado en voseo preserva la personalización actual del overlay mientras se gana compatibilidad con el upstream nuevo.
+
+Verificación:
+
+- `go test ./...`
+
+## 2026-06-03 — Added brief human-readable drift summaries to maintainer audit
+
+Razón del cambio:
+
+- La auditoría upstream ya detectaba drift real, pero el output seguía siendo demasiado binario (`base prompt drift: yes/no` + `FAIL:`), así que el usuario tenía que saltar al diff completo incluso para entender si había algo realmente importante.
+- El drift actual del prompt base en upstream mostró exactamente ese problema: sí hay cambio relevante de guidance, pero es de contrato de lenguaje/artefactos, no de topología ni de generación de perfiles. Eso merecía una lectura corta antes del diff largo.
+
+WHAT cambió:
+
+- `internal/overlay/audit_upstream.go`:
+  - agregado un bloque `Drift summary:` cuando la auditoría detecta drift
+  - el resumen ahora traduce el drift a bullets breves en lenguaje humano
+  - para prompt drift, detecta heurísticas útiles como secciones nuevas, separación entre conversación directa y artifacts técnicos, default English para artifacts, y fallback neutral/profesional para español
+  - si además no hay drift de invariantes, el output lo dice explícitamente para ayudar a distinguir contenido/tone guidance de problemas de topología o materialización
+- `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`, `README.md`, `AGENTS.md`, `overlay/gentle-ai/README.md`, `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`:
+  - alineados para exigir/explicar la lectura de `Drift summary:` dentro del flujo maintainer
+  - documentado el ejemplo del drift upstream actual: nueva sección `Language Domain Contract`, separación persona-conversación vs artifacts técnicos, default English para artifacts y fallback neutral/profesional en español
+
+WHY:
+
+- El maintainer necesita responder dos preguntas distintas: si es seguro avanzar y si hay algo nuevo que realmente importe. El `Summary:` ya cubría la primera de forma mecánica; faltaba una versión humana de la segunda.
+- Mostrar que el drift actual es de contrato de lenguaje, pero sin mismatch de invariantes, reduce inspecciones innecesarias del diff completo y evita sobrerreaccionar como si hubiera drift de topología.
+
+Verificación:
+
+- `gofmt -w internal/overlay/audit_upstream.go`
+- `go test ./...`
+- `bash audit-gentle-ai-upstream.sh`
+- revisión manual de coherencia entre `README.md`, `AGENTS.md`, `overlay/gentle-ai/README.md`, `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md` y `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`
+
 ## 2026-06-02 — Reframed root README around an AI-managed Gentle AI customization layer
 
 Razón del cambio:

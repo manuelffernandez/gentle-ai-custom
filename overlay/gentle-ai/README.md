@@ -10,16 +10,17 @@ Este overlay mantiene una política **persistente y reaplicable** para tu stack 
 4. Auditá ANTES de sync:
    - Linux/macOS: `bash ~/Documentos/gentle-ai-custom/audit-gentle-ai-upstream.sh`
    - Windows: `~\Documentos\gentle-ai-custom\audit-gentle-ai-upstream.ps1`
-5. Si la auditoría exige cambios en este repo, actualizá primero `gentle-ai-custom`.
-6. Si la auditoría da OK, corré tu `gentle-ai sync` o reinstall según el cambio upstream auditado.
-7. Reaplicá la capa custom:
+5. Leé `Summary:` y, si hubo drift, el bloque corto `Drift summary:` para decidir si el delta parece relevante o probablemente menor.
+6. Si la auditoría exige cambios en este repo, actualizá primero `gentle-ai-custom`.
+7. Si la auditoría da OK, corré tu `gentle-ai sync` o reinstall según el cambio upstream auditado.
+8. Reaplicá la capa custom:
    - Linux/macOS: `bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh opencode`
    - Windows: `~\Documentos\gentle-ai-custom\apply-gentle-ai-custom.ps1 opencode`
    - Usá `all` en lugar de `opencode` si también querés refrescar las skills/wrappers custom de todos los targets soportados.
    - Agregá `--verbose` si querés ver cada archivo tocado y la modificación concreta que hizo el helper.
-8. Reiniciá OpenCode si el script tocó `opencode.json`.
+9. Reiniciá OpenCode si el script tocó `opencode.json`.
 
-Cuando audités cambios del upstream con la skill maintainer, esa skill te tiene que decir además si ese delta se resuelve con `gentle-ai sync` o si requiere reinstalación completa. Si hubo cambios de topología, `sync` no alcanza.
+Cuando audités cambios del upstream con la skill maintainer, esa skill te tiene que decir además si ese delta se resuelve con `gentle-ai sync` o si requiere reinstalación completa. Si hubo cambios de topología, `sync` no alcanza. Si la auditoría detecta drift, también tiene que aparecer un `Drift summary:` breve que explique qué cambió y por qué puede importarte antes de mandarte al diff completo.
 
 ## Qué contiene
 
@@ -57,5 +58,6 @@ Cuando audités cambios del upstream con la skill maintainer, esa skill te tiene
 - Si faltan anchors esperados, el sanitizador debe fallar cerrado y NO reescribir prompts automáticamente.
 - El repo upstream se trata como **fuente de verdad de entrada**; este overlay como **fuente de verdad de decisiones locales**.
 - El maintainer debe leer las cuatro capas en este orden: `maintenance-intent.md` → `gentle-ai-policy.json` → `upstream-state.json` → `update-log.md`.
+- Si `audit-upstream` detecta drift, primero leé su bloque `Drift summary:`; está para responder rápido “¿hay algo nuevo acá que me importe?” antes de revisar el delta completo.
 - `update-log.md` no reemplaza al estado upstream mantenido; solo deja trazabilidad narrativa.
 - Cada cambio sobre cualquier asset del overlay agrega una entrada a `update-log.md` (ver `AGENTS.md` regla 4).

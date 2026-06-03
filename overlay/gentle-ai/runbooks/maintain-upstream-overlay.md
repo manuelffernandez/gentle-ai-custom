@@ -110,6 +110,9 @@ Durante esta auditoría, la skill maintainer debe devolver esta recomendación d
    - corré: `bash audit-gentle-ai-upstream.sh`
    - este paso compara el `gentle-orchestrator` base contra el baseline auditado (`gentle-orchestrator.last.md` + `.meta.yaml`) y chequea invariantes upstream de perfiles
 4. **Leé el resumen y actualizá `gentle-ai-custom` si hace falta**
+   - primero leé `Summary:`
+   - si hubo drift, leé también `Drift summary:`: tiene que resumir en lenguaje humano qué cambió, por qué puede importarte y si parece drift relevante del overlay o ruido de baja prioridad
+   - para drift del prompt base, esperá referencias a secciones nuevas, cambios de contrato de lenguaje/tono y separación entre conversación directa y artifacts técnicos
    - si el auditor detecta drift o topología nueva, primero adaptá este repo: docs, policy, sanitizador, state, snapshots o log según corresponda
    - si recomienda reinstall, no sigas con sync
 5. **Recién cuando la auditoría dé OK y este repo ya esté alineado, corré el refresh upstream**
@@ -127,7 +130,17 @@ Durante esta auditoría, la skill maintainer debe devolver esta recomendación d
 ### Regla mental corta
 
 - `audit-gentle-ai-upstream` responde: **"¿es seguro avanzar con sync/reinstall?"**
+- Si detecta drift, su `Drift summary:` responde además: **"¿hay algo nuevo acá que me importe?"**
 - `apply-gentle-ai-custom` responde: **"¿quedó materializado en disco lo que ya auditamos?"**
+
+### Señales del auditor upstream
+
+| Señal en el output | Significa | Acción |
+|---|---|---|
+| `base prompt drift: yes` + `Drift summary:` | El prompt base upstream cambió respecto del baseline auditado y el auditor ya te da una lectura corta de qué cambió. | Leé primero el `Drift summary:` para distinguir cambio relevante vs ruido; después recién mirá el diff completo si hace falta. |
+| `Drift summary:` menciona secciones nuevas, contrato de lenguaje, separación conversación/artifacts o fallback neutral/profesional | Cambió la guía de comportamiento del prompt, no necesariamente la topología ni la materialización. | Evaluá si eso afecta tu criterio de overlay o si solo requiere aceptar snapshot/docs/state. |
+| `Drift summary:` no puede reducir el cambio a una heurística conocida | Hay drift, pero no quedó claro en una lectura rápida. | Inspeccioná el diff completo antes de decidir adoptar el nuevo baseline. |
+| Cualquier mismatch de invariantes de perfiles o base asset injection | El cambio no es solo wording: upstream pudo haber cambiado cómo genera o inyecta agentes/perfiles. | Frená; esto sí puede requerir tocar policy/sanitizador e incluso cambiar la recomendación `sync` vs reinstall. |
 
 ### Señales del script para actuar
 

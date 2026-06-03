@@ -4,7 +4,7 @@ description: "Trigger: gentle ai update, auditar gentle ai, depurar gentle ai, r
 license: Apache-2.0
 metadata:
   author: gentleman-programming
-  version: "1.4"
+  version: "1.5"
 ---
 
 # Gentle AI Overlay Maintainer
@@ -24,6 +24,7 @@ Use this skill when:
 - Follow this order for maintainer updates: update `gentle-ai` binary -> `git pull` upstream -> audit from `gentle-ai-custom` -> update this repo if needed -> run `gentle-ai sync` or reinstall -> run `apply-gentle-ai-custom`.
 - ALWAYS triage the update type before deciding what to audit (see Update-Type Triage). The triage table itself describes what state the overlay is in for each path.
 - After auditing upstream drift, ALWAYS translate the findings into an explicit adoption recommendation: `gentle-ai sync` when topology is unchanged, full reinstall when topology changed or sync cannot materialize the new upstream shape.
+- When `audit-gentle-ai-upstream` detects drift, ALWAYS surface a brief plain-language `Drift summary` that says what changed and why it may matter before sending the user to the full diff.
 - Read semantic intent before making maintenance decisions.
 - Preserve the local keep/prune baseline and the orchestrator sanitization goals.
 - Keep bash and PowerShell scripts behaviorally equivalent.
@@ -54,7 +55,7 @@ Re-apply paths are mandatory regardless of whether upstream content changed — 
 | Script printed `topology: ...` warnings | Investigate each warning. New explicit orchestrators need policy entries; missing/created entries need maintenance-intent updates. STOP and ask the user before mutating policy. Note: `sdd-orchestrator-<name>` orchestrators are deliberately suppressed from prefix-only topology warnings; they belong to the SDD profile local config, not the versioned policy. |
 | Script printed `WARNING - unmanaged SDD profiles left untouched` | A profile exists in `opencode.json` but is not named in `~/.config/gentle-ai-custom/opencode-sdd-profiles.json`. Ask the user whether to add it to the local config (to manage) or delete its agent keys manually (to remove). NEVER delete it automatically. |
 | Script raised `ERROR: local SDD profile config at ... is not valid JSON` / `... unexpected top-level field ...` / `... missing required field ...` / `... must be a non-empty string` / `... must match ^[a-z0-9]...` / `... missing required phases ...` / `... unknown phases ...` | The local profile config failed strict V1 validation. The script wrote nothing. Surface the exact error to the user; ask them to fix or remove the file. Do NOT relax the schema. |
-| `bash audit-gentle-ai-upstream.sh` reports `base prompt drift: yes` | The upstream `gentle-orchestrator` base asset no longer matches the audited baseline. STOP, review the upstream delta, and update snapshot + metadata + state only after user approval. |
+| `bash audit-gentle-ai-upstream.sh` reports `base prompt drift: yes` | The upstream `gentle-orchestrator` base asset no longer matches the audited baseline. Read the audit `Drift summary` first to decide whether this is meaningful behavior drift or likely low-priority noise, then STOP, review the upstream delta, and update snapshot + metadata + state only after user approval. |
 | `bash audit-gentle-ai-upstream.sh` reports `profile phase order: mismatch` / `profile orchestrator naming: mismatch` / `profile task scoping invariant: mismatch` / `base asset injection invariant: mismatch` | Upstream changed the mechanics that build named SDD profiles. STOP and review before recommending `sync`; the overlay assumptions may be stale even if the base prompt diff is small. |
 | Script summary shows `repo snapshots - changed: N > 0` | Review `git diff overlay/gentle-ai/snapshots/`. Only the versioned `gentle-orchestrator` baseline should drift there. |
 | Script summary shows `local snapshots - changed: N > 0` | A local operational snapshot changed under `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`. Mention it in verification/output, but do not expect a git diff for profile snapshots. |
@@ -84,12 +85,13 @@ Re-apply paths are mandatory regardless of whether upstream content changed — 
    - topology changes (renamed/added/removed agents)
    - recommended upstream adoption path: `gentle-ai sync` vs full reinstall
    - likely low-priority bugfix / chore noise
-11. If relevant changes affect keep/prune intent, sanitization behavior, or topology, STOP and ask the user what to preserve or depure before editing anything. In that same handoff, explicitly tell the user whether the audited upstream delta should be applied with `gentle-ai sync` or with a full reinstall, and why.
-12. After approval, update this repo if needed: scripts, policy, docs, state, snapshots, metadata, and logs together.
-13. Only after that, run the upstream refresh path recommended by the audit: `gentle-ai sync` or full reinstall.
-14. **Run the apply entrypoint**: `bash apply-gentle-ai-custom.sh opencode` minimum (or `all` if the user also wants every custom target refreshed). Capture full output, including the `topology:` lines and the final `Summary:` block.
-15. **Read the summary** and act on each signal (see Decision Gates).
-16. **Verify post-state on disk** (read-only checks; ALL must pass):
+11. Produce a short plain-language drift summary before the full diff review. For base prompt drift, call out new sections, tone/language-contract changes, direct-conversation vs artifact-language separation, and whether the change looks overlay-relevant or mostly low-priority noise.
+12. If relevant changes affect keep/prune intent, sanitization behavior, or topology, STOP and ask the user what to preserve or depure before editing anything. In that same handoff, explicitly tell the user whether the audited upstream delta should be applied with `gentle-ai sync` or with a full reinstall, and why.
+13. After approval, update this repo if needed: scripts, policy, docs, state, snapshots, metadata, and logs together.
+14. Only after that, run the upstream refresh path recommended by the audit: `gentle-ai sync` or full reinstall.
+15. **Run the apply entrypoint**: `bash apply-gentle-ai-custom.sh opencode` minimum (or `all` if the user also wants every custom target refreshed). Capture full output, including the `topology:` lines and the final `Summary:` block.
+16. **Read the summary** and act on each signal (see Decision Gates).
+17. **Verify post-state on disk** (read-only checks; ALL must pass):
     - For each path in `gentle-ai-policy.json` → `skills.targets`: none of `skills.prune` entries may exist as directories inside it.
     - For each `agent_overrides` entry: `~/.config/opencode/opencode.json` → `agent.<key>.model` must equal the policy value; `variant` must equal the policy value when set.
     - For each `orchestrator_agent_keys` entry: `agent.<key>.prompt` must be a `{file:...}` reference, and the referenced file must exist on disk.
@@ -97,7 +99,7 @@ Re-apply paths are mandatory regardless of whether upstream content changed — 
     - `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/` must contain the operational snapshot for `gentle-orchestrator`, plus any managed `sdd-orchestrator-<name>` snapshots.
     - If `~/.config/gentle-ai-custom/opencode-sdd-profiles.json` exists: for each profile `<name>` in it, `agent.sdd-orchestrator-<name>` and `agent.sdd-<phase>-<name>` (10 phases) must exist with matching `model` + `variant`.
     - `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.meta.yaml` must exist and match `upstream-state.json` + the SHA-256 of `gentle-orchestrator.last.md`.
-17. Record the decision in `overlay/gentle-ai/logs/update-log.md` (include update type, topology findings, base prompt drift, profile invariant drift, recovery events, and any policy mutations).
+18. Record the decision in `overlay/gentle-ai/logs/update-log.md` (include update type, topology findings, base prompt drift, the short human summary, profile invariant drift, recovery events, and any policy mutations).
 
 ## Hardening option: external-single-active strategy
 
@@ -118,6 +120,7 @@ Return:
 - files changed in the overlay (policy, scripts, docs, log)
 - topology drift detected and how it was resolved (entries added to policy, intent updates, deferred to user)
 - snapshot drift detected (which prompts changed since the previous run)
+- brief drift summary in plain language (what changed, why it may matter, whether it looks overlay-relevant or low-priority)
 - recommended upstream adoption path (`gentle-ai sync` or full reinstall) and the reason for that recommendation
 - script summary counts (generated, recovered, skipped, snapshots new/changed/unchanged, topology warnings)
 - post-state verification result (which checks passed / failed)
