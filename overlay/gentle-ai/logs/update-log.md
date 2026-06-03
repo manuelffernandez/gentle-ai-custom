@@ -2,6 +2,30 @@
 
 > Este archivo registra decisiones e hitos del mantenimiento del overlay. No es la fuente autoritativa del último upstream mantenido; esa responsabilidad vive en `overlay/gentle-ai/state/upstream-state.json`.
 
+## 2026-06-03 — Updated docs to reflect single-agent CLI (opencode only)
+
+WHAT cambió:
+
+- `README.md`:
+  - eliminada la sección `## Agentes soportados` con `claude`, `codex`, `gemini`, `antigravity`; ahora lista solo `opencode`
+  - eliminados los comandos `claude`, `codex`, `gemini`, `antigravity` de los ejemplos Linux/macOS y Windows
+  - actualizada la sección "Elección del target final": `all` ahora se describe como equivalente a `opencode` (único agente soportado), no como un refresh multi-agente
+- `AGENTS.md`:
+  - actualizada la nota operativa sobre `all`: era "refreshes custom skills and wrappers across supported targets"; ahora dice "`opencode` is the only registered agent"
+- `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`:
+  - eliminada la referencia a `claude` en la nota sobre `apply-gentle-ai-policy.*` (el helper ahora solo se invoca para `opencode`)
+
+WHY:
+
+- El CLI `apply-gentle-ai-custom.sh` fue refactorizado (agent-strategy-refactor SDD) para soportar únicamente `opencode` como agente. Los targets `claude`, `codex`, `gemini` y `antigravity` fueron eliminados junto con todo el dead code asociado.
+- La documentación seguía listando los targets eliminados como válidos, generando inconsistencia entre el comportamiento real y lo documentado.
+- `all` ahora es solo un alias de `opencode`; la descripción anterior lo pintaba como un refresh multi-agente, lo cual ya no es cierto.
+
+Verificación:
+
+- Revisión manual de cada sección afectada
+- Confirmado que los openspec/ (archive, tasks, spec, design, proposal, exploration) son artifacts históricos del refactor y no se tocan: sus referencias a los agentes eliminados son contextuales, no documentación de comportamiento actual
+
 ## 2026-06-03 — Reduced README local-profile internals to human essentials
 
 WHAT cambió:

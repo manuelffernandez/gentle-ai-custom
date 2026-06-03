@@ -285,7 +285,7 @@ Adoption rule:
 Operational reminders:
 
 - `gentle-ai sync` resets orchestrator prompts to upstream inline content and restores pruned skills, so re-apply is mandatory afterward.
-- `apply-gentle-ai-custom.sh opencode` is the minimum OpenCode refresh; `all` also refreshes custom skills and wrappers across supported targets.
+- `apply-gentle-ai-custom.sh opencode` is the minimum OpenCode refresh; `all` is equivalent — `opencode` is the only registered agent.
 
 Detailed triage, decision gates, drift interpretation, recovery, and post-state verification belong in `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md` and `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`.
 

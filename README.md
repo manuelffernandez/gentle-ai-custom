@@ -62,10 +62,6 @@ Además, Go ya forma parte natural del stack porque es una dependencia directa d
 ## Agentes soportados
 
 - `opencode` → `~/.config/opencode`
-- `claude` → `~/.claude`
-- `codex` → `~/.codex`
-- `gemini` → `~/.gemini`
-- `antigravity` → `~/.gemini/antigravity`
 
 ## Uso
 
@@ -86,10 +82,6 @@ Todos esos wrappers son finos: delegan en la CLI Go compartida (`go run ./cmd/ge
 ```bash
 bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh opencode
 bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh opencode --verbose
-bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh claude
-bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh codex
-bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh gemini
-bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh antigravity
 bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh all
 ```
 
@@ -104,10 +96,6 @@ bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh all
 ```powershell
 ~\Documentos\gentle-ai-custom\apply-gentle-ai-custom.ps1 opencode
 ~\Documentos\gentle-ai-custom\apply-gentle-ai-custom.ps1 opencode --verbose
-~\Documentos\gentle-ai-custom\apply-gentle-ai-custom.ps1 claude
-~\Documentos\gentle-ai-custom\apply-gentle-ai-custom.ps1 codex
-~\Documentos\gentle-ai-custom\apply-gentle-ai-custom.ps1 gemini
-~\Documentos\gentle-ai-custom\apply-gentle-ai-custom.ps1 antigravity
 ~\Documentos\gentle-ai-custom\apply-gentle-ai-custom.ps1 all
 ```
 
@@ -126,7 +114,7 @@ gentle-ai sync
 # mínimo para OpenCode/policy del overlay
 bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh opencode
 
-# o refresh completo multi-target
+# o equivalente con all (único agente soportado)
 # bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh all
 ```
 
@@ -142,8 +130,8 @@ Orden mental correcto:
 
 Elección del target final:
 
-- `opencode` → suficiente para re-materializar OpenCode y la policy del overlay
-- `all` → además reinstala las skills/wrappers custom en Claude, Codex, Gemini y Antigravity
+- `opencode` → re-materializa OpenCode y la policy del overlay
+- `all` → equivalente a `opencode` (único agente soportado)
 
 Si la auditoría detecta drift de prompt base, invariantes de perfiles o cambios de topología relevantes, frená ahí y adaptá el overlay antes de correr `sync` o reinstall. El auditor ahora también imprime un `Drift summary:` corto en lenguaje humano para ayudarte a distinguir si el delta parece relevante para el overlay o si probablemente es ruido de baja prioridad.
 
