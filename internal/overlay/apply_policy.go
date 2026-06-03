@@ -57,14 +57,18 @@ type applyPolicyOptions struct {
 	recorder *verboseRecorder
 }
 
-// RunApplyPolicy is the main entrypoint. It loads the policy, builds initial
-// state, and runs each phase of the apply pipeline in order.
+// RunApplyPolicy is the main entrypoint for the standalone `apply-policy`
+// subcommand. It loads the policy, builds initial state, and runs each phase
+// of the apply pipeline in order.
 func RunApplyPolicy(repoRoot string, args []string) int {
 	options, exitCode := normalizeApplyPolicyArgs(args)
 	if exitCode >= 0 {
 		return exitCode
 	}
-	return runApplyPolicyWithOptions(repoRoot, options)
+	options.recorder = newVerboseRecorder(options.verbose)
+	code := runApplyPolicyWithOptions(repoRoot, options)
+	options.recorder.print()
+	return code
 }
 
 func runApplyPolicyWithOptions(repoRoot string, options applyPolicyOptions) int {
@@ -89,12 +93,16 @@ func runApplyPolicyWithOptions(repoRoot string, options applyPolicyOptions) int 
 		originalAgentKeys:    map[string]bool{},
 		sddPhasesSet:         map[string]bool{},
 	}
+	// options.recorder must be initialized by the caller before invoking this
+	// function. Both RunApplyPolicy and OpenCodeAgent.ApplyOverlay guarantee
+	// this. A nil recorder here would silently accumulate verbose entries into
+	// an unreachable object — use a panic to catch any future caller that
+	// forgets to initialize it.
 	if state.recorder == nil {
-		state.recorder = newVerboseRecorder(options.verbose)
+		panic("runApplyPolicyWithOptions: options.recorder must be non-nil; caller must initialize it")
 	}
 	fail := func(err error) int {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
-		state.recorder.print()
 		return 1
 	}
 	state.repoSnapshotBaseFile = filepath.Join(state.repoSnapshotDir, policy.OpenCode.BaseOrchestratorKey+".last.md")

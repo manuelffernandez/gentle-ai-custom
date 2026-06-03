@@ -71,7 +71,6 @@ func (s *applyPolicyState) printSummary() {
 		fmt.Println()
 		fmt.Println("NOTE: topology drift detected. Review the topology: warnings above and update policy/intent if needed.")
 	}
-	s.recorder.print()
 	fmt.Println()
 	fmt.Println("Done. Restart OpenCode if opencode.json changed.")
 }
@@ -88,6 +87,5 @@ func (s *applyPolicyState) printMissingOpenCodeSummary() {
 			fmt.Printf("    - %s\n", entry)
 		}
 	}
-	s.recorder.print()
 	fmt.Println("Done.")
 }

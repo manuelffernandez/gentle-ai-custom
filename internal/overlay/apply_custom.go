@@ -7,8 +7,6 @@ import (
 	"strings"
 )
 
-var supportedTargets = []string{"opencode", "claude", "codex", "gemini", "antigravity"}
-
 // customSkills is the single source of truth for installable skills.
 // To add a new skill: add its directory name here. If the skill has an
 // assets/ subdirectory it will be installed automatically.
@@ -27,22 +25,16 @@ type customSourceFiles struct {
 	prRegenerateBody string
 }
 
+// customCommand holds the metadata for a single command file to be rendered.
+// The fileRelPath, skillName, mode, commandType, and description fields are
+// agent-agnostic; the agent decides how to format them into the final content.
 type customCommand struct {
 	fileRelPath string
-	renderer    string
 	skillName   string
-	commandName string
 	mode        string
 	commandType string
 	description string
 	bodyPath    string
-}
-
-type customTarget struct {
-	name     string
-	basePath string
-	message  string
-	commands []customCommand
 }
 
 type applyCustomOptions struct {
@@ -68,25 +60,24 @@ func RunApplyCustom(repoRoot string, args []string) int {
 
 	if err := validateCustomSources(sharedRoot, sources); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
+		options.recorder.print()
 		return 1
 	}
 
 	for _, targetName := range targets {
-		if err := applyCustomTarget(buildCustomTarget(targetName, sources), sharedRoot, options.recorder); err != nil {
+		agent := agentRegistry[targetName]
+		if err := installAgentAssets(agent, sources, sharedRoot, options.recorder); err != nil {
 			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 			options.recorder.print()
 			return 1
 		}
-	}
-
-	if shouldApplyGentleOverlay(targets) {
-		if code := runApplyPolicyWithOptions(repoRoot, applyPolicyOptions{verbose: options.verbose, recorder: options.recorder}); code != 0 {
+		if code := agent.ApplyOverlay(repoRoot, applyPolicyOptions{verbose: options.verbose, recorder: options.recorder}); code != 0 {
+			options.recorder.print()
 			return code
 		}
-	} else {
-		options.recorder.print()
 	}
 
+	options.recorder.print()
 	fmt.Println("Reminder: run audit-gentle-ai-upstream before maintainer sync/reinstall work, and re-run this script after syncs, upgrades, or managed config refreshes.")
 	return 0
 }
@@ -121,19 +112,18 @@ func normalizeTargets(args []string) (applyCustomOptions, []string, int) {
 		return options, nil, 1
 	}
 	if len(positional) == 1 && positional[0] == "all" {
-		return options, append([]string(nil), supportedTargets...), -1
+		return options, registeredAgentNames(), -1
 	}
 
 	seen := map[string]bool{}
 	var result []string
 	for _, target := range positional {
-		switch target {
-		case "all":
+		if target == "all" {
 			fmt.Fprintln(os.Stderr, "Use 'all' by itself, or pass explicit targets only.")
 			return options, nil, 1
 		}
-		if !isSupportedTarget(target) {
-			fmt.Fprintf(os.Stderr, "Unknown target: %s\n", target)
+		if _, ok := agentRegistry[target]; !ok {
+			fmt.Fprintf(os.Stderr, "unsupported agent: %s\n", target)
 			return options, nil, 1
 		}
 		if !seen[target] {
@@ -146,23 +136,15 @@ func normalizeTargets(args []string) (applyCustomOptions, []string, int) {
 
 func printApplyCustomUsage(out *os.File) {
 	prefix := usageCommandName("apply-custom")
-	fmt.Fprintf(out, "Usage: %s [--verbose] all | [opencode|claude|codex|gemini|antigravity ...]\n", prefix)
+	names := registeredAgentNames()
+	targets := strings.Join(names, " | ")
+	fmt.Fprintf(out, "Usage: %s [--verbose] all | %s\n", prefix, targets)
 	fmt.Fprintln(out, "Examples:")
-	fmt.Fprintf(out, "  %s opencode\n", prefix)
-	fmt.Fprintf(out, "  %s opencode --verbose\n", prefix)
-	fmt.Fprintf(out, "  %s claude codex\n", prefix)
-	fmt.Fprintf(out, "  %s gemini\n", prefix)
-	fmt.Fprintf(out, "  %s antigravity\n", prefix)
-	fmt.Fprintf(out, "  %s all\n", prefix)
-}
-
-func isSupportedTarget(target string) bool {
-	for _, supported := range supportedTargets {
-		if target == supported {
-			return true
-		}
+	for _, name := range names {
+		fmt.Fprintf(out, "  %s %s\n", prefix, name)
+		fmt.Fprintf(out, "  %s %s --verbose\n", prefix, name)
 	}
-	return false
+	fmt.Fprintf(out, "  %s all\n", prefix)
 }
 
 func validateCustomSources(sharedRoot string, sources customSourceFiles) error {
@@ -186,10 +168,15 @@ func validateCustomSources(sharedRoot string, sources customSourceFiles) error {
 	return nil
 }
 
-func buildCustomTarget(name string, sources customSourceFiles) customTarget {
+// installAgentAssets is the generic replacement for the former applyCustomTarget
+// + buildCustomTarget pair. It installs skills and renders command files for the
+// given agent using only the Agent interface — no switch on agent name.
+func installAgentAssets(agent Agent, sources customSourceFiles, sharedRoot string, recorder *verboseRecorder) error {
+	// Command definitions are agent-agnostic; each agent formats them differently
+	// via BuildCommandContent. fileRelPath is hardcoded to commands/{name}.md
+	// (YAGNI — revisit when a second agent with a different layout is added).
 	commandDefs := []struct {
 		name        string
-		relPath     string
 		mode        string
 		commandType string
 		description string
@@ -202,57 +189,34 @@ func buildCustomTarget(name string, sources customSourceFiles) customTarget {
 		{name: "pr-regenerate", mode: "regenerate", commandType: "state-changing", description: "Regenerate or update an existing PR from the current committed diff after approval", bodyPath: sources.prRegenerateBody},
 	}
 
-	var target customTarget
-	switch name {
-	case "opencode":
-		target = customTarget{name: name, basePath: filepath.Join(expandUser("~/.config"), "opencode"), message: "Applied OpenCode overlays -> %s", commands: make([]customCommand, 0, len(commandDefs))}
-		for _, def := range commandDefs {
-			target.commands = append(target.commands, customCommand{fileRelPath: filepath.Join("commands", def.name+".md"), renderer: "opencode", skillName: skillNameForCommand(def.name), mode: def.mode, commandType: def.commandType, description: def.description, bodyPath: def.bodyPath})
-		}
-	case "claude":
-		target = customTarget{name: name, basePath: expandUser("~/.claude"), message: "Applied Claude overlays -> %s", commands: make([]customCommand, 0, len(commandDefs))}
-		for _, def := range commandDefs {
-			target.commands = append(target.commands, customCommand{fileRelPath: filepath.Join("commands", def.name+".md"), renderer: "claude", skillName: skillNameForCommand(def.name), mode: def.mode, commandType: def.commandType, description: def.description, bodyPath: def.bodyPath})
-		}
-	case "codex":
-		target = customTarget{name: name, basePath: expandUser("~/.codex"), message: "Applied Codex overlays -> %s", commands: make([]customCommand, 0, len(commandDefs))}
-		for _, def := range commandDefs {
-			target.commands = append(target.commands, customCommand{fileRelPath: filepath.Join("prompts", def.name+".md"), renderer: "codex", skillName: skillNameForCommand(def.name), mode: def.mode, commandType: def.commandType, description: def.description, bodyPath: def.bodyPath})
-		}
-	case "gemini":
-		target = customTarget{name: name, basePath: expandUser("~/.gemini"), message: "Applied Gemini overlays -> %s", commands: make([]customCommand, 0, len(commandDefs))}
-		for _, def := range commandDefs {
-			target.commands = append(target.commands, customCommand{fileRelPath: filepath.Join("skills", def.name, "SKILL.md"), renderer: "gemini", skillName: skillNameForCommand(def.name), commandName: def.name, mode: def.mode, commandType: def.commandType, description: def.description, bodyPath: def.bodyPath})
-		}
-	case "antigravity":
-		target = customTarget{name: name, basePath: filepath.Join(expandUser("~/.gemini"), "antigravity"), message: "Applied Antigravity overlays -> %s", commands: make([]customCommand, 0, len(commandDefs))}
-		for _, def := range commandDefs {
-			target.commands = append(target.commands, customCommand{fileRelPath: filepath.Join("skills", def.name, "SKILL.md"), renderer: "antigravity", skillName: skillNameForCommand(def.name), commandName: def.name, mode: def.mode, commandType: def.commandType, description: def.description, bodyPath: def.bodyPath})
-		}
-	}
-	return target
-}
+	basePath := agent.BasePath()
 
-func applyCustomTarget(target customTarget, sharedRoot string, recorder *verboseRecorder) error {
-	if len(target.commands) == 0 {
-		return fmt.Errorf("no commands defined for target %q", target.name)
-	}
 	for _, skillName := range customSkills {
 		src := filepath.Join(sharedRoot, "skills", skillName, "SKILL.md")
-		if err := installSkill(target.basePath, skillName, src, target.name, recorder); err != nil {
+		if err := installSkill(basePath, skillName, src, agent.Name(), recorder); err != nil {
 			return err
 		}
 		assetsDir := filepath.Join(sharedRoot, "skills", skillName, "assets")
-		if err := installSkillAssets(target.basePath, skillName, assetsDir, target.name, recorder); err != nil {
+		if err := installSkillAssets(basePath, skillName, assetsDir, agent.Name(), recorder); err != nil {
 			return err
 		}
 	}
-	for _, command := range target.commands {
-		if err := renderCustomCommand(target.basePath, command, target.name, recorder); err != nil {
+
+	for _, def := range commandDefs {
+		cmd := customCommand{
+			fileRelPath: filepath.Join("commands", def.name+".md"),
+			skillName:   skillNameForCommand(def.name),
+			mode:        def.mode,
+			commandType: def.commandType,
+			description: def.description,
+			bodyPath:    def.bodyPath,
+		}
+		if err := renderCustomCommand(basePath, agent, cmd, recorder); err != nil {
 			return err
 		}
 	}
-	fmt.Printf(target.message+"\n", target.basePath)
+
+	fmt.Printf("Applied %s overlays -> %s\n", agent.Name(), basePath)
 	return nil
 }
 
@@ -300,134 +264,22 @@ func skillNameForCommand(command string) string {
 	return "pr-finalizer"
 }
 
-func renderCustomCommand(targetDir string, command customCommand, targetName string, recorder *verboseRecorder) error {
+// renderCustomCommand reads the body file, delegates content rendering to the
+// agent, and writes the result to the command file under the agent's basePath.
+func renderCustomCommand(targetDir string, agent Agent, command customCommand, recorder *verboseRecorder) error {
 	bodyRaw, err := os.ReadFile(command.bodyPath)
 	if err != nil {
 		return err
 	}
 	body := normalizeLF(string(bodyRaw))
-	content := buildCustomCommandContent(command, body)
+	content := agent.BuildCommandContent(command, body)
 	destination := filepath.Join(targetDir, command.fileRelPath)
 	status, err := writeTextFileWithStatus(destination, content)
 	if err != nil {
 		return err
 	}
 	if shouldRecordWriteStatus(status) {
-		recorder.record(destination, fmt.Sprintf("rendered %s command for %s target (%s)", command.fileRelPath, targetName, describeWriteStatus(status)))
+		recorder.record(destination, fmt.Sprintf("rendered %s command for %s target (%s)", command.fileRelPath, agent.Name(), describeWriteStatus(status)))
 	}
 	return nil
-}
-
-func buildCustomCommandContent(command customCommand, body string) string {
-	var lines []string
-	switch command.renderer {
-	case "opencode":
-		lines = []string{
-			"---",
-			fmt.Sprintf("description: %s", command.description),
-			"---",
-			"",
-			fmt.Sprintf("Read the skill file at `~/.config/opencode/skills/%s/SKILL.md` FIRST, then follow it exactly.", command.skillName),
-			"",
-			"CONTEXT:",
-			"- Working directory: !`echo -n \"$(pwd)\"`",
-			"- Current project: !`echo -n \"$(basename \"$(pwd)\")\"`",
-			fmt.Sprintf("- Mode: %s", command.mode),
-			fmt.Sprintf("- Command type: %s", command.commandType),
-			"",
-		}
-	case "claude":
-		lines = []string{
-			"---",
-			fmt.Sprintf("description: %s", command.description),
-			"argument-hint: [optional-context]",
-			"allowed-tools:",
-			"  - Read",
-			"  - Glob",
-			"  - Bash(git:*)",
-			"  - Bash(gh:*)",
-			"  - Bash(pwd:*)",
-			"  - Bash(basename:*)",
-		}
-		if command.mode == "apply" || command.mode == "auto" {
-			lines = append(lines, "disable-model-invocation: true")
-		}
-		lines = append(lines,
-			"---",
-			"",
-			fmt.Sprintf("Read the skill file at `~/.claude/skills/%s/SKILL.md` FIRST, then follow it exactly.", command.skillName),
-			"",
-			"CONTEXT:",
-			"- Working directory: !`pwd`",
-			"- Current project: !`basename \"$PWD\"`",
-			fmt.Sprintf("- Mode: %s", command.mode),
-			fmt.Sprintf("- Command type: %s", command.commandType),
-			"",
-		)
-	case "codex":
-		lines = []string{
-			"---",
-			fmt.Sprintf("description: %s", command.description),
-			"argument-hint: [optional-context]",
-			"allowed-tools:",
-			"  - Read",
-			"  - Glob",
-			"  - Bash(git:*)",
-			"  - Bash(gh:*)",
-			"  - Bash(pwd:*)",
-			"  - Bash(basename:*)",
-			"---",
-			"",
-			fmt.Sprintf("Read the skill file at `~/.codex/skills/%s/SKILL.md` FIRST, then follow it exactly.", command.skillName),
-			"",
-			"CONTEXT:",
-			"- Working directory: !`pwd`",
-			"- Current project: !`basename \"$PWD\"`",
-			fmt.Sprintf("- Mode: %s", command.mode),
-			fmt.Sprintf("- Command type: %s", command.commandType),
-			"",
-		}
-	case "gemini":
-		lines = []string{
-			"---",
-			fmt.Sprintf("name: %s", command.commandName),
-			fmt.Sprintf("description: %s", command.description),
-			"---",
-			"",
-			fmt.Sprintf("Read the skill file at `~/.gemini/skills/%s/SKILL.md` FIRST, then follow it exactly.", command.skillName),
-			"",
-			"CONTEXT:",
-			"- Working directory: !`pwd`",
-			"- Current project: !`basename \"$PWD\"`",
-			fmt.Sprintf("- Mode: %s", command.mode),
-			fmt.Sprintf("- Command type: %s", command.commandType),
-			"",
-		}
-	case "antigravity":
-		lines = []string{
-			"---",
-			fmt.Sprintf("name: %s", command.commandName),
-			fmt.Sprintf("description: %s", command.description),
-			"---",
-			"",
-			fmt.Sprintf("Read the skill file at `~/.gemini/antigravity/skills/%s/SKILL.md` FIRST, then follow it exactly.", command.skillName),
-			"",
-			"CONTEXT:",
-			"- Working directory: !`pwd`",
-			"- Current project: !`basename \"$PWD\"`",
-			fmt.Sprintf("- Mode: %s", command.mode),
-			fmt.Sprintf("- Command type: %s", command.commandType),
-			"",
-		}
-	}
-	return strings.Join(lines, "\n") + body
-}
-
-func shouldApplyGentleOverlay(targets []string) bool {
-	for _, target := range targets {
-		if target == "opencode" || target == "claude" {
-			return true
-		}
-	}
-	return false
 }
