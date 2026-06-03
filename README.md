@@ -1,21 +1,21 @@
 # gentle-ai-custom
 
-Un overlay personalizable para [Gentle AI](https://github.com/Gentleman-Programming/gentle-ai): una capa pensada para extender la experiencia base con tus propias skills, prompts, wrappers y política operativa, sin pelearte con lo que `gentle-ai sync` vuelve a materializar.
+Una capa de customización mantenida con IA para [Gentle AI](https://github.com/Gentleman-Programming/gentle-ai): extiende la experiencia base con skills, prompts, wrappers y política operativa propios, y hace más mantenible el trabajo de reaplicar y auditar lo que `gentle-ai sync` vuelve a materializar.
 
 ## Qué es Gentle AI
 
 [Gentle AI](https://github.com/Gentleman-Programming/gentle-ai) es el proyecto original de Gentleman Programming para mejorar de forma MUY fuerte la experiencia de desarrollo con IA: agentes, skills, orquestación SDD, perfiles y tooling real para trabajar mejor con asistentes en el código.
 
-Este repo existe sobre esa base, no en reemplazo. La idea es dar el crédito que corresponde al proyecto upstream y, al mismo tiempo, construir una capa más adaptable para workflows concretos.
+Este repo existe sobre esa base, no en reemplazo. La idea es dar el crédito que corresponde al proyecto upstream y, al mismo tiempo, construir una capa más mantenible para workflows concretos.
 
 ## Por qué existe este repo
 
-Gentle AI resuelve gran parte de la experiencia, pero hay decisiones del upstream que no siempre encajan con mi flujo diario. Por eso este repo actúa como **overlay**:
+Gentle AI resuelve gran parte de la experiencia, pero hay decisiones del upstream que no siempre encajan con mi flujo diario. Por eso este repo actúa como una **capa de customización mantenida con IA**:
 
 - conserva lo mejor del upstream
 - depura lo que no se adapta a mi forma de trabajar
 - agrega skills y wrappers que sí uso todos los días
-- sirve como base de experimentación para seguir evolucionando una capa custom más amigable sobre Gentle AI
+- convierte una customización profunda de Gentle AI en algo más mantenible a través de automatización, auditoría y agentes
 
 Hoy sigue estando orientado principalmente a mi flujo de trabajo. La idea es seguir iterándolo para que, con el tiempo, resulte más simple de adaptar y usar también en otros contextos.
 

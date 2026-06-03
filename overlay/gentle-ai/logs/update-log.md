@@ -2,27 +2,27 @@
 
 > Este archivo registra decisiones e hitos del mantenimiento del overlay. No es la fuente autoritativa del último upstream mantenido; esa responsabilidad vive en `overlay/gentle-ai/state/upstream-state.json`.
 
-## 2026-06-02 — Reframed root README as a reusable Gentle AI overlay
+## 2026-06-02 — Reframed root README around an AI-managed Gentle AI customization layer
 
 Razón del cambio:
 
 - El README raíz explicaba bien la mecánica del repo, pero seguía sonando demasiado interno y poco inspirador para alguien que llegue desde afuera.
-- Faltaba referenciar explícitamente al proyecto upstream `gentle-ai`, darle el crédito correcto a su autor y dejar más claro que este repo puede servirle también a otras personas como base para sus propios overlays y skills.
+- Además, parte del wording seguía empujando la idea de un “overlay personalizable”, cuando la realidad actual es más específica: una customización profunda de Gentle AI que se vuelve mantenible gracias a automatización y agentes de IA, no un producto fácil de reconfigurar por cualquiera.
 
 WHAT cambió:
 
 - `README.md`:
-  - agregado un posicionamiento inicial más amigable/comercial del repo como overlay sobre `gentle-ai`
+  - agregado un posicionamiento inicial más amigable/comercial del repo como capa de customización mantenida con IA sobre `gentle-ai`
   - agregada referencia explícita al repo oficial `https://github.com/Gentleman-Programming/gentle-ai`
   - incorporada una explicación breve de para qué sirve Gentle AI y por qué mejora la experiencia de desarrollo con IA
   - aclarado que este repo conserva la base upstream, depura lo que no encaja con el workflow diario y suma skills/wrappers propios
-  - ajustado el mensaje para no sobreprometer reutilización inmediata por terceros: hoy el repo sigue orientado principalmente al flujo de trabajo del autor y la apertura a otros contextos queda planteada como visión, no como estado actual
+  - ajustado el mensaje para no sobreprometer reutilización inmediata por terceros ni configurabilidad sencilla: hoy el repo sigue orientado principalmente al flujo del autor y se presenta como una capa mantenible, no como una solución plug-and-play
   - explicitada la visión futura de evolucionar hacia un instalador TUI más personalizado y expandir funcionalidades
   - documentada la razón de usar Go como única fuente de verdad entre wrappers `.sh` y `.ps1`, reutilizando además una dependencia ya presente en el stack por Engram
 
 WHY:
 
-- Un overlay útil no debería leerse como un parche privado incomprensible. Tiene más valor cuando comunica rápido qué resuelve, sobre qué proyecto se apoya y cómo puede adaptarlo otra persona.
+- La presentación tenía que volverse más precisa: este repo no vende configurabilidad inmediata para terceros, sino mantenibilidad operativa sobre una customización compleja de Gentle AI.
 - Explicar por qué la automatización vive en Go evita que parezca una elección arbitraria: la decisión responde a paridad cross-platform y reutilización coherente del stack existente.
 
 Verificación:
