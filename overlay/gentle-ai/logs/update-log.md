@@ -2,6 +2,160 @@
 
 > Este archivo registra decisiones e hitos del mantenimiento del overlay. No es la fuente autoritativa del último upstream mantenido; esa responsabilidad vive en `overlay/gentle-ai/state/upstream-state.json`.
 
+## 2026-06-03 — Simplified README usage section around the real entrypoint
+
+WHAT cambió:
+
+- `README.md`:
+  - reescrita la sección `## Uso` para presentar `apply-gentle-ai-custom.*` como el entrypoint humano principal
+  - aclarado que `audit-gentle-ai-upstream.*` existe pero no es el flujo normal para una persona; su uso recomendado es a través del agente en modo mantenimiento
+  - simplificados los ejemplos Linux/macOS y Windows para mostrar primero el caso normal y dejar `--verbose` como nota opcional
+
+WHY:
+
+- La sección anterior estaba floja porque mezclaba demasiado pronto el script de auditoría con el uso normal del repo.
+- El README necesitaba reflejar mejor la realidad operativa: para una persona, hoy el uso directo es básicamente reaplicar el overlay con `apply-gentle-ai-custom`.
+- También convenía hacer la parte de ejecución más corta y user friendly, porque el flujo actual es simple.
+
+Verificación:
+
+- Revisión manual de `README.md` para confirmar que `## Uso` ahora muestra primero el camino normal y deja la auditoría como herramienta de mantenimiento excepcional
+
+## 2026-06-03 — Converted README agent-overrides explanation into an operational table
+
+WHAT cambió:
+
+- `README.md`:
+  - reescrita la subsección `### Overrides de agentes` usando una tabla operativa
+  - aclarado que OpenCode trae agentes built-in propios y que los subagentes sin modelo explícito pueden heredar el modelo del agente primario invocante
+  - separadas explícitamente las dos capas de configuración: `agent_overrides` para built-ins de OpenCode y `opencode-sdd-profiles.json` para perfiles SDD
+
+WHY:
+
+- La explicación anterior era correcta, pero una tabla hace más visible qué caso cae en cada archivo de configuración.
+- Además hacía falta dejar más precisa la relación entre built-ins de OpenCode, herencia de modelo y overrides explícitos, sin agrandar innecesariamente la sección.
+
+Verificación:
+
+- Revisión manual de `README.md`
+- Verificado contra la documentación oficial de OpenCode (`https://opencode.ai/docs/agents`) que existen agentes built-in como `General`, `Explore` y `Scout`, y que los subagentes sin modelo explícito heredan el modelo del agente primario que los invoca
+
+## 2026-06-03 — Explained OpenCode built-in agent overrides in README
+
+WHAT cambió:
+
+- `README.md`:
+  - ampliada la subsección `### Overrides de agentes`
+  - ahora explica que `agent_overrides` cubre agentes built-in de OpenCode usados por delegación asíncrona (`general`, `explore`)
+  - agregado dónde cambiar esos modelos (`overlay/gentle-ai/policy/gentle-ai-policy.json`) y dónde se cambian los modelos de perfiles SDD (`~/.config/gentle-ai-custom/opencode-sdd-profiles.json`)
+
+WHY:
+
+- La lista sola de overrides no explicaba por qué existía una configuración adicional para `general` y `explore`.
+- La distinción importante es que esos agentes no pertenecen al sistema de perfiles SDD de Gentle AI: son agentes base de OpenCode que el orchestrator puede usar al delegar.
+- También hacía falta dejar explícito qué archivo gobierna cada clase de modelo para evitar confundir `agent_overrides` con la configuración de perfiles SDD.
+
+Verificación:
+
+- Revisión manual de `README.md`
+- Verificado contra la policy versionada (`overlay/gentle-ai/policy/gentle-ai-policy.json`) y el contrato de herramientas del entorno que `delegate` es asíncrono y `task` es síncrono
+
+## 2026-06-03 — Clarified custom commit/PR governance in README policy table
+
+WHAT cambió:
+
+- `README.md`:
+  - ajustadas las filas de `commit-planner` y `pr-finalizer` en `## Política actual`
+  - ahora se aclara que esas skills sí incorporan una forma concreta de gobernanza de commits/PRs, pero que se agregan porque reflejan el criterio personal deseado para este overlay
+
+WHY:
+
+- La explicación anterior podía sugerir que esas skills eran neutrales respecto de gobernanza, cuando en realidad sí codifican una manera particular de cerrar commits y PRs.
+- La diferencia importante no es “no hay gobernanza”, sino “la gobernanza agregada acá es la elegida para este flujo local, no una impuesta desde upstream”.
+
+Verificación:
+
+- Revisión manual de `README.md` para confirmar que la distinción entre gobernanza upstream podada y gobernanza custom elegida quedó explícita
+
+## 2026-06-03 — Humanized README policy section and exposed orchestrator sanitization intent
+
+WHAT cambió:
+
+- `README.md`:
+  - reescrita `## Política actual` con una explicación humana previa sobre qué conserva y qué poda el overlay
+  - reemplazadas las listas crudas de skills por una tabla única con `Skill`, `Estado`, `Qué hace` y `Por qué se queda / se va`
+  - agregadas las skills custom del repo dentro de la misma tabla (`code-design`, `commit-planner`, `package-security`, `pr-finalizer`)
+  - agregada una subsección `### Sanitización del orchestrator` que explica, en lenguaje humano, qué partes de gobernanza de PR/review se remueven y por qué
+
+WHY:
+
+- La versión anterior saltaba directo a listas técnicas y dejaba afuera la motivación humana de la policy.
+- El README necesitaba explicar que el objetivo no es podar capacidad técnica de Gentle AI, sino quitar gobernanza de colaboración que no aplica al flujo local.
+- También faltaba hacer visible en el README qué modifica la sanitización del orchestrator y con qué intención.
+
+Verificación:
+
+- Revisión manual de `README.md`
+- Verificado contra `overlay/gentle-ai/policy/maintenance-intent.md` y `internal/overlay/sanitize.go` que la explicación humana de la sanitización coincide con la intención y con lo que el sanitizador realmente remueve
+
+## 2026-06-03 — Folded maintenance model into the main README maintenance section
+
+WHAT cambió:
+
+- `README.md`:
+  - eliminada la sección independiente `## Modelo de mantenimiento`
+  - movidas sus cuatro piezas base a una subsección `### Artefactos base del mantenimiento` dentro de `## Mantenimiento del overlay`
+  - limpiada la tabla de `### Archivos y directorios clave` para dejar allí solo paths operativos y de soporte
+
+WHY:
+
+- `Modelo de mantenimiento` estaba conceptualmente separada del flujo de mantenimiento aunque hablaba del mismo tema.
+- La sección generaba fragmentación y además se pisaba con la tabla de archivos clave.
+- Integrarla dentro de `## Mantenimiento del overlay` deja un recorrido más lógico: flujo, decisiones, reaplicación, artefactos base y luego paths operativos.
+
+Verificación:
+
+- Revisión manual de `README.md` para confirmar que ya no queda una sección suelta sobre mantenimiento fuera del bloque principal
+
+## 2026-06-03 — Added rationale for local SDD profile safeguard in README
+
+WHAT cambió:
+
+- `README.md`:
+  - agregada una explicación explícita de por qué existe `~/.config/gentle-ai-custom/opencode-sdd-profiles.json`
+  - la sección de mantenimiento ahora aclara que ese archivo actúa como resguardo local para rehidratar elecciones de `model` y `variant` de perfiles SDD
+
+WHY:
+
+- La mención anterior decía qué hace la feature, pero no explicaba el problema real que resuelve.
+- En la práctica, un reinstall de Gentle AI puede pisar perfiles predefinidos o hacer que la configuración local deseada deje de estar disponible.
+- Ese contexto humano importa porque muestra que la reconciliación de perfiles no es un detalle interno, sino un safeguard deliberado del overlay.
+
+Verificación:
+
+- Revisión manual de `README.md` para confirmar que la justificación quedó ubicada dentro de la sección de mantenimiento y cerca del flujo de reaplicación
+
+## 2026-06-03 — Consolidated README maintenance guidance for humans
+
+WHAT cambió:
+
+- `README.md`:
+  - reemplazada la sección `## Flujo de mantenimiento recomendado` por una sección única `## Mantenimiento del overlay`
+  - convertida la explicación del mantenimiento en una secuencia explícita de pasos, en vez de mezclar comandos con un “orden mental” redundante
+  - integradas en esa misma sección las referencias a auditoría, skill maintainer, runbook y archivos/directorios clave
+  - removidos del README los detalles internos de resolución/sanitización del orchestrator y la explicación extensa de la skill de mantenimiento
+
+WHY:
+
+- El README estaba mezclando flujo humano, comportamiento interno del script y documentación agente-first en varios bloques dispersos.
+- Para una persona que mantiene el repo, el valor principal es entender la secuencia operativa, qué artefactos existen y cuándo debe frenar para adaptar el overlay.
+- El detalle técnico profundo sobre la skill y la lógica interna del orchestrator aporta más en el runbook, en la skill y en la implementación que en el README principal.
+
+Verificación:
+
+- Revisión manual de `README.md` para confirmar que toda la información de mantenimiento quedó agrupada en una sola sección escaneable
+- Confirmado que el README sigue apuntando al runbook y a la skill para troubleshooting y detalle técnico
+
 ## 2026-06-03 — Updated docs to reflect single-agent CLI (opencode only)
 
 WHAT cambió:
