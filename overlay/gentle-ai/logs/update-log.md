@@ -2,6 +2,24 @@
 
 > Este archivo registra decisiones e hitos del mantenimiento del overlay. No es la fuente autoritativa del último upstream mantenido; esa responsabilidad vive en `overlay/gentle-ai/state/upstream-state.json`.
 
+## 2026-06-03 — Reduced README local-profile internals to human essentials
+
+WHAT cambió:
+
+- `README.md`:
+  - recortada la subsección `### Perfiles SDD locales` para dejar solo la información útil para un humano
+  - removidos del README el comportamiento interno del helper, el schema largo y las reglas duras campo por campo
+  - agregado puntero al runbook y a la skill maintainer para el detalle operativo
+
+WHY:
+
+- Esa parte del README estaba describiendo demasiado funcionamiento interno del helper para un documento de entrada.
+- El detalle fino de validación, comportamiento y troubleshooting aporta más en el runbook y en la documentación agente-first que en el README principal.
+
+Verificación:
+
+- Revisión manual para confirmar que la subsección sigue siendo útil para humanos sin duplicar documentación operativa
+
 ## 2026-06-03 — Shortened README script-output section for human scanning
 
 WHAT cambió:

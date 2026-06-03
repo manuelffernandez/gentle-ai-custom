@@ -227,53 +227,13 @@ Los perfiles SDD (`sdd-orchestrator-<name>` + los 10 agentes de fase `sdd-init-<
 ~/.config/gentle-ai-custom/opencode-sdd-profiles.json
 ```
 
-Comportamiento del script:
+Reglas prácticas:
 
-- Si el archivo **no existe** → el helper no toca ningún perfil SDD en `opencode.json`.
-- Si existe → valida estrictamente con schema V1 y **falla cerrado antes de cualquier escritura** si algo está mal.
-- Para cada perfil nombrado en el config local → crea o actualiza orchestrator + 10 phase agents con `model` y `variant` exactos.
-- Perfiles presentes en `opencode.json` pero **no** nombrados en el config local → quedan intactos pero se reportan como `WARNING - unmanaged SDD profiles left untouched` + contador.
-- **Nunca borra perfiles automáticamente**. Si querés sacar uno: editás el config y borrás los agentes correspondientes en `opencode.json` a mano.
+- el archivo es local por máquina y no se versiona en este repo
+- si existe, el helper lo valida en modo strict/fail-closed antes de escribir nada
+- el helper solo gestiona `model`/`variant`; el `prompt` sigue viniendo de `gentle-ai sync`
 
-Schema V1 (no hay defaults ni herencia):
-
-```jsonc
-{
-  "version": 1,
-  "profiles": [
-    {
-      "name": "vertex",
-      "orchestrator": { "model": "provider/model", "variant": "..." },
-      "phases": {
-        "sdd-init":     { "model": "provider/model", "variant": "..." },
-        "sdd-explore":  { "model": "provider/model", "variant": "..." },
-        "sdd-propose":  { "model": "provider/model", "variant": "..." },
-        "sdd-spec":     { "model": "provider/model", "variant": "..." },
-        "sdd-design":   { "model": "provider/model", "variant": "..." },
-        "sdd-tasks":    { "model": "provider/model", "variant": "..." },
-        "sdd-apply":    { "model": "provider/model", "variant": "..." },
-        "sdd-verify":   { "model": "provider/model", "variant": "..." },
-        "sdd-archive":  { "model": "provider/model", "variant": "..." },
-        "sdd-onboard":  { "model": "provider/model", "variant": "..." }
-      }
-    }
-  ]
-}
-```
-
-Reglas duras:
-
-- El top-level debe tener exactamente `version` y `profiles`. Cualquier campo extra rechaza el archivo.
-- `version` debe ser exactamente `1`.
-- `profiles` debe ser un array no vacío.
-- Cada profile debe tener exactamente los campos `name`, `orchestrator`, `phases`. Cualquier campo extra rechaza el archivo.
-- `name` debe matchear `^[a-z0-9][a-z0-9._-]*$` (sufijo seguro para agent keys) y ser único.
-- Cada `orchestrator`/phase assignment debe tener exactamente `{ "model": "...", "variant": "..." }`.
-- `model` debe ser un string no vacío.
-- `variant` debe ser un string (puede ser `""` si no aplica), pero el campo es **requerido**.
-- `phases` debe contener exactamente los 10 phase keys SDD listados arriba.
-
-El script solo gestiona `model`/`variant`. El `prompt` del orchestrator del perfil viene de `gentle-ai sync` y la sanitización inline existente sigue corriendo igual.
+Para el contrato completo, troubleshooting y reglas detalladas, ver `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md` y `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`.
 
 ### Snapshots locales de orchestrators
 
