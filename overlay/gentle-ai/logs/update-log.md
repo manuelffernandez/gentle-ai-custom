@@ -2,6 +2,63 @@
 
 > Este archivo registra decisiones e hitos del mantenimiento del overlay. No es la fuente autoritativa del último upstream mantenido; esa responsabilidad vive en `overlay/gentle-ai/state/upstream-state.json`.
 
+## 2026-06-03 — Shortened README script-output section for human scanning
+
+WHAT cambió:
+
+- `README.md`:
+  - restaurados los cambios recientes del README raíz que se habían perdido
+  - recuperadas las correcciones de wording sobre objetivo, maintenance intent, referencia a Engram y `Flujo de mantenimiento recomendado`
+  - removida la tabla de targets no acordada y restaurada la sección corta `## Agentes soportados`
+  - reducida `### Qué reporta el script` a una versión breve y más fácil de escanear, con puntero explícito al runbook para el detalle completo
+
+WHY:
+
+- El README raíz había quedado desalineado después de una sobrescritura accidental y volvió a mostrar información vieja o no acordada.
+- La sección larga de output del script tenía demasiado detalle operativo para un README principal; ese nivel pertenece al runbook.
+
+Verificación:
+
+- Revisión manual del `README.md` restaurado contra los cambios acordados en esta sesión
+- Confirmado que el detalle fino de señales sigue viviendo en `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`
+
+## 2026-06-03 — Added agent-facing documentation optimization rule to AGENTS
+
+WHAT cambió:
+
+- `AGENTS.md`:
+  - agregada una regla en `### 1. Self-update this document` para exigir que los artifacts de lectura primaria por agentes/LLMs se escriban optimizados para ellos
+  - la regla fija criterios como inglés por defecto, paths explícitos, listas/tablas por sobre prosa, no usar árboles ASCII para mapas del repo, y mantener una sola fuente de verdad por tema
+
+WHY:
+
+- Parte de la documentación del repo pasó a servir principalmente como input operativo para agentes, no solo como guía humana.
+- Hacer explícitas estas reglas evita mezclar estilos humanos con artifacts que conviene mantener más estables, parseables y con menos ambigüedad.
+
+Verificación:
+
+- Revisión manual de la nueva regla en `AGENTS.md` para confirmar que complementa la política documental existente sin duplicarla
+
+## 2026-06-03 — Folded orchestrator policy into maintenance intent and removed the extra file
+
+WHAT cambió:
+
+- `overlay/gentle-ai/policy/maintenance-intent.md`:
+  - incorporadas las metas de sanitización del orchestrator, incluyendo qué remover, qué preservar y los guardrails fail-closed
+- `overlay/gentle-ai/policy/orchestrator-policy.md`:
+  - eliminado como archivo separado
+- `AGENTS.md`, `README.md`, `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`:
+  - ajustados para tratar `maintenance-intent.md` como fuente semántica también para los objetivos de sanitización del orchestrator
+
+WHY:
+
+- `orchestrator-policy.md` mezclaba intención semántica con procedimiento y ya no tenía un rol claro como archivo independiente.
+- Las decisiones sobre qué remover o preservar del orchestrator pertenecen al intent versionado del repo; el procedimiento detallado sigue viviendo mejor en el runbook, la skill maintainer y la implementación runtime.
+
+Verificación:
+
+- Revisión manual de `maintenance-intent.md`, runbook, README y `AGENTS.md` para confirmar la nueva distribución de responsabilidades
+
 ## 2026-06-03 — Adopted upstream v1.34.0 baseline after prompt-language audit
 
 Tipo de update: `git pull` upstream + actualización del baseline auditado en este repo. `gentle-ai sync` todavía NO ejecutado.

@@ -27,8 +27,8 @@ La dirección de este repo es seguir mejorando la experiencia con una capa cada 
 
 Hoy este repo funciona como una **capa unificada de personalización y mantenimiento** sobre Gentle AI:
 
-- instala tus skills y wrappers propios
-- reaplica tu política local después de `gentle-ai sync`
+- instala skills y wrappers propios
+- reaplica la política local luego de `gentle-ai sync` o un reinstall completo
 - audita el baseline upstream de `gentle-orchestrator` antes de sync/reinstall de mantenimiento
 - depura skills no deseadas del runtime
 - fija overrides de modelo para los agentes built-in de OpenCode listados en `agent_overrides` (ver `overlay/gentle-ai/policy/gentle-ai-policy.json`)
@@ -48,7 +48,7 @@ La capa de mantenimiento se apoya en cuatro piezas distintas:
 
 Cada una cumple un rol distinto:
 
-- `maintenance-intent.md` explica qué quiere conservar y depurar el usuario, y por qué
+- `maintenance-intent.md` explica qué quiero conservar y depurar, por qué, y qué reglas de sanitización debe respetar el orchestrator derivado
 - `gentle-ai-policy.json` alimenta la lógica operativa de los scripts
 - `upstream-state.json` guarda desde qué versión/tag/commit hay que auditar el upstream (última versión mantenida)
 - `update-log.md` deja historial narrativo de decisiones de mantenimiento
@@ -57,33 +57,9 @@ Cada una cumple un rol distinto:
 
 La automatización principal vive en Go porque permite mantener **un solo lugar de verdad** para la lógica compartida entre los entrypoints `.sh` y `.ps1`. En vez de duplicar comportamiento entre Bash y PowerShell, ambos wrappers delegan en la misma CLI.
 
-Además, Go ya forma parte natural del stack porque es una dependencia directa de Engram. Reutilizarlo acá simplifica el ecosistema, reduce drift entre plataformas y hace más sostenible la evolución del overlay.
+Además, Go ya forma parte natural del stack porque es una dependencia directa de [Engram](https://github.com/Gentleman-Programming/engram). Reutilizarlo acá simplifica el ecosistema, reduce drift entre plataformas y hace más sostenible la evolución del overlay.
 
-## Estructura
-
-- `apply-gentle-ai-custom.sh` — entrypoint principal Linux/macOS
-- `apply-gentle-ai-custom.ps1` — entrypoint principal Windows (PowerShell 5.1+)
-- `audit-gentle-ai-upstream.sh` — auditoría read-only del baseline upstream antes de sync/reinstall
-- `audit-gentle-ai-upstream.ps1` — equivalente Windows de la auditoría upstream
-- `shared/skills/commit-planner/SKILL.md` — source of truth neutral para planificación/aplicación de commits
-- `shared/skills/pr-finalizer/SKILL.md` — source of truth neutral para creación/regeneración de PRs
-- `shared/commands/*.md` — cuerpos compartidos para wrappers/prompts por agente
-- `go.mod` — módulo Go del runtime compartido
-- `cmd/gentle-ai-overlay/main.go` — CLI Go compartida para `apply-custom`, `apply-policy` y `audit-upstream`
-- `internal/overlay/*.go` — implementación compartida del overlay, auditoría upstream y sanitización
-- `overlay/gentle-ai/README.md` — guía del control-plane de Gentle AI
-- `overlay/gentle-ai/policy/gentle-ai-policy.json` — política machine-readable del overlay
-- `overlay/gentle-ai/policy/maintenance-intent.md` — intención de mantenimiento del overlay en lenguaje humano/LLM
-- `overlay/gentle-ai/policy/orchestrator-policy.md` — criterio de sanitización del orchestrator
-- `overlay/gentle-ai/state/upstream-state.json` — estado operativo de la última versión/commit upstream mantenido
-- `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md` — runbook humano para mantenimiento incremental
-- `overlay/gentle-ai/logs/update-log.md` — historial de decisiones del overlay
-- `overlay/gentle-ai/scripts/apply-gentle-ai-policy.sh` — wrapper bash interno fino hacia la CLI Go compartida
-- `overlay/gentle-ai/scripts/apply-gentle-ai-policy.ps1` — wrapper PowerShell interno fino equivalente
-- `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md` — skill de mantenimiento del overlay
-- `AGENTS.md` — contrato operativo para agentes
-
-## Targets soportados
+## Agentes soportados
 
 - `opencode` → `~/.config/opencode`
 - `claude` → `~/.claude`
@@ -135,7 +111,7 @@ bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh all
 ~\Documentos\gentle-ai-custom\apply-gentle-ai-custom.ps1 all
 ```
 
-## Flujo recomendado
+## Flujo de mantenimiento recomendado
 
 ```bash
 brew upgrade gentle-ai
@@ -188,28 +164,16 @@ El flujo completo hace, en una sola pasada:
 
 ### Qué reporta el script
 
-Al final de cada corrida, el script imprime un bloque `Summary:` con contadores y, si corresponde, bloques `WARNING`/`NOTE`. Los más importantes:
+Al final de cada corrida, el script imprime un bloque `Summary:` con contadores y, si corresponde, bloques `WARNING`/`NOTE`.
 
-- `--verbose` — además del `Summary:`, imprime un bloque `Verbose changes:` con cada archivo tocado y el detalle concreto de lo que se escribió, regeneró, podó o actualizó.
+Señales clave para leer rápido:
 
-- `orchestrators kept (already applied): N` — todo estaba aplicado y el script no tuvo que hacer nada. Run idempotente.
-- `orchestrators recovered from snapshot: N` — algún `.overlay.md` faltaba en disco y se reconstruyó desde `*.last.md`. Aparece un `NOTE` adicional avisando que el snapshot puede pre-datar la versión actual de upstream — si querés capturar fresco, corré `gentle-ai sync` y volvé a correr el script.
-- `repo snapshots - changed: N > 0` — cambió el baseline versionado de `gentle-orchestrator`. Revisalo con `git diff overlay/gentle-ai/snapshots/`.
-- `local snapshots - changed: N > 0` — cambió algún snapshot operativo local bajo `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`.
-- `local snapshot migrations from repo: N > 0` — el helper copió snapshots legacy desde el repo al directorio local operativo para conservar la recuperación sin pedir un sync inmediato.
-- `repo snapshot backfills from local: N > 0` — el helper recreó el snapshot versionado de `gentle-orchestrator` desde la copia operativa local.
-- `topology warnings: N > 0` — apareció un orchestrator nuevo, falta uno esperado o algún `agent_override` apunta a una key inexistente. Acción concreta por warning: ver el runbook.
-- `audited base baseline verification: ok` — el `gentle-orchestrator` materializado coincide con `gentle-orchestrator.last.md` + `.meta.yaml` y con el overlay sanitizado esperado.
-- `SDD profiles managed: N` / `created: N` / `updated: N` / `unchanged: N` — cuántos perfiles del config local se aplicaron y cuántos agent entries se crearon/actualizaron/no cambiaron.
-- `SDD profiles unmanaged (present in opencode.json, absent from local config): N` + `WARNING - unmanaged SDD profiles left untouched` — hay perfiles en `opencode.json` que el config local no menciona. El script no los toca. Para gestionarlos, agregalos al config local; para sacarlos, borralos a mano de `opencode.json`.
-- `WARNING - keep skills missing` — alguna skill que debería estar conservada está ausente en un target. Probable renombramiento upstream.
-- `ERROR: local SDD profile config at ... is not valid JSON` / `... missing required field ...` / `... must be a non-empty string` / `... must match ^[a-z0-9][a-z0-9._-]*$` — el config local no pasa el schema V1 strict. El script **no escribe nada** a `opencode.json` en este caso. Arreglá o eliminá el archivo y volvé a correr.
-- `ERROR: broken state for orchestrator X` — `opencode.json` apunta a un archivo inexistente y no hay snapshot para recuperar. Solución: `gentle-ai sync` para resetear a inline, después re-correr el script.
-- `ERROR: post-write verification failed: ...` — el script escribió `opencode.json` pero al re-leerlo los valores no coinciden con lo esperado. Suele ser otro proceso escribiendo el archivo en paralelo, o un bug serio del script.
-- `ERROR: audited snapshot metadata mismatch ...` — el baseline versionado del repo quedó inconsistente entre `gentle-orchestrator.last.md`, `.meta.yaml`, policy y `upstream-state.json`. Repará el baseline auditado antes de volver a aplicar.
-- `ERROR: audited baseline mismatch for orchestrator 'gentle-orchestrator' ...` — corriste `sync`/apply contra un upstream distinto del último baseline auditado, o el snapshot local quedó stale. Solución: auditá primero con `bash audit-gentle-ai-upstream.sh`, actualizá el baseline si corresponde, después `gentle-ai sync` y `apply` de nuevo.
+- `--verbose` — además del `Summary:`, imprime `Verbose changes:` con cada archivo tocado.
+- `orchestrators kept (already applied): N` — corrida idempotente; ya estaba todo aplicado.
+- `repo snapshots - changed: N > 0` o `topology warnings: N > 0` — revisá antes de seguir.
+- cualquier `ERROR:` — frená y seguí el runbook.
 
-Detalle completo de cada señal en `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`.
+Detalle completo de señales, recovery y acciones correctivas en `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`.
 
 ### Qué reporta la auditoría upstream
 

@@ -15,7 +15,7 @@ Este mantenimiento se apoya en cuatro capas explícitas:
 
 No cumplen el mismo rol:
 
-- el **intento** describe el criterio del usuario
+- el **intento** describe el criterio del usuario y las metas de sanitización del orchestrator
 - la **política** alimenta la CLI Go runtime y sus wrappers finos
 - el **estado** marca desde dónde hay que auditar el upstream
 - el **log** deja historial narrativo de mantenimiento
@@ -185,7 +185,7 @@ Contrato operacional:
 - Profiles nombrados en el config local pero ausentes en `opencode.json` se crean. Los agentes orchestrator nuevos se crean como stubs sin `prompt` — la siguiente corrida de `gentle-ai sync` los materializa con el prompt upstream, y la corrida posterior del overlay los sanitiza vía prefix match.
 - Profiles presentes en `opencode.json` pero ausentes del config local quedan intactos. Se reportan como `WARNING - unmanaged SDD profiles left untouched`. El helper nunca borra perfiles automáticamente.
 
-Schema completo y reglas duras: ver `README.md` raíz, sección "Perfiles SDD locales", o `AGENTS.md` sección "SDD profile local config".
+Schema completo y reglas duras: ver `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`, o `README.md` raíz, sección "Perfiles SDD locales". `AGENTS.md` deja solo invariantes y ownership de nivel repo.
 
 Snapshots de orchestrators:
 

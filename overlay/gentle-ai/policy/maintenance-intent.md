@@ -1,113 +1,153 @@
-# Intento de mantenimiento — Gentle AI Custom
+# Maintenance Intent — Gentle AI Custom
 
-## Por qué existe este repo
+## Why this repo exists
 
-`gentle-ai-custom` existe para conservar las capacidades técnicas valiosas de Gentle AI sin aceptar automáticamente convenciones de workflow que no aplican al flujo personal del usuario.
+`gentle-ai-custom` exists to preserve the valuable technical capabilities of Gentle AI without automatically accepting workflow conventions that do not apply to the user's personal flow.
 
-El objetivo no es forkear el upstream ni reemplazarlo. El objetivo es interponer una capa local que:
+The goal is not to fork the upstream or replace it. The goal is to interpose a local layer that:
 
-- preserve SDD y utilidades útiles
-- depure convenciones de PR/branch/review-budget no deseadas
-- mantenga criterios locales explícitos y revisables
+- preserves SDD and useful utilities
+- prunes unwanted PR/branch/review-budget conventions
+- maintains explicit and reviewable local criteria
 
-## Qué se quiere conservar
+## What we want to keep
 
-Se quiere conservar todo lo que mejore estructura, razonamiento y calidad técnica:
+We want to keep anything that improves structure, reasoning, and technical quality:
 
-- el flujo SDD completo
+- the full SDD flow
 - skill resolver / registry
-- utilidades de documentación y comentarios
-- testing útil
-- mejora y creación de skills
-- revisión adversarial
+- documentation and commenting utilities
+- useful testing
+- skill creation and improvement
+- adversarial review
 
-## Qué NO se versiona
+## What is NOT versioned
 
-Las elecciones locales por máquina sobre perfiles SDD de OpenCode no forman parte de la policy compartida del repo.
+Local, per-machine choices regarding OpenCode SDD profiles are not part of the shared repository policy.
 
-Eso incluye:
+This includes:
 
-- asignaciones de `model` y `variant` por perfil SDD nombrado
-- nombres de perfiles personalizados del usuario (`sdd-orchestrator-<perfil>` y sus fases asociadas)
-- snapshots de orchestrators per-perfil (`sdd-orchestrator-<perfil>.last.md`)
-- cualquier combinación local de proveedores/modelos pensada para una máquina o preferencia personal
+- `model` and `variant` assignments per named SDD profile
+- custom user profile names (`sdd-orchestrator-<profile>` and their associated phases)
+- per-profile orchestrator snapshots (`sdd-orchestrator-<profile>.last.md`)
+- any local combination of providers/models intended for a single machine or personal preference
 
-Esas decisiones viven fuera del repo, en `~/.config/gentle-ai-custom/opencode-sdd-profiles.json`.
+Those decisions live outside the repo, in `~/.config/gentle-ai-custom/opencode-sdd-profiles.json`.
 
-Los snapshots operativos de orchestrators también se separan por alcance:
+Operational orchestrator snapshots are also separated by scope:
 
-- `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md` queda versionado como baseline portable
-- `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/` guarda el snapshot operativo local de `gentle-orchestrator` y todos los snapshots per-perfil
+- `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md` is versioned as a portable baseline
+- `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/` stores the local operational snapshot of `gentle-orchestrator` and all per-profile snapshots
 
-La policy versionada solo conserva el baseline portable del overlay; la configuración de perfiles locales se proyecta a `opencode.json` en runtime y no debe volver a copiarse dentro de `gentle-ai-policy.json`.
+The versioned policy only preserves the portable baseline of the overlay; local profile configuration is projected to `opencode.json` at runtime and must not be copied back into `gentle-ai-policy.json`.
 
-## Qué se quiere depurar
+## What we want to prune
 
-Se quieren depurar convenciones que imponen una forma específica de colaborar en repositorios:
+We want to prune conventions that impose a specific way of collaborating in repositories:
 
 - `branch-pr`
 - `chained-pr`
 - `issue-creation`
 - `work-unit-commits`
-- bloques del orchestrator que impongan:
-  - estrategia de PR
-  - budget de review
+- orchestrator blocks that impose:
+  - PR strategy
+  - review budget
   - chained/stacked PRs
   - `size:exception`
-  - reviewer burnout protection como política de PR
+  - reviewer burnout protection as a PR policy
 
-## Por qué esas convenciones no aplican
+## Orchestrator sanitization goals
 
-Pueden ser válidas para el proyecto upstream o para otros equipos, pero no son la fuente de verdad del workflow local.
+The sanitized OpenCode orchestrator layer must keep core SDD orchestration behavior while removing PR/budget workflow governance.
 
-En este entorno:
+### Remove (hard rule)
 
-- el valor está en las capacidades técnicas, no en la gobernanza de PRs
-- la colaboración de repositorio se resuelve con herramientas y criterios propios
-- el agente no debe imponer branch/PR workflow salvo pedido explícito del usuario
+When sanitizing an inline orchestrator captured from `~/.config/opencode/opencode.json`, remove or neutralize all content tied to:
 
-## Cómo evaluar cambios upstream
+- PR strategy selection in SDD preflight
+- review budget / changed-lines budget gates
+- chained/stacked PR flow control
+- size-exception policy handling
+- review workload forecast branching before `sdd-apply`
 
-### Cambios relevantes para el overlay
+This includes both explicit sections and references embedded inside other sections.
 
-Son relevantes cuando afectan comportamiento observable, experiencia de uso local o assets gestionados por este repo. Ejemplos:
+### Preserve (hard rule)
 
-- nuevas skills o cambios en skills existentes
-- cambios en prompts de orchestrators o subagentes
-- cambios en install/sync o generación de assets
-- nuevas convenciones de workflow impuestas por defecto
-- cambios en perfiles OpenCode, referencias a agentes o tablas de modelos
+Preserve as much as possible of:
 
-### Cambios de baja prioridad o ruido
+- coordinator/delegation role boundaries
+- SDD command map and routing
+- session preflight concept (execution mode + artifact store)
+- init guard
+- dependency graph
+- result contract
+- skill resolver protocol
+- sub-agent context protocol
+- strict TDD forwarding
+- apply-progress continuity
+- topic-key conventions
 
-Normalmente no requieren tocar el overlay si no cambian comportamiento observable:
+### Guardrails
 
-- bugfixes internos sin impacto en prompts, skills o config generada
-- chores de mantenimiento interno
-- refactors sin cambio funcional
-- docs upstream que no alteran runtime ni assets
+- The generated `.overlay.md` prompt must remain a standalone valid prompt.
+- Do not inject repo-specific hacks into core orchestration logic.
+- Keep wording as close to upstream as possible unless removal requires a minimal rewrite.
+- If required anchors are missing, fail closed and keep the current prompt reference untouched.
 
-## Gate humana obligatoria
+## Why these conventions do not apply
 
-Si durante la auditoría aparecen cambios relevantes que puedan modificar:
+They might be valid for the upstream project or for other teams, but they are not the source of truth for the local workflow.
+
+In this environment:
+
+- the value lies in technical capabilities, not in PR governance
+- repository collaboration is handled with our own tools and criteria
+- the agent must not impose a branch/PR workflow unless explicitly requested by the user
+- the orchestrator should keep SDD coordination value without reintroducing repository-governance policy by default
+
+## How to evaluate upstream changes
+
+### Relevant changes for the overlay
+
+They are relevant when they affect observable behavior, local user experience, or assets managed by this repo. Examples:
+
+- new skills or changes to existing skills
+- changes in orchestrator or subagent prompts
+- changes in install/sync or asset generation
+- new workflow conventions imposed by default
+- changes in OpenCode profiles, agent references, or model tables
+
+### Low-priority changes or noise
+
+They normally do not require touching the overlay if they don't change observable behavior:
+
+- internal bugfixes with no impact on prompts, skills, or generated config
+- internal maintenance chores
+- refactors without functional changes
+- upstream docs that do not alter the runtime or assets
+
+## Mandatory human gate
+
+If relevant changes appear during the audit that could modify:
 
 - keep/prune
-- el sanitizador del orchestrator
-- la interpretación de qué conservar o depurar
+- the orchestrator sanitizer
+- the interpretation of what to keep or prune
 
-el agente debe **frenar y preguntar** antes de cambiar intención, política o scripts.
+the agent must **stop and ask** before changing intent, policy, or scripts.
 
-## Qué debe actualizarse después de la decisión humana
+## What must be updated after a human decision
 
-Una vez tomada la decisión:
+Once the decision is made:
 
-- `maintenance-intent.md` si cambió la intención
-- `gentle-ai-policy.json` si cambió la política operativa
-- `upstream-state.json` cuando el mantenimiento queda cerrado
-- `update-log.md` para dejar trazabilidad narrativa
+- `maintenance-intent.md` if the intent changed
+- `gentle-ai-policy.json` if the operational policy changed
+- `upstream-state.json` when maintenance is closed
+- `update-log.md` to leave narrative traceability
 
-## Regla final
+## Final rule
 
-La intención manda sobre la automatización.
+Intent overrides automation.
 
-Si el script, la policy o la skill entran en conflicto con este archivo, el agente debe tratar este documento como la fuente de verdad semántica y pedir confirmación humana antes de seguir.
+If the script, policy, or skill conflicts with this file, the agent must treat this document as the semantic source of truth and ask for human confirmation before proceeding.
