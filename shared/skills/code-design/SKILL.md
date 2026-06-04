@@ -1,6 +1,8 @@
 ---
 name: code-design
-description: "Trigger: refactor, split, new code, comment, repetition, too big, code review, restructure. Apply structural code design judgment across any language and paradigm: when to split responsibilities, when to extract repetition into data, and how to comment intent over implementation."
+description: >
+  Apply structural code design judgment across any language and paradigm: when to split responsibilities, when to extract repetition into data, and how to comment intent over implementation.
+  Trigger: When the user asks to refactor, restructure, split code, write new code from scratch, or when code is described as "too big" or needs a code review. (Also triggers on Spanish requests like "refactorizar", "dividir código", "nuevo código", "implementa", "revisión de código", "comenza con la implementacion").
 license: Apache-2.0
 metadata:
   author: manuelfernandez
@@ -45,11 +47,11 @@ When splitting a large unit, apply this sequence:
 
 The reasoning is the same across paradigms. Only the encapsulation unit differs:
 
-| Paradigm | Encapsulation unit | Typical split trigger |
-|---|---|---|
-| Functional | Function / module / file | Mixes pure and effectful logic; module handles unrelated domains |
-| OOP | Class / interface / package | Class has multiple responsibilities; package mixes unrelated hierarchies |
-| Mixed | Either, per context | Apply FP rules to pure functions, OOP rules to stateful objects in the same codebase |
+| Paradigm   | Encapsulation unit          | Typical split trigger                                                                |
+| ---------- | --------------------------- | ------------------------------------------------------------------------------------ |
+| Functional | Function / module / file    | Mixes pure and effectful logic; module handles unrelated domains                     |
+| OOP        | Class / interface / package | Class has multiple responsibilities; package mixes unrelated hierarchies             |
+| Mixed      | Either, per context         | Apply FP rules to pure functions, OOP rules to stateful objects in the same codebase |
 
 In a mixed codebase, identify the paradigm in use for each unit and apply the matching rules.
 
@@ -95,6 +97,7 @@ blocks later.
 A comment earns its place only when it explains something the code cannot express by itself.
 
 **Keep** when:
+
 - A decision looks wrong but is intentional — document the constraint or tradeoff
 - An implicit contract exists that the signature alone doesn't reveal
 - A no-op or unconditional call would otherwise invite "cleanup" that breaks behavior
