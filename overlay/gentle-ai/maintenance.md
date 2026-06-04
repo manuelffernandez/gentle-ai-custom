@@ -73,6 +73,15 @@ bash apply-gentle-ai-custom.sh all
 
 `opencode` alcanza para restaurar orchestrators de OpenCode, overrides y materialización de la policy del overlay.
 
+### Version preflight
+
+`apply-gentle-ai-custom` now checks the installed `gentle-ai` binary version against `overlay/gentle-ai/state/upstream-state.json -> last_maintained_version` before it writes anything.
+
+- exact match → continue
+- older/newer/unknown → warn first
+- interactive runs may continue after confirmation
+- non-interactive mismatch or unknown version → fail fast
+
 ## Flujo completo de mantenimiento
 
 1. Leé la intención en `overlay/gentle-ai/policy/maintenance-intent.md`.

@@ -49,6 +49,18 @@ func RunApplyCustom(repoRoot string, args []string) int {
 	}
 	options.recorder = newVerboseRecorder(options.verbose)
 
+	policy, _, err := loadPolicy(repoRoot)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		options.recorder.print()
+		return 1
+	}
+	if err := runVersionPreflight(repoRoot, policy, os.Stdin, os.Stderr); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		options.recorder.print()
+		return 1
+	}
+
 	sharedRoot := filepath.Join(repoRoot, "shared")
 	sources := customSourceFiles{
 		planBody:         filepath.Join(sharedRoot, "commands", "commit-plan-body.md"),

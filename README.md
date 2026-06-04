@@ -136,11 +136,20 @@ El script `audit-gentle-ai-upstream.*` es público, pero el uso recomendado es a
 
 `~/.config/gentle-ai-custom/opencode-local-config.json` es el config local canónico del overlay. Ahí viven, separados, los `agent_overrides` para agentes built-in explícitos, el `default_profile` para la familia base `gentle-orchestrator` (`gentle-orchestrator` + fases SDD sin sufijo) y los `profiles` para familias SDD nombradas (`sdd-orchestrator-<name>` + fases). También puede definir `upstream_repo_path` y `opencode_config_path` por máquina.
 
+### Comprobación de versión (preflight)
+
+Antes de cualquier escritura, `apply-gentle-ai-custom` compara la versión instalada del binario `gentle-ai` con `overlay/gentle-ai/state/upstream-state.json -> last_maintained_version`.
+
+- coincidencia exacta → continuar
+- más antigua/nueva/desconocida → advertir primero
+- las ejecuciones interactivas pueden continuar tras confirmación
+- en modo no interactivo, si la versión no coincide o es desconocida → fallar inmediatamente
+
 Resolución upstream:
 
 1. `upstream_repo_path` en `opencode-local-config.json`
 2. `GENTLE_AI_CUSTOM_UPSTREAM_REPO`
-3. fallback `../gentle-ai` relativo a este repo
+3. fallback a `../gentle-ai` relativo a este repo
 4. error claro si nada de eso existe
 
 Comportamiento cuando se omiten campos:

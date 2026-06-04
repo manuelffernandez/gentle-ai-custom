@@ -43,6 +43,7 @@ If one side changes, the paired script must be updated in the same commit.
 - `--verbose` flag support and file-level change reporting
 - installation of custom skills/wrappers
 - invocation of the Gentle AI overlay helper
+- advisory version preflight against `overlay/gentle-ai/state/upstream-state.json` before any apply writes
 
 **Maintainer audit parity items:**
 - invocation of the shared upstream audit logic
