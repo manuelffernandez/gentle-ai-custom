@@ -35,7 +35,7 @@ Hoy este repo funciona como una **capa unificada de personalización y mantenimi
 - reconcilia perfiles SDD locales (`sdd-orchestrator-<name>` + 10 phase agents) desde un config por-máquina en `~/.config/gentle-ai-custom/opencode-sdd-profiles.json`
 - captura los prompts inline de los orchestrators inyectados por **gentle-ai**, y genera nuevos prompts derivados por agente/perfil y sanitizados.
 - mantiene el snapshot versionado de `gentle-orchestrator` y snapshots operativos locales por máquina bajo `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`
-- mantiene el runbook y la skill para auditar futuras actualizaciones del upstream
+- mantiene la guía de mantenimiento y la skill para auditar futuras actualizaciones del upstream
 
 ## Por qué Go
 
@@ -156,16 +156,16 @@ Git ya conserva el detalle de implementación. El `update-log.md` queda reservad
 | `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.meta.yaml` | Metadata e invariantes mínimas del baseline versionado.                  |
 | `~/.config/gentle-ai-custom/opencode-sdd-profiles.json`                                          | Config local por máquina para perfiles SDD.                              |
 | `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`                                    | Snapshots operativos locales usados durante la reaplicación.             |
-| `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`                                        | Procedimiento formal y troubleshooting profundo.                         |
+| `overlay/gentle-ai/maintenance.md`                                                               | Guía humana centralizada de mantenimiento, señales y notas técnicas.     |
 | `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`                                           | Capacidad del agente para digerir la auditoría y guiar el mantenimiento. |
 
 ### Herramientas de mantenimiento incluidas
 
 - **Skill maintainer**: es la forma recomendada de operar este mantenimiento desde un agente.
-- **Runbook**: concentra el detalle técnico, señales de error y recovery manual.
+- **Maintenance**: centraliza el flujo humano, las señales clave y las notas técnicas útiles durante el mantenimiento.
 - **Auditoría pública**: existe como script separable, pero no hace falta interpretarla a mano salvo debugging puntual.
 
-El detalle fino de implementación sobre cómo se sanitiza o reinyecta el orchestrator vive en el runbook.
+La operación humana del mantenimiento vive en `overlay/gentle-ai/maintenance.md`. El comportamiento del agente maintainer vive en su `SKILL.md`.
 
 > **Nota OpenCode:** si el script cambia `~/.config/opencode/opencode.json`, reinicie OpenCode. La configuración no se recarga en caliente.
 

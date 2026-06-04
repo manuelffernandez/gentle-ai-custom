@@ -4,7 +4,7 @@ description: "Trigger: gentle ai update, auditar gentle ai, depurar gentle ai, r
 license: Apache-2.0
 metadata:
   author: gentleman-programming
-  version: "1.5"
+  version: "1.6"
 ---
 
 # Gentle AI Overlay Maintainer
@@ -74,7 +74,7 @@ Re-apply paths are mandatory regardless of whether upstream content changed — 
 3. Read `overlay/gentle-ai/policy/maintenance-intent.md`.
 4. Read `overlay/gentle-ai/policy/gentle-ai-policy.json`.
 5. Read `overlay/gentle-ai/state/upstream-state.json`.
-6. Read `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`.
+6. Read `overlay/gentle-ai/maintenance.md`.
 7. If the user has NOT run `gentle-ai sync` yet, work from `gentle-ai-custom`, activate the maintainer workflow, run `bash audit-gentle-ai-upstream.sh` (or `.ps1` on Windows) FIRST, and capture its full output.
 8. Inspect upstream `/home/manuel/Documentos/gentle-ai` and determine the current relevant version boundary (tag and/or commit).
 9. If `last_maintained_commit` exists, review the upstream change range from `last_maintained_commit` to the current upstream state, including intermediate minor releases or commits in that range.
@@ -131,7 +131,7 @@ Return:
 
 ## References
 
-- `../../../../overlay/gentle-ai/runbooks/maintain-upstream-overlay.md`
+- `../../../../overlay/gentle-ai/maintenance.md`
 - `../../../../overlay/gentle-ai/policy/maintenance-intent.md`
 - `../../../../overlay/gentle-ai/state/upstream-state.json`
 - `../../../../AGENTS.md` (Update flow table)
