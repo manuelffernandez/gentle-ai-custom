@@ -13,6 +13,15 @@ It is not a mirror of every repo change. Git history carries implementation-leve
 - **Affected artifacts**: `overlay/gentle-ai/policy/gentle-ai-policy.json`, `internal/overlay/policy.go`, `internal/overlay/local_config.go`, `internal/overlay/local_config_test.go`, `internal/overlay/apply_policy.go`, `internal/overlay/profiles.go`, `internal/overlay/audit_upstream.go`, `internal/overlay/summary.go`, `README.md`, `AGENTS.md`, `overlay/gentle-ai/README.md`, `overlay/gentle-ai/maintenance.md`, `overlay/gentle-ai/policy/maintenance-intent.md`, `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`
 - **Verification**: `gofmt -w internal/overlay/*.go`; `go test ./...`
 
+## 2026-06-04 | Adopted upstream v1.34.1 interactive SDD baseline
+
+- **Type**: `audit`
+- **Upstream scope/range**: `55a5bfe43594d6409307c4bcdf3a1d22a8c42560` (`v1.34.0`) -> `3883470b175dc6b95904594135c34cc5f6ad2413` (`v1.34.1`)
+- **Decision**: adopted the new `gentle-orchestrator` baseline, kept both upstream interactive SDD additions (phase-scoped approval and the proposal question round before `sdd-propose`), and advanced the maintained boundary to `v1.34.1` without changing policy or sanitizer behavior.
+- **Why it mattered**: upstream changed interactive orchestration behavior in ways that affect the coordinator UX, but the overlay’s topology and profile invariants stayed stable, so the right response was to accept the new baseline and preserve the existing pruning/sanitization contract.
+- **Affected artifacts**: `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md`, `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.meta.yaml`, `overlay/gentle-ai/state/upstream-state.json`, `overlay/gentle-ai/logs/update-log.md`
+- **Verification**: audit/update pass against upstream `v1.34.1`; post-edit `bash audit-gentle-ai-upstream.sh`
+
 ## 2026-06-03 | Closed v1.34.0 prompt-language maintenance
 
 - **Type**: `audit`
