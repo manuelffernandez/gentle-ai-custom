@@ -126,13 +126,13 @@ El script `audit-gentle-ai-upstream.*` es público, pero el uso recomendado es a
 
 ### Qué reaplica `apply-gentle-ai-custom`
 
-- reinstala skills y wrappers propios
-- poda skills upstream no deseadas
-- aplica `agent_overrides` definidos en el config local cuando existen
-- vuelve a materializar prompts derivados de orchestrators en OpenCode
-- actualiza snapshots y validaciones necesarias para sostener el overlay
+- reinstala las skills y wrappers personalizados
+- poda las skills no deseadas solo para los targets CLI registrados seleccionados; los entornos no registrados quedan intactos
+- aplica los `agent_overrides` locales cuando existen
+- rematerializa los prompts derivados de los orchestrators en OpenCode
+- actualiza los snapshots y validaciones necesarios para mantener la salud del overlay
 
-`opencode` re-materializa OpenCode y la policy del overlay. `all` hoy es equivalente porque `opencode` es el único agente soportado.
+`opencode` rematerializa OpenCode y la política del overlay. `all` se expande a todos los agentes registrados; hoy en día es equivalente a `opencode` porque es el único agente soportado.
 
 `~/.config/gentle-ai-custom/opencode-local-config.json` es el config local canónico del overlay. Ahí viven, separados, los `agent_overrides` para agentes built-in explícitos, el `default_profile` para la familia base `gentle-orchestrator` (`gentle-orchestrator` + fases SDD sin sufijo) y los `profiles` para familias SDD nombradas (`sdd-orchestrator-<name>` + fases). También puede definir `upstream_repo_path` y `opencode_config_path` por máquina.
 

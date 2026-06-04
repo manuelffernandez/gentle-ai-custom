@@ -20,11 +20,11 @@ Lo que este archivo **no** define:
 3. Desde `gentle-ai-custom`, corré `bash audit-gentle-ai-upstream.sh`.
 4. Si la auditoría muestra drift relevante para el overlay, adaptá primero este repo.
 5. Ejecutá el refresh upstream recomendado por la auditoría:
-   - `gentle-ai sync` si la topología no cambió
-   - reinstalación completa si cambió la topología o sync no puede materializar la nueva forma upstream
+    - `gentle-ai sync` si la topología no cambió
+    - reinstalación completa si cambió la topología o sync no puede materializar la nueva forma upstream
 6. Reaplicá el overlay:
-   - `bash apply-gentle-ai-custom.sh opencode`
-   - o `bash apply-gentle-ai-custom.sh all`
+   - `bash apply-gentle-ai-custom.sh opencode` (prunes only the selected registered target scope)
+   - or `bash apply-gentle-ai-custom.sh all` (every registered target only)
 7. Leé `Summary:` y cualquier `Drift summary:` o warning `topology:`.
 8. Si aceptaste una nueva frontera upstream, actualizá docs, state, snapshots y log cuando corresponda.
 
@@ -140,6 +140,7 @@ Estas son las señales que conviene interpretar primero.
 Después del apply, confirmá todo esto:
 
 - las skills podadas ya no existen en cada target configurado
+- pruned skills no longer exist in each selected registered target, and unselected runtimes remain untouched
 - cada `agent_overrides` efectivo sigue resolviendo al `model` / `variant` esperado
 - cada orchestrator listado por la policy apunta a un prompt `{file:...}` existente
 - `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/` mantiene solo el baseline versionado de `gentle-orchestrator` más su metadata
