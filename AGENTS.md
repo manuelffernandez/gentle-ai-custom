@@ -181,6 +181,8 @@ The most common pattern in this repo is `shared/skills/<name>/` + global runtime
 - `overlay/gentle-ai/maintenance.md` — centralized human maintenance guide.
 - `overlay/gentle-ai/logs/update-log.md` — high-signal ledger of closed upstream-maintenance decisions and incidents.
 - `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/` — versioned upstream orchestrator baseline and metadata.
+- `~/.config/gentle-ai-custom/opencode-local-config.json` — canonical per-machine OpenCode overlay config.
+- `~/.config/gentle-ai-custom/opencode-sdd-profiles.json` — legacy profile-only fallback, read only when the canonical config omits `profiles`.
 - `cmd/gentle-ai-overlay/main.go` — shared Go CLI entrypoint for apply/audit commands.
 - `internal/overlay/` — implementation of overlay apply, audit, policy, profiles, snapshots, and verification.
 - `apply-gentle-ai-custom.sh` / `.ps1` — canonical public entrypoints.
@@ -207,7 +209,7 @@ It does two classes of work:
    - sanitize PR/budget workflow content
    - emit generated orchestrator prompt files under the OpenCode prompts tree
 
-This repo does **not** mirror the upstream codebase. Upstream lives at `/home/manuel/Documentos/gentle-ai` and is treated as input only.
+This repo does **not** mirror the upstream codebase. Upstream is treated as input only and is resolved in this order: `~/.config/gentle-ai-custom/opencode-local-config.json` (`upstream_repo_path`) -> `$GENTLE_AI_CUSTOM_UPSTREAM_REPO` -> `../gentle-ai` fallback relative to this repo.
 
 The maintenance model is intentionally split into:
 
@@ -251,7 +253,7 @@ Built-in OpenCode agent overrides:
 - `general` → `openai/gpt-5.4` / `high`
 - `explore` → `google-vertex/gemini-3.1-pro-preview` / `high`
 
-SDD profile orchestrators (`sdd-orchestrator-<name>` and `sdd-<phase>-<name>`) are **NOT** baked into the versioned policy. They are reconciled from a per-machine local config — see `## SDD profile local config` below. The versioned policy keeps only portable baseline keys (`gentle-orchestrator`) so the repo never carries machine-specific model/variant choices.
+SDD profile orchestrators (`sdd-orchestrator-<name>` and `sdd-<phase>-<name>`) are **NOT** baked into the versioned policy. They are reconciled from a per-machine local config — see `## Local OpenCode overlay config` below. The versioned policy keeps only portable baseline keys (`gentle-orchestrator`) so the repo never carries machine-specific model/variant choices.
 
 Profile orchestrator snapshots also stay out of the versioned repo. The repo keeps the portable `gentle-orchestrator.last.md` baseline plus `gentle-orchestrator.last.meta.yaml`; the helper keeps operational snapshots per machine under `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`.
 
@@ -259,23 +261,38 @@ The maintainer must not infer evolving user intent only from the JSON policy. In
 
 ---
 
-## SDD profile local config
+## Local OpenCode overlay config
 
-Per-machine SDD profile assignments live OUTSIDE the repo at:
+The canonical per-machine config lives OUTSIDE the repo at:
 
 ```
-~/.config/gentle-ai-custom/opencode-sdd-profiles.json
+~/.config/gentle-ai-custom/opencode-local-config.json
 ```
+
+Supported top-level fields:
+
+- `version` — required, must be `1`
+- `upstream_repo_path` — optional absolute or `~`-expanded path to the upstream `gentle-ai` clone
+- `opencode_config_path` — optional override for the OpenCode config file; default remains `~/.config/opencode/opencode.json`
+- `agent_overrides` — optional array of explicit agent-key `model` / `variant` assignments (for example `general`, `explore`)
+- `default_profile` — optional base SDD family assignment for `gentle-orchestrator` plus the unsuffixed 10 `sdd-<phase>` agents
+- `profiles` — optional array of named SDD profile families (`sdd-orchestrator-<name>` plus the 10 suffixed SDD phases)
 
 Repo-level rules:
 
 - This file is local-only and is never versioned in this repo.
 - The versioned policy must not carry per-profile orchestrator or phase `model` / `variant` assignments.
-- If the local file does not exist, the helper leaves SDD profile entries in `opencode.json` untouched.
-- If the local file exists, the helper validates it strictly and fails closed on invalid config before writing anything.
+- `agent_overrides` means ONLY explicit agent-key assignments; it does not manage SDD profile families.
+- `default_profile` means the base `gentle-orchestrator` family only; it does not replace explicit built-in agent overrides.
+- `profiles` means ONLY named grouped SDD profile families; it does not replace explicit built-in agent overrides.
+- If `agent_overrides` is omitted, the helper applies no explicit built-in agent model overrides.
+- If `default_profile` is omitted, the helper leaves the base `gentle-orchestrator` family untouched.
+- If `profiles` is omitted, the helper falls back to the legacy `~/.config/gentle-ai-custom/opencode-sdd-profiles.json` file when present.
+- If `profiles` is present (including `[]`), the canonical config becomes the source of truth and the legacy file is ignored.
+- `default_profile` has no legacy fallback; it exists only in the canonical local config.
 - Managed profiles create or update `sdd-orchestrator-<name>` plus the 10 `sdd-<phase>-<name>` agents in `opencode.json`.
-- Profiles present in `opencode.json` but not declared in the local file are left untouched and surfaced as `WARNING - unmanaged SDD profiles left untouched`. Nothing is deleted automatically.
-- This local config governs profile `model` / `variant` only; prompt materialization still comes from `gentle-ai sync`, and the overlay sanitizes that inline upstream content afterward.
+- Profiles present in `opencode.json` but not declared in the active config source are left untouched and surfaced as `WARNING - unmanaged SDD profiles left untouched`. Nothing is deleted automatically.
+- This local config governs upstream path selection, optional OpenCode config path selection, agent model assignments, and named profile assignments; prompt materialization still comes from `gentle-ai sync`, and the overlay sanitizes that inline upstream content afterward.
 
 Detailed schema, validation behavior, and recovery guidance belong in `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md` and `overlay/gentle-ai/maintenance.md`.
 
@@ -301,7 +318,7 @@ This section stays intentionally short: it is the human maintainer's quick path,
 Canonical order:
 
 1. update the `gentle-ai` binary
-2. `git pull` in `/home/manuel/Documentos/gentle-ai`
+2. `git pull` in the resolved upstream `gentle-ai` repo (default: `../gentle-ai` relative to this repo)
 3. open `gentle-ai-custom` and run the maintainer audit
 4. read `Summary:` and, if present, `Drift summary:`; if the audit reveals overlay-relevant drift, update this repo first
 5. run the correct upstream refresh path (`gentle-ai sync` or full reinstall)

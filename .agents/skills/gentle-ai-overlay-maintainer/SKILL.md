@@ -4,7 +4,7 @@ description: "Trigger: gentle ai update, auditar gentle ai, depurar gentle ai, r
 license: Apache-2.0
 metadata:
   author: gentleman-programming
-  version: "1.6"
+  version: "1.7"
 ---
 
 # Gentle AI Overlay Maintainer
@@ -20,7 +20,7 @@ Use this skill when:
 ## Hard Rules
 
 - Work from `gentle-ai-custom`, not from the upstream repo.
-- Treat `/home/manuel/Documentos/gentle-ai` as upstream input only.
+- Treat the resolved upstream `gentle-ai` clone as input only. Resolution order: `~/.config/gentle-ai-custom/opencode-local-config.json` (`upstream_repo_path`) -> `$GENTLE_AI_CUSTOM_UPSTREAM_REPO` -> `../gentle-ai` fallback.
 - Follow this order for maintainer updates: update `gentle-ai` binary -> `git pull` upstream -> audit from `gentle-ai-custom` -> update this repo if needed -> run `gentle-ai sync` or reinstall -> run `apply-gentle-ai-custom`.
 - ALWAYS triage the update type before deciding what to audit (see Update-Type Triage). The triage table itself describes what state the overlay is in for each path.
 - After auditing upstream drift, ALWAYS translate the findings into an explicit adoption recommendation: `gentle-ai sync` when topology is unchanged, full reinstall when topology changed or sync cannot materialize the new upstream shape.
@@ -30,7 +30,10 @@ Use this skill when:
 - Keep bash and PowerShell scripts behaviorally equivalent.
 - Update `AGENTS.md`, `README.md`, and `overlay/gentle-ai/logs/update-log.md` when the workflow changes, but write to the log only for eligible **closed** maintenance events under `AGENTS.md` rule 4.
 - Do not change intent, keep/prune, or sanitization behavior for new upstream changes without explicit user approval.
-- The versioned policy MUST NOT carry per-profile orchestrator/phase model+variant choices. Those live in the per-machine local config at `~/.config/gentle-ai-custom/opencode-sdd-profiles.json`. If you need a new profile-managed assignment, edit the LOCAL file — do NOT add it back to `gentle-ai-policy.json`.
+- The versioned policy MUST NOT carry per-profile orchestrator/phase model+variant choices. Those live in the per-machine local config at `~/.config/gentle-ai-custom/opencode-local-config.json` under `default_profile` (base `gentle-orchestrator` family) and `profiles` (named `sdd-orchestrator-<name>` families). If `profiles` is omitted, the helper may still read the legacy `~/.config/gentle-ai-custom/opencode-sdd-profiles.json` fallback. Do NOT add profile-managed assignments back to `gentle-ai-policy.json`.
+- `agent_overrides` in the local config means ONLY explicit agent-key `model` / `variant` assignments (for example `general`, `explore`).
+- `default_profile` in the local config means ONLY the base `gentle-orchestrator` family.
+- `profiles` in the local config means ONLY named grouped SDD profile families.
 - The versioned repo MUST keep only `gentle-orchestrator.last.md` under `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/`. Profile snapshots belong in `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`.
 
 ## Update-Type Triage (MANDATORY first step)
@@ -53,8 +56,8 @@ Re-apply paths are mandatory regardless of whether upstream content changed — 
 | User just ran `gentle-ai sync` | Re-apply overlay immediately (`bash apply-gentle-ai-custom.sh opencode` minimum, or `all` if they also want to refresh every custom target). The apply entrypoint now auto-verifies the materialized `gentle-orchestrator` against the last audited baseline. |
 | User just ran TUI reinstall | Audit topology BEFORE re-applying. New/renamed/removed agents may require policy updates first. |
 | Script printed `topology: ...` warnings | Investigate each warning. New explicit orchestrators need policy entries; missing/created entries need maintenance-intent updates. STOP and ask the user before mutating policy. Note: `sdd-orchestrator-<name>` orchestrators are deliberately suppressed from prefix-only topology warnings; they belong to the SDD profile local config, not the versioned policy. |
-| Script printed `WARNING - unmanaged SDD profiles left untouched` | A profile exists in `opencode.json` but is not named in `~/.config/gentle-ai-custom/opencode-sdd-profiles.json`. Ask the user whether to add it to the local config (to manage) or delete its agent keys manually (to remove). NEVER delete it automatically. |
-| Script raised `ERROR: local SDD profile config at ... is not valid JSON` / `... unexpected top-level field ...` / `... missing required field ...` / `... must be a non-empty string` / `... must match ^[a-z0-9]...` / `... missing required phases ...` / `... unknown phases ...` | The local profile config failed strict V1 validation. The script wrote nothing. Surface the exact error to the user; ask them to fix or remove the file. Do NOT relax the schema. |
+| Script printed `WARNING - unmanaged SDD profiles left untouched` | A profile exists in `opencode.json` but is not named in the active `profiles` source (`~/.config/gentle-ai-custom/opencode-local-config.json`, or the legacy fallback if `profiles` is omitted there). Ask the user whether to add it to the local config (to manage) or delete its agent keys manually (to remove). NEVER delete it automatically. |
+| Script raised `ERROR: local OpenCode overlay config at ... is not valid JSON` / `... unexpected top-level field ...` / `... must be a non-empty string` / `... duplicate agent override key ...` / `... must match ^[a-z0-9]...` / `... missing required phases ...` / `... unknown phases ...` | The canonical local config failed strict V1 validation. The script wrote nothing. Surface the exact error to the user; ask them to fix or remove the file. Do NOT relax the schema. |
 | `bash audit-gentle-ai-upstream.sh` reports `base prompt drift: yes` | The upstream `gentle-orchestrator` base asset no longer matches the audited baseline. Read the audit `Drift summary` first to decide whether this is meaningful behavior drift or likely low-priority noise, then STOP, review the upstream delta, and update snapshot + metadata + state only after user approval. |
 | `bash audit-gentle-ai-upstream.sh` reports `profile phase order: mismatch` / `profile orchestrator naming: mismatch` / `profile task scoping invariant: mismatch` / `base asset injection invariant: mismatch` | Upstream changed the mechanics that build named SDD profiles. STOP and review before recommending `sync`; the overlay assumptions may be stale even if the base prompt diff is small. |
 | Script summary shows `repo snapshots - changed: N > 0` | Review `git diff overlay/gentle-ai/snapshots/`. Only the versioned `gentle-orchestrator` baseline should drift there. |
@@ -76,7 +79,7 @@ Re-apply paths are mandatory regardless of whether upstream content changed — 
 5. Read `overlay/gentle-ai/state/upstream-state.json`.
 6. Read `overlay/gentle-ai/maintenance.md`.
 7. If the user has NOT run `gentle-ai sync` yet, work from `gentle-ai-custom`, activate the maintainer workflow, run `bash audit-gentle-ai-upstream.sh` (or `.ps1` on Windows) FIRST, and capture its full output.
-8. Inspect upstream `/home/manuel/Documentos/gentle-ai` and determine the current relevant version boundary (tag and/or commit).
+8. Inspect the resolved upstream `gentle-ai` repo and determine the current relevant version boundary (tag and/or commit).
 9. If `last_maintained_commit` exists, review the upstream change range from `last_maintained_commit` to the current upstream state, including intermediate minor releases or commits in that range.
 10. Classify findings into:
    - base prompt drift (`gentle-orchestrator`)
@@ -93,11 +96,12 @@ Re-apply paths are mandatory regardless of whether upstream content changed — 
 16. **Read the summary** and act on each signal (see Decision Gates).
 17. **Verify post-state on disk** (read-only checks; ALL must pass):
     - For each path in `gentle-ai-policy.json` → `skills.targets`: none of `skills.prune` entries may exist as directories inside it.
-    - For each `agent_overrides` entry: `~/.config/opencode/opencode.json` → `agent.<key>.model` must equal the policy value; `variant` must equal the policy value when set.
+    - For each `agent_overrides` entry declared in the active local config: `~/.config/opencode/opencode.json` → `agent.<key>.model` must equal the declared value; `variant` must equal the declared value when set.
     - For each `orchestrator_agent_keys` entry: `agent.<key>.prompt` must be a `{file:...}` reference, and the referenced file must exist on disk.
     - `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/` must contain only `gentle-orchestrator.last.md`, and its corresponding `*.overlay.md` must exist under `generated_orchestrators_dir`.
     - `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/` must contain the operational snapshot for `gentle-orchestrator`, plus any managed `sdd-orchestrator-<name>` snapshots.
-    - If `~/.config/gentle-ai-custom/opencode-sdd-profiles.json` exists: for each profile `<name>` in it, `agent.sdd-orchestrator-<name>` and `agent.sdd-<phase>-<name>` (10 phases) must exist with matching `model` + `variant`.
+    - If `default_profile` exists in the active local config: `agent.gentle-orchestrator` plus each unsuffixed `agent.sdd-<phase>` (10 phases) must exist with matching `model` + `variant`.
+    - If the active `profiles` source exists: for each profile `<name>` in it, `agent.sdd-orchestrator-<name>` and `agent.sdd-<phase>-<name>` (10 phases) must exist with matching `model` + `variant`.
     - `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.meta.yaml` must exist and match `upstream-state.json` + the SHA-256 of `gentle-orchestrator.last.md`.
 18. If the work closed an eligible maintenance event under `AGENTS.md` rule 4, record **one consolidated entry** in `overlay/gentle-ai/logs/update-log.md` with `Date`, `Title`, `Type`, `Upstream scope/range` when applicable, `Decision`, `Why it mattered`, `Affected artifacts`, `Verification`, and optional `Follow-up`. If no maintenance decision or incident was closed, leave the log untouched.
 

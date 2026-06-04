@@ -12,44 +12,49 @@ import (
 // applyPolicyState holds all mutable state accumulated while running the apply
 // pipeline. It is created once in RunApplyPolicy and threaded through each phase.
 type applyPolicyState struct {
-	policy               Policy
-	verbose              bool
-	recorder             *verboseRecorder
-	configPath           string
-	generatedDir         string
-	repoSnapshotDir      string
-	localSnapshotDir     string
-	localProfilesPath    string
-	repoSnapshotMetaFile string
-	repoSnapshotBaseFile string
-	repoSnapshotBaseline string
-	agents               map[string]any
-	configData           map[string]any
-	configChanged        bool
-	prunedCount          int
-	missingKeepSummary   []string
-	createdOverrides     []string
-	generatedCount       int
-	recoveredCount       int
-	keptCount            int
-	skippedCount         int
-	repoSnapshots        snapshotCounters
-	localSnapshots       snapshotCounters
-	localSnapshotMigrate int
-	repoSnapshotBackfill int
-	topologyWarnings     []string
-	writtenOrchestrators map[string]bool
-	profilesManagedCount int
-	profileAgentsCreated int
-	profileAgentsUpdated int
-	profileAgentsSame    int
-	managedProfiles      map[string]bool
-	unmanagedProfiles    []string
-	baseRuntimePrompt    string
-	baseGeneratedPath    string
-	originalAgentKeys    map[string]bool
-	state                UpstreamState
-	sddPhasesSet         map[string]bool
+	policy                  Policy
+	verbose                 bool
+	recorder                *verboseRecorder
+	configPath              string
+	generatedDir            string
+	repoSnapshotDir         string
+	localSnapshotDir        string
+	repoSnapshotMetaFile    string
+	repoSnapshotBaseFile    string
+	repoSnapshotBaseline    string
+	resolvedAgentOverrides  []AgentOverride
+	resolvedDefaultProfile  *validatedProfile
+	resolvedProfiles        []validatedProfile
+	profileConfigSourcePath string
+	usedLegacyProfiles      bool
+	profilesDefined         bool
+	agents                  map[string]any
+	configData              map[string]any
+	configChanged           bool
+	prunedCount             int
+	missingKeepSummary      []string
+	createdOverrides        []string
+	generatedCount          int
+	recoveredCount          int
+	keptCount               int
+	skippedCount            int
+	repoSnapshots           snapshotCounters
+	localSnapshots          snapshotCounters
+	localSnapshotMigrate    int
+	repoSnapshotBackfill    int
+	topologyWarnings        []string
+	writtenOrchestrators    map[string]bool
+	profilesManagedCount    int
+	profileAgentsCreated    int
+	profileAgentsUpdated    int
+	profileAgentsSame       int
+	managedProfiles         map[string]bool
+	unmanagedProfiles       []string
+	baseRuntimePrompt       string
+	baseGeneratedPath       string
+	originalAgentKeys       map[string]bool
+	state                   UpstreamState
+	sddPhasesSet            map[string]bool
 }
 
 type applyPolicyOptions struct {
@@ -86,7 +91,6 @@ func runApplyPolicyWithOptions(repoRoot string, options applyPolicyOptions) int 
 		generatedDir:         expandUser(policy.OpenCode.GeneratedOrchestratorsDir),
 		repoSnapshotDir:      filepath.Join(repoRoot, policy.OpenCode.OrchestratorSnapshotDir),
 		localSnapshotDir:     expandUser(policy.OpenCode.LocalOrchestratorSnapshotDir),
-		localProfilesPath:    expandUser(policy.OpenCode.SDDProfilesLocalConfigPath),
 		repoSnapshotMetaFile: filepath.Join(repoRoot, policy.OpenCode.OrchestratorSnapshotMetadata),
 		writtenOrchestrators: map[string]bool{},
 		managedProfiles:      map[string]bool{},
@@ -108,6 +112,9 @@ func runApplyPolicyWithOptions(repoRoot string, options applyPolicyOptions) int 
 	state.repoSnapshotBaseFile = filepath.Join(state.repoSnapshotDir, policy.OpenCode.BaseOrchestratorKey+".last.md")
 	for _, phase := range policy.OpenCode.SDDPhases {
 		state.sddPhasesSet[phase] = true
+	}
+	if err := state.loadLocalRuntimeConfig(); err != nil {
+		return fail(err)
 	}
 
 	fmt.Println("Applying Gentle AI overlay policy...")
@@ -252,7 +259,7 @@ func (s *applyPolicyState) loadAuditedBaseline(repoRoot string) error {
 		"snapshot_file":                     filepath.Base(s.repoSnapshotBaseFile),
 		"snapshot_source":                   "upstream-opencode-inline-asset",
 		"state_file":                        s.policy.Maintenance.StateFile,
-		"upstream_repo_name":                filepath.Base(strings.TrimRight(expandUser(s.policy.Upstream.RepoPath), string(filepath.Separator))),
+		"upstream_repo_name":                s.policy.Upstream.RepoName,
 		"upstream_prompt_rel_path":          s.policy.Upstream.OrchestratorPromptPath,
 		"upstream_inject_source_rel_path":   "internal/components/sdd/inject.go",
 		"upstream_profiles_source_rel_path": "internal/components/sdd/profiles.go",
@@ -277,10 +284,28 @@ func (s *applyPolicyState) loadAuditedBaseline(repoRoot string) error {
 	return nil
 }
 
+func (s *applyPolicyState) loadLocalRuntimeConfig() error {
+	resolved, err := resolveLocalRuntimeConfig(s.policy, s.sddPhasesSet)
+	if err != nil {
+		return err
+	}
+	s.configPath = resolved.ConfigPath
+	if policyDefault := expandUser(s.policy.OpenCode.ConfigPath); s.configPath != policyDefault {
+		fmt.Printf("  opencode config path overridden by local config: %s\n", s.configPath)
+	}
+	s.resolvedAgentOverrides = resolved.AgentOverrides
+	s.resolvedDefaultProfile = resolved.DefaultProfile
+	s.resolvedProfiles = resolved.Profiles
+	s.profileConfigSourcePath = resolved.ProfilesSourcePath
+	s.usedLegacyProfiles = resolved.UsedLegacyProfiles
+	s.profilesDefined = resolved.ProfilesDefined
+	return nil
+}
+
 // --- Agent overrides ---
 
 func (s *applyPolicyState) applyAgentOverrides() {
-	for _, override := range s.policy.AgentOverrides {
+	for _, override := range s.resolvedAgentOverrides {
 		current, ok := jsonObject(s.agents[override.Key])
 		if !ok {
 			current = map[string]any{}
@@ -390,7 +415,7 @@ func (s *applyPolicyState) verifyPersistedState() error {
 		return fmt.Errorf("post-write verification failed: OpenCode config does not contain an agent map after write")
 	}
 
-	for _, override := range s.policy.AgentOverrides {
+	for _, override := range s.resolvedAgentOverrides {
 		actual, _ := jsonObject(verifyAgents[override.Key])
 		if jsonString(actual["model"]) != override.Model {
 			return fmt.Errorf("post-write verification failed: agent %q model is %q after write, expected %q", override.Key, jsonString(actual["model"]), override.Model)
@@ -401,6 +426,18 @@ func (s *applyPolicyState) verifyPersistedState() error {
 			}
 		} else if jsonString(actual["variant"]) != "" {
 			return fmt.Errorf("post-write verification failed: agent %q variant is %q after write, expected empty", override.Key, jsonString(actual["variant"]))
+		}
+	}
+
+	if s.resolvedDefaultProfile != nil {
+		baseKey := s.policy.OpenCode.BaseOrchestratorKey
+		if err := verifyProfileAssignment(verifyAgents, baseKey, s.resolvedDefaultProfile.Orchestrator); err != nil {
+			return fmt.Errorf("post-write verification failed for default profile orchestrator %q: %w", baseKey, err)
+		}
+		for _, phase := range s.policy.OpenCode.SDDPhases {
+			if err := verifyProfileAssignment(verifyAgents, phase, s.resolvedDefaultProfile.Phases[phase]); err != nil {
+				return fmt.Errorf("post-write verification failed for default profile phase %q: %w", phase, err)
+			}
 		}
 	}
 
@@ -427,14 +464,18 @@ func (s *applyPolicyState) verifyPersistedState() error {
 	}
 	sort.Strings(profiles)
 	for _, name := range profiles {
+		profile, ok := s.managedProfileAssignment(name)
+		if !ok {
+			return fmt.Errorf("post-write verification failed: managed profile %q missing from resolved profiles", name)
+		}
 		orchKey := s.policy.OpenCode.ProfileOrchestratorPrefix + name
-		if _, ok := verifyAgents[orchKey]; !ok {
-			return fmt.Errorf("post-write verification failed: profile %q orchestrator agent %q missing from %s after write", name, orchKey, s.configPath)
+		if err := verifyProfileAssignment(verifyAgents, orchKey, profile.Orchestrator); err != nil {
+			return fmt.Errorf("post-write verification failed for profile %q orchestrator agent %q: %w", name, orchKey, err)
 		}
 		for _, phase := range s.policy.OpenCode.SDDPhases {
 			phaseKey := phase + "-" + name
-			if _, ok := verifyAgents[phaseKey]; !ok {
-				return fmt.Errorf("post-write verification failed: profile %q phase agent %q missing from %s after write", name, phaseKey, s.configPath)
+			if err := verifyProfileAssignment(verifyAgents, phaseKey, profile.Phases[phase]); err != nil {
+				return fmt.Errorf("post-write verification failed for profile %q phase agent %q: %w", name, phaseKey, err)
 			}
 		}
 	}
@@ -457,4 +498,31 @@ func (s *applyPolicyState) verifyPersistedState() error {
 		return fmt.Errorf("audited baseline mismatch for orchestrator %q: generated overlay at %s does not match the sanitized audited snapshot. Re-run apply after restoring the audited baseline, or run `gentle-ai sync` if local runtime state is stale.", s.policy.OpenCode.BaseOrchestratorKey, s.baseGeneratedPath)
 	}
 	return nil
+}
+
+func verifyProfileAssignment(agents map[string]any, key string, assignment profileAssignment) error {
+	actual, ok := jsonObject(agents[key])
+	if !ok {
+		return fmt.Errorf("agent missing from OpenCode config after write")
+	}
+	if jsonString(actual["model"]) != assignment.Model {
+		return fmt.Errorf("model is %q after write, expected %q", jsonString(actual["model"]), assignment.Model)
+	}
+	if assignment.Variant != "" {
+		if jsonString(actual["variant"]) != assignment.Variant {
+			return fmt.Errorf("variant is %q after write, expected %q", jsonString(actual["variant"]), assignment.Variant)
+		}
+	} else if jsonString(actual["variant"]) != "" {
+		return fmt.Errorf("variant is %q after write, expected empty", jsonString(actual["variant"]))
+	}
+	return nil
+}
+
+func (s *applyPolicyState) managedProfileAssignment(name string) (validatedProfile, bool) {
+	for _, profile := range s.resolvedProfiles {
+		if profile.Name == name {
+			return profile, true
+		}
+	}
+	return validatedProfile{}, false
 }

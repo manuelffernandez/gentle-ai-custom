@@ -31,8 +31,7 @@ Hoy este repo funciona como una **capa unificada de personalización y mantenimi
 - reaplica la política local luego de `gentle-ai sync` o un reinstall completo
 - audita el baseline upstream de `gentle-orchestrator` antes de sync/reinstall
 - depura skills no deseadas del runtime
-- fija overrides de modelo para los agentes built-in de OpenCode listados en `agent_overrides` (ver `overlay/gentle-ai/policy/gentle-ai-policy.json`)
-- reconcilia perfiles SDD locales (`sdd-orchestrator-<name>` + 10 phase agents) desde un config por-máquina en `~/.config/gentle-ai-custom/opencode-sdd-profiles.json`
+- fija overrides de modelo para agentes built-in explícitos de OpenCode (`agent_overrides`) y reconcilia la familia base `gentle-orchestrator` (`default_profile`) más perfiles SDD nombrados (`profiles`) desde un config por-máquina canónico en `~/.config/gentle-ai-custom/opencode-local-config.json`
 - captura los prompts inline de los orchestrators inyectados por **gentle-ai**, y genera nuevos prompts derivados por agente/perfil y sanitizados.
 - mantiene el snapshot versionado de `gentle-orchestrator` y snapshots operativos locales por máquina bajo `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`
 - mantiene la guía de mantenimiento y la skill para auditar futuras actualizaciones del upstream
@@ -93,7 +92,7 @@ El mantenimiento de este repo sigue una secuencia fija. Lo variable no es el ord
 ### Secuencia recomendada
 
 1. Actualizar el binario `gentle-ai`.
-2. Hacer `git pull` en `/home/manuel/Documentos/gentle-ai`.
+2. Hacer `git pull` en tu clone local de `gentle-ai`.
 3. Desde `gentle-ai-custom`, pedir al agente que entre en modo mantenimiento y ejecute la auditoría upstream.
 4. Si la auditoría detecta drift relevante para el overlay, adaptar este repo antes de continuar.
 5. Si no hace falta adaptar nada, ejecutar `gentle-ai sync` o reinstall completo si la auditoría lo recomienda.
@@ -102,7 +101,7 @@ El mantenimiento de este repo sigue una secuencia fija. Lo variable no es el ord
 
 ```bash
 brew upgrade gentle-ai
-git -C ~/Documentos/gentle-ai pull
+git -C /path/to/gentle-ai pull
 
 # desde gentle-ai-custom, normalmente vía el agente maintainer
 bash ~/Documentos/gentle-ai-custom/audit-gentle-ai-upstream.sh
@@ -129,13 +128,27 @@ El script `audit-gentle-ai-upstream.*` es público, pero el uso recomendado es a
 
 - reinstala skills y wrappers propios
 - poda skills upstream no deseadas
-- aplica overrides de modelo definidos en la policy
+- aplica `agent_overrides` definidos en el config local cuando existen
 - vuelve a materializar prompts derivados de orchestrators en OpenCode
 - actualiza snapshots y validaciones necesarias para sostener el overlay
 
 `opencode` re-materializa OpenCode y la policy del overlay. `all` hoy es equivalente porque `opencode` es el único agente soportado.
 
-`~/.config/gentle-ai-custom/opencode-sdd-profiles.json` funciona como resguardo local de los perfiles SDD que querés conservar. Sirve para volver a aplicar tus elecciones de `model` y `variant` cuando un reinstall de Gentle AI las pisa, cuando un perfil desaparece o cuando simplemente querés evitar depender de recordar esa configuración manualmente en cada máquina.
+`~/.config/gentle-ai-custom/opencode-local-config.json` es el config local canónico del overlay. Ahí viven, separados, los `agent_overrides` para agentes built-in explícitos, el `default_profile` para la familia base `gentle-orchestrator` (`gentle-orchestrator` + fases SDD sin sufijo) y los `profiles` para familias SDD nombradas (`sdd-orchestrator-<name>` + fases). También puede definir `upstream_repo_path` y `opencode_config_path` por máquina.
+
+Resolución upstream:
+
+1. `upstream_repo_path` en `opencode-local-config.json`
+2. `GENTLE_AI_CUSTOM_UPSTREAM_REPO`
+3. fallback `../gentle-ai` relativo a este repo
+4. error claro si nada de eso existe
+
+Compatibilidad hacia atrás:
+
+- si el config nuevo omite `profiles`, el helper sigue leyendo `~/.config/gentle-ai-custom/opencode-sdd-profiles.json` si existe
+- si el config nuevo define `profiles` (aunque sea `[]`), ese campo pasa a ser la única fuente de verdad para perfiles
+- si el config nuevo omite `agent_overrides`, el helper no aplica overrides explícitos para `general` / `explore`
+- si el config nuevo omite `default_profile`, el helper deja intacta la familia base `gentle-orchestrator`
 
 ### Artefactos base del mantenimiento
 
@@ -154,7 +167,8 @@ Git ya conserva el detalle de implementación. El `update-log.md` queda reservad
 | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
 | `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md`        | Baseline versionado del orchestrator upstream auditado.                  |
 | `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.meta.yaml` | Metadata e invariantes mínimas del baseline versionado.                  |
-| `~/.config/gentle-ai-custom/opencode-sdd-profiles.json`                                          | Config local por máquina para perfiles SDD.                              |
+| `~/.config/gentle-ai-custom/opencode-local-config.json`                                          | Config local canónico: upstream path, override opcional de `opencode.json`, `agent_overrides`, `default_profile` y `profiles`. |
+| `~/.config/gentle-ai-custom/opencode-sdd-profiles.json`                                          | Fallback legacy solo para `profiles` cuando el config nuevo no define ese campo. |
 | `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`                                    | Snapshots operativos locales usados durante la reaplicación.             |
 | `overlay/gentle-ai/maintenance.md`                                                               | Guía humana centralizada de mantenimiento, señales y notas técnicas.     |
 | `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`                                           | Capacidad del agente para digerir la auditoría y guiar el mantenimiento. |
@@ -228,15 +242,60 @@ Tabla operativa:
 
 | Caso                            | Qué agentes intervienen                                                                                                                  | Cómo se resuelve el modelo                                                                                                                   | Dónde se cambia                                         |
 | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| Delegación built-in de OpenCode | `general`, `explore`                                                                                                                     | Este overlay les fija modelo/variant explícitos mediante `agent_overrides`, en vez de dejar que hereden el modelo del agente que los invoca. | `overlay/gentle-ai/policy/gentle-ai-policy.json`        |
-| Delegación del flujo SDD        | `sdd-init`, `sdd-explore`, `sdd-propose`, `sdd-spec`, `sdd-design`, `sdd-tasks`, `sdd-apply`, `sdd-verify`, `sdd-archive`, `sdd-onboard` | Se resuelve por la configuración de perfiles SDD, no por `agent_overrides`.                                                                  | `~/.config/gentle-ai-custom/opencode-sdd-profiles.json` |
+| Delegación built-in de OpenCode | `general`, `explore`                                                                                                                     | Este overlay les fija modelo/variant explícitos mediante `agent_overrides`, en vez de dejar que hereden el modelo del agente que los invoca. | `~/.config/gentle-ai-custom/opencode-local-config.json` |
+| Familia base SDD               | `gentle-orchestrator`, `sdd-init`, `sdd-explore`, `sdd-propose`, `sdd-spec`, `sdd-design`, `sdd-tasks`, `sdd-apply`, `sdd-verify`, `sdd-archive`, `sdd-onboard` | Se resuelve por `default_profile`, no por `agent_overrides`.                                                                                  | `~/.config/gentle-ai-custom/opencode-local-config.json` |
+| Perfiles SDD nombrados         | `sdd-orchestrator-<name>` + `sdd-<phase>-<name>`                                                                                               | Se resuelve por `profiles`, no por `agent_overrides`.                                                                                         | `~/.config/gentle-ai-custom/opencode-local-config.json` |
 
 En otras palabras: estos overrides no duplican la configuración SDD. Cubren una capa distinta: los agentes built-in de OpenCode que el orchestrator puede usar al delegar fuera del sistema de perfiles SDD.
 
-Valores versionados hoy:
+Si querés fijar modelos para `general` o `explore`, declaralos explícitamente en `agent_overrides` dentro del config local canónico.
 
-- `general` → `openai/gpt-5.4` / `high`
-- `explore` → `google-vertex/gemini-3.1-pro-preview` / `high`
+### Schema local recomendado
+
+```json
+{
+  "version": 1,
+  "upstream_repo_path": "/path/to/gentle-ai",
+  "opencode_config_path": "/path/to/opencode.json",
+  "agent_overrides": [
+    { "key": "general", "model": "openai/gpt-5.4", "variant": "high" },
+    { "key": "explore", "model": "google-vertex/gemini-3.1-pro-preview", "variant": "high" }
+  ],
+  "default_profile": {
+    "orchestrator": { "model": "openai/gpt-5.4", "variant": "high" },
+    "phases": {
+      "sdd-init": { "model": "openai/gpt-5.4", "variant": "medium" },
+      "sdd-explore": { "model": "openai/gpt-5.3-codex", "variant": "high" },
+      "sdd-propose": { "model": "openai/gpt-5.5", "variant": "xhigh" },
+      "sdd-spec": { "model": "openai/gpt-5.3-codex", "variant": "high" },
+      "sdd-design": { "model": "openai/gpt-5.5", "variant": "high" },
+      "sdd-tasks": { "model": "openai/gpt-5.3-codex", "variant": "high" },
+      "sdd-apply": { "model": "openai/gpt-5.3-codex", "variant": "high" },
+      "sdd-verify": { "model": "openai/gpt-5.4", "variant": "xhigh" },
+      "sdd-archive": { "model": "openai/gpt-5.4-mini", "variant": "medium" },
+      "sdd-onboard": { "model": "openai/gpt-5.4", "variant": "medium" }
+    }
+  },
+  "profiles": [
+    {
+      "name": "cheap",
+      "orchestrator": { "model": "openai/gpt-5.4-mini", "variant": "low" },
+      "phases": {
+        "sdd-init": { "model": "openai/gpt-5.4-mini", "variant": "low" },
+        "sdd-explore": { "model": "openai/gpt-5.4-mini", "variant": "low" },
+        "sdd-propose": { "model": "openai/gpt-5.4-mini", "variant": "low" },
+        "sdd-spec": { "model": "openai/gpt-5.4-mini", "variant": "low" },
+        "sdd-design": { "model": "openai/gpt-5.4-mini", "variant": "low" },
+        "sdd-tasks": { "model": "openai/gpt-5.4-mini", "variant": "low" },
+        "sdd-apply": { "model": "openai/gpt-5.4-mini", "variant": "low" },
+        "sdd-verify": { "model": "openai/gpt-5.4-mini", "variant": "low" },
+        "sdd-archive": { "model": "openai/gpt-5.4-mini", "variant": "low" },
+        "sdd-onboard": { "model": "openai/gpt-5.4-mini", "variant": "low" }
+      }
+    }
+  ]
+}
+```
 
 ## Comandos custom disponibles
 

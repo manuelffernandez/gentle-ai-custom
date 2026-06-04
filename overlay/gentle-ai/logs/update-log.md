@@ -4,6 +4,15 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-06-04 | Made upstream/runtime config resolution portable
+
+- **Type**: `tooling-change`
+- **Upstream scope/range**: maintenance runtime portability, not a new upstream boundary
+- **Decision**: removed the versioned absolute upstream repo path from shared policy behavior, introduced the canonical local config `~/.config/gentle-ai-custom/opencode-local-config.json`, separated local `agent_overrides` from `profiles`, added optional `opencode_config_path`, implemented upstream resolution precedence (`local config -> $GENTLE_AI_CUSTOM_UPSTREAM_REPO -> ../gentle-ai`), and kept the legacy `opencode-sdd-profiles.json` fallback when the new config omits `profiles`.
+- **Why it mattered**: the overlay was still anchored to one machine's upstream checkout path and split local runtime choices across multiple files; portability required one canonical local config plus deterministic fallback rules that keep existing profile setups working during migration.
+- **Affected artifacts**: `overlay/gentle-ai/policy/gentle-ai-policy.json`, `internal/overlay/policy.go`, `internal/overlay/local_config.go`, `internal/overlay/local_config_test.go`, `internal/overlay/apply_policy.go`, `internal/overlay/profiles.go`, `internal/overlay/audit_upstream.go`, `internal/overlay/summary.go`, `README.md`, `AGENTS.md`, `overlay/gentle-ai/README.md`, `overlay/gentle-ai/maintenance.md`, `overlay/gentle-ai/policy/maintenance-intent.md`, `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`
+- **Verification**: `gofmt -w internal/overlay/*.go`; `go test ./...`
+
 ## 2026-06-03 | Closed v1.34.0 prompt-language maintenance
 
 - **Type**: `audit`

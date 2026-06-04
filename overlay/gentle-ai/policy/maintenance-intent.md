@@ -32,7 +32,15 @@ This includes:
 - per-profile orchestrator snapshots (`sdd-orchestrator-<profile>.last.md`)
 - any local combination of providers/models intended for a single machine or personal preference
 
-Those decisions live outside the repo, in `~/.config/gentle-ai-custom/opencode-sdd-profiles.json`.
+Those decisions live outside the repo, in `~/.config/gentle-ai-custom/opencode-local-config.json`.
+
+That canonical local config also owns:
+
+- optional `upstream_repo_path`
+- optional `opencode_config_path`
+- optional explicit `agent_overrides` for built-in agent keys
+
+The legacy `~/.config/gentle-ai-custom/opencode-sdd-profiles.json` file remains a profile-only fallback when the canonical config omits `profiles`.
 
 Operational orchestrator snapshots are also separated by scope:
 

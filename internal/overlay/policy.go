@@ -17,7 +17,7 @@ type Policy struct {
 		LogFile    string `json:"log_file"`
 	} `json:"maintenance"`
 	Upstream struct {
-		RepoPath               string `json:"repo_path"`
+		RepoName               string `json:"repo_name"`
 		OrchestratorPromptPath string `json:"orchestrator_prompt_path"`
 	} `json:"upstream"`
 	Skills struct {
@@ -26,23 +26,23 @@ type Policy struct {
 		Targets []string `json:"targets"`
 	} `json:"skills"`
 	OpenCode struct {
-		ConfigPath                   string   `json:"config_path"`
-		BaseOrchestratorKey          string   `json:"base_orchestrator_key"`
-		GeneratedOrchestratorsDir    string   `json:"generated_orchestrators_dir"`
-		OrchestratorSnapshotDir      string   `json:"orchestrator_snapshot_dir"`
-		OrchestratorSnapshotMetadata string   `json:"orchestrator_snapshot_metadata_file"`
-		LocalOrchestratorSnapshotDir string   `json:"local_orchestrator_snapshot_dir"`
-		OrchestratorAgentKeys        []string `json:"orchestrator_agent_keys"`
-		OrchestratorAgentPrefixes    []string `json:"orchestrator_agent_prefixes"`
-		ProfileOrchestratorPrefix    string   `json:"profile_orchestrator_prefix"`
-		SDDProfilesLocalConfigPath   string   `json:"sdd_profiles_local_config_path"`
-		SDDPhases                    []string `json:"sdd_phases"`
+		ConfigPath                    string   `json:"config_path"`
+		LocalConfigPath               string   `json:"local_config_path"`
+		LegacyProfilesLocalConfigPath string   `json:"legacy_profiles_local_config_path"`
+		BaseOrchestratorKey           string   `json:"base_orchestrator_key"`
+		GeneratedOrchestratorsDir     string   `json:"generated_orchestrators_dir"`
+		OrchestratorSnapshotDir       string   `json:"orchestrator_snapshot_dir"`
+		OrchestratorSnapshotMetadata  string   `json:"orchestrator_snapshot_metadata_file"`
+		LocalOrchestratorSnapshotDir  string   `json:"local_orchestrator_snapshot_dir"`
+		OrchestratorAgentKeys         []string `json:"orchestrator_agent_keys"`
+		OrchestratorAgentPrefixes     []string `json:"orchestrator_agent_prefixes"`
+		ProfileOrchestratorPrefix     string   `json:"profile_orchestrator_prefix"`
+		SDDPhases                     []string `json:"sdd_phases"`
 	} `json:"opencode"`
 	Sanitizer struct {
 		RequiredMarkers  []string `json:"required_markers"`
 		ForbiddenMarkers []string `json:"forbidden_markers"`
 	} `json:"sanitizer"`
-	AgentOverrides []AgentOverride `json:"agent_overrides"`
 }
 
 type AgentOverride struct {

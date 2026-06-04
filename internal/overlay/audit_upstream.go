@@ -15,18 +15,17 @@ func RunAuditUpstream(repoRoot string) int {
 		return 1
 	}
 
-	upstreamRepo := filepath.Clean(expandUser(policy.Upstream.RepoPath))
+	upstreamRepo, upstreamRepoSource, err := resolveUpstreamRepo(repoRoot, policy)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		return 1
+	}
 	statePath := filepath.Join(repoRoot, policy.Maintenance.StateFile)
 	snapshotPath := filepath.Join(repoRoot, policy.OpenCode.OrchestratorSnapshotDir, policy.OpenCode.BaseOrchestratorKey+".last.md")
 	metaPath := filepath.Join(repoRoot, policy.OpenCode.OrchestratorSnapshotMetadata)
 	upstreamPromptPath := filepath.Join(upstreamRepo, policy.Upstream.OrchestratorPromptPath)
 	upstreamProfilesPath := filepath.Join(upstreamRepo, "internal", "components", "sdd", "profiles.go")
 	upstreamInjectPath := filepath.Join(upstreamRepo, "internal", "components", "sdd", "inject.go")
-
-	if info, err := os.Stat(upstreamRepo); err != nil || !info.IsDir() {
-		fmt.Fprintf(os.Stderr, "ERROR: upstream repo not found: %s\n", upstreamRepo)
-		return 1
-	}
 
 	var state UpstreamState
 	if err := readJSONFile(statePath, &state); err != nil {
@@ -70,7 +69,7 @@ func RunAuditUpstream(repoRoot string) int {
 		"snapshot_file":                     filepath.Base(snapshotPath),
 		"snapshot_source":                   "upstream-opencode-inline-asset",
 		"state_file":                        policy.Maintenance.StateFile,
-		"upstream_repo_name":                filepath.Base(upstreamRepo),
+		"upstream_repo_name":                policy.Upstream.RepoName,
 		"upstream_prompt_rel_path":          policy.Upstream.OrchestratorPromptPath,
 		"upstream_inject_source_rel_path":   "internal/components/sdd/inject.go",
 		"upstream_profiles_source_rel_path": "internal/components/sdd/profiles.go",
@@ -178,6 +177,7 @@ func RunAuditUpstream(repoRoot string) int {
 	fmt.Println("Auditing Gentle AI upstream baseline...")
 	fmt.Printf("- Repo root: %s\n", repoRoot)
 	fmt.Printf("- Upstream repo: %s\n", upstreamRepo)
+	fmt.Printf("- Upstream source: %s\n", upstreamRepoSource)
 	if upstreamDescribe != "" {
 		fmt.Printf("- Upstream HEAD: %s (%s)\n", upstreamDescribe, upstreamHead)
 	}

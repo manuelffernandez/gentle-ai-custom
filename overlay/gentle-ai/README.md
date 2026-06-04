@@ -17,6 +17,11 @@ Esta carpeta agrupa los assets operativos del overlay de Gentle AI.
 - `scripts/` — wrappers internos finos hacia la CLI Go compartida
 - `snapshots/` — baseline versionado del `gentle-orchestrator`
 
+## Config local canónico
+
+- `~/.config/gentle-ai-custom/opencode-local-config.json` — upstream path local, override opcional de `opencode.json`, `agent_overrides`, `default_profile` y `profiles`
+- `~/.config/gentle-ai-custom/opencode-sdd-profiles.json` — fallback legacy solo para `profiles` cuando el config nuevo no define ese campo
+
 ## Regla simple
 
 - Si querés entender o usar el repo, arrancá por `README.md` en la raíz.

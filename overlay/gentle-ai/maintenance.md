@@ -16,7 +16,7 @@ Lo que este archivo **no** define:
 ## Quick path
 
 1. Actualizá el binario de `gentle-ai`.
-2. Corré `git pull` en `/home/manuel/Documentos/gentle-ai`.
+2. Corré `git pull` en el clone upstream resuelto de `gentle-ai`.
 3. Desde `gentle-ai-custom`, corré `bash audit-gentle-ai-upstream.sh`.
 4. Si la auditoría muestra drift relevante para el overlay, adaptá primero este repo.
 5. Ejecutá el refresh upstream recomendado por la auditoría:
@@ -119,7 +119,7 @@ Estas son las señales que conviene interpretar primero.
 | `profile ... mismatch` / `base asset injection invariant: mismatch` | Upstream cambió la mecánica de generación de perfiles | Frenar y auditar antes de recomendar `sync` |
 | `topology: unknown orchestrator matched by prefix only` | Apareció un orchestrator upstream nuevo | Auditarlo y decidir si la policy debe incluirlo explícitamente |
 | `topology: expected orchestrator missing from opencode.json` | Un orchestrator conocido desapareció o fue renombrado | Auditar upstream y actualizar policy/intent si hace falta |
-| `WARNING - unmanaged SDD profiles left untouched` | Hay agentes gestionables por config local que no están declarados en `~/.config/gentle-ai-custom/opencode-sdd-profiles.json` | Decidir si gestionarlos en el config local o removerlos manualmente |
+| `WARNING - unmanaged SDD profiles left untouched` | Hay agentes gestionables por config local que no están declarados en la fuente activa de `profiles` | Decidir si gestionarlos en el config local o removerlos manualmente |
 | `repo snapshots - changed: N > 0` | Cambió el baseline versionado de `gentle-orchestrator` | Revisar `git diff overlay/gentle-ai/snapshots/` |
 | `orchestrators recovered from snapshot: N > 0` | Se reconstruyeron prompts faltantes desde snapshots | Investigar por qué faltaban y anotar el recovery |
 | `ERROR: audited snapshot metadata mismatch` | Los archivos baseline del repo quedaron inconsistentes entre sí | Reparar baseline/state/metadata antes de continuar |
@@ -131,25 +131,33 @@ Estas son las señales que conviene interpretar primero.
 Después del apply, confirmá todo esto:
 
 - las skills podadas ya no existen en cada target configurado
-- `agent.general` sigue resolviendo a `openai/gpt-5.4` / `high`
-- `agent.explore` sigue resolviendo a `google-vertex/gemini-3.1-pro-preview` / `high`
+- cada `agent_overrides` efectivo sigue resolviendo al `model` / `variant` esperado
 - cada orchestrator listado por la policy apunta a un prompt `{file:...}` existente
 - `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/` mantiene solo el baseline versionado de `gentle-orchestrator` más su metadata
 - `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/` contiene el snapshot operativo de `gentle-orchestrator` y cualquier `sdd-orchestrator-<profile>` gestionado
-- si existe `~/.config/gentle-ai-custom/opencode-sdd-profiles.json`, cada perfil declarado mantiene `model` y `variant` correctos en `sdd-orchestrator-<name>` y en los 10 agentes `sdd-<phase>-<name>`
+- si `default_profile` existe, la familia base `gentle-orchestrator` mantiene `model` y `variant` correctos en `gentle-orchestrator` y en los 10 agentes `sdd-<phase>` sin sufijo
+- si la fuente activa de `profiles` existe, cada perfil declarado mantiene `model` y `variant` correctos en `sdd-orchestrator-<name>` y en los 10 agentes `sdd-<phase>-<name>`
 
-## Config local de perfiles SDD
+## Config local del overlay
 
-Los assignments por máquina viven fuera del repo en:
+El config por máquina canónico vive fuera del repo en:
 
 ```text
-~/.config/gentle-ai-custom/opencode-sdd-profiles.json
+~/.config/gentle-ai-custom/opencode-local-config.json
 ```
 
 Reglas operativas:
 
-- si el archivo no existe, el helper deja intactos los perfiles SDD de `opencode.json`
-- si el archivo existe, el helper valida estricto y falla cerrado antes de escribir ante JSON/schema inválido
+- `upstream_repo_path` tiene precedencia sobre `GENTLE_AI_CUSTOM_UPSTREAM_REPO`, y ambos tienen precedencia sobre el fallback `../gentle-ai`
+- `opencode_config_path` es opcional; si se omite, el default sigue siendo `~/.config/opencode/opencode.json`
+- `agent_overrides` maneja SOLO asignaciones explícitas para agent keys como `general` o `explore`
+- `default_profile` maneja SOLO la familia base `gentle-orchestrator` + fases SDD sin sufijo
+- `profiles` maneja SOLO familias SDD nombradas (`sdd-orchestrator-<name>` + fases)
+- si `agent_overrides` se omite, el helper no aplica overrides explícitos para built-in agents
+- si `default_profile` se omite, el helper deja intacta la familia base `gentle-orchestrator`
+- si `profiles` se omite, el helper sigue leyendo `~/.config/gentle-ai-custom/opencode-sdd-profiles.json` si existe
+- si `profiles` está presente, esa sección pasa a ser la fuente de verdad y el archivo legacy deja de leerse
+- el helper valida estricto y falla cerrado ante JSON/schema inválido
 - los perfiles declarados se crean o actualizan en `opencode.json`
 - los perfiles existentes no declarados quedan intactos y se reportan como unmanaged
 - el repo versionado no debe volver a cargar assignments per-perfil de `model` / `variant`
@@ -184,6 +192,7 @@ No lo actives por inercia. El comportamiento default mete más fricción, pero m
 - [ ] el sanitizador sigue removiendo PR/budget/chained-PR/review-workload sin romper `## Model Assignments`
 - [ ] los entrypoints públicos en shell y PowerShell siguen siendo equivalentes
 - [ ] los assignments de perfiles SDD siguen siendo locales y no reaparecieron en la policy versionada
+- [ ] la resolución upstream sigue respetando: config local -> env -> fallback `../gentle-ai`
 
 ## Referencias
 

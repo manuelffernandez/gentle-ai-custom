@@ -22,7 +22,7 @@ func (s *applyPolicyState) printSummary() {
 	fmt.Printf("  local snapshot migrations from repo: %d\n", s.localSnapshotMigrate)
 	fmt.Printf("  repo snapshot backfills from local: %d\n", s.repoSnapshotBackfill)
 	fmt.Printf("  topology warnings: %d\n", len(s.topologyWarnings))
-	fmt.Printf("  SDD profiles in local config: %d\n", s.profilesManagedCount)
+	fmt.Printf("  SDD profiles managed this run: %d\n", s.profilesManagedCount)
 	fmt.Printf("  SDD profile agents created: %d\n", s.profileAgentsCreated)
 	fmt.Printf("  SDD profile agents updated: %d\n", s.profileAgentsUpdated)
 	fmt.Printf("  SDD profile agents unchanged: %d\n", s.profileAgentsSame)
@@ -31,7 +31,7 @@ func (s *applyPolicyState) printSummary() {
 
 	if len(s.unmanagedProfiles) > 0 {
 		fmt.Println()
-		fmt.Println("WARNING - unmanaged SDD profiles left untouched (add them to the local SDD profile config to manage):")
+		fmt.Println("WARNING - unmanaged SDD profiles left untouched (add them to the local OpenCode overlay config or legacy SDD profile config to manage):")
 		for _, entry := range s.unmanagedProfiles {
 			fmt.Printf("  - %s\n", entry)
 		}

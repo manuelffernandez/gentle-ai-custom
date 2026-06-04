@@ -8,7 +8,7 @@
     "log_file": "overlay/gentle-ai/logs/update-log.md"
   },
   "upstream": {
-    "repo_path": "/home/manuel/Documentos/gentle-ai",
+    "repo_name": "gentle-ai",
     "orchestrator_prompt_path": "internal/assets/opencode/sdd-orchestrator.md"
   },
   "skills": {
@@ -45,6 +45,8 @@
   },
   "opencode": {
     "config_path": "~/.config/opencode/opencode.json",
+    "local_config_path": "~/.config/gentle-ai-custom/opencode-local-config.json",
+    "legacy_profiles_local_config_path": "~/.config/gentle-ai-custom/opencode-sdd-profiles.json",
     "base_orchestrator_key": "gentle-orchestrator",
     "generated_orchestrators_dir": "~/.config/opencode/prompts/sdd/orchestrators",
     "orchestrator_snapshot_dir": "overlay/gentle-ai/snapshots/upstream/opencode/orchestrators",
@@ -57,7 +59,6 @@
       "sdd-orchestrator"
     ],
     "profile_orchestrator_prefix": "sdd-orchestrator-",
-    "sdd_profiles_local_config_path": "~/.config/gentle-ai-custom/opencode-sdd-profiles.json",
     "sdd_phases": [
       "sdd-init",
       "sdd-explore",
@@ -84,9 +85,5 @@
       "### Chain Strategy",
       "### Review Workload Guard (MANDATORY)"
     ]
-  },
-  "agent_overrides": [
-    { "key": "general", "model": "openai/gpt-5.4", "variant": "high" },
-    { "key": "explore", "model": "google-vertex/gemini-3.1-pro-preview", "variant": "high" }
-  ]
+  }
 }
