@@ -144,7 +144,9 @@ El script `audit-gentle-ai-upstream.*` es público, pero el uso recomendado es a
 | `overlay/gentle-ai/policy/maintenance-intent.md` | Fuente semántica de qué conservar, qué depurar y qué comportamiento proteger. |
 | `overlay/gentle-ai/policy/gentle-ai-policy.json` | Policy operativa consumida por la CLI y los wrappers.                         |
 | `overlay/gentle-ai/state/upstream-state.json`    | Última frontera upstream mantenida que sirve como referencia para auditar.    |
-| `overlay/gentle-ai/logs/update-log.md`           | Historial de decisiones y cambios del overlay.                                |
+| `overlay/gentle-ai/logs/update-log.md`           | Bitácora de eventos cerrados de mantenimiento/alineación con upstream; Git conserva el detalle fino. |
+
+Git ya conserva el detalle de implementación. El `update-log.md` queda reservado para cierres de auditoría, decisiones de adopción/rechazo/postergación, cambios de contrato de mantenimiento y incidentes/recoveries que afecten cómo este repo se alinea con Gentle AI upstream.
 
 ### Archivos y directorios clave
 

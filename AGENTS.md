@@ -71,31 +71,70 @@ Any modification that affects operability must be reflected in documentation:
 - `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md` — maintenance procedure
 - affected `SKILL.md` files — source of truth for runtime agent behavior
 
-### 4. Append to the overlay update log on every overlay change (MANDATORY)
+### 4. Use the overlay update log only for closed upstream-maintenance events (MANDATORY)
 
-Any change to overlay assets MUST add an entry to `overlay/gentle-ai/logs/update-log.md` in the same commit (or commit chain).
+`overlay/gentle-ai/logs/update-log.md` is a **single-file maintenance ledger**.
 
-"Overlay assets" means any of:
+- Keep using that exact file.
+- Do **not** create month/day/task subfolders or sibling log files unless the user explicitly changes this policy.
+- Do **not** treat the log as a mirror of every repo change; Git history already carries implementation-level granularity.
 
-- `overlay/gentle-ai/**` (policy, state, runbooks, scripts, snapshots)
-- `apply-gentle-ai-custom.sh` / `.ps1`
-- `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`
-- this file (`AGENTS.md`)
-- `README.md` when it documents overlay behavior
+Update `overlay/gentle-ai/logs/update-log.md` **ONLY** when a **closed maintenance event** materially affects how this repo aligns with, audits, adopts, applies, recovers, or verifies Gentle AI upstream.
 
-Each log entry MUST include:
+Eligible events:
 
-- date and short title
-- WHAT changed (one bullet per affected file or coherent area)
-- WHY the change was needed (discovery, bug, intent shift, upstream change)
-- relevant verification performed (manual test, idempotency check, etc.)
+- **Upstream audit closure**
+  - a reviewed upstream range was closed
+  - drift was assessed and the result was recorded
+  - this includes "no overlay changes required" outcomes when the audit itself was completed
+- **Upstream adoption / rejection / postponement decisions**
+  - the repo accepted a new upstream baseline
+  - the repo intentionally rejected or deferred an upstream change
+  - the adoption path (`gentle-ai sync` vs reinstall) changed or was explicitly decided
+- **Maintenance-contract changes**
+  - `maintenance-intent.md` changed semantically
+  - keep/prune policy changed
+  - sanitizer behavior or required anchors changed
+  - maintainer workflow requirements changed
+  - the criteria for audit/apply/recovery/verification changed
+- **Tooling/runtime changes with upstream-maintenance impact**
+  - scripts, shared Go runtime, snapshots, metadata, or verification logic changed in a way that materially affects the ability to audit, apply, recover, or verify the overlay against upstream
+- **Maintenance incidents and recoveries**
+  - broken state, snapshot recovery, topology drift, sanitizer breakage, verification failures, or similar incidents were investigated and closed
 
-Rule 3 = live state. Rule 4 = decision history. Both deliverables are required for changes that touch overlapping files (AGENTS.md, README.md, SKILL.md, runbook, overlay/gentle-ai/README.md).
+Forbidden events — **do NOT** update the log for:
+
+- README/docs wording, structure, or pedagogy tweaks that do not change the maintenance contract
+- repo-local refactors, features, or new skills with no upstream-maintenance impact
+- cosmetic cleanup, copy edits, examples, formatting-only changes, or readability passes
+- intermediate iterations on the same maintenance event
+- changes whose useful traceability is already sufficiently covered by Git history because no maintenance decision, audit closure, or incident closure happened
+
+Anti-noise rule:
+
+- **One closed maintenance event = one consolidated log entry.**
+- Do **not** add one entry per file, commit, or micro-iteration.
+- If the same event spans multiple commits or sessions, wait until the event is closed and then write **one** consolidated entry.
+
+Each entry MUST include:
+
+- `Date`
+- `Title`
+- `Type` (`audit`, `adoption`, `policy-change`, `tooling-change`, or `incident`)
+- `Upstream scope/range` when applicable
+- `Decision`
+- `Why it mattered`
+- `Affected artifacts`
+- `Verification`
+- `Follow-up` (optional)
+
+Rule 3 = live state. Rule 4 = maintenance decision ledger.
 
 - Rule 3 keeps the live documentation aligned with current behavior.
-- Rule 4 preserves the decision history — why things became the way they are.
+- Rule 4 records only the closed upstream-maintenance events that Git history alone would not communicate clearly enough.
 
-A change that updates docs (rule 3) without logging the decision (rule 4) is incomplete. Likewise, logging a decision (rule 4) without updating the docs that describe current behavior (rule 3) leaves the live docs lying about the system.
+If Git history is sufficient and no eligible maintenance event was closed, the log must **not** be updated.
+If an eligible maintenance event changes the live docs or maintainer contract, both rule 3 and rule 4 apply together.
 
 ### 5. Locate a skill before editing it (MANDATORY)
 
@@ -140,7 +179,7 @@ The most common pattern in this repo is `shared/skills/<name>/` + global runtime
 - `overlay/gentle-ai/policy/maintenance-intent.md` — semantic source of truth for what to preserve, depure, and remove from orchestrator sanitization.
 - `overlay/gentle-ai/state/upstream-state.json` — last maintained upstream boundary.
 - `overlay/gentle-ai/runbooks/maintain-upstream-overlay.md` — detailed human maintenance procedure.
-- `overlay/gentle-ai/logs/update-log.md` — maintenance history and decisions.
+- `overlay/gentle-ai/logs/update-log.md` — high-signal ledger of closed upstream-maintenance decisions and incidents.
 - `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/` — versioned upstream orchestrator baseline and metadata.
 - `cmd/gentle-ai-overlay/main.go` — shared Go CLI entrypoint for apply/audit commands.
 - `internal/overlay/` — implementation of overlay apply, audit, policy, profiles, snapshots, and verification.
@@ -175,7 +214,7 @@ The maintenance model is intentionally split into:
 - `maintenance-intent.md` → semantic intent and orchestrator sanitization goals
 - `gentle-ai-policy.json` → runtime policy
 - `upstream-state.json` → last maintained upstream boundary
-- `update-log.md` → historical record
+- `update-log.md` → closed maintenance-event record
 
 ---
 

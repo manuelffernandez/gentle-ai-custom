@@ -28,7 +28,7 @@ Use this skill when:
 - Read semantic intent before making maintenance decisions.
 - Preserve the local keep/prune baseline and the orchestrator sanitization goals.
 - Keep bash and PowerShell scripts behaviorally equivalent.
-- Update `AGENTS.md`, `README.md`, and `overlay/gentle-ai/logs/update-log.md` when the workflow changes (see `AGENTS.md` rules 3 and 4).
+- Update `AGENTS.md`, `README.md`, and `overlay/gentle-ai/logs/update-log.md` when the workflow changes, but write to the log only for eligible **closed** maintenance events under `AGENTS.md` rule 4.
 - Do not change intent, keep/prune, or sanitization behavior for new upstream changes without explicit user approval.
 - The versioned policy MUST NOT carry per-profile orchestrator/phase model+variant choices. Those live in the per-machine local config at `~/.config/gentle-ai-custom/opencode-sdd-profiles.json`. If you need a new profile-managed assignment, edit the LOCAL file — do NOT add it back to `gentle-ai-policy.json`.
 - The versioned repo MUST keep only `gentle-orchestrator.last.md` under `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/`. Profile snapshots belong in `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`.
@@ -99,7 +99,7 @@ Re-apply paths are mandatory regardless of whether upstream content changed — 
     - `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/` must contain the operational snapshot for `gentle-orchestrator`, plus any managed `sdd-orchestrator-<name>` snapshots.
     - If `~/.config/gentle-ai-custom/opencode-sdd-profiles.json` exists: for each profile `<name>` in it, `agent.sdd-orchestrator-<name>` and `agent.sdd-<phase>-<name>` (10 phases) must exist with matching `model` + `variant`.
     - `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.meta.yaml` must exist and match `upstream-state.json` + the SHA-256 of `gentle-orchestrator.last.md`.
-18. Record the decision in `overlay/gentle-ai/logs/update-log.md` (include update type, topology findings, base prompt drift, the short human summary, profile invariant drift, recovery events, and any policy mutations).
+18. If the work closed an eligible maintenance event under `AGENTS.md` rule 4, record **one consolidated entry** in `overlay/gentle-ai/logs/update-log.md` with `Date`, `Title`, `Type`, `Upstream scope/range` when applicable, `Decision`, `Why it mattered`, `Affected artifacts`, `Verification`, and optional `Follow-up`. If no maintenance decision or incident was closed, leave the log untouched.
 
 ## Hardening option: external-single-active strategy
 

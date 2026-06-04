@@ -18,7 +18,31 @@ No cumplen el mismo rol:
 - el **intento** describe el criterio del usuario y las metas de sanitización del orchestrator
 - la **política** alimenta la CLI Go runtime y sus wrappers finos
 - el **estado** marca desde dónde hay que auditar el upstream
-- el **log** deja historial narrativo de mantenimiento
+- el **log** deja una bitácora consolidada de eventos cerrados de mantenimiento upstream
+
+## Contrato del update log
+
+`overlay/gentle-ai/logs/update-log.md` NO es un espejo de cada cambio del repo. Git ya conserva el detalle de implementación, las iteraciones intermedias y los micro-fixes.
+
+Actualizalo solo cuando cierres alguno de estos eventos:
+
+- auditoría upstream
+- adopción, rechazo o postergación de un cambio/rango upstream
+- cambio de contrato o policy de mantenimiento ligado a la alineación con upstream
+- cambio de tooling/runtime que afecte auditar, aplicar, recuperar o verificar el overlay contra upstream
+- incidente de mantenimiento y su recovery
+
+No lo actualices por:
+
+- tweaks de wording en README/runbooks/docs sin decisión de mantenimiento asociada
+- refactors locales sin impacto en el mantenimiento contra upstream
+- features/skills locales que no cambian la capacidad de mantener el overlay
+- cosmética o iteraciones intermedias ya cubiertas por Git
+
+Regla anti-ruido:
+
+- una sola entrada consolidada por evento cerrado
+- si Git ya alcanza y no se cerró ninguna decisión/incidente de mantenimiento, el log NO se toca
 
 ## Cuándo correr este runbook
 
@@ -240,7 +264,7 @@ Crear un archivo `*.json` directamente bajo `~/.config/opencode/profiles/` (no e
 9. Separá cambios relevantes del overlay de bugfix/chore noise.
 10. Si hay cambios relevantes de comportamiento o nuevas convenciones, frená y pedile al usuario una decisión explícita.
 11. Actualizá docs, skill, política, metadata y estado si cambió el workflow o si aceptaste una nueva frontera upstream.
-12. Registrá la decisión en `overlay/gentle-ai/logs/update-log.md`.
+12. Si cerraste un evento elegible de mantenimiento upstream, registralo con una sola entrada consolidada en `overlay/gentle-ai/logs/update-log.md`.
 
 ## Gate humana
 
@@ -274,4 +298,4 @@ El agente debe pedir aprobación humana cuando aparezcan cambios que puedan afec
 - El source of truth del orchestrator **no** es un archivo estático del repo: el script captura el prompt inline real desde `opencode.json`, lo sanitiza y recién después genera el `.overlay.md` operativo.
 - Si el sanitizador no encuentra anchors esperados, debe fallar cerrado y no reescribir prompts automáticamente.
 - El script principal de uso humano es `apply-gentle-ai-custom.*`; `apply-gentle-ai-policy.*` se mantiene como helper interno invocado por el entrypoint cuando aplica (`opencode`).
-- El log no reemplaza al estado: `update-log.md` cuenta qué se decidió; `upstream-state.json` marca cuál fue la última versión/commit mantenida.
+- El log no reemplaza al estado ni a Git: `update-log.md` resume eventos cerrados y decisiones de mantenimiento; `upstream-state.json` marca la última versión/commit mantenida; Git conserva el detalle de implementación.
