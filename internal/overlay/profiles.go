@@ -157,7 +157,7 @@ func (s *applyPolicyState) reconcileProfiles() error {
 
 	for _, profile := range s.resolvedProfiles {
 		s.managedProfiles[profile.Name] = true
-		s.profilesManagedCount++
+		s.metrics.profilesManagedCount++
 
 		orchKey := s.policy.OpenCode.ProfileOrchestratorPrefix + profile.Name
 		if err := s.reconcileProfileAgent(profile.Name, orchKey, profile.Orchestrator, true); err != nil {
@@ -188,7 +188,7 @@ func (s *applyPolicyState) reconcileProfiles() error {
 	}
 	sort.Strings(unmanaged)
 	for _, name := range unmanaged {
-		s.unmanagedProfiles = append(s.unmanagedProfiles, name)
+		s.metrics.unmanagedProfiles = append(s.metrics.unmanagedProfiles, name)
 		fmt.Printf("  unmanaged SDD profile present in opencode.json (left untouched): %s\n", name)
 	}
 	return nil
@@ -203,7 +203,7 @@ func (s *applyPolicyState) reconcileProfiles() error {
 //   - the base profile agents use unmodified keys (gentle-orchestrator, sdd-<phase>)
 //   - verifyPersistedState verifies the base separately via s.resolvedDefaultProfile
 func (s *applyPolicyState) reconcileBaseProfile(profile validatedProfile) error {
-	s.profilesManagedCount++
+	s.metrics.profilesManagedCount++
 	if err := s.reconcileProfileAgent("default", s.policy.OpenCode.BaseOrchestratorKey, profile.Orchestrator, true); err != nil {
 		return err
 	}
@@ -223,7 +223,7 @@ func (s *applyPolicyState) reconcileProfileAgent(profileName, key string, assign
 			agentObj["variant"] = assignment.Variant
 		}
 		s.agents[key] = agentObj
-		s.profileAgentsCreated++
+		s.metrics.profileAgentsCreated++
 		s.configChanged = true
 		detail := fmt.Sprintf("profile %s: created %s with model %s", profileName, key, quotedValue(assignment.Model))
 		if assignment.Variant != "" {
@@ -262,7 +262,7 @@ func (s *applyPolicyState) reconcileProfileAgent(profileName, key string, assign
 		s.recordVerbose(s.configPath, fmt.Sprintf("profile %s: %s.variant removed %s", profileName, key, quotedValue(oldVariant)))
 	}
 	if changed {
-		s.profileAgentsUpdated++
+		s.metrics.profileAgentsUpdated++
 		s.configChanged = true
 		suffix := ""
 		if assignment.Variant != "" {
@@ -274,7 +274,7 @@ func (s *applyPolicyState) reconcileProfileAgent(profileName, key string, assign
 			fmt.Printf("  profile %s: updated phase agent %s -> %s%s\n", profileName, key, assignment.Model, suffix)
 		}
 	} else {
-		s.profileAgentsSame++
+		s.metrics.profileAgentsSame++
 	}
 	return nil
 }

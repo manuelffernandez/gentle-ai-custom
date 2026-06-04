@@ -24,13 +24,13 @@ func (s *applyPolicyState) generateOverlays() error {
 		agent, ok := jsonObject(s.agents[key])
 		if !ok {
 			fmt.Printf("  skip %s: agent entry is not an object\n", key)
-			s.skippedCount++
+			s.metrics.skippedCount++
 			continue
 		}
 		prompt, ok := agent["prompt"].(string)
 		if !ok || strings.TrimSpace(prompt) == "" {
 			fmt.Printf("  skip %s: prompt missing or not a string\n", key)
-			s.skippedCount++
+			s.metrics.skippedCount++
 			continue
 		}
 
@@ -66,7 +66,7 @@ func (s *applyPolicyState) generateOverlays() error {
 				s.baseGeneratedPath = generatedPath
 			}
 			s.writtenOrchestrators[key] = true
-			s.keptCount++
+			s.metrics.keptCount++
 			continue
 		}
 
@@ -101,7 +101,7 @@ func (s *applyPolicyState) generateOverlays() error {
 		}
 		snapshotStatus := "recovered"
 		if !recovered {
-			localStatus, err := writeSnapshotWithStatus(localSnapshotPath, inlinePrompt, &s.localSnapshots)
+			localStatus, err := writeSnapshotWithStatus(localSnapshotPath, inlinePrompt, &s.metrics.localSnapshots)
 			if err != nil {
 				return err
 			}
@@ -109,7 +109,7 @@ func (s *applyPolicyState) generateOverlays() error {
 				s.recordVerbose(localSnapshotPath, fmt.Sprintf("local snapshot for %s (%s)", key, describeWriteStatus(localStatus)))
 			}
 			if s.shouldWriteRepoSnapshot(key) {
-				repoStatus, err := writeSnapshotWithStatus(repoSnapshotPath, inlinePrompt, &s.repoSnapshots)
+				repoStatus, err := writeSnapshotWithStatus(repoSnapshotPath, inlinePrompt, &s.metrics.repoSnapshots)
 				if err != nil {
 					return err
 				}
@@ -138,13 +138,13 @@ func (s *applyPolicyState) generateOverlays() error {
 		}
 		s.writtenOrchestrators[key] = true
 		if recovered {
-			s.recoveredCount++
+			s.metrics.recoveredCount++
 			if shouldRecordWriteStatus(overlayStatus) {
 				s.recordVerbose(generatedPath, fmt.Sprintf("recovered sanitized overlay for %s from local snapshot (%s)", key, describeWriteStatus(overlayStatus)))
 			}
 			fmt.Printf("  recovered %s -> %s (from snapshot)\n", key, generatedPath)
 		} else {
-			s.generatedCount++
+			s.metrics.generatedCount++
 			if shouldRecordWriteStatus(overlayStatus) {
 				s.recordVerbose(generatedPath, fmt.Sprintf("sanitized overlay for %s (%s)", key, describeWriteStatus(overlayStatus)))
 			}

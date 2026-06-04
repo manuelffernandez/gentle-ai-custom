@@ -30,25 +30,9 @@ type applyPolicyState struct {
 	agents                  map[string]any
 	configData              map[string]any
 	configChanged           bool
-	prunedCount             int
-	missingKeepSummary      []string
-	createdOverrides        []string
-	generatedCount          int
-	recoveredCount          int
-	keptCount               int
-	skippedCount            int
-	repoSnapshots           snapshotCounters
-	localSnapshots          snapshotCounters
-	localSnapshotMigrate    int
-	repoSnapshotBackfill    int
-	topologyWarnings        []string
+	metrics                 applyMetrics
 	writtenOrchestrators    map[string]bool
-	profilesManagedCount    int
-	profileAgentsCreated    int
-	profileAgentsUpdated    int
-	profileAgentsSame       int
 	managedProfiles         map[string]bool
-	unmanagedProfiles       []string
 	baseRuntimePrompt       string
 	baseGeneratedPath       string
 	originalAgentKeys       map[string]bool
@@ -196,7 +180,7 @@ func (s *applyPolicyState) pruneSkills() error {
 				if err := os.RemoveAll(skillPath); err != nil {
 					return fmt.Errorf("failed to remove skill %s: %w", skillPath, err)
 				}
-				s.prunedCount++
+				s.metrics.prunedCount++
 				s.recordVerbose(skillPath, fmt.Sprintf("removed pruned skill directory %q", skill))
 				fmt.Printf("  removed %s\n", skill)
 			} else {
@@ -206,7 +190,7 @@ func (s *applyPolicyState) pruneSkills() error {
 
 		for _, keep := range s.policy.Skills.Keep {
 			if !pathExists(filepath.Join(targetDir, keep)) {
-				s.missingKeepSummary = append(s.missingKeepSummary, targetDir+" -> "+keep)
+				s.metrics.missingKeepSummary = append(s.metrics.missingKeepSummary, targetDir+" -> "+keep)
 			}
 		}
 	}
@@ -308,7 +292,7 @@ func (s *applyPolicyState) applyAgentOverrides() {
 		if !ok {
 			current = map[string]any{}
 			s.agents[override.Key] = current
-			s.createdOverrides = append(s.createdOverrides, override.Key)
+			s.metrics.createdOverrides = append(s.metrics.createdOverrides, override.Key)
 			s.recordVerbose(s.configPath, fmt.Sprintf("agent.%s: created missing object before applying override", override.Key))
 			fmt.Printf("  agent override %s reset to object before applying model\n", override.Key)
 		}
@@ -362,7 +346,7 @@ func (s *applyPolicyState) detectTopologyDrift() {
 	sort.Strings(unknown)
 	for _, key := range unknown {
 		message := fmt.Sprintf("unknown orchestrator matched by prefix only: %s", key)
-		s.topologyWarnings = append(s.topologyWarnings, message)
+		s.metrics.topologyWarnings = append(s.metrics.topologyWarnings, message)
 		fmt.Printf("  topology: %s\n", message)
 	}
 
@@ -375,14 +359,14 @@ func (s *applyPolicyState) detectTopologyDrift() {
 	sort.Strings(missing)
 	for _, key := range missing {
 		message := fmt.Sprintf("expected orchestrator missing from opencode.json: %s", key)
-		s.topologyWarnings = append(s.topologyWarnings, message)
+		s.metrics.topologyWarnings = append(s.metrics.topologyWarnings, message)
 		fmt.Printf("  topology: %s\n", message)
 	}
 
-	sort.Strings(s.createdOverrides)
-	for _, key := range s.createdOverrides {
+	sort.Strings(s.metrics.createdOverrides)
+	for _, key := range s.metrics.createdOverrides {
 		message := fmt.Sprintf("agent_override target was missing from upstream (created): %s", key)
-		s.topologyWarnings = append(s.topologyWarnings, message)
+		s.metrics.topologyWarnings = append(s.metrics.topologyWarnings, message)
 		fmt.Printf("  topology: %s\n", message)
 	}
 }
