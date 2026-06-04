@@ -81,7 +81,7 @@ func parseGlobalArgs(args []string) (string, []string, error) {
 func printMainUsage(out *os.File) {
 	fmt.Fprintln(out, "Usage: gentle-ai-overlay [--repo-root <path>] <subcommand> [args]")
 	fmt.Fprintln(out, "Subcommands:")
-	fmt.Fprintln(out, "  apply-custom [--verbose] [all|opencode|claude|codex|gemini|antigravity ...]")
+	fmt.Fprintln(out, "  apply-custom [--verbose] all | opencode")
 	fmt.Fprintln(out, "  apply-policy [--verbose]")
 	fmt.Fprintln(out, "  audit-upstream")
 }

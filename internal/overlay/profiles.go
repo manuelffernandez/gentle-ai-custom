@@ -1,9 +1,7 @@
 package overlay
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -20,33 +18,10 @@ type validatedProfile struct {
 	Phases       map[string]profileAssignment
 }
 
-// validateLocalProfilesConfig reads and strictly validates the per-machine SDD
-// profile config file. Returns the validated profiles or a descriptive error.
-func validateLocalProfilesConfig(path string, sddPhases []string, sddPhasesSet map[string]bool) ([]validatedProfile, error) {
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("Cannot read local SDD profile config at %s: %v", path, err)
-	}
-	var data any
-	if err := json.Unmarshal(raw, &data); err != nil {
-		return nil, fmt.Errorf("local SDD profile config at %s is not valid JSON: %v. Fix or remove the file before re-running this script.", path, err)
-	}
-	top, ok := data.(map[string]any)
+func validateProfilesValue(value any, label string, sddPhases []string, sddPhasesSet map[string]bool) ([]validatedProfile, error) {
+	profilesRaw, ok := value.([]any)
 	if !ok {
-		return nil, fmt.Errorf("local SDD profile config at %s must be a JSON object at the top level", path)
-	}
-	for key := range top {
-		if key != "version" && key != "profiles" {
-			return nil, fmt.Errorf("local SDD profile config at %s has unexpected top-level fields [%s]; only \"version\" and \"profiles\" are allowed", path, strings.Join(sortedStringKeys(top, "version", "profiles"), ", "))
-		}
-	}
-	version, ok := top["version"].(float64)
-	if !ok || version != 1 {
-		return nil, fmt.Errorf("local SDD profile config at %s has unsupported \"version\" %v; expected 1", path, top["version"])
-	}
-	profilesRaw, ok := top["profiles"].([]any)
-	if !ok || len(profilesRaw) == 0 {
-		return nil, fmt.Errorf("local SDD profile config at %s must contain a non-empty \"profiles\" array", path)
+		return nil, fmt.Errorf("%s: must be an array", label)
 	}
 
 	seenNames := map[string]bool{}
@@ -54,7 +29,7 @@ func validateLocalProfilesConfig(path string, sddPhases []string, sddPhasesSet m
 	namePattern := regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)
 
 	for idx, rawProfile := range profilesRaw {
-		prefix := fmt.Sprintf("profiles[%d]", idx)
+		prefix := fmt.Sprintf("%s[%d]", label, idx)
 		profile, ok := rawProfile.(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf("%s: must be an object", prefix)
@@ -124,7 +99,7 @@ func validateLocalProfilesConfig(path string, sddPhases []string, sddPhasesSet m
 func validateAssignment(value any, label string) (profileAssignment, error) {
 	assignment, ok := value.(map[string]any)
 	if !ok {
-		return profileAssignment{}, fmt.Errorf("%s: must be an object with \"model\" and \"variant\"", label)
+		return profileAssignment{}, fmt.Errorf("%s: must be an object with \"model\" and optional \"variant\"", label)
 	}
 	for key := range assignment {
 		if key != "model" && key != "variant" {
@@ -135,9 +110,13 @@ func validateAssignment(value any, label string) (profileAssignment, error) {
 	if !ok || model == "" {
 		return profileAssignment{}, fmt.Errorf("%s: field \"model\" must be a non-empty string", label)
 	}
-	variant, ok := assignment["variant"].(string)
-	if !ok {
-		return profileAssignment{}, fmt.Errorf("%s: field \"variant\" must be a string (use \"\" for no variant)", label)
+	var variant string
+	if rawVariant, exists := assignment["variant"]; exists {
+		v, ok := rawVariant.(string)
+		if !ok {
+			return profileAssignment{}, fmt.Errorf("%s: field \"variant\" must be a string (use \"\" for no variant)", label)
+		}
+		variant = v
 	}
 	return profileAssignment{Model: model, Variant: variant}, nil
 }
@@ -162,19 +141,23 @@ func sortedStringKeys(values map[string]any, allowed ...string) []string {
 // reconcileProfiles applies the local SDD profile config to the agents map,
 // creating or updating orchestrator and phase agents for each managed profile.
 func (s *applyPolicyState) reconcileProfiles() error {
-	if !pathExists(s.localProfilesPath) {
-		fmt.Printf("  no local SDD profile config at %s - SDD profiles untouched\n", s.localProfilesPath)
+	if s.resolvedDefaultProfile != nil {
+		if err := s.reconcileBaseProfile(*s.resolvedDefaultProfile); err != nil {
+			return err
+		}
+	}
+	if !s.profilesDefined {
+		fmt.Printf("  no named SDD profiles declared in local config - named SDD profiles untouched\n")
+		return nil
+	}
+	if len(s.resolvedProfiles) == 0 {
+		fmt.Printf("  local profile config at %s declares no managed SDD profiles\n", s.profileConfigSourcePath)
 		return nil
 	}
 
-	profiles, err := validateLocalProfilesConfig(s.localProfilesPath, s.policy.OpenCode.SDDPhases, s.sddPhasesSet)
-	if err != nil {
-		return err
-	}
-
-	for _, profile := range profiles {
+	for _, profile := range s.resolvedProfiles {
 		s.managedProfiles[profile.Name] = true
-		s.profilesManagedCount++
+		s.metrics.profilesManagedCount++
 
 		orchKey := s.policy.OpenCode.ProfileOrchestratorPrefix + profile.Name
 		if err := s.reconcileProfileAgent(profile.Name, orchKey, profile.Orchestrator, true); err != nil {
@@ -205,8 +188,29 @@ func (s *applyPolicyState) reconcileProfiles() error {
 	}
 	sort.Strings(unmanaged)
 	for _, name := range unmanaged {
-		s.unmanagedProfiles = append(s.unmanagedProfiles, name)
+		s.metrics.unmanagedProfiles = append(s.metrics.unmanagedProfiles, name)
 		fmt.Printf("  unmanaged SDD profile present in opencode.json (left untouched): %s\n", name)
+	}
+	return nil
+}
+
+// reconcileBaseProfile applies the default_profile assignment to the base
+// orchestrator and unsuffixed SDD phase agents (e.g. gentle-orchestrator,
+// sdd-init, sdd-apply, ...).
+// It increments profilesManagedCount but does NOT register in s.managedProfiles,
+// because:
+//   - s.managedProfiles tracks only named profiles (sdd-orchestrator-<name> family)
+//   - the base profile agents use unmodified keys (gentle-orchestrator, sdd-<phase>)
+//   - verifyPersistedState verifies the base separately via s.resolvedDefaultProfile
+func (s *applyPolicyState) reconcileBaseProfile(profile validatedProfile) error {
+	s.metrics.profilesManagedCount++
+	if err := s.reconcileProfileAgent("default", s.policy.OpenCode.BaseOrchestratorKey, profile.Orchestrator, true); err != nil {
+		return err
+	}
+	for _, phase := range s.policy.OpenCode.SDDPhases {
+		if err := s.reconcileProfileAgent("default", phase, profile.Phases[phase], false); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -219,7 +223,7 @@ func (s *applyPolicyState) reconcileProfileAgent(profileName, key string, assign
 			agentObj["variant"] = assignment.Variant
 		}
 		s.agents[key] = agentObj
-		s.profileAgentsCreated++
+		s.metrics.profileAgentsCreated++
 		s.configChanged = true
 		detail := fmt.Sprintf("profile %s: created %s with model %s", profileName, key, quotedValue(assignment.Model))
 		if assignment.Variant != "" {
@@ -258,7 +262,7 @@ func (s *applyPolicyState) reconcileProfileAgent(profileName, key string, assign
 		s.recordVerbose(s.configPath, fmt.Sprintf("profile %s: %s.variant removed %s", profileName, key, quotedValue(oldVariant)))
 	}
 	if changed {
-		s.profileAgentsUpdated++
+		s.metrics.profileAgentsUpdated++
 		s.configChanged = true
 		suffix := ""
 		if assignment.Variant != "" {
@@ -270,7 +274,7 @@ func (s *applyPolicyState) reconcileProfileAgent(profileName, key string, assign
 			fmt.Printf("  profile %s: updated phase agent %s -> %s%s\n", profileName, key, assignment.Model, suffix)
 		}
 	} else {
-		s.profileAgentsSame++
+		s.metrics.profileAgentsSame++
 	}
 	return nil
 }

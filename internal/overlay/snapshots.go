@@ -55,7 +55,7 @@ func (s *applyPolicyState) migrateRepoSnapshotToLocal(agentKey, repoSnapshotPath
 		fmt.Fprintf(os.Stderr, "  WARNING: cannot write local snapshot during migration (%s): %v\n", agentKey, err)
 		return
 	}
-	s.localSnapshotMigrate++
+	s.metrics.localSnapshotMigrate++
 	s.recordVerbose(localSnapshotPath, fmt.Sprintf("migrated local operational snapshot for %s from repo snapshot", agentKey))
 	fmt.Printf("  migrated snapshot %s -> %s (from repo versioned snapshot)\n", agentKey, localSnapshotPath)
 }
@@ -77,7 +77,7 @@ func (s *applyPolicyState) backfillRepoSnapshotFromLocal(agentKey, localSnapshot
 		fmt.Fprintf(os.Stderr, "  WARNING: cannot write repo snapshot during backfill (%s): %v\n", agentKey, err)
 		return
 	}
-	s.repoSnapshotBackfill++
+	s.metrics.repoSnapshotBackfill++
 	s.recordVerbose(repoSnapshotPath, fmt.Sprintf("backfilled versioned repo snapshot for %s from local operational snapshot", agentKey))
 	fmt.Printf("  backfilled repo snapshot %s -> %s (from local operational snapshot)\n", agentKey, repoSnapshotPath)
 }
