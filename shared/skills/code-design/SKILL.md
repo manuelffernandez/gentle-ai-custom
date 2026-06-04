@@ -6,7 +6,7 @@ description: >
 license: Apache-2.0
 metadata:
   author: manuelfernandez
-  version: "1.1"
+  version: "1.2"
 ---
 
 ## When to Use
@@ -43,17 +43,11 @@ When splitting a large unit, apply this sequence:
 2. **Domain clusters second.** Coherent groups of types and their operations that share a single responsibility (e.g., validation logic, profile reconciliation, snapshot management). Name the cluster; if you can't, it is not a cluster.
 3. **Orchestration stays last.** The main pipeline or coordinator stays in place until everything extractable is gone. What remains after extraction is the true core — it may still be large, and that is fine.
 
-## Paradigm Adaptation
+## Language-Agnostic Application
 
-The reasoning is the same across paradigms. Only the encapsulation unit differs:
+Identify the primary encapsulation unit for the language in use — file, class, package, module, struct, trait, or otherwise. All rules in this skill apply to that unit.
 
-| Paradigm   | Encapsulation unit          | Typical split trigger                                                                |
-| ---------- | --------------------------- | ------------------------------------------------------------------------------------ |
-| Functional | Function / module / file    | Mixes pure and effectful logic; module handles unrelated domains                     |
-| OOP        | Class / interface / package | Class has multiple responsibilities; package mixes unrelated hierarchies             |
-| Mixed      | Either, per context         | Apply FP rules to pure functions, OOP rules to stateful objects in the same codebase |
-
-In a mixed codebase, identify the paradigm in use for each unit and apply the matching rules.
+This skill does not enumerate language idioms. That knowledge lives in the language and in language-specific skills, not here.
 
 ## When Writing New Code
 
@@ -70,7 +64,7 @@ Start with the fewest files that honestly separate the concerns. Do not pre-spli
 - **Never split by line count alone.** 400 cohesive lines in one file beats four files of 100 lines with artificial boundaries.
 - **Name the god object.** If a struct, class, or module accumulates state or behavior for multiple domains, say so explicitly. Splitting files around it without addressing the root type is cosmetic — the coupling survives.
 - **Stop when what remains is genuinely cohesive.** If the residual core is the real orchestrator or pipeline, it belongs together even if it is still large.
-- **No catch-all files.** Do not create `utils`, `helpers`, `common`, or `misc` units. These are where cohesion goes to die.
+- **No catch-all units.** Do not create `utils`, `helpers`, `common`, or `misc` units at any granularity level. These are where cohesion goes to die.
 
 ## Replace Repetition with Data
 
@@ -111,7 +105,7 @@ If yes, keep it. If no, it's noise.
 
 - Extracting single-use helpers only to reduce line count.
 - Splitting a long but linear algorithm into pieces — length is not mixed responsibility.
-- Hiding a god object by distributing its fields across files. The coupling remains; only the visibility changes.
+- Hiding a god object by distributing its members across units. The coupling remains; only the visibility changes.
 - Creating more than one level of nesting just to organize code that has only one reason to change.
 - Proposing a split when you cannot clearly name both resulting units.
 - Adding a new case by copying an imperative block when the only variation is data.
