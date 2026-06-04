@@ -77,13 +77,18 @@ func RunApplyCustom(repoRoot string, args []string) int {
 	}
 
 	for _, targetName := range targets {
-		agent := agentRegistry[targetName]
+		entry := agentRegistry[targetName]
+		agent := entry.agent
 		if err := installAgentAssets(agent, sources, sharedRoot, options.recorder); err != nil {
 			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 			options.recorder.print()
 			return 1
 		}
-		if code := agent.ApplyOverlay(repoRoot, applyPolicyOptions{verbose: options.verbose, recorder: options.recorder}); code != 0 {
+		if code := agent.ApplyOverlay(repoRoot, applyPolicyOptions{
+			verbose:      options.verbose,
+			recorder:     options.recorder,
+			skillTargets: registeredSkillTargets([]string{targetName}),
+		}); code != 0 {
 			options.recorder.print()
 			return code
 		}

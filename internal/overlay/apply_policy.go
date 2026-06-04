@@ -33,6 +33,7 @@ type applyPolicyState struct {
 	metrics                 applyMetrics
 	writtenOrchestrators    map[string]bool
 	managedProfiles         map[string]bool
+	skillTargets            []string
 	baseRuntimePrompt       string
 	baseGeneratedPath       string
 	originalAgentKeys       map[string]bool
@@ -41,8 +42,9 @@ type applyPolicyState struct {
 }
 
 type applyPolicyOptions struct {
-	verbose  bool
-	recorder *verboseRecorder
+	verbose      bool
+	recorder     *verboseRecorder
+	skillTargets []string
 }
 
 // RunApplyPolicy is the main entrypoint for the standalone `apply-policy`
@@ -54,6 +56,7 @@ func RunApplyPolicy(repoRoot string, args []string) int {
 		return exitCode
 	}
 	options.recorder = newVerboseRecorder(options.verbose)
+	options.skillTargets = registeredSkillTargets(registeredAgentNames())
 	code := runApplyPolicyWithOptions(repoRoot, options)
 	options.recorder.print()
 	return code
@@ -75,6 +78,7 @@ func runApplyPolicyWithOptions(repoRoot string, options applyPolicyOptions) int 
 		repoSnapshotDir:      filepath.Join(repoRoot, policy.OpenCode.OrchestratorSnapshotDir),
 		localSnapshotDir:     expandUser(policy.OpenCode.LocalOrchestratorSnapshotDir),
 		repoSnapshotMetaFile: filepath.Join(repoRoot, policy.OpenCode.OrchestratorSnapshotMetadata),
+		skillTargets:         append([]string(nil), options.skillTargets...),
 		writtenOrchestrators: map[string]bool{},
 		managedProfiles:      map[string]bool{},
 		originalAgentKeys:    map[string]bool{},
@@ -91,6 +95,9 @@ func runApplyPolicyWithOptions(repoRoot string, options applyPolicyOptions) int 
 	fail := func(err error) int {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		return 1
+	}
+	if len(state.skillTargets) == 0 {
+		return fail(fmt.Errorf("no registered skill targets resolved for prune scope"))
 	}
 	state.repoSnapshotBaseFile = filepath.Join(state.repoSnapshotDir, policy.OpenCode.BaseOrchestratorKey+".last.md")
 	for _, phase := range policy.OpenCode.SDDPhases {
@@ -165,7 +172,9 @@ func printApplyPolicyUsage(out *os.File) {
 // --- Skills ---
 
 func (s *applyPolicyState) pruneSkills() error {
-	for _, targetDirRaw := range s.policy.Skills.Targets {
+	// Prune scope is bound to the selected registered agent(s), not the legacy
+	// policy target list. Unselected runtimes must remain untouched.
+	for _, targetDirRaw := range s.skillTargets {
 		targetDir := expandUser(targetDirRaw)
 		info, err := os.Stat(targetDir)
 		if err != nil || !info.IsDir() {

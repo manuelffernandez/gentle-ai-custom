@@ -8,7 +8,10 @@ import (
 )
 
 func init() {
-	agentRegistry["opencode"] = &OpenCodeAgent{}
+	agentRegistry["opencode"] = registeredAgent{
+		agent:        &OpenCodeAgent{},
+		skillTargets: []string{"~/.config/opencode/skills"},
+	}
 }
 
 // OpenCodeAgent handles installation of custom overlays for OpenCode.

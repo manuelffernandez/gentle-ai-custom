@@ -95,7 +95,7 @@ Re-apply paths are mandatory regardless of whether upstream content changed — 
 15. **Run the apply entrypoint**: `bash apply-gentle-ai-custom.sh opencode` minimum (or `all` if the user also wants every custom target refreshed). Capture full output, including the `topology:` lines and the final `Summary:` block.
 16. **Read the summary** and act on each signal (see Decision Gates).
 17. **Verify post-state on disk** (read-only checks; ALL must pass):
-    - For each path in `gentle-ai-policy.json` → `skills.targets`: none of `skills.prune` entries may exist as directories inside it.
+    - For each selected registered agent runtime skill target resolved by the apply run: none of `skills.prune` entries may exist as directories inside that target. Do not expect unselected or unregistered runtimes to be pruned.
     - For each `agent_overrides` entry declared in the active local config: `~/.config/opencode/opencode.json` → `agent.<key>.model` must equal the declared value; `variant` must equal the declared value when set.
     - For each `orchestrator_agent_keys` entry: `agent.<key>.prompt` must be a `{file:...}` reference, and the referenced file must exist on disk.
     - `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/` must contain only `gentle-orchestrator.last.md`, and its corresponding `*.overlay.md` must exist under `generated_orchestrators_dir`.

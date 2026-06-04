@@ -21,9 +21,17 @@ type Agent interface {
 	ApplyOverlay(repoRoot string, options applyPolicyOptions) int
 }
 
-// agentRegistry maps target names to their Agent implementation.
+// registeredAgent binds a CLI target to its implementation and the runtime
+// skill directories it owns. Prune scope is derived from this registration,
+// not from the global policy target list.
+type registeredAgent struct {
+	agent        Agent
+	skillTargets []string
+}
+
+// agentRegistry maps target names to their registeredAgent metadata.
 // Register new agents here once a second agent is required (YAGNI).
-var agentRegistry = map[string]Agent{}
+var agentRegistry = map[string]registeredAgent{}
 
 // registeredAgentNames returns the sorted list of registered agent names.
 // Used by normalizeTargets when the caller requests the "all" target.
@@ -36,4 +44,26 @@ func registeredAgentNames() []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// registeredSkillTargets resolves the runtime skill directories for the given
+// registered agent names, preserving the selected agent order and deduplicating
+// overlapping directories.
+func registeredSkillTargets(agentNames []string) []string {
+	seen := map[string]bool{}
+	targets := make([]string, 0)
+	for _, name := range agentNames {
+		entry, ok := agentRegistry[name]
+		if !ok {
+			continue
+		}
+		for _, target := range entry.skillTargets {
+			if target == "" || seen[target] {
+				continue
+			}
+			seen[target] = true
+			targets = append(targets, target)
+		}
+	}
+	return targets
 }

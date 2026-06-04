@@ -37,10 +37,6 @@
       "chained-pr",
       "issue-creation",
       "work-unit-commits"
-    ],
-    "targets": [
-      "~/.config/opencode/skills",
-      "~/.claude/skills"
     ]
   },
   "opencode": {

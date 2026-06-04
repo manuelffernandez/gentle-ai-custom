@@ -54,6 +54,7 @@ If one side changes, the paired script must be updated in the same commit.
 
 **Overlay helper parity items:**
 - keep/prune skill policy
+- skill prune scope derived from the selected registered CLI targets only
 - `agent_overrides` application
 - orchestrator snapshot behavior
 - orchestrator sanitization rules

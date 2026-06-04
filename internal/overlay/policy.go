@@ -21,22 +21,21 @@ type Policy struct {
 		OrchestratorPromptPath string `json:"orchestrator_prompt_path"`
 	} `json:"upstream"`
 	Skills struct {
-		Keep    []string `json:"keep"`
-		Prune   []string `json:"prune"`
-		Targets []string `json:"targets"`
+		Keep  []string `json:"keep"`
+		Prune []string `json:"prune"`
 	} `json:"skills"`
 	OpenCode struct {
-		ConfigPath          string   `json:"config_path"`
-		LocalConfigPath     string   `json:"local_config_path"`
-		BaseOrchestratorKey string   `json:"base_orchestrator_key"`
-		GeneratedOrchestratorsDir     string   `json:"generated_orchestrators_dir"`
-		OrchestratorSnapshotDir       string   `json:"orchestrator_snapshot_dir"`
-		OrchestratorSnapshotMetadata  string   `json:"orchestrator_snapshot_metadata_file"`
-		LocalOrchestratorSnapshotDir  string   `json:"local_orchestrator_snapshot_dir"`
-		OrchestratorAgentKeys         []string `json:"orchestrator_agent_keys"`
-		OrchestratorAgentPrefixes     []string `json:"orchestrator_agent_prefixes"`
-		ProfileOrchestratorPrefix     string   `json:"profile_orchestrator_prefix"`
-		SDDPhases                     []string `json:"sdd_phases"`
+		ConfigPath                   string   `json:"config_path"`
+		LocalConfigPath              string   `json:"local_config_path"`
+		BaseOrchestratorKey          string   `json:"base_orchestrator_key"`
+		GeneratedOrchestratorsDir    string   `json:"generated_orchestrators_dir"`
+		OrchestratorSnapshotDir      string   `json:"orchestrator_snapshot_dir"`
+		OrchestratorSnapshotMetadata string   `json:"orchestrator_snapshot_metadata_file"`
+		LocalOrchestratorSnapshotDir string   `json:"local_orchestrator_snapshot_dir"`
+		OrchestratorAgentKeys        []string `json:"orchestrator_agent_keys"`
+		OrchestratorAgentPrefixes    []string `json:"orchestrator_agent_prefixes"`
+		ProfileOrchestratorPrefix    string   `json:"profile_orchestrator_prefix"`
+		SDDPhases                    []string `json:"sdd_phases"`
 	} `json:"opencode"`
 	Sanitizer struct {
 		RequiredMarkers  []string `json:"required_markers"`
