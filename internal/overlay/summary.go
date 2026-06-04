@@ -31,7 +31,7 @@ func (s *applyPolicyState) printSummary() {
 
 	if len(s.unmanagedProfiles) > 0 {
 		fmt.Println()
-		fmt.Println("WARNING - unmanaged SDD profiles left untouched (add them to the local OpenCode overlay config or legacy SDD profile config to manage):")
+		fmt.Println("WARNING - unmanaged SDD profiles left untouched (add them to profiles[] in the local OpenCode overlay config to manage):")
 		for _, entry := range s.unmanagedProfiles {
 			fmt.Printf("  - %s\n", entry)
 		}

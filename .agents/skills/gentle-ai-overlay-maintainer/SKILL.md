@@ -30,7 +30,7 @@ Use this skill when:
 - Keep bash and PowerShell scripts behaviorally equivalent.
 - Update `AGENTS.md`, `README.md`, and `overlay/gentle-ai/logs/update-log.md` when the workflow changes, but write to the log only for eligible **closed** maintenance events under `AGENTS.md` rule 4.
 - Do not change intent, keep/prune, or sanitization behavior for new upstream changes without explicit user approval.
-- The versioned policy MUST NOT carry per-profile orchestrator/phase model+variant choices. Those live in the per-machine local config at `~/.config/gentle-ai-custom/opencode-local-config.json` under `default_profile` (base `gentle-orchestrator` family) and `profiles` (named `sdd-orchestrator-<name>` families). If `profiles` is omitted, the helper may still read the legacy `~/.config/gentle-ai-custom/opencode-sdd-profiles.json` fallback. Do NOT add profile-managed assignments back to `gentle-ai-policy.json`.
+- The versioned policy MUST NOT carry per-profile orchestrator/phase model+variant choices. Those live in the per-machine local config at `~/.config/gentle-ai-custom/opencode-local-config.json` under `default_profile` (base `gentle-orchestrator` family) and `profiles` (named `sdd-orchestrator-<name>` families). Do NOT add profile-managed assignments back to `gentle-ai-policy.json`.
 - `agent_overrides` in the local config means ONLY explicit agent-key `model` / `variant` assignments (for example `general`, `explore`).
 - `default_profile` in the local config means ONLY the base `gentle-orchestrator` family.
 - `profiles` in the local config means ONLY named grouped SDD profile families.

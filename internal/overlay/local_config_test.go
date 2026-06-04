@@ -82,38 +82,6 @@ func TestResolveUpstreamRepoFallsBackToEnvAndSibling(t *testing.T) {
 	}
 }
 
-func TestResolveLocalRuntimeConfigUsesLegacyProfilesWhenNewConfigOmitsThem(t *testing.T) {
-	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
-	configDir := filepath.Join(homeDir, ".config", "gentle-ai-custom")
-	if err := os.MkdirAll(configDir, 0o755); err != nil {
-		t.Fatalf("mkdir config dir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(configDir, "opencode-local-config.json"), []byte("{\n  \"version\": 1,\n  \"opencode_config_path\": \"/tmp/custom-opencode.json\"\n}\n"), 0o644); err != nil {
-		t.Fatalf("write local config: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(configDir, "opencode-sdd-profiles.json"), []byte(legacyProfilesJSON()), 0o644); err != nil {
-		t.Fatalf("write legacy profiles: %v", err)
-	}
-
-	resolved, err := resolveLocalRuntimeConfig(testPolicy(), testPhasesSet())
-	if err != nil {
-		t.Fatalf("resolve local runtime config: %v", err)
-	}
-	if resolved.ConfigPath != "/tmp/custom-opencode.json" {
-		t.Fatalf("config path = %q, want custom override", resolved.ConfigPath)
-	}
-	if !resolved.UsedLegacyProfiles || !resolved.ProfilesDefined {
-		t.Fatalf("expected legacy profiles to remain active when new config omits profiles")
-	}
-	if len(resolved.Profiles) != 1 || resolved.Profiles[0].Name != "cheap" {
-		t.Fatalf("resolved profiles = %#v, want one legacy profile named cheap", resolved.Profiles)
-	}
-	if len(resolved.AgentOverrides) != 0 {
-		t.Fatalf("expected no agent overrides when local config omits them, got %#v", resolved.AgentOverrides)
-	}
-}
-
 func TestResolveLocalRuntimeConfigReadsDefaultProfileFromCanonicalConfig(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
@@ -150,43 +118,11 @@ func TestResolveLocalRuntimeConfigReadsDefaultProfileFromCanonicalConfig(t *test
 	}
 }
 
-func TestResolveLocalRuntimeConfigEmptyProfilesSuppressesLegacy(t *testing.T) {
-	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
-	configDir := filepath.Join(homeDir, ".config", "gentle-ai-custom")
-	if err := os.MkdirAll(configDir, 0o755); err != nil {
-		t.Fatalf("mkdir config dir: %v", err)
-	}
-	// Canonical config explicitly declares profiles: [] (empty array).
-	if err := os.WriteFile(filepath.Join(configDir, "opencode-local-config.json"), []byte("{\n  \"version\": 1,\n  \"profiles\": []\n}\n"), 0o644); err != nil {
-		t.Fatalf("write local config: %v", err)
-	}
-	// Legacy file is present — must be suppressed because profiles was defined (as []).
-	if err := os.WriteFile(filepath.Join(configDir, "opencode-sdd-profiles.json"), []byte(legacyProfilesJSON()), 0o644); err != nil {
-		t.Fatalf("write legacy profiles: %v", err)
-	}
-
-	resolved, err := resolveLocalRuntimeConfig(testPolicy(), testPhasesSet())
-	if err != nil {
-		t.Fatalf("resolve local runtime config: %v", err)
-	}
-	if !resolved.ProfilesDefined {
-		t.Fatalf("expected ProfilesDefined=true when profiles: [] is explicitly set")
-	}
-	if len(resolved.Profiles) != 0 {
-		t.Fatalf("expected empty profiles slice, got %#v", resolved.Profiles)
-	}
-	if resolved.UsedLegacyProfiles {
-		t.Fatalf("expected legacy fallback suppressed when canonical config defines profiles: []")
-	}
-}
-
 func testPolicy() Policy {
 	policy := Policy{}
 	policy.Upstream.RepoName = "gentle-ai"
 	policy.OpenCode.ConfigPath = "~/.config/opencode/opencode.json"
 	policy.OpenCode.LocalConfigPath = "~/.config/gentle-ai-custom/opencode-local-config.json"
-	policy.OpenCode.LegacyProfilesLocalConfigPath = "~/.config/gentle-ai-custom/opencode-sdd-profiles.json"
 	policy.OpenCode.SDDPhases = []string{"sdd-init", "sdd-apply"}
 	return policy
 }
@@ -198,19 +134,4 @@ func testPhasesSet() map[string]bool {
 	}
 }
 
-func legacyProfilesJSON() string {
-	return `{
-  "version": 1,
-  "profiles": [
-    {
-      "name": "cheap",
-      "orchestrator": { "model": "openai/gpt-5.4-mini", "variant": "low" },
-      "phases": {
-        "sdd-init": { "model": "openai/gpt-5.4-mini", "variant": "low" },
-        "sdd-apply": { "model": "openai/gpt-5.4-mini", "variant": "low" }
-      }
-    }
-  ]
-}
-`
-}
+

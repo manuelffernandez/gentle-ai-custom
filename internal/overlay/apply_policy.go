@@ -26,7 +26,6 @@ type applyPolicyState struct {
 	resolvedDefaultProfile  *validatedProfile
 	resolvedProfiles        []validatedProfile
 	profileConfigSourcePath string
-	usedLegacyProfiles      bool
 	profilesDefined         bool
 	agents                  map[string]any
 	configData              map[string]any
@@ -297,7 +296,6 @@ func (s *applyPolicyState) loadLocalRuntimeConfig() error {
 	s.resolvedDefaultProfile = resolved.DefaultProfile
 	s.resolvedProfiles = resolved.Profiles
 	s.profileConfigSourcePath = resolved.ProfilesSourcePath
-	s.usedLegacyProfiles = resolved.UsedLegacyProfiles
 	s.profilesDefined = resolved.ProfilesDefined
 	return nil
 }

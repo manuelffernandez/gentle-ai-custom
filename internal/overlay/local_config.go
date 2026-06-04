@@ -28,7 +28,6 @@ type resolvedLocalRuntimeConfig struct {
 	DefaultProfile     *validatedProfile
 	Profiles           []validatedProfile
 	ProfilesSourcePath string
-	UsedLegacyProfiles bool
 	ProfilesDefined    bool
 }
 
@@ -87,7 +86,7 @@ func loadLocalConfigFile(path string, sddPhases []string, sddPhasesSet map[strin
 		config.DefaultProfileDefined = true
 	}
 	if value, ok := top["profiles"]; ok {
-		profiles, err := validateProfilesValue(value, path+".profiles", sddPhases, sddPhasesSet, false)
+		profiles, err := validateProfilesValue(value, path+".profiles", sddPhases, sddPhasesSet)
 		if err != nil {
 			return localConfigFile{}, err
 		}
@@ -103,7 +102,6 @@ func resolveLocalRuntimeConfig(policy Policy, sddPhasesSet map[string]bool) (res
 		ConfigPath: expandUser(policy.OpenCode.ConfigPath),
 	}
 	localConfigPath := expandUser(policy.OpenCode.LocalConfigPath)
-	legacyProfilesPath := expandUser(policy.OpenCode.LegacyProfilesLocalConfigPath)
 
 	if pathExists(localConfigPath) {
 		config, err := loadLocalConfigFile(localConfigPath, policy.OpenCode.SDDPhases, sddPhasesSet)
@@ -123,19 +121,7 @@ func resolveLocalRuntimeConfig(policy Policy, sddPhasesSet map[string]bool) (res
 			resolved.Profiles = config.Profiles
 			resolved.ProfilesDefined = true
 			resolved.ProfilesSourcePath = localConfigPath
-			return resolved, nil
 		}
-	}
-
-	if pathExists(legacyProfilesPath) {
-		profiles, err := validateLegacyProfilesConfig(legacyProfilesPath, policy.OpenCode.SDDPhases, sddPhasesSet)
-		if err != nil {
-			return resolvedLocalRuntimeConfig{}, err
-		}
-		resolved.Profiles = profiles
-		resolved.ProfilesDefined = true
-		resolved.ProfilesSourcePath = legacyProfilesPath
-		resolved.UsedLegacyProfiles = true
 	}
 
 	return resolved, nil

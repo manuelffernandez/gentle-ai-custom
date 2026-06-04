@@ -155,8 +155,7 @@ Reglas operativas:
 - `profiles` maneja SOLO familias SDD nombradas (`sdd-orchestrator-<name>` + fases)
 - si `agent_overrides` se omite, el helper no aplica overrides explícitos para built-in agents
 - si `default_profile` se omite, el helper deja intacta la familia base `gentle-orchestrator`
-- si `profiles` se omite, el helper sigue leyendo `~/.config/gentle-ai-custom/opencode-sdd-profiles.json` si existe
-- si `profiles` está presente, esa sección pasa a ser la fuente de verdad y el archivo legacy deja de leerse
+- si `profiles` se omite, el helper no aplica perfiles nombrados
 - el helper valida estricto y falla cerrado ante JSON/schema inválido
 - los perfiles declarados se crean o actualizan en `opencode.json`
 - los perfiles existentes no declarados quedan intactos y se reportan como unmanaged

@@ -143,12 +143,11 @@ Resolución upstream:
 3. fallback `../gentle-ai` relativo a este repo
 4. error claro si nada de eso existe
 
-Compatibilidad hacia atrás:
+Comportamiento cuando se omiten campos:
 
-- si el config nuevo omite `profiles`, el helper sigue leyendo `~/.config/gentle-ai-custom/opencode-sdd-profiles.json` si existe
-- si el config nuevo define `profiles` (aunque sea `[]`), ese campo pasa a ser la única fuente de verdad para perfiles
-- si el config nuevo omite `agent_overrides`, el helper no aplica overrides explícitos para `general` / `explore`
-- si el config nuevo omite `default_profile`, el helper deja intacta la familia base `gentle-orchestrator`
+- si `profiles` se omite, el helper no aplica perfiles nombrados
+- si `agent_overrides` se omite, el helper no aplica overrides explícitos para `general` / `explore`
+- si `default_profile` se omite, el helper deja intacta la familia base `gentle-orchestrator`
 
 ### Artefactos base del mantenimiento
 
@@ -168,7 +167,6 @@ Git ya conserva el detalle de implementación. El `update-log.md` queda reservad
 | `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md`        | Baseline versionado del orchestrator upstream auditado.                  |
 | `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.meta.yaml` | Metadata e invariantes mínimas del baseline versionado.                  |
 | `~/.config/gentle-ai-custom/opencode-local-config.json`                                          | Config local canónico: upstream path, override opcional de `opencode.json`, `agent_overrides`, `default_profile` y `profiles`. |
-| `~/.config/gentle-ai-custom/opencode-sdd-profiles.json`                                          | Fallback legacy solo para `profiles` cuando el config nuevo no define ese campo. |
 | `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`                                    | Snapshots operativos locales usados durante la reaplicación.             |
 | `overlay/gentle-ai/maintenance.md`                                                               | Guía humana centralizada de mantenimiento, señales y notas técnicas.     |
 | `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`                                           | Capacidad del agente para digerir la auditoría y guiar el mantenimiento. |

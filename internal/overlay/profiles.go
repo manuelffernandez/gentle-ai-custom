@@ -1,9 +1,7 @@
 package overlay
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
 	"regexp"
 	"sort"
 	"strings"
@@ -20,53 +18,10 @@ type validatedProfile struct {
 	Phases       map[string]profileAssignment
 }
 
-// validateLegacyProfilesConfig reads and strictly validates the legacy per-
-// machine SDD profile config file. Returns the validated profiles or a
-// descriptive error.
-func validateLegacyProfilesConfig(path string, sddPhases []string, sddPhasesSet map[string]bool) ([]validatedProfile, error) {
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("Cannot read local SDD profile config at %s: %v", path, err)
-	}
-	var data any
-	if err := json.Unmarshal(raw, &data); err != nil {
-		return nil, fmt.Errorf("local SDD profile config at %s is not valid JSON: %v. Fix or remove the file before re-running this script.", path, err)
-	}
-	top, ok := data.(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("local SDD profile config at %s must be a JSON object at the top level", path)
-	}
-	for key := range top {
-		if key != "version" && key != "profiles" {
-			return nil, fmt.Errorf("local SDD profile config at %s has unexpected top-level fields [%s]; only \"version\" and \"profiles\" are allowed", path, strings.Join(sortedStringKeys(top, "version", "profiles"), ", "))
-		}
-	}
-	version, ok := top["version"].(float64)
-	if !ok || version != 1 {
-		return nil, fmt.Errorf("local SDD profile config at %s has unsupported \"version\" %v; expected 1", path, top["version"])
-	}
-	profilesRaw, ok := top["profiles"]
-	if !ok {
-		return nil, fmt.Errorf("local SDD profile config at %s must contain a non-empty \"profiles\" array", path)
-	}
-	profiles, err := validateProfilesValue(profilesRaw, path+".profiles", sddPhases, sddPhasesSet, true)
-	if err != nil {
-		return nil, err
-	}
-	if len(profiles) == 0 {
-		return nil, fmt.Errorf("local SDD profile config at %s must contain a non-empty \"profiles\" array", path)
-	}
-	return profiles, nil
-
-}
-
-func validateProfilesValue(value any, label string, sddPhases []string, sddPhasesSet map[string]bool, requireNonEmpty bool) ([]validatedProfile, error) {
+func validateProfilesValue(value any, label string, sddPhases []string, sddPhasesSet map[string]bool) ([]validatedProfile, error) {
 	profilesRaw, ok := value.([]any)
 	if !ok {
 		return nil, fmt.Errorf("%s: must be an array", label)
-	}
-	if requireNonEmpty && len(profilesRaw) == 0 {
-		return nil, fmt.Errorf("%s: must contain at least one profile", label)
 	}
 
 	seenNames := map[string]bool{}
@@ -194,9 +149,6 @@ func (s *applyPolicyState) reconcileProfiles() error {
 	if !s.profilesDefined {
 		fmt.Printf("  no named SDD profiles declared in local config - named SDD profiles untouched\n")
 		return nil
-	}
-	if s.usedLegacyProfiles {
-		fmt.Printf("  using legacy SDD profile config at %s\n", s.profileConfigSourcePath)
 	}
 	if len(s.resolvedProfiles) == 0 {
 		fmt.Printf("  local profile config at %s declares no managed SDD profiles\n", s.profileConfigSourcePath)

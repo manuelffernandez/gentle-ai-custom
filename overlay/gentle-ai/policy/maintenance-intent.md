@@ -40,8 +40,6 @@ That canonical local config also owns:
 - optional `opencode_config_path`
 - optional explicit `agent_overrides` for built-in agent keys
 
-The legacy `~/.config/gentle-ai-custom/opencode-sdd-profiles.json` file remains a profile-only fallback when the canonical config omits `profiles`.
-
 Operational orchestrator snapshots are also separated by scope:
 
 - `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md` is versioned as a portable baseline

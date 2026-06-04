@@ -20,7 +20,6 @@ Esta carpeta agrupa los assets operativos del overlay de Gentle AI.
 ## Config local canónico
 
 - `~/.config/gentle-ai-custom/opencode-local-config.json` — upstream path local, override opcional de `opencode.json`, `agent_overrides`, `default_profile` y `profiles`
-- `~/.config/gentle-ai-custom/opencode-sdd-profiles.json` — fallback legacy solo para `profiles` cuando el config nuevo no define ese campo
 
 ## Regla simple
 

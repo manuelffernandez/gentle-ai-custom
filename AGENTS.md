@@ -182,7 +182,6 @@ The most common pattern in this repo is `shared/skills/<name>/` + global runtime
 - `overlay/gentle-ai/logs/update-log.md` — high-signal ledger of closed upstream-maintenance decisions and incidents.
 - `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/` — versioned upstream orchestrator baseline and metadata.
 - `~/.config/gentle-ai-custom/opencode-local-config.json` — canonical per-machine OpenCode overlay config.
-- `~/.config/gentle-ai-custom/opencode-sdd-profiles.json` — legacy profile-only fallback, read only when the canonical config omits `profiles`.
 - `cmd/gentle-ai-overlay/main.go` — shared Go CLI entrypoint for apply/audit commands.
 - `internal/overlay/` — implementation of overlay apply, audit, policy, profiles, snapshots, and verification.
 - `apply-gentle-ai-custom.sh` / `.ps1` — canonical public entrypoints.
@@ -287,9 +286,7 @@ Repo-level rules:
 - `profiles` means ONLY named grouped SDD profile families; it does not replace explicit built-in agent overrides.
 - If `agent_overrides` is omitted, the helper applies no explicit built-in agent model overrides.
 - If `default_profile` is omitted, the helper leaves the base `gentle-orchestrator` family untouched.
-- If `profiles` is omitted, the helper falls back to the legacy `~/.config/gentle-ai-custom/opencode-sdd-profiles.json` file when present.
-- If `profiles` is present (including `[]`), the canonical config becomes the source of truth and the legacy file is ignored.
-- `default_profile` has no legacy fallback; it exists only in the canonical local config.
+- If `profiles` is omitted, the helper applies no named SDD profiles.
 - Managed profiles create or update `sdd-orchestrator-<name>` plus the 10 `sdd-<phase>-<name>` agents in `opencode.json`.
 - Profiles present in `opencode.json` but not declared in the active config source are left untouched and surfaced as `WARNING - unmanaged SDD profiles left untouched`. Nothing is deleted automatically.
 - This local config governs upstream path selection, optional OpenCode config path selection, agent model assignments, and named profile assignments; prompt materialization still comes from `gentle-ai sync`, and the overlay sanitizes that inline upstream content afterward.

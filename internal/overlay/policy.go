@@ -26,10 +26,9 @@ type Policy struct {
 		Targets []string `json:"targets"`
 	} `json:"skills"`
 	OpenCode struct {
-		ConfigPath                    string   `json:"config_path"`
-		LocalConfigPath               string   `json:"local_config_path"`
-		LegacyProfilesLocalConfigPath string   `json:"legacy_profiles_local_config_path"`
-		BaseOrchestratorKey           string   `json:"base_orchestrator_key"`
+		ConfigPath          string   `json:"config_path"`
+		LocalConfigPath     string   `json:"local_config_path"`
+		BaseOrchestratorKey string   `json:"base_orchestrator_key"`
 		GeneratedOrchestratorsDir     string   `json:"generated_orchestrators_dir"`
 		OrchestratorSnapshotDir       string   `json:"orchestrator_snapshot_dir"`
 		OrchestratorSnapshotMetadata  string   `json:"orchestrator_snapshot_metadata_file"`
