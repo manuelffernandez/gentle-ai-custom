@@ -25,16 +25,9 @@ La dirección de este repo es seguir mejorando la experiencia con una capa cada 
 
 ## Objetivo
 
-Hoy este repo funciona como una **capa unificada de personalización y mantenimiento** sobre Gentle AI:
+Hoy este repo funciona como una **capa unificada de personalización y mantenimiento** sobre Gentle AI. En lugar de modificar el proyecto original a mano cada vez que se actualiza, este repositorio automatiza la adaptación del entorno para que se ajuste a un flujo de trabajo específico.
 
-- instala skills y wrappers propios
-- reaplica la política local luego de `gentle-ai sync` o un reinstall completo
-- audita el baseline upstream de `gentle-orchestrator` antes de sync/reinstall
-- depura skills no deseadas del runtime
-- fija overrides de modelo para agentes built-in explícitos de OpenCode (`agent_overrides`) y reconcilia la familia base `gentle-orchestrator` (`default_profile`) más perfiles SDD nombrados (`profiles`) desde un config por-máquina canónico en `~/.config/gentle-ai-custom/opencode-local-config.json`
-- instala assets SDD/runtime repo-owned desde `overlay/gentle-ai/assets/owned/...`
-- mantiene copias upstream aprobadas bajo `overlay/gentle-ai/assets/upstream/...` y el baseline auditado de `gentle-orchestrator` para audit/sync
-- mantiene la guía de mantenimiento y la skill para auditar futuras actualizaciones del upstream
+Su meta principal es permitir consumir las actualizaciones del proyecto original (`gentle-ai sync` o reinstalaciones) sin perder las configuraciones propias, manteniendo una base segura y auditable. El detalle técnico de las modificaciones exactas que se aplican (qué skills se conservan o podan, y cómo se altera el orquestador) se encuentra documentado en la sección **Política actual**, más abajo en este documento.
 
 ## Por qué Go
 
@@ -140,7 +133,7 @@ Los scripts `audit-gentle-ai-upstream.*` y `sync-gentle-ai-upstream-assets.*` so
 
 `opencode` reinstala OpenCode y la política del overlay desde fuentes canónicas repo-owned. `all` se expande a todos los agentes registrados; hoy en día es equivalente a `opencode` porque es el único agente soportado.
 
-`~/.config/gentle-ai-custom/opencode-local-config.json` es el config local canónico del overlay. Ahí viven, separados, los `agent_overrides` para agentes built-in explícitos, el `default_profile` para la familia base `gentle-orchestrator` (`gentle-orchestrator` + fases SDD sin sufijo) y los `profiles` para familias SDD nombradas (`sdd-orchestrator-<name>` + fases). También puede definir `upstream_repo_path` y `opencode_config_path` por máquina.
+La configuración de qué modelos de IA usar o dónde está descargado Gentle AI vive en un archivo privado en tu máquina (`~/.config/gentle-ai-custom/opencode-local-config.json`). Al final de este documento hay una sección que explica cómo armarlo.
 
 ### Comprobación de versión (preflight)
 
@@ -264,7 +257,9 @@ En otras palabras: estos overrides no duplican la configuración SDD. Cubren una
 
 Si querés fijar modelos para `general` o `explore`, declaralos explícitamente en `agent_overrides` dentro del config local canónico.
 
-### Schema local recomendado
+### Configuración avanzada
+
+Si necesitás ir más allá de los overrides básicos y querés configurar familias enteras de perfiles SDD, este es el esquema completo que soporta el archivo:
 
 ```json
 {
@@ -314,6 +309,10 @@ Si querés fijar modelos para `general` o `explore`, declaralos explícitamente 
   ]
 }
 ```
+
+- **`agent_overrides`:** Fija modelos para agentes específicos fuera de SDD (como `general` o `explore`).
+- **`default_profile`:** Fija los modelos base para toda la familia de SDD por defecto.
+- **`profiles`:** Te permite crear perfiles SDD con nombres personalizados (ej: un perfil "cheap" que use modelos más baratos).
 
 ## Comandos custom disponibles
 

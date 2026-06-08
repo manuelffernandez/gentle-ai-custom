@@ -123,6 +123,7 @@ They are relevant when they affect observable behavior, local user experience, o
 - changes in install/sync or asset generation
 - new workflow conventions imposed by default
 - changes in OpenCode profiles, agent references, or model tables
+- changes that require adding, removing, or reclassifying entries in `policy/managed-assets.json`, including owned/upstream paths, runtime targets, sync modes, or structural invariant coverage
 
 ### Low-priority changes or noise
 
@@ -132,6 +133,15 @@ They normally do not require touching the overlay if they don't change observabl
 - internal maintenance chores
 - refactors without functional changes
 - upstream docs that do not alter the runtime or assets
+- manifest-only churn in `policy/managed-assets.json` that does not change owned assets, approved upstream copies, runtime targets, or audit/apply behavior
+
+## Managed-assets boundary
+
+`policy/managed-assets.json` is the machine-readable asset ownership and installation map for audit/sync/apply.
+
+It does not define intent by itself.
+
+If the manifest and this file diverge, this file defines the meaning of what should be kept, pruned, staged, or installed, and the manifest must be brought back into alignment after human confirmation.
 
 ## Maintenance log scope
 
@@ -170,6 +180,7 @@ Once the decision is made:
 
 - `maintenance-intent.md` if the intent changed
 - `gentle-ai-policy.json` if the operational policy changed
+- `managed-assets.json` if the approved upstream asset map, owned runtime assets, runtime targets, sync modes, or structural invariant coverage changed
 - `upstream-state.json` when maintenance is closed
 - `update-log.md` only when a closed, eligible maintenance event or contract change needs high-signal traceability beyond Git history
 
@@ -177,4 +188,4 @@ Once the decision is made:
 
 Intent overrides automation.
 
-If the script, policy, or skill conflicts with this file, the agent must treat this document as the semantic source of truth and ask for human confirmation before proceeding.
+If a script, `gentle-ai-policy.json`, `managed-assets.json`, or a skill conflicts with this file, the agent must treat this document as the semantic source of truth and ask for human confirmation before proceeding.
