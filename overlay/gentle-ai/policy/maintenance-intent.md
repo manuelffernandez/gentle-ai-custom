@@ -40,12 +40,12 @@ That canonical local config also owns:
 - optional `opencode_config_path`
 - optional explicit `agent_overrides` for built-in agent keys
 
-Operational orchestrator snapshots are also separated by scope:
+Runtime and audit sources are separated by scope:
 
-- `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md` is versioned as a portable baseline
-- `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/` stores the local operational snapshot of `gentle-orchestrator` and all per-profile snapshots
+- `overlay/gentle-ai/assets/owned/opencode/prompts/orchestrators/gentle-orchestrator.md` is the canonical repo-owned runtime source
+- `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md` is the approved upstream audit baseline
 
-The versioned policy only preserves the portable baseline of the overlay; local profile configuration is projected to `opencode.json` at runtime and must not be copied back into `gentle-ai-policy.json`.
+The versioned policy preserves portable runtime intent plus the approved upstream baseline; local profile configuration is projected to `opencode.json` at runtime and must not be copied back into `gentle-ai-policy.json`.
 
 ## What we want to prune
 
@@ -62,13 +62,13 @@ We want to prune conventions that impose a specific way of collaborating in repo
   - `size:exception`
   - reviewer burnout protection as a PR policy
 
-## Orchestrator sanitization goals
+## Repo-owned orchestrator behavior goals
 
-The sanitized OpenCode orchestrator layer must keep core SDD orchestration behavior while removing PR/budget workflow governance.
+The repo-owned OpenCode orchestrator asset must keep core SDD orchestration behavior while removing PR/budget workflow governance.
 
 ### Remove (hard rule)
 
-When sanitizing an inline orchestrator captured from `~/.config/opencode/opencode.json`, remove or neutralize all content tied to:
+When updating the repo-owned orchestrator asset, remove or neutralize all content tied to:
 
 - PR strategy selection in SDD preflight
 - review budget / changed-lines budget gates
@@ -96,10 +96,10 @@ Preserve as much as possible of:
 
 ### Guardrails
 
-- The generated `.overlay.md` prompt must remain a standalone valid prompt.
+- The repo-owned orchestrator prompt must remain a standalone valid prompt.
 - Do not inject repo-specific hacks into core orchestration logic.
 - Keep wording as close to upstream as possible unless removal requires a minimal rewrite.
-- If required anchors are missing, fail closed and keep the current prompt reference untouched.
+- Prefer explicit owned-file edits over dynamic transformation logic.
 
 ## Why these conventions do not apply
 
@@ -159,7 +159,7 @@ Keep one consolidated entry per closed maintenance event. If no maintenance deci
 If relevant changes appear during the audit that could modify:
 
 - keep/prune
-- the orchestrator sanitizer
+- the repo-owned orchestrator behavior
 - the interpretation of what to keep or prune
 
 the agent must **stop and ask** before changing intent, policy, or scripts.

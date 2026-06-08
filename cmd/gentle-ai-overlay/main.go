@@ -44,7 +44,9 @@ func run(args []string) int {
 	case "apply-policy":
 		return overlay.RunApplyPolicy(repoRoot, rest[1:])
 	case "audit-upstream":
-		return overlay.RunAuditUpstream(repoRoot)
+		return overlay.RunAuditUpstream(repoRoot, rest[1:])
+	case "sync-upstream-assets":
+		return overlay.RunSyncUpstreamAssets(repoRoot, rest[1:])
 	case "-h", "--help", "help":
 		printMainUsage(os.Stdout)
 		return 0
@@ -84,4 +86,5 @@ func printMainUsage(out *os.File) {
 	fmt.Fprintln(out, "  apply-custom [--verbose] all | opencode")
 	fmt.Fprintln(out, "  apply-policy [--verbose]")
 	fmt.Fprintln(out, "  audit-upstream")
+	fmt.Fprintln(out, "  sync-upstream-assets [--verbose]")
 }

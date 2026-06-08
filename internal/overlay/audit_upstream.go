@@ -5,11 +5,22 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 )
 
-func RunAuditUpstream(repoRoot string) int {
+type auditUpstreamOptions struct{}
+
+func RunAuditUpstream(repoRoot string, args []string) int {
+	if exitCode := normalizeAuditUpstreamArgs(args); exitCode >= 0 {
+		return exitCode
+	}
 	policy, _, err := loadPolicy(repoRoot)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		return 1
+	}
+	manifest, manifestPath, err := loadManagedAssetsManifest(repoRoot)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		return 1
@@ -20,81 +31,37 @@ func RunAuditUpstream(repoRoot string) int {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		return 1
 	}
-	statePath := filepath.Join(repoRoot, policy.Maintenance.StateFile)
+	target, ok := manifest.Targets["opencode"]
+	if !ok {
+		fmt.Fprintf(os.Stderr, "ERROR: managed-assets manifest at %s does not define target %q\n", manifestPath, "opencode")
+		return 1
+	}
 	snapshotPath := filepath.Join(repoRoot, policy.OpenCode.OrchestratorSnapshotDir, policy.OpenCode.BaseOrchestratorKey+".last.md")
 	metaPath := filepath.Join(repoRoot, policy.OpenCode.OrchestratorSnapshotMetadata)
-	upstreamPromptPath := filepath.Join(upstreamRepo, policy.Upstream.OrchestratorPromptPath)
-	upstreamProfilesPath := filepath.Join(upstreamRepo, "internal", "components", "sdd", "profiles.go")
-	upstreamInjectPath := filepath.Join(upstreamRepo, "internal", "components", "sdd", "inject.go")
 
 	var state UpstreamState
+	statePath := filepath.Join(repoRoot, policy.Maintenance.StateFile)
 	if err := readJSONFile(statePath, &state); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: state file is not valid JSON at %s: %v\n", statePath, err)
 		return 1
 	}
 
+	var failures []string
+	var notes []string
+	var driftSummary []string
+	metadataOK := false
+
+	if strings.TrimSpace(state.LastMaintainedCommit) == "" {
+		fmt.Fprintf(os.Stderr, "ERROR: last_maintained_commit is empty in %s\n", statePath)
+		return 1
+	}
 	metadata, err := parseSimpleYAML(metaPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: cannot read %s: %v\n", metaPath, err)
-		return 1
+		failures = append(failures, fmt.Sprintf("cannot read %s: %v", metaPath, err))
 	}
 	snapshotText, err := readText(snapshotPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: cannot read %s: %v\n", snapshotPath, err)
-		return 1
-	}
-	upstreamPromptText, err := readText(upstreamPromptPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: cannot read %s: %v\n", upstreamPromptPath, err)
-		return 1
-	}
-	upstreamProfilesText, err := readText(upstreamProfilesPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: cannot read %s: %v\n", upstreamProfilesPath, err)
-		return 1
-	}
-	upstreamInjectText, err := readText(upstreamInjectPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: cannot read %s: %v\n", upstreamInjectPath, err)
-		return 1
-	}
-
-	baseKey := policy.OpenCode.BaseOrchestratorKey
-	if baseKey == "" {
-		baseKey = "gentle-orchestrator"
-	}
-	expectedPhaseCSV := strings.Join(policy.OpenCode.SDDPhases, ",")
-	expectedMetadata := map[string]string{
-		"schema_version":                    "1",
-		"snapshot_file":                     filepath.Base(snapshotPath),
-		"snapshot_source":                   "upstream-opencode-inline-asset",
-		"state_file":                        policy.Maintenance.StateFile,
-		"upstream_repo_name":                policy.Upstream.RepoName,
-		"upstream_prompt_rel_path":          policy.Upstream.OrchestratorPromptPath,
-		"upstream_inject_source_rel_path":   "internal/components/sdd/inject.go",
-		"upstream_profiles_source_rel_path": "internal/components/sdd/profiles.go",
-		"last_maintained_version":           state.LastMaintainedVersion,
-		"last_maintained_tag":               state.LastMaintainedTag,
-		"last_maintained_commit":            state.LastMaintainedCommit,
-		"last_reviewed_at":                  state.LastReviewedAt,
-		"base_orchestrator_key":             baseKey,
-		"profile_orchestrator_prefix":       policy.OpenCode.ProfileOrchestratorPrefix,
-		"profile_phase_order_csv":           expectedPhaseCSV,
-		"profile_task_scope_rule":           "deny-all-then-allow-suffixed-phases-and-global-jd",
-	}
-
-	var failures []string
-	var notes []string
-
-	actualSnapshotHash := sha256Text(snapshotText)
-	if metadata["snapshot_sha256"] != actualSnapshotHash {
-		failures = append(failures, fmt.Sprintf("metadata snapshot_sha256 is %q, expected %q from %s", metadata["snapshot_sha256"], actualSnapshotHash, snapshotPath))
-	}
-	for field, expected := range expectedMetadata {
-		actual := metadata[field]
-		if actual != expected {
-			failures = append(failures, fmt.Sprintf("metadata field %q is %q, expected %q", field, actual, expected))
-		}
+		failures = append(failures, fmt.Sprintf("cannot read %s: %v", snapshotPath, err))
 	}
 
 	upstreamHead, gitErr := runGit(upstreamRepo, false, "rev-parse", "HEAD")
@@ -105,10 +72,7 @@ func RunAuditUpstream(repoRoot string) int {
 	if upstreamDescribe == "" {
 		notes = append(notes, "upstream git describe returned nothing; repo may have no tags (HEAD hash still captured via rev-parse)")
 	}
-	upstreamExactTag, gitErr := runGit(upstreamRepo, true, "describe", "--tags", "--exact-match")
-	if gitErr != nil {
-		failures = append(failures, fmt.Sprintf("cannot inspect upstream git state: %v", gitErr))
-	}
+	upstreamExactTag, _ := runGit(upstreamRepo, true, "describe", "--tags", "--exact-match")
 
 	if upstreamHead != "" && state.LastMaintainedCommit != "" && upstreamHead != state.LastMaintainedCommit {
 		notes = append(notes, fmt.Sprintf("upstream HEAD %s differs from last maintained commit %s; prompt/invariant drift checks below show whether the baseline still holds", upstreamHead, state.LastMaintainedCommit))
@@ -116,63 +80,51 @@ func RunAuditUpstream(repoRoot string) int {
 	if upstreamExactTag != "" && state.LastMaintainedTag != "" && upstreamExactTag != state.LastMaintainedTag {
 		notes = append(notes, fmt.Sprintf("upstream exact tag %s differs from last maintained tag %s; review state/log if you are closing a new upstream audit", upstreamExactTag, state.LastMaintainedTag))
 	}
-
-	promptMatches := normalizeLFTerminated(snapshotText) == normalizeLFTerminated(upstreamPromptText)
-	if !promptMatches {
-		failures = append(failures, fmt.Sprintf("base prompt drift detected: %s no longer matches %s; review/update the audited baseline before sync/apply", upstreamPromptPath, snapshotPath))
-	}
-
-	phaseOrder, phaseErr := extractProfilePhaseOrder(upstreamProfilesText)
-	if phaseErr != nil {
-		failures = append(failures, phaseErr.Error())
-	}
-	if len(phaseOrder) > 0 && !sameStrings(phaseOrder, policy.OpenCode.SDDPhases) {
-		failures = append(failures, fmt.Sprintf("upstream profilePhaseOrder is %#v, expected %#v from policy/metadata", phaseOrder, policy.OpenCode.SDDPhases))
-	}
-
-	const profilePrefixSnippet = `const orchPrefix = "sdd-orchestrator-"`
-	const profileKeyBuilderSnippet = `keys = append(keys, "sdd-orchestrator"+suffix)`
-	if !strings.Contains(upstreamProfilesText, profilePrefixSnippet) {
-		failures = append(failures, "upstream profiles.go no longer declares DetectProfiles prefix 'sdd-orchestrator-'")
-	}
-	if !strings.Contains(upstreamProfilesText, profileKeyBuilderSnippet) {
-		failures = append(failures, "upstream ProfileAgentKeys no longer builds profile orchestrator keys from 'sdd-orchestrator'+suffix")
-	}
-
-	requiredProfilesSnippets := []string{
-		"taskPerms := map[string]any{",
-		`"*": "deny",`,
-		"taskPerms[phase+suffix] = \"allow\"",
-		"taskPerms[jd] = \"allow\"",
-	}
-	for _, snippet := range requiredProfilesSnippets {
-		if !strings.Contains(upstreamProfilesText, snippet) {
-			failures = append(failures, fmt.Sprintf("upstream profile task scoping snippet missing from profiles.go: %q", snippet))
+	if metadata != nil && snapshotText != "" {
+		metadataFailures, promptMatches := validateLegacyBaseline(policy, state, metadata, snapshotPath, snapshotText, upstreamRepo)
+		if len(metadataFailures) == 0 {
+			metadataOK = true
+		} else {
+			failures = append(failures, metadataFailures...)
+		}
+		if !promptMatches {
+			failures = append(failures, fmt.Sprintf("base prompt drift detected: %s no longer matches %s; review/update the audited baseline before adopting this upstream state", filepath.Join(upstreamRepo, policy.Upstream.OrchestratorPromptPath), snapshotPath))
 		}
 	}
-
-	requiredInjectSnippets := []string{
-		`orchestratorRaw, ok := agentsMap["gentle-orchestrator"]`,
-		`orchestratorMap["prompt"] = assets.MustRead(sddOrchestratorAsset(model.AgentOpenCode))`,
+	diffEntries, err := runGitDiff(upstreamRepo, state.LastMaintainedCommit)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: cannot diff upstream git state from %s: %v\n", state.LastMaintainedCommit, err)
+		return 1
 	}
-	for _, snippet := range requiredInjectSnippets {
-		if !strings.Contains(upstreamInjectText, snippet) {
-			failures = append(failures, fmt.Sprintf("upstream inject.go no longer contains expected base orchestrator asset binding snippet: %q", snippet))
+	catalog := buildManagedAssetCatalog(target)
+	managedEntries, unmanagedEntries := categorizeGitDiff(diffEntries, catalog)
+	basePromptDrift := false
+	if entry, ok := findManagedAssetDiff(managedEntries, "gentle-orchestrator"); ok {
+		basePromptDrift = true
+		promptSummary, err := summarizeManagedPromptDrift(upstreamRepo, state.LastMaintainedCommit, entry)
+		if err != nil {
+			failures = append(failures, err.Error())
+		} else {
+			driftSummary = append(driftSummary, promptSummary...)
 		}
 	}
+	driftSummary = append(driftSummary, summarizeManagedDiffEntries(managedEntries)...)
+	driftSummary = append(driftSummary, summarizeUnmanagedDiffEntries(unmanagedEntries)...)
 
-	metadataOK := true
-	for _, failure := range failures {
-		if strings.HasPrefix(failure, "metadata field") || strings.HasPrefix(failure, "metadata snapshot_sha256") {
-			metadataOK = false
-			break
-		}
+	if len(managedEntries) > 0 {
+		failures = append(failures, fmt.Sprintf("managed asset drift detected in %d upstream file(s) since %s", len(managedEntries), state.LastMaintainedCommit))
 	}
-	profileNamingOK := strings.Contains(upstreamProfilesText, profilePrefixSnippet) && strings.Contains(upstreamProfilesText, profileKeyBuilderSnippet)
-	taskScopingOK := containsAll(upstreamProfilesText, requiredProfilesSnippets)
-	baseAssetInjectionOK := containsAll(upstreamInjectText, requiredInjectSnippets)
-	phaseOrderOK := len(phaseOrder) > 0 && sameStrings(phaseOrder, policy.OpenCode.SDDPhases)
-	driftSummary := buildAuditDriftSummary(metadataOK, promptMatches, snapshotText, upstreamPromptText, phaseOrderOK, profileNamingOK, taskScopingOK, baseAssetInjectionOK)
+	if len(unmanagedEntries) > 0 {
+		failures = append(failures, fmt.Sprintf("unmapped watched upstream drift detected in %d file(s); review managed-assets.json before adopting this upstream state", len(unmanagedEntries)))
+	}
+
+	structuralResult, structuralFailures := evaluateStructuralInvariants(upstreamRepo, target, policy)
+	failures = append(failures, structuralFailures...)
+	profileNamingOK := structuralResult.ProfileNamingOK
+	taskScopingOK := structuralResult.TaskScopingOK
+	baseAssetInjectionOK := structuralResult.BaseAssetInjectionOK
+	phaseOrderOK := structuralResult.PhaseOrderOK
+	driftSummary = append(driftSummary, buildAuditDriftSummary(basePromptDrift, phaseOrderOK, profileNamingOK, taskScopingOK, baseAssetInjectionOK)...)
 
 	fmt.Println("Auditing Gentle AI upstream baseline...")
 	fmt.Printf("- Repo root: %s\n", repoRoot)
@@ -181,13 +133,15 @@ func RunAuditUpstream(repoRoot string) int {
 	if upstreamDescribe != "" {
 		fmt.Printf("- Upstream HEAD: %s (%s)\n", upstreamDescribe, upstreamHead)
 	}
-	fmt.Printf("- Base snapshot: %s\n", snapshotPath)
-	fmt.Printf("- Base metadata: %s\n", metaPath)
+	fmt.Printf("- Upstream baseline limit: %s\n", state.LastMaintainedCommit)
+	fmt.Printf("- Managed assets manifest: %s\n", manifestPath)
+	fmt.Printf("- Legacy audited snapshot: %s\n", snapshotPath)
 	fmt.Println()
 	fmt.Println("Summary:")
-	fmt.Printf("  state/metadata alignment: %s\n", statusWord(metadataOK))
-	fmt.Printf("  snapshot hash verification: %s\n", statusWord(metadata["snapshot_sha256"] == actualSnapshotHash))
-	if promptMatches {
+	fmt.Printf("  audited baseline alignment: %s\n", statusWord(metadataOK))
+	fmt.Printf("  managed assets drift: %s\n", managedDriftStatus(len(managedEntries)))
+	fmt.Printf("  watched but unmanaged drift: %s\n", unmanagedDriftStatus(len(unmanagedEntries)))
+	if !basePromptDrift {
 		fmt.Println("  base prompt drift: no")
 	} else {
 		fmt.Println("  base prompt drift: yes")
@@ -218,15 +172,381 @@ func RunAuditUpstream(repoRoot string) int {
 		}
 		fmt.Println()
 		fmt.Println("Action:")
-		fmt.Println("1. Review the upstream delta against the committed baseline.")
-		fmt.Println("2. Update `gentle-orchestrator.last.md`, `.meta.yaml`, `upstream-state.json`, docs, and the update log if the new upstream state is accepted.")
+		fmt.Println("1. Review the managed drift against the last maintained commit and decide what is relevant to the overlay.")
+		fmt.Println("2. Update this repo (owned assets, approved upstream snapshots, docs, and/or state) if the new upstream state is accepted.")
 		fmt.Println("3. Run `gentle-ai sync` or reinstall as appropriate, then re-run `bash apply-gentle-ai-custom.sh opencode` (or `all` if you also want the multi-target refresh) so runtime verification passes.")
 		return 1
 	}
 
 	fmt.Println()
-	fmt.Println("Done. The committed base snapshot and metadata still match the current upstream prompt/invariants.")
+	fmt.Println("Done. No managed upstream drift or structural invariant mismatch was detected for the current upstream range.")
 	return 0
+}
+
+func normalizeAuditUpstreamArgs(args []string) int {
+	for _, arg := range args {
+		switch arg {
+		case "-h", "--help":
+			printAuditUpstreamUsage(os.Stdout)
+			return 0
+		default:
+			if strings.HasPrefix(arg, "-") {
+				fmt.Fprintf(os.Stderr, "Unknown audit-upstream flag: %s\n", arg)
+			} else {
+				fmt.Fprintf(os.Stderr, "audit-upstream does not accept positional argument: %s\n", arg)
+			}
+			printAuditUpstreamUsage(os.Stderr)
+			return 1
+		}
+	}
+	return -1
+}
+
+func printAuditUpstreamUsage(out *os.File) {
+	fmt.Fprintf(out, "Usage: %s\n", usageCommandName("audit-upstream"))
+}
+
+type structuralInvariantResult struct {
+	PhaseOrderOK         bool
+	ProfileNamingOK      bool
+	TaskScopingOK        bool
+	BaseAssetInjectionOK bool
+}
+
+type managedAssetRecord struct {
+	Key          string
+	Class        string
+	Kind         string
+	UpstreamPath string
+	Directory    bool
+}
+
+type managedAssetCatalog struct {
+	WatchRoots []string
+	Records    []managedAssetRecord
+}
+
+type managedDiffEntry struct {
+	Diff   GitDiffEntry
+	Record managedAssetRecord
+	Path   string
+}
+
+func buildManagedAssetCatalog(target ManagedAssetsTarget) managedAssetCatalog {
+	var records []managedAssetRecord
+	for _, asset := range target.OwnedOverlayAssets {
+		records = append(records, managedAssetRecord{
+			Key:          asset.Key,
+			Class:        asset.Class,
+			Kind:         asset.Kind,
+			UpstreamPath: asset.UpstreamPath,
+			Directory:    strings.HasSuffix(asset.Kind, "_directory"),
+		})
+	}
+	for _, asset := range target.RetainedUpstreamSkills {
+		records = append(records, managedAssetRecord{
+			Key:          asset.Key,
+			Class:        "retained_optional",
+			Kind:         "retained_upstream_skill",
+			UpstreamPath: asset.UpstreamPath,
+			Directory:    !strings.HasSuffix(asset.UpstreamPath, ".md"),
+		})
+	}
+	for _, asset := range target.PrunedUpstreamSkills {
+		records = append(records, managedAssetRecord{
+			Key:          asset.Key,
+			Class:        "pruned_optional",
+			Kind:         "pruned_upstream_skill",
+			UpstreamPath: asset.UpstreamPath,
+			Directory:    !strings.HasSuffix(asset.UpstreamPath, ".md"),
+		})
+	}
+	return managedAssetCatalog{WatchRoots: target.WatchRoots, Records: records}
+}
+
+func categorizeGitDiff(entries []GitDiffEntry, catalog managedAssetCatalog) ([]managedDiffEntry, []GitDiffEntry) {
+	managed := make([]managedDiffEntry, 0, len(entries))
+	unmanaged := make([]GitDiffEntry, 0)
+	for _, entry := range entries {
+		match, path, watched := matchManagedDiffEntry(entry, catalog)
+		if match != nil {
+			managed = append(managed, managedDiffEntry{Diff: entry, Record: *match, Path: path})
+			if hasUnmappedWatchedSide(entry, catalog) {
+				unmanaged = append(unmanaged, entry)
+			}
+			continue
+		}
+		if watched {
+			unmanaged = append(unmanaged, entry)
+		}
+	}
+	sort.Slice(managed, func(i, j int) bool {
+		if managed[i].Record.Key == managed[j].Record.Key {
+			return managed[i].Path < managed[j].Path
+		}
+		return managed[i].Record.Key < managed[j].Record.Key
+	})
+	sort.Slice(unmanaged, func(i, j int) bool {
+		return diffPrimaryPath(unmanaged[i]) < diffPrimaryPath(unmanaged[j])
+	})
+	return managed, unmanaged
+}
+
+func matchManagedDiffEntry(entry GitDiffEntry, catalog managedAssetCatalog) (*managedAssetRecord, string, bool) {
+	watched := false
+	paths := []string{entry.Path}
+	if entry.OldPath != "" {
+		paths = append(paths, entry.OldPath)
+	}
+	for _, path := range paths {
+		if path == "" {
+			continue
+		}
+		if pathMatchesWatchRoots(path, catalog.WatchRoots) {
+			watched = true
+		}
+		for _, record := range catalog.Records {
+			if recordMatchesPath(record, path) {
+				match := record
+				return &match, path, true
+			}
+		}
+	}
+	return nil, "", watched
+}
+
+func recordMatchesPath(record managedAssetRecord, path string) bool {
+	if record.Directory {
+		return path == record.UpstreamPath || strings.HasPrefix(path, record.UpstreamPath+"/")
+	}
+	return path == record.UpstreamPath
+}
+
+func pathMatchesWatchRoots(path string, watchRoots []string) bool {
+	for _, root := range watchRoots {
+		if path == root || strings.HasPrefix(path, root+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+func hasUnmappedWatchedSide(entry GitDiffEntry, catalog managedAssetCatalog) bool {
+	paths := []string{entry.Path}
+	if entry.OldPath != "" {
+		paths = append(paths, entry.OldPath)
+	}
+	for _, path := range paths {
+		if path == "" || !pathMatchesWatchRoots(path, catalog.WatchRoots) {
+			continue
+		}
+		matched := false
+		for _, record := range catalog.Records {
+			if recordMatchesPath(record, path) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return true
+		}
+	}
+	return false
+}
+
+func findManagedAssetDiff(entries []managedDiffEntry, key string) (managedDiffEntry, bool) {
+	for _, entry := range entries {
+		if entry.Record.Key == key {
+			return entry, true
+		}
+	}
+	return managedDiffEntry{}, false
+}
+
+func summarizeManagedPromptDrift(upstreamRepo, baseCommit string, entry managedDiffEntry) ([]string, error) {
+	if entry.Diff.Status == "A" {
+		return []string{"The base orchestrator asset was added after the last maintained commit. Review the new prompt before adopting this upstream state."}, nil
+	}
+	if entry.Diff.Status == "D" {
+		return []string{"The base orchestrator asset was removed upstream. Review integration mechanics before adopting this upstream state."}, nil
+	}
+	oldPath := entry.Path
+	if entry.Diff.OldPath != "" {
+		oldPath = entry.Diff.OldPath
+	}
+	previousText, err := runGitShow(upstreamRepo, baseCommit, oldPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read base orchestrator asset from %s at %s: %v", baseCommit, oldPath, err)
+	}
+	currentText, err := runGitShow(upstreamRepo, "HEAD", entry.Diff.Path)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read current orchestrator asset at %s: %v", entry.Diff.Path, err)
+	}
+	return summarizePromptDrift(previousText, currentText), nil
+}
+
+func summarizeManagedDiffEntries(entries []managedDiffEntry) []string {
+	if len(entries) == 0 {
+		return nil
+	}
+	summary := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		summary = append(summary, formatManagedDiffEntry(entry))
+	}
+	return summary
+}
+
+func summarizeUnmanagedDiffEntries(entries []GitDiffEntry) []string {
+	if len(entries) == 0 {
+		return nil
+	}
+	summary := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		summary = append(summary, formatUnmanagedDiffEntry(entry))
+	}
+	return summary
+}
+
+func formatManagedDiffEntry(entry managedDiffEntry) string {
+	scope := entry.Record.Class + "/" + entry.Record.Kind
+	if entry.Diff.Status == "R" {
+		return fmt.Sprintf("Managed %s %s -> %s maps to %s (%s).", entry.Diff.Status, entry.Diff.OldPath, entry.Diff.Path, entry.Record.Key, scope)
+	}
+	return fmt.Sprintf("Managed %s %s maps to %s (%s).", entry.Diff.Status, entry.Path, entry.Record.Key, scope)
+}
+
+func formatUnmanagedDiffEntry(entry GitDiffEntry) string {
+	if entry.Status == "R" {
+		return fmt.Sprintf("Unmapped watched %s %s -> %s. Add or classify it in managed-assets.json if it matters to the overlay.", entry.Status, entry.OldPath, entry.Path)
+	}
+	return fmt.Sprintf("Unmapped watched %s %s. Add or classify it in managed-assets.json if it matters to the overlay.", entry.Status, diffPrimaryPath(entry))
+}
+
+func diffPrimaryPath(entry GitDiffEntry) string {
+	if entry.Path != "" {
+		return entry.Path
+	}
+	return entry.OldPath
+}
+
+func readStructuralSource(upstreamRepo string, paths []string, suffix string) (string, error) {
+	for _, path := range paths {
+		if strings.HasSuffix(path, suffix) {
+			return runGitShow(upstreamRepo, "HEAD", path)
+		}
+	}
+	return "", fmt.Errorf("structural invariant source matching %q is not declared in managed-assets.json", suffix)
+}
+
+func managedDriftStatus(count int) string {
+	if count == 0 {
+		return "ok"
+	}
+	return fmt.Sprintf("%d tracked file(s) changed", count)
+}
+
+func validateLegacyBaseline(policy Policy, state UpstreamState, metadata map[string]string, snapshotPath, snapshotText, upstreamRepo string) ([]string, bool) {
+	baseKey := policy.OpenCode.BaseOrchestratorKey
+	if baseKey == "" {
+		baseKey = "gentle-orchestrator"
+	}
+	expectedPhaseCSV := strings.Join(policy.OpenCode.SDDPhases, ",")
+	expectedMetadata := map[string]string{
+		"schema_version":                    "1",
+		"snapshot_file":                     filepath.Base(snapshotPath),
+		"snapshot_source":                   "upstream-opencode-inline-asset",
+		"state_file":                        policy.Maintenance.StateFile,
+		"upstream_repo_name":                policy.Upstream.RepoName,
+		"upstream_prompt_rel_path":          policy.Upstream.OrchestratorPromptPath,
+		"upstream_inject_source_rel_path":   "internal/components/sdd/inject.go",
+		"upstream_profiles_source_rel_path": "internal/components/sdd/profiles.go",
+		"last_maintained_version":           state.LastMaintainedVersion,
+		"last_maintained_tag":               state.LastMaintainedTag,
+		"last_maintained_commit":            state.LastMaintainedCommit,
+		"last_reviewed_at":                  state.LastReviewedAt,
+		"base_orchestrator_key":             baseKey,
+		"profile_orchestrator_prefix":       policy.OpenCode.ProfileOrchestratorPrefix,
+		"profile_phase_order_csv":           expectedPhaseCSV,
+		"profile_task_scope_rule":           "deny-all-then-allow-suffixed-phases-and-global-jd",
+	}
+	var failures []string
+	actualSnapshotHash := sha256Text(snapshotText)
+	if metadata["snapshot_sha256"] != actualSnapshotHash {
+		failures = append(failures, fmt.Sprintf("metadata snapshot_sha256 is %q, expected %q from %s", metadata["snapshot_sha256"], actualSnapshotHash, snapshotPath))
+	}
+	for field, expected := range expectedMetadata {
+		actual := metadata[field]
+		if actual != expected {
+			failures = append(failures, fmt.Sprintf("metadata field %q is %q, expected %q", field, actual, expected))
+		}
+	}
+	upstreamPromptPath := filepath.Join(upstreamRepo, filepath.FromSlash(policy.Upstream.OrchestratorPromptPath))
+	upstreamPromptText, err := readText(upstreamPromptPath)
+	if err != nil {
+		failures = append(failures, fmt.Sprintf("cannot read %s: %v", upstreamPromptPath, err))
+		return failures, false
+	}
+	return failures, normalizeLFTerminated(snapshotText) == normalizeLFTerminated(upstreamPromptText)
+}
+
+func evaluateStructuralInvariants(upstreamRepo string, target ManagedAssetsTarget, policy Policy) (structuralInvariantResult, []string) {
+	var failures []string
+	result := structuralInvariantResult{}
+	upstreamProfilesText, err := readStructuralSource(upstreamRepo, target.StructuralInvariantSources, "profiles.go")
+	if err != nil {
+		failures = append(failures, err.Error())
+	}
+	upstreamInjectText, err := readStructuralSource(upstreamRepo, target.StructuralInvariantSources, "inject.go")
+	if err != nil {
+		failures = append(failures, err.Error())
+	}
+	phaseOrder, phaseErr := extractProfilePhaseOrder(upstreamProfilesText)
+	if phaseErr != nil {
+		failures = append(failures, phaseErr.Error())
+	}
+	if len(phaseOrder) > 0 && !sameStrings(phaseOrder, policy.OpenCode.SDDPhases) {
+		failures = append(failures, fmt.Sprintf("upstream profilePhaseOrder is %#v, expected %#v from policy", phaseOrder, policy.OpenCode.SDDPhases))
+	}
+	const profilePrefixSnippet = `const orchPrefix = "sdd-orchestrator-"`
+	const profileKeyBuilderSnippet = `keys = append(keys, "sdd-orchestrator"+suffix)`
+	if !strings.Contains(upstreamProfilesText, profilePrefixSnippet) {
+		failures = append(failures, "upstream profiles.go no longer declares DetectProfiles prefix 'sdd-orchestrator-'")
+	}
+	if !strings.Contains(upstreamProfilesText, profileKeyBuilderSnippet) {
+		failures = append(failures, "upstream ProfileAgentKeys no longer builds profile orchestrator keys from 'sdd-orchestrator'+suffix")
+	}
+	requiredProfilesSnippets := []string{
+		"taskPerms := map[string]any{",
+		`"*": "deny",`,
+		"taskPerms[phase+suffix] = \"allow\"",
+		"taskPerms[jd] = \"allow\"",
+	}
+	for _, snippet := range requiredProfilesSnippets {
+		if !strings.Contains(upstreamProfilesText, snippet) {
+			failures = append(failures, fmt.Sprintf("upstream profile task scoping snippet missing from profiles.go: %q", snippet))
+		}
+	}
+	requiredInjectSnippets := []string{
+		`orchestratorRaw, ok := agentsMap["gentle-orchestrator"]`,
+		`orchestratorMap["prompt"] = assets.MustRead(sddOrchestratorAsset(model.AgentOpenCode))`,
+	}
+	for _, snippet := range requiredInjectSnippets {
+		if !strings.Contains(upstreamInjectText, snippet) {
+			failures = append(failures, fmt.Sprintf("upstream inject.go no longer contains expected base orchestrator asset binding snippet: %q", snippet))
+		}
+	}
+	result.ProfileNamingOK = strings.Contains(upstreamProfilesText, profilePrefixSnippet) && strings.Contains(upstreamProfilesText, profileKeyBuilderSnippet)
+	result.TaskScopingOK = containsAll(upstreamProfilesText, requiredProfilesSnippets)
+	result.BaseAssetInjectionOK = containsAll(upstreamInjectText, requiredInjectSnippets)
+	result.PhaseOrderOK = len(phaseOrder) > 0 && sameStrings(phaseOrder, policy.OpenCode.SDDPhases)
+	return result, failures
+}
+
+func unmanagedDriftStatus(count int) string {
+	if count == 0 {
+		return "none"
+	}
+	return fmt.Sprintf("%d unmapped watched file(s) changed", count)
 }
 
 func extractProfilePhaseOrder(profilesGo string) ([]string, error) {
@@ -272,15 +592,9 @@ func statusWord(ok bool) string {
 	return "mismatch"
 }
 
-func buildAuditDriftSummary(metadataOK, promptMatches bool, snapshotText, upstreamPromptText string, phaseOrderOK, profileNamingOK, taskScopingOK, baseAssetInjectionOK bool) []string {
+func buildAuditDriftSummary(basePromptDrift, phaseOrderOK, profileNamingOK, taskScopingOK, baseAssetInjectionOK bool) []string {
 	var summary []string
-
-	if !metadataOK {
-		summary = append(summary, "The committed baseline metadata is out of sync with the repo snapshot/state, so repair the local audited baseline before trusting this audit result.")
-	}
-
-	if !promptMatches {
-		summary = append(summary, summarizePromptDrift(snapshotText, upstreamPromptText)...)
+	if basePromptDrift {
 		if phaseOrderOK && profileNamingOK && taskScopingOK && baseAssetInjectionOK {
 			summary = append(summary, "No profile-generation or base-asset binding drift was detected alongside this prompt change, so this looks like prompt-content guidance rather than topology or materialization drift.")
 		}
@@ -296,7 +610,7 @@ func buildAuditDriftSummary(metadataOK, promptMatches bool, snapshotText, upstre
 		summary = append(summary, "The upstream profile task-permission scoping changed. Review task allow/deny assumptions before adopting the new baseline.")
 	}
 	if !baseAssetInjectionOK {
-		summary = append(summary, "The upstream base orchestrator asset binding changed. Verify the overlay is still sanitizing the same source prompt before sync/apply.")
+		summary = append(summary, "The upstream base orchestrator asset binding changed. Verify the overlay is still reading the intended upstream source prompt before sync/apply.")
 	}
 
 	return summary

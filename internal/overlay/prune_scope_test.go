@@ -12,7 +12,7 @@ type fakeAgent struct {
 }
 
 func (a fakeAgent) Name() string                                                 { return a.name }
-func (a fakeAgent) BasePath() string                                             { return "" }
+func (a fakeAgent) BasePath() (string, error)                                    { return "", nil }
 func (a fakeAgent) BuildCommandContent(cmd customCommand, body string) string    { return body }
 func (a fakeAgent) ApplyOverlay(repoRoot string, options applyPolicyOptions) int { return 0 }
 

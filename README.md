@@ -32,8 +32,8 @@ Hoy este repo funciona como una **capa unificada de personalización y mantenimi
 - audita el baseline upstream de `gentle-orchestrator` antes de sync/reinstall
 - depura skills no deseadas del runtime
 - fija overrides de modelo para agentes built-in explícitos de OpenCode (`agent_overrides`) y reconcilia la familia base `gentle-orchestrator` (`default_profile`) más perfiles SDD nombrados (`profiles`) desde un config por-máquina canónico en `~/.config/gentle-ai-custom/opencode-local-config.json`
-- captura los prompts inline de los orchestrators inyectados por **gentle-ai**, y genera nuevos prompts derivados por agente/perfil y sanitizados.
-- mantiene el snapshot versionado de `gentle-orchestrator` y snapshots operativos locales por máquina bajo `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`
+- instala assets SDD/runtime repo-owned desde `overlay/gentle-ai/assets/owned/...`
+- mantiene copias upstream aprobadas bajo `overlay/gentle-ai/assets/upstream/...` y el baseline auditado de `gentle-orchestrator` para audit/sync
 - mantiene la guía de mantenimiento y la skill para auditar futuras actualizaciones del upstream
 
 ## Por qué Go
@@ -57,7 +57,7 @@ Los entrypoints públicos son estos:
 
 Ese es el comando que vas a usar normalmente. El target recomendado es `opencode`. `all` hoy es equivalente porque `opencode` es el único agente soportado.
 
-El script `audit-gentle-ai-upstream.*` existe, pero no está pensado como punto de entrada normal para una persona. Su uso recomendado es a través del agente en modo mantenimiento; salvo debugging puntual o un caso excepcional, no hace falta correrlo manualmente.
+Los scripts `audit-gentle-ai-upstream.*` y `sync-gentle-ai-upstream-assets.*` existen, pero no están pensados como punto de entrada normal para una persona. Su uso recomendado es a través del agente en modo mantenimiento; salvo debugging puntual o un caso excepcional, no hace falta correrlos manualmente.
 
 Todos estos wrappers delegan en la CLI Go compartida (`go run ./cmd/gentle-ai-overlay ...`) y no duplican lógica entre shell y PowerShell.
 
@@ -95,18 +95,22 @@ El mantenimiento de este repo sigue una secuencia fija. Lo variable no es el ord
 2. Hacer `git pull` en tu clone local de `gentle-ai`.
 3. Desde `gentle-ai-custom`, pedir al agente que entre en modo mantenimiento y ejecute la auditoría upstream.
 4. Si la auditoría detecta drift relevante para el overlay, adaptar este repo antes de continuar.
-5. Si no hace falta adaptar nada, ejecutar `gentle-ai sync` o reinstall completo si la auditoría lo recomienda.
-6. Reaplicar el overlay con `apply-gentle-ai-custom`.
-7. Reiniciar OpenCode si cambió `~/.config/opencode/opencode.json`.
+5. Si aprobaste una nueva frontera upstream, correr `sync-gentle-ai-upstream-assets` para refrescar las copias upstream aprobadas y el baseline auditado.
+6. Ejecutar `gentle-ai sync` o reinstall completo si la auditoría lo recomienda.
+7. Reaplicar el overlay con `apply-gentle-ai-custom`.
+8. Reiniciar OpenCode si cambió `~/.config/opencode/opencode.json`.
 
 ```bash
 brew upgrade gentle-ai
 git -C /path/to/gentle-ai pull
 
-# desde gentle-ai-custom, normalmente vía el agente maintainer
+# desde gentle-ai-custom, el agente maintainer deberia ejecutarlo
 bash ~/Documentos/gentle-ai-custom/audit-gentle-ai-upstream.sh
 
-# solo después de una auditoría satisfactoria
+# después de aprobar la nueva frontera upstream
+bash ~/Documentos/gentle-ai-custom/sync-gentle-ai-upstream-assets.sh
+
+# solo después de auditar y actualizar el repo si hacía falta
 gentle-ai sync
 bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh opencode
 
@@ -122,17 +126,19 @@ La auditoría upstream responde tres preguntas concretas:
 - si primero hay que adaptar este repo a esa nueva versión del upstream
 - si alcanza con ejecutar `gentle-ai sync` o si hace falta un reinstall completo desde la TUI
 
-El script `audit-gentle-ai-upstream.*` es público, pero el uso recomendado es a través del agente con la skill de mantenimiento, para recibir esa salida ya interpretada.
+Hoy la auditoría descubre drift principalmente con `git diff --name-status --find-renames <last_maintained_commit>..HEAD`, filtrado por `overlay/gentle-ai/policy/managed-assets.json`, y mantiene chequeos estructurales para cambios upstream que podrían romper la integración aunque no sean assets markdown.
+
+Los scripts `audit-gentle-ai-upstream.*` y `sync-gentle-ai-upstream-assets.*` son públicos, pero el uso recomendado es a través del agente con la skill de mantenimiento, para recibir esa salida ya interpretada. `sync-gentle-ai-upstream-assets` refresca `overlay/gentle-ai/assets/upstream/` y el baseline auditado de `gentle-orchestrator`.
 
 ### Qué reaplica `apply-gentle-ai-custom`
 
 - reinstala las skills y wrappers personalizados
 - poda las skills no deseadas solo para los targets CLI registrados seleccionados; los entornos no registrados quedan intactos
 - aplica los `agent_overrides` locales cuando existen
-- rematerializa los prompts derivados de los orchestrators en OpenCode
-- actualiza los snapshots y validaciones necesarios para mantener la salud del overlay
+- instala assets SDD/runtime repo-owned desde `overlay/gentle-ai/assets/owned/...`
+- reescribe `opencode.json` para que base y perfiles SDD apunten a esos files owned
 
-`opencode` rematerializa OpenCode y la política del overlay. `all` se expande a todos los agentes registrados; hoy en día es equivalente a `opencode` porque es el único agente soportado.
+`opencode` reinstala OpenCode y la política del overlay desde fuentes canónicas repo-owned. `all` se expande a todos los agentes registrados; hoy en día es equivalente a `opencode` porque es el único agente soportado.
 
 `~/.config/gentle-ai-custom/opencode-local-config.json` es el config local canónico del overlay. Ahí viven, separados, los `agent_overrides` para agentes built-in explícitos, el `default_profile` para la familia base `gentle-orchestrator` (`gentle-orchestrator` + fases SDD sin sufijo) y los `profiles` para familias SDD nombradas (`sdd-orchestrator-<name>` + fases). También puede definir `upstream_repo_path` y `opencode_config_path` por máquina.
 
@@ -160,25 +166,26 @@ Comportamiento cuando se omiten campos:
 
 ### Artefactos base del mantenimiento
 
-| Artefacto                                        | Rol                                                                           |
-| ------------------------------------------------ | ----------------------------------------------------------------------------- |
-| `overlay/gentle-ai/policy/maintenance-intent.md` | Fuente semántica de qué conservar, qué depurar y qué comportamiento proteger. |
-| `overlay/gentle-ai/policy/gentle-ai-policy.json` | Policy operativa consumida por la CLI y los wrappers.                         |
-| `overlay/gentle-ai/state/upstream-state.json`    | Última frontera upstream mantenida que sirve como referencia para auditar.    |
+| Artefacto                                        | Rol                                                                                                  |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `overlay/gentle-ai/policy/maintenance-intent.md` | Fuente semántica de qué conservar, qué depurar y qué comportamiento proteger.                        |
+| `overlay/gentle-ai/policy/gentle-ai-policy.json` | Policy operativa consumida por la CLI y los wrappers.                                                |
+| `overlay/gentle-ai/policy/managed-assets.json`   | Mapa canónico de assets managed (owned/upstream) consumido por audit, sync y apply.                  |
+| `overlay/gentle-ai/state/upstream-state.json`    | Última frontera upstream mantenida que sirve como referencia para auditar.                           |
 | `overlay/gentle-ai/logs/update-log.md`           | Bitácora de eventos cerrados de mantenimiento/alineación con upstream; Git conserva el detalle fino. |
 
 Git ya conserva el detalle de implementación. El `update-log.md` queda reservado para cierres de auditoría, decisiones de adopción/rechazo/postergación, cambios de contrato de mantenimiento y incidentes/recoveries que afecten cómo este repo se alinea con Gentle AI upstream.
 
 ### Archivos y directorios clave
 
-| Path                                                                                             | Función                                                                  |
-| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md`        | Baseline versionado del orchestrator upstream auditado.                  |
-| `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.meta.yaml` | Metadata e invariantes mínimas del baseline versionado.                  |
+| Path                                                                                             | Función                                                                                                                        |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md`        | Baseline versionado del orchestrator upstream auditado.                                                                        |
+| `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.meta.yaml` | Metadata e invariantes mínimas del baseline versionado.                                                                        |
+| `overlay/gentle-ai/assets/`                                                                      | Árbol canónico de copias upstream aprobadas + assets owned del overlay.                                                        |
 | `~/.config/gentle-ai-custom/opencode-local-config.json`                                          | Config local canónico: upstream path, override opcional de `opencode.json`, `agent_overrides`, `default_profile` y `profiles`. |
-| `~/.config/gentle-ai-custom/opencode-orchestrator-snapshots/`                                    | Snapshots operativos locales usados durante la reaplicación.             |
-| `overlay/gentle-ai/maintenance.md`                                                               | Guía humana centralizada de mantenimiento, señales y notas técnicas.     |
-| `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`                                           | Capacidad del agente para digerir la auditoría y guiar el mantenimiento. |
+| `overlay/gentle-ai/maintenance.md`                                                               | Guía humana centralizada de mantenimiento, señales y notas técnicas.                                                           |
+| `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`                                           | Capacidad del agente para digerir la auditoría y guiar el mantenimiento.                                                       |
 
 ### Herramientas de mantenimiento incluidas
 
@@ -227,9 +234,9 @@ La idea general es simple: esta capa conserva lo que suma capacidad técnica rea
 | `package-security`     | Se agrega   | Revisa riesgos al instalar o actualizar paquetes.                              | Agrega una capa práctica de seguridad de supply chain.                                                                                       |
 | `pr-finalizer`         | Se agrega   | Ayuda a preparar o regenerar PRs a partir de cambios ya hechos.                | Sí introduce una manera concreta de cerrar PRs, pero en este caso refleja mi forma elegida de prepararlas y por eso se incorpora al overlay. |
 
-### Sanitización del orchestrator
+### Comportamiento del orchestrator repo-owned
 
-El overlay NO rompe el corazón técnico del orchestrator. Lo que hace es sacarle la parte de gobernanza de PRs y carga de revisión para dejar un coordinador SDD útil, pero sin preguntas ni gates que no aplican a este flujo.
+El overlay NO rompe el corazón técnico del orchestrator. Lo que hace es mantener una versión repo-owned que ya excluye la parte de gobernanza de PRs y carga de revisión, para dejar un coordinador SDD útil pero sin preguntas ni gates que no aplican a este flujo.
 
 | Qué se modifica                                                                                      | Intención                                                                                                   |
 | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
@@ -247,11 +254,11 @@ Estos overrides existen por cómo OpenCode delega trabajo. Verificado contra la 
 
 Tabla operativa:
 
-| Caso                            | Qué agentes intervienen                                                                                                                  | Cómo se resuelve el modelo                                                                                                                   | Dónde se cambia                                         |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| Delegación built-in de OpenCode | `general`, `explore`                                                                                                                     | Este overlay les fija modelo/variant explícitos mediante `agent_overrides`, en vez de dejar que hereden el modelo del agente que los invoca. | `~/.config/gentle-ai-custom/opencode-local-config.json` |
-| Familia base SDD               | `gentle-orchestrator`, `sdd-init`, `sdd-explore`, `sdd-propose`, `sdd-spec`, `sdd-design`, `sdd-tasks`, `sdd-apply`, `sdd-verify`, `sdd-archive`, `sdd-onboard` | Se resuelve por `default_profile`, no por `agent_overrides`.                                                                                  | `~/.config/gentle-ai-custom/opencode-local-config.json` |
-| Perfiles SDD nombrados         | `sdd-orchestrator-<name>` + `sdd-<phase>-<name>`                                                                                               | Se resuelve por `profiles`, no por `agent_overrides`.                                                                                         | `~/.config/gentle-ai-custom/opencode-local-config.json` |
+| Caso                            | Qué agentes intervienen                                                                                                                                         | Cómo se resuelve el modelo                                                                                                                   | Dónde se cambia                                         |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| Delegación built-in de OpenCode | `general`, `explore`                                                                                                                                            | Este overlay les fija modelo/variant explícitos mediante `agent_overrides`, en vez de dejar que hereden el modelo del agente que los invoca. | `~/.config/gentle-ai-custom/opencode-local-config.json` |
+| Familia base SDD                | `gentle-orchestrator`, `sdd-init`, `sdd-explore`, `sdd-propose`, `sdd-spec`, `sdd-design`, `sdd-tasks`, `sdd-apply`, `sdd-verify`, `sdd-archive`, `sdd-onboard` | Se resuelve por `default_profile`, no por `agent_overrides`.                                                                                 | `~/.config/gentle-ai-custom/opencode-local-config.json` |
+| Perfiles SDD nombrados          | `sdd-orchestrator-<name>` + `sdd-<phase>-<name>`                                                                                                                | Se resuelve por `profiles`, no por `agent_overrides`.                                                                                        | `~/.config/gentle-ai-custom/opencode-local-config.json` |
 
 En otras palabras: estos overrides no duplican la configuración SDD. Cubren una capa distinta: los agentes built-in de OpenCode que el orchestrator puede usar al delegar fuera del sistema de perfiles SDD.
 
@@ -266,7 +273,11 @@ Si querés fijar modelos para `general` o `explore`, declaralos explícitamente 
   "opencode_config_path": "/path/to/opencode.json",
   "agent_overrides": [
     { "key": "general", "model": "openai/gpt-5.4", "variant": "high" },
-    { "key": "explore", "model": "google-vertex/gemini-3.1-pro-preview", "variant": "high" }
+    {
+      "key": "explore",
+      "model": "google-vertex/gemini-3.1-pro-preview",
+      "variant": "high"
+    }
   ],
   "default_profile": {
     "orchestrator": { "model": "openai/gpt-5.4", "variant": "high" },

@@ -10,7 +10,7 @@ upstream_profiles_source_rel_path: internal/components/sdd/profiles.go
 last_maintained_version: v1.34.1
 last_maintained_tag: v1.34.1
 last_maintained_commit: 3883470b175dc6b95904594135c34cc5f6ad2413
-last_reviewed_at: 2026-06-04T16:37:28Z
+last_reviewed_at: 2026-06-06T13:43:53Z
 base_orchestrator_key: gentle-orchestrator
 profile_orchestrator_prefix: sdd-orchestrator-
 profile_phase_order_csv: sdd-init,sdd-explore,sdd-propose,sdd-spec,sdd-design,sdd-tasks,sdd-apply,sdd-verify,sdd-archive,sdd-onboard

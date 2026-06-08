@@ -23,15 +23,14 @@ type OpenCodeAgent struct{}
 func (a *OpenCodeAgent) Name() string { return "opencode" }
 
 // BasePath returns the OpenCode configuration directory (~/.config/opencode).
-// Fails fast if the home directory cannot be resolved — a relative path would
-// silently install files in the wrong location.
-func (a *OpenCodeAgent) BasePath() string {
+// Returns an error if the home directory cannot be resolved — a relative path
+// would silently install files in the wrong location.
+func (a *OpenCodeAgent) BasePath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: cannot resolve home directory: %v\n", err)
-		os.Exit(1)
+		return "", fmt.Errorf("cannot resolve home directory: %v", err)
 	}
-	return filepath.Join(home, ".config", "opencode")
+	return filepath.Join(home, ".config", "opencode"), nil
 }
 
 // BuildCommandContent renders a command file with OpenCode's YAML frontmatter
