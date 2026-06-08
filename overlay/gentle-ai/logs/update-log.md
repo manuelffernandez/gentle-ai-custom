@@ -4,6 +4,15 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-06-05 | Completed the owned-assets control-plane cutover
+
+- **Type**: `tooling-change`
+- **Upstream scope/range**: maintenance tooling/runtime contract, not a new upstream boundary
+- **Decision**: completed the repo-owned managed-assets control plane by making `overlay/gentle-ai/policy/managed-assets.json` the canonical map for audit/sync/apply, switching `apply-gentle-ai-custom` to install runtime SDD/orchestrator assets from `overlay/gentle-ai/assets/owned/...`, preserving repo-owned portable skills from `shared/skills/` and custom wrappers from `shared/commands/`, rewriting prompt refs directly to owned runtime files, and keeping `sync-gentle-ai-upstream-assets` as the mechanical refresh step for approved upstream snapshots and the audited `gentle-orchestrator` baseline.
+- **Why it mattered**: the old runtime relied on sanitizing and capturing upstream inline prompts, plus local operational snapshot behavior that no longer matched the desired ownership model. The repo now has one explicit control plane: owned runtime assets for apply, approved upstream snapshots for review, and git+manifest discovery for maintainer audit.
+- **Affected artifacts**: `internal/overlay/audit_upstream.go`, `internal/overlay/git_diff.go`, `internal/overlay/managed_assets.go`, `internal/overlay/sync_upstream_assets.go`, `cmd/gentle-ai-overlay/main.go`, `audit-gentle-ai-upstream.sh`, `audit-gentle-ai-upstream.ps1`, `sync-gentle-ai-upstream-assets.sh`, `sync-gentle-ai-upstream-assets.ps1`, `overlay/gentle-ai/policy/managed-assets.json`, `overlay/gentle-ai/owned-assets-refactor.md`, `overlay/gentle-ai/maintenance.md`, `overlay/gentle-ai/assets/upstream/opencode/README.md`, `README.md`, `AGENTS.md`, `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`
+- **Verification**: `go test ./...`; `go run ./cmd/gentle-ai-overlay audit-upstream`; `go run ./cmd/gentle-ai-overlay sync-upstream-assets --help`; `bash audit-gentle-ai-upstream.sh --help`; `bash sync-gentle-ai-upstream-assets.sh --help`
+
 ## 2026-06-04 | Made upstream/runtime config resolution portable
 
 - **Type**: `tooling-change`

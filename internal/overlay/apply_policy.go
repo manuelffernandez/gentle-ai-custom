@@ -13,15 +13,10 @@ import (
 // pipeline. It is created once in RunApplyPolicy and threaded through each phase.
 type applyPolicyState struct {
 	policy                  Policy
+	managedTarget           ManagedAssetsTarget
 	verbose                 bool
 	recorder                *verboseRecorder
 	configPath              string
-	generatedDir            string
-	repoSnapshotDir         string
-	localSnapshotDir        string
-	repoSnapshotMetaFile    string
-	repoSnapshotBaseFile    string
-	repoSnapshotBaseline    string
 	resolvedAgentOverrides  []AgentOverride
 	resolvedDefaultProfile  *validatedProfile
 	resolvedProfiles        []validatedProfile
@@ -31,14 +26,11 @@ type applyPolicyState struct {
 	configData              map[string]any
 	configChanged           bool
 	metrics                 applyMetrics
-	writtenOrchestrators    map[string]bool
 	managedProfiles         map[string]bool
 	skillTargets            []string
-	baseRuntimePrompt       string
-	baseGeneratedPath       string
 	originalAgentKeys       map[string]bool
-	state                   UpstreamState
 	sddPhasesSet            map[string]bool
+	expectedPromptRefs      map[string]string
 }
 
 type applyPolicyOptions struct {
@@ -68,29 +60,31 @@ func runApplyPolicyWithOptions(repoRoot string, options applyPolicyOptions) int 
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		return 1
 	}
+	managedTarget, _, err := loadManagedAssetsTarget(repoRoot, "opencode")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		return 1
+	}
 
 	state := &applyPolicyState{
 		policy:               policy,
+		managedTarget:        managedTarget,
 		verbose:              options.verbose,
 		recorder:             options.recorder,
 		configPath:           expandUser(policy.OpenCode.ConfigPath),
-		generatedDir:         expandUser(policy.OpenCode.GeneratedOrchestratorsDir),
-		repoSnapshotDir:      filepath.Join(repoRoot, policy.OpenCode.OrchestratorSnapshotDir),
-		localSnapshotDir:     expandUser(policy.OpenCode.LocalOrchestratorSnapshotDir),
-		repoSnapshotMetaFile: filepath.Join(repoRoot, policy.OpenCode.OrchestratorSnapshotMetadata),
 		skillTargets:         append([]string(nil), options.skillTargets...),
-		writtenOrchestrators: map[string]bool{},
 		managedProfiles:      map[string]bool{},
 		originalAgentKeys:    map[string]bool{},
 		sddPhasesSet:         map[string]bool{},
+		expectedPromptRefs:   map[string]string{},
 	}
 	// options.recorder must be initialized by the caller before invoking this
 	// function. Both RunApplyPolicy and OpenCodeAgent.ApplyOverlay guarantee
 	// this. A nil recorder here would silently accumulate verbose entries into
-	// an unreachable object — use a panic to catch any future caller that
-	// forgets to initialize it.
+	// an unreachable object.
 	if state.recorder == nil {
-		panic("runApplyPolicyWithOptions: options.recorder must be non-nil; caller must initialize it")
+		fmt.Fprintf(os.Stderr, "internal error: recorder must be non-nil\n")
+		os.Exit(1)
 	}
 	fail := func(err error) int {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
@@ -99,7 +93,6 @@ func runApplyPolicyWithOptions(repoRoot string, options applyPolicyOptions) int 
 	if len(state.skillTargets) == 0 {
 		return fail(fmt.Errorf("no registered skill targets resolved for prune scope"))
 	}
-	state.repoSnapshotBaseFile = filepath.Join(state.repoSnapshotDir, policy.OpenCode.BaseOrchestratorKey+".last.md")
 	for _, phase := range policy.OpenCode.SDDPhases {
 		state.sddPhasesSet[phase] = true
 	}
@@ -109,6 +102,12 @@ func runApplyPolicyWithOptions(repoRoot string, options applyPolicyOptions) int 
 
 	fmt.Println("Applying Gentle AI overlay policy...")
 	if err := state.pruneSkills(); err != nil {
+		return fail(err)
+	}
+	if err := state.installOwnedAssets(repoRoot); err != nil {
+		return fail(err)
+	}
+	if err := state.verifyOwnedAssetTargets(); err != nil {
 		return fail(err)
 	}
 
@@ -121,16 +120,13 @@ func runApplyPolicyWithOptions(repoRoot string, options applyPolicyOptions) int 
 	if err := state.loadOpenCodeConfig(); err != nil {
 		return fail(err)
 	}
-	if err := state.loadAuditedBaseline(repoRoot); err != nil {
-		return fail(err)
-	}
 
 	state.applyAgentOverrides()
 	if err := state.reconcileProfiles(); err != nil {
 		return fail(err)
 	}
 	state.detectTopologyDrift()
-	if err := state.generateOverlays(); err != nil {
+	if err := state.rewriteManagedPromptReferences(); err != nil {
 		return fail(err)
 	}
 	if err := state.persistConfig(); err != nil {
@@ -224,54 +220,6 @@ func (s *applyPolicyState) loadOpenCodeConfig() error {
 	s.agents = agents
 	for key := range agents {
 		s.originalAgentKeys[key] = true
-	}
-	return nil
-}
-
-func (s *applyPolicyState) loadAuditedBaseline(repoRoot string) error {
-	if _, err := os.Stat(s.repoSnapshotBaseFile); err != nil {
-		return fmt.Errorf("audited base snapshot missing for orchestrator %q at %s. Restore the committed baseline before re-running apply.", s.policy.OpenCode.BaseOrchestratorKey, s.repoSnapshotBaseFile)
-	}
-	baseline, err := readText(s.repoSnapshotBaseFile)
-	if err != nil {
-		return fmt.Errorf("Cannot read audited base snapshot at %s: %v", s.repoSnapshotBaseFile, err)
-	}
-	s.repoSnapshotBaseline = strings.TrimRight(baseline, "\r\n")
-
-	statePath := filepath.Join(repoRoot, s.policy.Maintenance.StateFile)
-	if err := readJSONFile(statePath, &s.state); err != nil {
-		return fmt.Errorf("state file at %s is not valid JSON: %v", statePath, err)
-	}
-	metadata, err := parseSimpleYAML(s.repoSnapshotMetaFile)
-	if err != nil {
-		return fmt.Errorf("Cannot read audited snapshot metadata at %s: %v", s.repoSnapshotMetaFile, err)
-	}
-	expectedMetadata := map[string]string{
-		"schema_version":                    "1",
-		"snapshot_file":                     filepath.Base(s.repoSnapshotBaseFile),
-		"snapshot_source":                   "upstream-opencode-inline-asset",
-		"state_file":                        s.policy.Maintenance.StateFile,
-		"upstream_repo_name":                s.policy.Upstream.RepoName,
-		"upstream_prompt_rel_path":          s.policy.Upstream.OrchestratorPromptPath,
-		"upstream_inject_source_rel_path":   "internal/components/sdd/inject.go",
-		"upstream_profiles_source_rel_path": "internal/components/sdd/profiles.go",
-		"last_maintained_version":           s.state.LastMaintainedVersion,
-		"last_maintained_tag":               s.state.LastMaintainedTag,
-		"last_maintained_commit":            s.state.LastMaintainedCommit,
-		"last_reviewed_at":                  s.state.LastReviewedAt,
-		"base_orchestrator_key":             s.policy.OpenCode.BaseOrchestratorKey,
-		"profile_orchestrator_prefix":       s.policy.OpenCode.ProfileOrchestratorPrefix,
-		"profile_phase_order_csv":           strings.Join(s.policy.OpenCode.SDDPhases, ","),
-		"profile_task_scope_rule":           "deny-all-then-allow-suffixed-phases-and-global-jd",
-	}
-	for field, expected := range expectedMetadata {
-		if metadata[field] != expected {
-			return fmt.Errorf("audited snapshot metadata mismatch: field %q in %s is %q, expected %q. Repair the committed baseline before re-running apply.", field, s.repoSnapshotMetaFile, metadata[field], expected)
-		}
-	}
-	actualHash := sha256Text(s.repoSnapshotBaseline)
-	if metadata["snapshot_sha256"] != actualHash {
-		return fmt.Errorf("audited snapshot metadata mismatch: snapshot_sha256 in %s is %q, expected %q from %s. Repair the committed baseline before re-running apply.", s.repoSnapshotMetaFile, metadata["snapshot_sha256"], actualHash, s.repoSnapshotBaseFile)
 	}
 	return nil
 }
@@ -380,6 +328,25 @@ func (s *applyPolicyState) detectTopologyDrift() {
 	}
 }
 
+func (s *applyPolicyState) isOrchestrator(key string) bool {
+	for _, exact := range s.policy.OpenCode.OrchestratorAgentKeys {
+		if key == exact {
+			return true
+		}
+	}
+	for _, prefix := range s.policy.OpenCode.OrchestratorAgentPrefixes {
+		if strings.HasPrefix(key, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *applyPolicyState) isProfileOrchestrator(key string) bool {
+	prefix := s.policy.OpenCode.ProfileOrchestratorPrefix
+	return prefix != "" && strings.HasPrefix(key, prefix)
+}
+
 // --- Persistence and verification ---
 
 func (s *applyPolicyState) persistConfig() error {
@@ -432,20 +399,20 @@ func (s *applyPolicyState) verifyPersistedState() error {
 		}
 	}
 
-	keys := make([]string, 0, len(s.writtenOrchestrators))
-	for key := range s.writtenOrchestrators {
+	keys := make([]string, 0, len(s.expectedPromptRefs))
+	for key := range s.expectedPromptRefs {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
-		expectedRef := "{file:" + filepath.Join(s.generatedDir, key+".overlay.md") + "}"
+		expectedRef := s.expectedPromptRefs[key]
 		actual, _ := jsonObject(verifyAgents[key])
 		if jsonString(actual["prompt"]) != expectedRef {
-			return fmt.Errorf("post-write verification failed: orchestrator %q prompt is %q after write, expected %q", key, jsonString(actual["prompt"]), expectedRef)
+			return fmt.Errorf("post-write verification failed: agent %q prompt is %q after write, expected %q", key, jsonString(actual["prompt"]), expectedRef)
 		}
-		overlayPath := filepath.Join(s.generatedDir, key+".overlay.md")
-		if !pathExists(overlayPath) {
-			return fmt.Errorf("post-write verification failed: overlay file missing for %q at %s", key, overlayPath)
+		promptPath := strings.TrimSuffix(strings.TrimPrefix(expectedRef, "{file:"), "}")
+		if !pathExists(promptPath) {
+			return fmt.Errorf("post-write verification failed: prompt file missing for %q at %s", key, promptPath)
 		}
 	}
 
@@ -471,23 +438,6 @@ func (s *applyPolicyState) verifyPersistedState() error {
 		}
 	}
 
-	if s.baseRuntimePrompt == "" || s.baseGeneratedPath == "" {
-		return fmt.Errorf("audited baseline verification failed: orchestrator %q was not materialized during apply. Run `gentle-ai sync` to restore the inline upstream prompt, then re-run this script.", s.policy.OpenCode.BaseOrchestratorKey)
-	}
-	if normalizeLFTerminated(s.baseRuntimePrompt) != normalizeLFTerminated(s.repoSnapshotBaseline) {
-		return fmt.Errorf("audited baseline mismatch for orchestrator %q: runtime source prompt does not match %s. Run `bash audit-gentle-ai-upstream.sh` before adopting a new upstream baseline, then re-run `gentle-ai sync` and this script.", s.policy.OpenCode.BaseOrchestratorKey, s.repoSnapshotBaseFile)
-	}
-	expectedBaseOverlay, err := sanitizePrompt(s.repoSnapshotBaseline, s.policy)
-	if err != nil {
-		return err
-	}
-	actualBaseOverlay, err := readText(s.baseGeneratedPath)
-	if err != nil {
-		return fmt.Errorf("Cannot read generated overlay for audited base orchestrator at %s: %v", s.baseGeneratedPath, err)
-	}
-	if normalizeLFTerminated(actualBaseOverlay) != normalizeLFTerminated(expectedBaseOverlay) {
-		return fmt.Errorf("audited baseline mismatch for orchestrator %q: generated overlay at %s does not match the sanitized audited snapshot. Re-run apply after restoring the audited baseline, or run `gentle-ai sync` if local runtime state is stale.", s.policy.OpenCode.BaseOrchestratorKey, s.baseGeneratedPath)
-	}
 	return nil
 }
 

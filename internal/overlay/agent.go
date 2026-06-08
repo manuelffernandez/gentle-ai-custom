@@ -9,7 +9,7 @@ type Agent interface {
 	// Name returns the canonical identifier used in CLI targets and the registry.
 	Name() string
 	// BasePath returns the absolute path to the agent's configuration directory.
-	BasePath() string
+	BasePath() (string, error)
 	// BuildCommandContent renders a command file's content from the given
 	// customCommand metadata and body text. The returned string is written
 	// verbatim to the command file on disk.

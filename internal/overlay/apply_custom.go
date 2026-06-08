@@ -4,26 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
-
-// customSkills is the single source of truth for installable skills.
-// To add a new skill: add its directory name here. If the skill has an
-// assets/ subdirectory it will be installed automatically.
-var customSkills = []string{
-	"commit-planner",
-	"pr-finalizer",
-	"code-design",
-	"package-security",
-}
-
-type customSourceFiles struct {
-	planBody         string
-	applyBody        string
-	fastBody         string
-	prCreateBody     string
-	prRegenerateBody string
-}
 
 // customCommand holds the metadata for a single command file to be rendered.
 // The fileRelPath, skillName, mode, commandType, and description fields are
@@ -55,22 +38,28 @@ func RunApplyCustom(repoRoot string, args []string) int {
 		options.recorder.print()
 		return 1
 	}
+	target, _, err := loadManagedAssetsTarget(repoRoot, "opencode")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		options.recorder.print()
+		return 1
+	}
 	if err := runVersionPreflight(repoRoot, policy, os.Stdin, os.Stderr); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		options.recorder.print()
 		return 1
 	}
 
-	sharedRoot := filepath.Join(repoRoot, "shared")
-	sources := customSourceFiles{
-		planBody:         filepath.Join(sharedRoot, "commands", "commit-plan-body.md"),
-		applyBody:        filepath.Join(sharedRoot, "commands", "commit-apply-body.md"),
-		fastBody:         filepath.Join(sharedRoot, "commands", "commit-fast-body.md"),
-		prCreateBody:     filepath.Join(sharedRoot, "commands", "pr-create-body.md"),
-		prRegenerateBody: filepath.Join(sharedRoot, "commands", "pr-regenerate-body.md"),
-	}
+	sharedSkillsRoot := filepath.Join(repoRoot, filepath.FromSlash(target.RepoOwnedSharedSkills.Root))
+	commandBodiesRoot := filepath.Join(repoRoot, filepath.FromSlash(target.RepoOwnedCommandBodies.Root))
+	commandBodyByKey := mapCommandBodiesByKey(commandBodiesRoot, target.RepoOwnedCommandBodies.Entries)
 
-	if err := validateCustomSources(sharedRoot, sources); err != nil {
+	if err := validateCustomSources(sharedSkillsRoot, customSkillNames(target), target.RepoOwnedCommandBodies.Entries, commandBodyByKey); err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		options.recorder.print()
+		return 1
+	}
+	if err := validateOwnedAssetSources(repoRoot, target.OwnedOverlayAssets); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		options.recorder.print()
 		return 1
@@ -79,11 +68,6 @@ func RunApplyCustom(repoRoot string, args []string) int {
 	for _, targetName := range targets {
 		entry := agentRegistry[targetName]
 		agent := entry.agent
-		if err := installAgentAssets(agent, sources, sharedRoot, options.recorder); err != nil {
-			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
-			options.recorder.print()
-			return 1
-		}
 		if code := agent.ApplyOverlay(repoRoot, applyPolicyOptions{
 			verbose:      options.verbose,
 			recorder:     options.recorder,
@@ -91,6 +75,16 @@ func RunApplyCustom(repoRoot string, args []string) int {
 		}); code != 0 {
 			options.recorder.print()
 			return code
+		}
+		if err := installAgentAssets(agent, target, sharedSkillsRoot, commandBodyByKey, options.recorder); err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+			options.recorder.print()
+			return 1
+		}
+		if err := reconcileOwnedRuntimeOutputs(agent, repoRoot, target, sharedSkillsRoot, options.recorder); err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+			options.recorder.print()
+			return 1
 		}
 	}
 
@@ -164,22 +158,27 @@ func printApplyCustomUsage(out *os.File) {
 	fmt.Fprintf(out, "  %s all\n", prefix)
 }
 
-func validateCustomSources(sharedRoot string, sources customSourceFiles) error {
-	for _, skillName := range customSkills {
-		src := filepath.Join(sharedRoot, "skills", skillName, "SKILL.md")
+func validateCustomSources(sharedSkillsRoot string, skillNames []string, commandEntries []RepoOwnedCommandEntry, commandBodyByKey map[string]string) error {
+	for _, skillName := range skillNames {
+		src := filepath.Join(sharedSkillsRoot, skillName, "SKILL.md")
 		if _, err := os.Stat(src); err != nil {
 			return fmt.Errorf("Missing source: %s", src)
 		}
 	}
-	for _, source := range []string{
-		sources.planBody,
-		sources.applyBody,
-		sources.fastBody,
-		sources.prCreateBody,
-		sources.prRegenerateBody,
-	} {
+	for _, entry := range commandEntries {
+		source := commandBodyByKey[entry.Key]
 		if _, err := os.Stat(source); err != nil {
 			return fmt.Errorf("Missing source: %s", source)
+		}
+	}
+	return nil
+}
+
+func validateOwnedAssetSources(repoRoot string, assets []OwnedOverlayAsset) error {
+	for _, asset := range assets {
+		src := ownedAssetSourcePath(repoRoot, asset)
+		if _, err := os.Stat(src); err != nil {
+			return fmt.Errorf("Missing source: %s", src)
 		}
 	}
 	return nil
@@ -188,45 +187,31 @@ func validateCustomSources(sharedRoot string, sources customSourceFiles) error {
 // installAgentAssets is the generic replacement for the former applyCustomTarget
 // + buildCustomTarget pair. It installs skills and renders command files for the
 // given agent using only the Agent interface — no switch on agent name.
-func installAgentAssets(agent Agent, sources customSourceFiles, sharedRoot string, recorder *verboseRecorder) error {
-	// Command definitions are agent-agnostic; each agent formats them differently
-	// via BuildCommandContent. fileRelPath is hardcoded to commands/{name}.md
-	// (YAGNI — revisit when a second agent with a different layout is added).
-	commandDefs := []struct {
-		name        string
-		mode        string
-		commandType string
-		description string
-		bodyPath    string
-	}{
-		{name: "commit-plan", mode: "plan", commandType: "read-only", description: "Propose a post-SDD commit plan without changing git state", bodyPath: sources.planBody},
-		{name: "commit-apply", mode: "apply", commandType: "state-changing", description: "Execute an approved post-SDD commit plan, or generate one first if missing", bodyPath: sources.applyBody},
-		{name: "commit-fast", mode: "auto", commandType: "state-changing", description: "Generate and execute a commit plan in one shot without approval pause", bodyPath: sources.fastBody},
-		{name: "pr-create", mode: "create", commandType: "state-changing", description: "Draft a PR from committed changes and optionally create it after approval", bodyPath: sources.prCreateBody},
-		{name: "pr-regenerate", mode: "regenerate", commandType: "state-changing", description: "Regenerate or update an existing PR from the current committed diff after approval", bodyPath: sources.prRegenerateBody},
+func installAgentAssets(agent Agent, target ManagedAssetsTarget, sharedSkillsRoot string, commandBodyByKey map[string]string, recorder *verboseRecorder) error {
+	basePath, err := agent.BasePath()
+	if err != nil {
+		return fmt.Errorf("cannot resolve agent base path: %w", err)
 	}
 
-	basePath := agent.BasePath()
-
-	for _, skillName := range customSkills {
-		src := filepath.Join(sharedRoot, "skills", skillName, "SKILL.md")
+	for _, skillName := range customSkillNames(target) {
+		src := filepath.Join(sharedSkillsRoot, skillName, "SKILL.md")
 		if err := installSkill(basePath, skillName, src, agent.Name(), recorder); err != nil {
 			return err
 		}
-		assetsDir := filepath.Join(sharedRoot, "skills", skillName, "assets")
+		assetsDir := filepath.Join(sharedSkillsRoot, skillName, "assets")
 		if err := installSkillAssets(basePath, skillName, assetsDir, agent.Name(), recorder); err != nil {
 			return err
 		}
 	}
 
-	for _, def := range commandDefs {
+	for _, def := range target.RepoOwnedCommandBodies.Entries {
 		cmd := customCommand{
-			fileRelPath: filepath.Join("commands", def.name+".md"),
-			skillName:   skillNameForCommand(def.name),
-			mode:        def.mode,
-			commandType: def.commandType,
-			description: def.description,
-			bodyPath:    def.bodyPath,
+			fileRelPath: filepath.Join("commands", def.Key+".md"),
+			skillName:   def.OwnerSkill,
+			mode:        def.Mode,
+			commandType: def.CommandType,
+			description: def.Description,
+			bodyPath:    commandBodyByKey[def.Key],
 		}
 		if err := renderCustomCommand(basePath, agent, cmd, recorder); err != nil {
 			return err
@@ -274,11 +259,24 @@ func installSkillAssets(targetDir, skillName, assetsDir, targetName string, reco
 	return nil
 }
 
-func skillNameForCommand(command string) string {
-	if strings.HasPrefix(command, "commit-") {
-		return "commit-planner"
+func customSkillNames(target ManagedAssetsTarget) []string {
+	skills := append([]string(nil), target.RepoOwnedSharedSkills.Allowlist...)
+	sort.Strings(skills)
+	return skills
+}
+
+func mapCommandBodiesByKey(commandBodiesRoot string, entries []RepoOwnedCommandEntry) map[string]string {
+	result := make(map[string]string, len(entries))
+	for _, entry := range entries {
+		bodyPath := entry.BodyPath
+		if rel, err := filepath.Rel("shared/commands", filepath.ToSlash(bodyPath)); err == nil && !strings.HasPrefix(rel, "..") {
+			bodyPath = filepath.Join(commandBodiesRoot, rel)
+		} else {
+			bodyPath = filepath.Join(filepath.Dir(commandBodiesRoot), filepath.FromSlash(bodyPath))
+		}
+		result[entry.Key] = bodyPath
 	}
-	return "pr-finalizer"
+	return result
 }
 
 // renderCustomCommand reads the body file, delegates content rendering to the

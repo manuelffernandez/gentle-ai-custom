@@ -231,7 +231,7 @@ func (s *applyPolicyState) reconcileProfileAgent(profileName, key string, assign
 		}
 		s.recordVerbose(s.configPath, detail)
 		if orchestrator {
-			fmt.Printf("  profile %s: created orchestrator agent %s (no prompt; run `gentle-ai sync` to materialize)\n", profileName, key)
+			fmt.Printf("  profile %s: created orchestrator agent %s (prompt reference will be reconciled by apply)\n", profileName, key)
 		} else {
 			suffix := ""
 			if assignment.Variant != "" {

@@ -86,6 +86,92 @@ exceeds the gain.
 appears. Recognizing it then costs far less than unwinding five duplicated
 blocks later.
 
+## Tame Conditional Complexity
+
+The problem is not `if` itself. The problem starts when nested conditionals
+mix validation, business rules, and behavior selection in one flow.
+
+Name it directly when you see it:
+
+- **Nested conditionals** or **arrow code** when indentation keeps drifting right
+- **Conditional complexity** when understanding behavior requires tracking many branches at once
+
+Use this decision order:
+
+1. **Guard clauses first.** If some cases are invalid, exceptional, or terminal, exit early.
+   Keep the main path flat and visible.
+2. **Separate rule evaluation from action.** If the code is mostly deciding *whether*
+   something is allowed, move rules into clearly named predicates, specifications, or
+   a decision table.
+3. **Use polymorphism/strategy/state for behavior variation.** If branches exist because
+   different actors, types, or states behave differently, model the variation as
+   interchangeable behavior instead of a growing conditional tree.
+4. **Use data when the variation is declarative.** If branches differ only by values,
+   keys, or configuration — see **Replace Repetition with Data**.
+
+### When to Stop Adding Branches
+
+- Do **not** keep adding branches to one unit when each new case introduces a new reason to change.
+- Do **not** hide conditional complexity by extracting poorly named helpers; the branching model must become clearer, not merely displaced.
+- Do **not** introduce patterns prematurely. A small, local conditional is often clearer than an abstraction.
+
+### The Test
+
+After the change, a reader should be able to answer:
+
+- What is the normal path?
+- Which cases exit early?
+- Which parts are rules?
+- Which parts are true behavior variation?
+
+If those answers are still buried across nested branches, the design is not solved yet.
+
+## Keep One Abstraction Level Per Unit
+
+The problem is not length. The problem is when a single unit forces the reader
+to mentally shift zoom level — from orchestration to inline detail and back —
+within the same flow.
+
+Name it directly when you see it:
+
+- **Mixed abstraction levels** when high-level policy decisions sit next to
+  low-level computation, formatting, or I/O in the same unit
+- **Leaking detail** when a named operation also contains the mechanics of how
+  it works instead of delegating them
+
+The signal: if you read the unit top to bottom and some lines sound like a
+design document ("validate the order", "apply discounts") while others read
+like an implementation manual (`sum(i["price"] * i["qty"] for i in items)`),
+the levels are mixed.
+
+Use this decision order:
+
+1. **Name the levels first.** Before extracting anything, identify which lines
+   are orchestration (what happens, in what order) and which are detail (how a
+   step is done). Do not extract until the boundary is clear.
+2. **Extract detail into units one level below.** The orchestrating unit should
+   read as a sequence of named operations. Each extracted unit handles one
+   mechanical concern at a lower level — no policy, no branching on business
+   rules.
+3. **Let the orchestrator read like a table of contents.** If you can replace
+   any line with a meaningful name and the reader loses nothing, that line
+   belongs in its own unit.
+
+### When to Stop Extracting
+
+- Do **not** extract just to reduce line count. The extracted unit must genuinely
+  operate at a single, lower level — not be a one-line wrapper with a verbose name.
+- Do **not** confuse a long unit with a mixed-level unit. A long sequence of
+  operations at the same level of abstraction belongs together.
+- Do **not** create a chain of delegation where each level only calls the next
+  one. The level difference must be meaningful enough to name clearly.
+
+### The Test
+
+After the change, you should be able to read the orchestrating unit without
+knowing how any step is implemented. If understanding what the unit does still
+requires reading through inline computation, the levels are still mixed.
+
 ## Comment the Why, Not the What
 
 A comment earns its place only when it explains something the code cannot express by itself.

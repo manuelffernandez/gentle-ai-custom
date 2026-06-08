@@ -3,7 +3,6 @@ package overlay
 import (
 	"encoding/json"
 	"os"
-	"sort"
 )
 
 func readJSONFile(path string, target any) error {
@@ -34,15 +33,6 @@ func jsonString(value any) string {
 func jsonObject(value any) (map[string]any, bool) {
 	obj, ok := value.(map[string]any)
 	return obj, ok
-}
-
-func sortedKeys(values map[string]any) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 func writeJSONIndentedWithStatus(path string, data any) (string, error) {
