@@ -78,124 +78,124 @@ Opcional: agregá `--verbose` si querés ver el detalle de archivos tocados.
 
 Opcional: agregá `--verbose` si querés ver el detalle de archivos tocados.
 
-## Overlay maintenance
+## Mantenimiento del overlay
 
-Maintenance in this repo follows a fixed sequence. What changes is not the order, but the maintainer's judgment about whether the upstream delta requires overlay updates before runtime refresh.
+El mantenimiento en este repositorio sigue siempre los mismos pasos. Lo único que cambia es decidir si las novedades del proyecto original (upstream) necesitan que actualicemos nuestra capa antes de aplicarlas.
 
-### Recommended sequence
+### Pasos recomendados
 
-1. Update the `gentle-ai` binary.
-2. Run `git pull` in your local `gentle-ai` clone.
-3. From `gentle-ai-custom`, ask the maintainer agent to run the upstream audit.
-4. Before any repo mutation, the maintainer must return a concise decision summary: what is new upstream, what it recommends adopting, what it recommends discarding, whether repo sync is required, why, and the runtime refresh recommendation.
-5. Stop for explicit approval before updating this repo, advancing the upstream boundary, syncing approved upstream assets, or refreshing runtime.
-6. If you approved a new upstream boundary, run `sync-gentle-ai-upstream-assets` as the repo sync step to refresh the approved upstream copies.
-7. Después, y como paso separado, ejecutá el runtime refresh recomendado: `gentle-ai sync` o una reinstalación completa.
-8. Reaplicá el overlay con `apply-gentle-ai-custom`.
-9. Finish with a fresh-context consistency review plus a closing summary of what was actually adopted vs discarded and why.
-10. Restart OpenCode if `~/.config/opencode/opencode.json` changed.
+1. Actualizá el ejecutable de `gentle-ai`.
+2. Ejecutá `git pull` en tu carpeta local de `gentle-ai`.
+3. Desde la carpeta de `gentle-ai-custom`, pedile al agente de mantenimiento que revise qué cambió en el proyecto original (auditoría).
+4. Antes de cambiar cualquier archivo acá, el agente te tiene que dar un resumen claro: qué hay de nuevo, qué sugiere adoptar, qué sugiere descartar, por qué, y qué comando recomienda para actualizar.
+5. Confirmá que estás de acuerdo antes de que el agente modifique cosas en este repositorio o actualice el sistema.
+6. Si aceptaste los cambios del proyecto original, ejecutá `sync-gentle-ai-upstream-assets.sh` para copiar esos cambios aprobados a este repositorio.
+7. Después de eso, ejecutá el comando recomendado para aplicar todo al sistema: `gentle-ai sync` o bien una reinstalación completa.
+8. Volvé a aplicar nuestra capa customizada usando `apply-gentle-ai-custom.sh`.
+9. Terminá con una revisión general para asegurar que todo quedó bien y dejá un resumen final de lo que se aceptó y descartó.
+10. Reiniciá OpenCode si el archivo `~/.config/opencode/opencode.json` tuvo algún cambio.
 
 ```bash
 brew upgrade gentle-ai
 git -C /path/to/gentle-ai pull
 
-# from gentle-ai-custom, the maintainer agent should run this
+# desde gentle-ai-custom, el agente de mantenimiento debería ejecutar esto
 bash ~/Documentos/gentle-ai-custom/audit-gentle-ai-upstream.sh
 
-# only after approving the new upstream boundary
+# solo después de aprobar los cambios
 bash ~/Documentos/gentle-ai-custom/sync-gentle-ai-upstream-assets.sh
 
-# only after auditing and updating this repo if needed
+# solo después de revisar y actualizar este repositorio si hace falta
 gentle-ai sync
 bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh opencode
 
-# or the equivalent with all (the only supported agent today)
+# o el equivalente para todo (hoy opencode es el único agente soportado)
 # bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh all
 ```
 
-### What the audit must decide
+### Qué tiene que decidir la auditoría
 
-The upstream audit must answer these operator-level questions before any repo mutation:
+Antes de tocar cualquier archivo, revisar el proyecto original nos tiene que responder estas preguntas de forma clara:
 
-- what is actually new upstream and whether it matters to this overlay
-- what should be adopted vs explicitly discarded, with rationale for each side
-- whether this repo must change first, whether an approved boundary requires `sync-gentle-ai-upstream-assets`, and whether the correct runtime path is `gentle-ai sync` or a full TUI reinstall
+- qué cosas nuevas hay realmente y si nos afectan.
+- qué cosas conviene incorporar y cuáles descartar, explicando por qué.
+- si primero hay que hacer cambios en nuestro repositorio, si hace falta sincronizar los archivos originales, y si para actualizar conviene usar `gentle-ai sync` o hacer una reinstalación limpia.
 
-Today the audit discovers drift mainly with `git diff --name-status --find-renames <last_maintained_commit>..HEAD`, filtered through `overlay/gentle-ai/policy/managed-assets.json`, while still keeping structural checks for upstream changes that could break integration even when they are not markdown assets.
+Hoy en día, la auditoría busca diferencias usando comandos como `git diff` y las filtra para ignorar lo que no nos interesa, pero sin dejar de revisar cosas importantes de estructura.
 
-The `audit-gentle-ai-upstream.*` and `sync-gentle-ai-upstream-assets.*` scripts are public, but the recommended path is still the maintainer skill so the audit result is turned into an approval-gated decision summary before anything mutates. `sync-gentle-ai-upstream-assets` refreshes `overlay/gentle-ai/assets/upstream/` and the maintained boundary inside the repo; it is NOT the runtime refresh step.
+Los scripts `audit-gentle-ai-upstream` y `sync-gentle-ai-upstream-assets` se pueden usar a mano, pero es mucho mejor pedirle al agente de mantenimiento que los use. Así te puede explicar qué pasa y pedirte permiso antes de cambiar nada. El comando `sync-gentle-ai-upstream-assets` solo copia cosas aprobadas a nuestro repositorio; no actualiza la configuración de tu computadora.
 
-### How to recommend `gentle-ai sync` vs reinstall
+### Cuándo usar `gentle-ai sync` y cuándo reinstalar
 
-- Prefer `gentle-ai sync` when the adopted upstream change matters to the maintained runtime target, but its topology, presets, and materialized state remain effectively compatible.
-- Recommend a full reinstall when the adopted upstream change affects topology, presets, or materialization for the runtime target this repo actually maintains, or when `gentle-ai sync` cannot materialize the required state.
-- Upstream adding support for a new agent, platform, or topology outside the maintained runtime target does NOT force reinstall by itself.
-- Upstream attempts to reintroduce chained/stacked PR governance into the orchestrator stay on the discard side unless maintenance intent changes explicitly.
+- Es preferible usar `gentle-ai sync` si los cambios que adoptamos sirven, pero no rompen de forma profunda cómo están configurados los agentes y perfiles.
+- Conviene hacer una reinstalación completa cuando los cambios del proyecto original afectan la estructura básica de los perfiles que usamos, o cuando un simple `gentle-ai sync` ya no alcanza para armar bien la configuración.
+- Si el proyecto original agrega soporte para un nuevo agente o plataforma que no usamos, no hace falta reinstalar.
+- Si el proyecto original intenta forzar de nuevo el uso de PRs encadenadas (chained PRs) u otras reglas que ya decidimos sacar, se deben seguir descartando a menos que cambies explícitamente de idea.
 
-### What `apply-gentle-ai-custom` re-applies
+### Qué hace el comando `apply-gentle-ai-custom`
 
-- reinstalls custom skills and wrappers
-- prunes rejected skills only for the selected registered CLI targets; unregistered environments remain untouched
-- applies local `agent_overrides` when present
-- installs repo-owned SDD/runtime assets from `overlay/gentle-ai/assets/owned/...`
-- rewrites `opencode.json` so the base and SDD profiles point to those owned files
+- vuelve a instalar nuestras skills y comandos personalizados.
+- borra las skills que no queremos usar, pero solo para los agentes donde estamos trabajando.
+- aplica nuestras preferencias de modelos de IA si las configuramos.
+- instala los archivos fundamentales para el flujo de trabajo SDD que mantenemos nosotros.
+- modifica la configuración `opencode.json` para que el sistema apunte a nuestros archivos.
 
-`opencode` reinstalls OpenCode and the overlay policy from canonical repo-owned sources. `all` expands to every registered agent; today it is equivalent to `opencode` because that is the only supported agent.
+Ejecutarlo apuntando a `opencode` reinstala todo para OpenCode. Si usás `all` hace lo mismo, porque hoy es el único entorno soportado.
 
-The configuration that decides which AI models to use or where the upstream Gentle AI clone lives is stored in a private machine-local file: `~/.config/gentle-ai-custom/opencode-local-config.json`. A later section of this README explains how to build it.
+La configuración para elegir qué modelos de IA vas a usar o dónde está clonado el proyecto original se guarda en un archivo solo tuyo en tu computadora: `~/.config/gentle-ai-custom/opencode-local-config.json`. Más abajo se explica cómo armarlo.
 
-### Version preflight
+### Chequeo previo de versiones
 
-Before any write, `apply-gentle-ai-custom` compares the installed `gentle-ai` binary version with `overlay/gentle-ai/state/upstream-state.json -> last_maintained_version`.
+Antes de modificar nada, el comando `apply-gentle-ai-custom` revisa que la versión de `gentle-ai` que tenés instalada coincida con la que estamos manteniendo.
 
-- exact match -> continue
-- older/newer/unknown -> warn first
-- interactive runs may continue after confirmation
-- in non-interactive mode, if the version does not match or is unknown -> fail immediately
+- si son idénticas -> sigue adelante.
+- si son distintas o no se sabe -> te avisa primero.
+- si lo estás corriendo a mano, podés confirmar y seguir.
+- si se ejecuta de forma automática y hay diferencias -> frena todo por seguridad.
 
-Upstream resolution:
+Dónde busca el proyecto original:
 
-1. `upstream_repo_path` in `opencode-local-config.json`
-2. `GENTLE_AI_CUSTOM_UPSTREAM_REPO`
-3. fallback to `../gentle-ai` relative to this repo
-4. clear error if none of those exist
+1. En la ruta `upstream_repo_path` configurada en tu `opencode-local-config.json`.
+2. En la variable de entorno `GENTLE_AI_CUSTOM_UPSTREAM_REPO`.
+3. Por defecto, asume que está en `../gentle-ai`, al lado de esta misma carpeta.
+4. Si no lo encuentra en ningún lado, te tira un error claro.
 
-Behavior when fields are omitted:
+Si falta algo en tu configuración:
 
-- if `profiles` is omitted, the helper applies no named profiles
-- if `agent_overrides` is omitted, the helper applies no explicit `general` / `explore` overrides
-- if `default_profile` is omitted, the helper leaves the base `gentle-orchestrator` family untouched
+- si no ponés `profiles`, no agrega perfiles especiales.
+- si no ponés `agent_overrides`, no cambia los modelos que vienen por defecto.
+- si no ponés `default_profile`, no altera la familia base de perfiles SDD.
 
-### Core maintenance artifacts
+### Archivos clave del mantenimiento
 
-| Artifact                                         | Role |
-| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| `overlay/gentle-ai/policy/maintenance-intent.md` | Semantic source of truth for what to keep, what to depure, and what behavior to protect. |
-| `overlay/gentle-ai/policy/gentle-ai-policy.json` | Runtime policy consumed by the CLI and wrappers. |
-| `overlay/gentle-ai/policy/managed-assets.json`   | Canonical map of managed assets (owned/upstream) consumed by audit, sync, and apply. |
-| `overlay/gentle-ai/state/upstream-state.json`    | Last maintained upstream boundary used as the audit reference. |
-| `overlay/gentle-ai/logs/update-log.md`           | Ledger of closed maintenance/alignment events; Git keeps the implementation detail. |
+| Archivo | Para qué sirve |
+| --- | --- |
+| `overlay/gentle-ai/policy/maintenance-intent.md` | Es el documento donde explicamos claramente nuestra intención: qué cosas queremos conservar, cuáles quitar y cómo queremos que funcione todo. |
+| `overlay/gentle-ai/policy/gentle-ai-policy.json` | Son las reglas exactas que leen los scripts cuando se ejecutan. |
+| `overlay/gentle-ai/policy/managed-assets.json` | Es el mapa oficial que dice qué archivos estamos controlando y adaptando. |
+| `overlay/gentle-ai/state/upstream-state.json` | Guarda cuál fue la última versión del proyecto original que revisamos. |
+| `overlay/gentle-ai/logs/update-log.md` | Es un registro donde anotamos las decisiones importantes sobre qué cosas nuevas aceptamos o rechazamos. |
 
-Git already preserves the implementation detail. `update-log.md` is reserved for closed audits, adoption/rejection/postponement decisions, maintenance-contract changes, and incidents/recoveries that affect how this repo stays aligned with Gentle AI upstream.
+Para ver el código exacto que cambió, siempre podés mirar el historial de Git. El archivo `update-log.md` lo usamos solo para anotar las decisiones y eventos importantes que cambian cómo nos alineamos con el proyecto original.
 
-### Key files and directories
+### Carpetas y archivos importantes
 
-| Path                                                                                             | Role |
-| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| `overlay/gentle-ai/assets/`                                                                      | Canonical tree of approved upstream copies plus owned overlay assets. |
-| `~/.config/gentle-ai-custom/opencode-local-config.json`                                          | Canonical local config: upstream path, optional `opencode.json` override, `agent_overrides`, `default_profile`, and `profiles`. |
-| `overlay/gentle-ai/maintenance.md`                                                               | Central human maintenance guide, signals, and technical notes. |
-| `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`                                           | Agent capability that interprets the audit and guides maintenance. |
+| Ruta | Para qué sirve |
+| --- | --- |
+| `overlay/gentle-ai/assets/` | Carpeta principal con las copias aprobadas del proyecto original y nuestros propios archivos. |
+| `~/.config/gentle-ai-custom/opencode-local-config.json` | Tu configuración personal: dónde está el código original, qué modelos preferís usar, etc. |
+| `overlay/gentle-ai/maintenance.md` | Guía y notas técnicas pensadas para que las lea una persona que esté manteniendo esto. |
+| `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md` | Instrucciones para que el agente entienda cómo hacer la auditoría y guiarnos en el mantenimiento. |
 
-### Included maintenance tools
+### Herramientas de mantenimiento incluidas
 
-- **Maintainer skill**: the recommended way to operate this maintenance flow through an agent.
-- **Maintenance**: centralizes the human workflow, high-signal indicators, and useful technical notes.
-- **Public audit**: available as a standalone script, but usually does not need manual interpretation outside debugging.
+- **Agente de mantenimiento (Maintainer skill)**: es la forma recomendada de trabajar, pidiéndole al agente que nos asista.
+- **Documentación de mantenimiento**: concentra las explicaciones y notas técnicas.
+- **Scripts de auditoría**: se pueden usar a mano, pero normalmente no hace falta salvo para buscar algún problema puntual.
 
-Human maintenance operation lives in `overlay/gentle-ai/maintenance.md`. Maintainer agent behavior lives in its `SKILL.md`.
+Toda la guía para humanos está en `overlay/gentle-ai/maintenance.md`. El comportamiento del agente está en su propio `SKILL.md`.
 
-> **OpenCode note:** if the script changes `~/.config/opencode/opencode.json`, restart OpenCode. Configuration does not hot-reload.
+> **Nota sobre OpenCode:** si el script llega a cambiar tu `~/.config/opencode/opencode.json`, tenés que reiniciar OpenCode porque no toma los cambios al vuelo.
 
 ## Política actual
 

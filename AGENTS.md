@@ -74,6 +74,9 @@ Any modification that affects operability must be reflected in documentation:
 - `overlay/gentle-ai/maintenance.md` — maintenance guide
 - affected `SKILL.md` files — source of truth for runtime agent behavior
 
+**Language and Tone Rule for README.md:**
+`README.md` MUST be written in Spanish. Use simple, clear, and accessible language to ensure it is easily understood, rather than reading like a highly specialized technical manual. Avoid overly complex words where possible. If technical details are necessary, include them but always aim to explain them in a simple and straightforward way.
+
 ### 4. Use the overlay update log only for closed upstream-maintenance events (MANDATORY)
 
 `overlay/gentle-ai/logs/update-log.md` is a **single-file maintenance ledger**.
