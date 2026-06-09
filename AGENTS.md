@@ -367,10 +367,10 @@ Canonical order:
 1. update the `gentle-ai` binary
 2. `git pull` in the resolved upstream `gentle-ai` repo (default: `../gentle-ai` relative to this repo)
 3. open `gentle-ai-custom` and run the maintainer audit
-4. read `Summary:` and, if present, `Drift summary:`; convert the audit into a concise decision summary that states what is new upstream, what to adopt, what to discard, and why
+4. read `Summary:` and, if present, `Drift summary:`; convert the audit into a concise decision summary that states what is new upstream, what to adopt, what to discard, whether repo sync is required, why, and the runtime refresh recommendation
 5. STOP for explicit user approval before any repo mutation, upstream-boundary advance, upstream-asset sync, or runtime refresh
-6. if a new upstream boundary was accepted, run `bash sync-gentle-ai-upstream-assets.sh`
-7. run the correct upstream refresh path (`gentle-ai sync` or full reinstall)
+6. if a new upstream boundary was accepted, run `bash sync-gentle-ai-upstream-assets.sh` as the repo sync step
+7. run the correct upstream refresh path (`gentle-ai sync` or full reinstall) as a separate later runtime step
 8. re-apply the overlay with `apply-gentle-ai-custom.sh opencode` or `apply-gentle-ai-custom.sh all`
 9. run one fresh-context consistency review over the maintainer changes, then return a closing summary of what was adopted vs discarded and why
 
@@ -392,9 +392,10 @@ bash apply-gentle-ai-custom.sh all
 
 Adoption rule:
 
-- If the upstream delta is overlay-relevant but preserves agent topology, use `gentle-ai sync` and then re-apply the overlay.
-- If the upstream delta adds, removes, or renames agents, changes presets/topology, or changes how upstream materializes `opencode.json`, recommend a full reinstall before re-applying the overlay.
-- If both kinds of changes exist, topology wins: recommend reinstall.
+- If the upstream delta is overlay-relevant and the maintained runtime target stays effectively compatible, use `gentle-ai sync` and then re-apply the overlay.
+- Do NOT recommend a full reinstall only because upstream added support for a new agent or platform that does not affect the runtime target/materialized state this repo actually maintains.
+- Recommend a full reinstall when adopted upstream changes affect topology, presets, or materialization for the maintained runtime target, or when `gentle-ai sync` cannot materialize the required state.
+- Keep rejecting upstream changes that reintroduce `chained-pr` governance or review-workload gates into the repo-owned orchestrator behavior unless the user explicitly changes maintenance intent.
 
 Operational reminders:
 

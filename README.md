@@ -87,11 +87,11 @@ Maintenance in this repo follows a fixed sequence. What changes is not the order
 1. Update the `gentle-ai` binary.
 2. Run `git pull` in your local `gentle-ai` clone.
 3. From `gentle-ai-custom`, ask the maintainer agent to run the upstream audit.
-4. Before any repo mutation, the maintainer must return a concise decision summary: what is new upstream, what it recommends adopting, what it recommends discarding, and why.
+4. Before any repo mutation, the maintainer must return a concise decision summary: what is new upstream, what it recommends adopting, what it recommends discarding, whether repo sync is required, why, and the runtime refresh recommendation.
 5. Stop for explicit approval before updating this repo, advancing the upstream boundary, syncing approved upstream assets, or refreshing runtime.
-6. If you approved a new upstream boundary, run `sync-gentle-ai-upstream-assets` to refresh the approved upstream copies.
-7. Run `gentle-ai sync` or a full reinstall if the audit recommends it.
-8. Re-apply the overlay with `apply-gentle-ai-custom`.
+6. If you approved a new upstream boundary, run `sync-gentle-ai-upstream-assets` as the repo sync step to refresh the approved upstream copies.
+7. Después, y como paso separado, ejecutá el runtime refresh recomendado: `gentle-ai sync` o una reinstalación completa.
+8. Reaplicá el overlay con `apply-gentle-ai-custom`.
 9. Finish with a fresh-context consistency review plus a closing summary of what was actually adopted vs discarded and why.
 10. Restart OpenCode if `~/.config/opencode/opencode.json` changed.
 
@@ -119,11 +119,18 @@ The upstream audit must answer these operator-level questions before any repo mu
 
 - what is actually new upstream and whether it matters to this overlay
 - what should be adopted vs explicitly discarded, with rationale for each side
-- whether this repo must change first, and whether the correct runtime path is `gentle-ai sync` or a full TUI reinstall
+- whether this repo must change first, whether an approved boundary requires `sync-gentle-ai-upstream-assets`, and whether the correct runtime path is `gentle-ai sync` or a full TUI reinstall
 
 Today the audit discovers drift mainly with `git diff --name-status --find-renames <last_maintained_commit>..HEAD`, filtered through `overlay/gentle-ai/policy/managed-assets.json`, while still keeping structural checks for upstream changes that could break integration even when they are not markdown assets.
 
-The `audit-gentle-ai-upstream.*` and `sync-gentle-ai-upstream-assets.*` scripts are public, but the recommended path is still the maintainer skill so the audit result is turned into an approval-gated decision summary before anything mutates. `sync-gentle-ai-upstream-assets` refreshes `overlay/gentle-ai/assets/upstream/`.
+The `audit-gentle-ai-upstream.*` and `sync-gentle-ai-upstream-assets.*` scripts are public, but the recommended path is still the maintainer skill so the audit result is turned into an approval-gated decision summary before anything mutates. `sync-gentle-ai-upstream-assets` refreshes `overlay/gentle-ai/assets/upstream/` and the maintained boundary inside the repo; it is NOT the runtime refresh step.
+
+### How to recommend `gentle-ai sync` vs reinstall
+
+- Prefer `gentle-ai sync` when the adopted upstream change matters to the maintained runtime target, but its topology, presets, and materialized state remain effectively compatible.
+- Recommend a full reinstall when the adopted upstream change affects topology, presets, or materialization for the runtime target this repo actually maintains, or when `gentle-ai sync` cannot materialize the required state.
+- Upstream adding support for a new agent, platform, or topology outside the maintained runtime target does NOT force reinstall by itself.
+- Upstream attempts to reintroduce chained/stacked PR governance into the orchestrator stay on the discard side unless maintenance intent changes explicitly.
 
 ### What `apply-gentle-ai-custom` re-applies
 

@@ -4,6 +4,15 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-06-09 | Separated repo sync from runtime refresh recommendations
+
+- **Type**: `policy-change`
+- **Upstream scope/range**: maintenance workflow contract, not a new upstream boundary
+- **Decision**: refined the maintenance contract so audit/approval, repo sync (`bash sync-gentle-ai-upstream-assets.sh`), runtime refresh (`gentle-ai sync` vs full reinstall), and overlay re-apply are distinct phases; made the runtime-refresh recommendation depend on the maintained runtime target/materialized state instead of any upstream topology expansion; and kept rejecting upstream attempts to reintroduce `chained-pr` governance into the repo-owned orchestrator behavior.
+- **Why it mattered**: the previous wording still conflated approved-upstream repo sync with later runtime refresh and was too coarse about reinstall recommendations. The maintainer contract now says an approved boundary always triggers repo sync, while reinstall is reserved for adopted changes that actually affect the maintained runtime target or when sync cannot materialize the required state.
+- **Affected artifacts**: `AGENTS.md`, `README.md`, `overlay/gentle-ai/README.md`, `overlay/gentle-ai/maintenance.md`, `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`, `overlay/gentle-ai/logs/update-log.md`
+- **Verification**: fresh consistency review across the changed maintainer artifacts plus `git diff --check`
+
 ## 2026-06-08 | Made maintainer workflow decision-oriented and approval-gated
 
 - **Type**: `policy-change`

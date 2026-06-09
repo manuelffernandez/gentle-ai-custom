@@ -23,12 +23,13 @@ This file describes the current operating model: `apply-gentle-ai-custom` reinst
    - recommend adopt
    - recommend discard
    - why
+   - repo sync requirement: whether approval of a new boundary requires `bash sync-gentle-ai-upstream-assets.sh`
    - recommended runtime path: `gentle-ai sync` vs full reinstall
 5. STOP for explicit approval before updating this repo, advancing `state/upstream-state.json`, running `bash sync-gentle-ai-upstream-assets.sh`, or refreshing runtime.
-6. If a new upstream boundary was approved, run `bash sync-gentle-ai-upstream-assets.sh` to refresh `overlay/gentle-ai/assets/upstream/...`.
+6. If a new upstream boundary was approved, run `bash sync-gentle-ai-upstream-assets.sh` as the repo sync step to refresh `overlay/gentle-ai/assets/upstream/...`.
 7. Execute the recommended upstream refresh path:
-   - `gentle-ai sync` if topology did not change
-   - full reinstall if topology changed or sync no longer materializes the right state
+   - `gentle-ai sync` if the maintained runtime target stays effectively compatible
+   - full reinstall if adopted changes affect topology, presets, or materialization for the maintained runtime target, or if sync no longer materializes the right state
 8. Re-apply the overlay with `bash apply-gentle-ai-custom.sh opencode`.
 9. Read `Summary:`, verify the final on-disk state, run one fresh-context consistency review, and return a closing summary of what was actually adopted vs discarded and why.
 10. If `~/.config/opencode/opencode.json` changed, restart OpenCode.
@@ -63,15 +64,24 @@ Before the maintainer edits repo files or refreshes runtime, turn the audit into
 - `Recommend adopt` — overlay-relevant behavior/assets worth carrying forward
 - `Recommend discard` — upstream additions the overlay should keep pruning or reject
 - `Why` — rationale for both lists
-- `Recommended runtime path` — `gentle-ai sync` vs full reinstall, with the topology reason when relevant
+- `Repo sync requirement` — whether approval of a new upstream boundary requires `bash sync-gentle-ai-upstream-assets.sh`
+- `Recommended runtime path` — `gentle-ai sync` vs full reinstall, with the maintained-runtime-target reason when relevant
 
 No repo mutation happens before that handoff is approved.
+
+### Runtime refresh recommendation
+
+- Prefer `gentle-ai sync` when the adopted change matters to the runtime target this repo actually maintains, but that target's topology, presets, and materialized state remain effectively compatible.
+- Do not recommend reinstall only because upstream added support for some other agent or platform outside the maintained runtime target/materialized state.
+- Recommend a full reinstall when the adopted change affects topology, presets, or materialization for the maintained runtime target, or when `gentle-ai sync` cannot materialize the required state.
+- Keep rejecting upstream attempts to reintroduce `chained-pr`, review-budget, or review-workload governance into the repo-owned orchestrator behavior unless human intent changes first.
 
 ### `sync-gentle-ai-upstream-assets`
 
 - copies approved upstream assets into `assets/upstream/...`
 - advances `state/upstream-state.json` when the new upstream was accepted
 - does not touch local runtime under `~/.config/opencode/`
+- always runs after approval of a newly accepted upstream boundary; it is the repo sync step, not the runtime refresh step
 
 ### `apply-gentle-ai-custom`
 

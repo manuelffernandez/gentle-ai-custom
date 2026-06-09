@@ -20,8 +20,10 @@ Esta carpeta agrupa los assets operativos del overlay de Gentle AI.
 ## Modelo vigente
 
 - `policy/managed-assets.json` es el mapa canónico entre upstream aprobado y runtime owned.
+- `audit-gentle-ai-upstream` cubre audit + recomendación antes de cualquier mutación.
+- `sync-gentle-ai-upstream-assets` hace el repo sync de `assets/upstream/...` más la frontera aprobada; no refresca el runtime.
 - `apply-gentle-ai-custom` usa `assets/owned/...` como source of truth para los prompts/skills/commands SDD del runtime.
-- `audit-gentle-ai-upstream` y `sync-gentle-ai-upstream-assets` usan `assets/upstream/...` más el baseline auditado para mantener la alineación con upstream.
+- El runtime refresh (`gentle-ai sync` o reinstalación completa) es un paso separado y depende de si el cambio adoptado afecta el runtime target/materialized state que este repo mantiene.
 - `shared/skills/` sigue siendo la fuente canónica de las skills repo-owned portables; no se mueve a este árbol.
 
 ## Regla simple
