@@ -328,10 +328,12 @@ Canonical order:
 1. update the `gentle-ai` binary
 2. `git pull` in the resolved upstream `gentle-ai` repo (default: `../gentle-ai` relative to this repo)
 3. open `gentle-ai-custom` and run the maintainer audit
-4. read `Summary:` and, if present, `Drift summary:`; if the audit reveals overlay-relevant drift, update this repo first
-5. if a new upstream boundary was accepted, run `bash sync-gentle-ai-upstream-assets.sh`
-6. run the correct upstream refresh path (`gentle-ai sync` or full reinstall)
-7. re-apply the overlay with `apply-gentle-ai-custom.sh opencode` or `apply-gentle-ai-custom.sh all`
+4. read `Summary:` and, if present, `Drift summary:`; convert the audit into a concise decision summary that states what is new upstream, what to adopt, what to discard, and why
+5. STOP for explicit user approval before any repo mutation, upstream-boundary advance, upstream-asset sync, or runtime refresh
+6. if a new upstream boundary was accepted, run `bash sync-gentle-ai-upstream-assets.sh`
+7. run the correct upstream refresh path (`gentle-ai sync` or full reinstall)
+8. re-apply the overlay with `apply-gentle-ai-custom.sh opencode` or `apply-gentle-ai-custom.sh all`
+9. run one fresh-context consistency review over the maintainer changes, then return a closing summary of what was adopted vs discarded and why
 
 Current audit discovery model:
 
@@ -359,6 +361,7 @@ Operational reminders:
 
 - `gentle-ai sync` rewrites runtime prompt refs and restores pruned skills, so re-apply is mandatory afterward.
 - `apply-gentle-ai-custom.sh opencode` is the minimum OpenCode refresh; `all` is equivalent — `opencode` is the only registered agent.
+- The maintainer workflow is approval-gated: audit first, decision summary second, mutations only after explicit user approval.
 
 Detailed triage, decision gates, drift interpretation, recovery, and post-state verification belong in `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md` and `overlay/gentle-ai/maintenance.md`.
 

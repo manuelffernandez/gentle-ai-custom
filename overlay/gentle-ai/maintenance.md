@@ -1,133 +1,152 @@
 # Maintenance
 
-Guía humana del overlay de Gentle AI.
+Human guide to the Gentle AI overlay.
 
-Este archivo describe el modelo operativo vigente: `apply-gentle-ai-custom` reinstala assets repo-owned desde `overlay/gentle-ai/assets/owned/...`; `audit-gentle-ai-upstream` y `sync-gentle-ai-upstream-assets` mantienen la relación con upstream y el baseline aprobado.
+This file describes the current operating model: `apply-gentle-ai-custom` reinstalls repo-owned assets from `overlay/gentle-ai/assets/owned/...`; `audit-gentle-ai-upstream` and `sync-gentle-ai-upstream-assets` maintain the relationship with upstream and the approved baseline.
 
-## Qué no define este archivo
+## What this file does not define
 
-- reglas de comportamiento del agente/runtime -> `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`
-- ownership y policy del repo -> `AGENTS.md`
-- intención keep/prune y comportamiento deseado del orchestrator -> `policy/maintenance-intent.md`
-- policy machine-readable -> `policy/gentle-ai-policy.json`
-- frontera upstream mantenida -> `state/upstream-state.json`
-- bitácora de eventos cerrados -> `logs/update-log.md`
+- agent/runtime behavior -> `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`
+- repo ownership and policy -> `AGENTS.md`
+- keep/prune intent and desired orchestrator behavior -> `policy/maintenance-intent.md`
+- machine-readable policy -> `policy/gentle-ai-policy.json`
+- maintained upstream boundary -> `state/upstream-state.json`
+- closed-event ledger -> `logs/update-log.md`
 
 ## Quick path
 
-1. Actualizá el binario de `gentle-ai`.
-2. Corré `git pull` en el clone upstream resuelto de `gentle-ai`.
-3. Desde `gentle-ai-custom`, corré `bash audit-gentle-ai-upstream.sh`.
-4. Si la auditoría muestra drift relevante, actualizá primero este repo.
-5. Si aprobaste una nueva frontera upstream, corré `bash sync-gentle-ai-upstream-assets.sh` para refrescar `overlay/gentle-ai/assets/upstream/...` y el baseline auditado.
-6. Ejecutá el refresh upstream recomendado por la auditoría:
-   - `gentle-ai sync` si la topología no cambió
-   - reinstalación completa si cambió la topología o sync ya no materializa la forma correcta
-7. Reaplicá el overlay con `bash apply-gentle-ai-custom.sh opencode`.
-8. Leé `Summary:` y verificá el estado final en disco.
-9. Si cambió `~/.config/opencode/opencode.json`, reiniciá OpenCode.
+1. Update the `gentle-ai` binary.
+2. Run `git pull` in the resolved upstream `gentle-ai` clone.
+3. From `gentle-ai-custom`, run `bash audit-gentle-ai-upstream.sh`.
+4. Convert the audit into a concise decision summary before any mutation:
+   - what is new upstream
+   - recommend adopt
+   - recommend discard
+   - why
+   - recommended runtime path: `gentle-ai sync` vs full reinstall
+5. STOP for explicit approval before updating this repo, advancing `state/upstream-state.json`, running `bash sync-gentle-ai-upstream-assets.sh`, or refreshing runtime.
+6. If a new upstream boundary was approved, run `bash sync-gentle-ai-upstream-assets.sh` to refresh `overlay/gentle-ai/assets/upstream/...` and the audited baseline.
+7. Execute the recommended upstream refresh path:
+   - `gentle-ai sync` if topology did not change
+   - full reinstall if topology changed or sync no longer materializes the right state
+8. Re-apply the overlay with `bash apply-gentle-ai-custom.sh opencode`.
+9. Read `Summary:`, verify the final on-disk state, run one fresh-context consistency review, and return a closing summary of what was actually adopted vs discarded and why.
+10. If `~/.config/opencode/opencode.json` changed, restart OpenCode.
 
-## Modelo operativo
+## Operating model
 
-| Artefacto | Rol |
+| Artifact | Role |
 | --- | --- |
-| `policy/maintenance-intent.md` | Intención humana: qué conservar, depurar y proteger |
-| `policy/gentle-ai-policy.json` | Policy operativa consumida por la CLI Go y los wrappers |
-| `policy/managed-assets.json` | Mapa canónico de assets upstream aprobados y assets owned instalables |
-| `assets/upstream/` | Copias upstream aprobadas para review/diff |
-| `assets/owned/` | Assets repo-owned que `apply` instala en runtime |
-| `shared/skills/` | Skills portables repo-owned instaladas globalmente por `apply` |
-| `shared/commands/` | Cuerpos fuente para wrappers custom renderizados por `apply` |
-| `state/upstream-state.json` | Última frontera upstream mantenida |
-| `snapshots/upstream/opencode/orchestrators/` | Baseline auditado de `gentle-orchestrator` usado por audit/sync |
+| `policy/maintenance-intent.md` | Human intent: what to keep, depure, and protect |
+| `policy/gentle-ai-policy.json` | Runtime policy consumed by the Go CLI and wrappers |
+| `policy/managed-assets.json` | Canonical map of approved upstream assets and installable owned assets |
+| `assets/upstream/` | Approved upstream copies for review/diff |
+| `assets/owned/` | Repo-owned assets that `apply` installs into runtime |
+| `shared/skills/` | Portable repo-owned skills installed globally by `apply` |
+| `shared/commands/` | Source bodies for custom wrappers rendered by `apply` |
+| `state/upstream-state.json` | Last maintained upstream boundary |
+| `snapshots/upstream/opencode/orchestrators/` | Audited `gentle-orchestrator` baseline used by audit/sync |
 
-## Qué hace cada comando
+## What each command does
 
 ### `audit-gentle-ai-upstream`
 
-- usa `last_maintained_commit` de `state/upstream-state.json`
-- descubre drift con `git diff --name-status --find-renames <last_maintained_commit>..HEAD`
-- filtra ese drift con `policy/managed-assets.json`
-- sigue verificando invariantes estructurales de upstream (`profiles.go`, `inject.go`, etc.)
-- valida que el baseline auditado (`snapshots/.../gentle-orchestrator.last.md` + metadata) siga consistente con upstream/state
+- uses `last_maintained_commit` from `state/upstream-state.json`
+- discovers drift with `git diff --name-status --find-renames <last_maintained_commit>..HEAD`
+- filters that drift through `policy/managed-assets.json`
+- keeps verifying upstream structural invariants (`profiles.go`, `inject.go`, etc.)
+- validates that the audited baseline (`snapshots/.../gentle-orchestrator.last.md` + metadata) stays consistent with upstream/state
+
+### Decision handoff before mutation
+
+Before the maintainer edits repo files or refreshes runtime, turn the audit into an approval gate:
+
+- `What is new upstream` — concise change summary for the reviewed upstream range
+- `Recommend adopt` — overlay-relevant behavior/assets worth carrying forward
+- `Recommend discard` — upstream additions the overlay should keep pruning or reject
+- `Why` — rationale for both lists
+- `Recommended runtime path` — `gentle-ai sync` vs full reinstall, with the topology reason when relevant
+
+No repo mutation happens before that handoff is approved.
 
 ### `sync-gentle-ai-upstream-assets`
 
-- copia assets upstream aprobados hacia `assets/upstream/...`
-- actualiza el baseline auditado de `gentle-orchestrator`
-- avanza `state/upstream-state.json` cuando el nuevo upstream fue aceptado
-- no toca runtime local bajo `~/.config/opencode/`
+- copies approved upstream assets into `assets/upstream/...`
+- updates the audited `gentle-orchestrator` baseline
+- advances `state/upstream-state.json` when the new upstream was accepted
+- does not touch local runtime under `~/.config/opencode/`
 
 ### `apply-gentle-ai-custom`
 
-- instala assets SDD/runtime repo-owned desde `assets/owned/...`
-- reescribe `opencode.json` para que base y perfiles SDD usen esos prompt files
-- poda las skills upstream rechazadas solo en los targets registrados seleccionados
-- aplica `agent_overrides`
-- reconcilia `default_profile` y `profiles`
-- instala skills repo-owned desde `shared/skills/`
-- renderiza wrappers custom desde `shared/commands/`
+- installs repo-owned SDD/runtime assets from `assets/owned/...`
+- rewrites `opencode.json` so the base and SDD profiles use those prompt files
+- prunes rejected upstream skills only in the selected registered targets
+- applies `agent_overrides`
+- reconciles `default_profile` and `profiles`
+- installs repo-owned skills from `shared/skills/`
+- renders custom wrappers from `shared/commands/`
 
-`apply` ya NO depende de sanitización, captura de prompts inline, snapshots operativos locales ni recovery desde snapshots.
+`apply` no longer depends on sanitization, inline prompt capture, local operational snapshots, or snapshot-based recovery.
 
-## Tipos de actualización e impacto
+## Update types and impact
 
-| Vía de actualización | Qué cambia | Impacto en el overlay |
+| Update path | What changes | Overlay impact |
 | --- | --- | --- |
-| `brew upgrade gentle-ai` | Solo el binario | Normalmente no resetea el overlay |
-| `gentle-ai sync` | Prompts, skills, MCP configs, assets SDD | Restaura estado upstream en runtime; reaplicar overlay es obligatorio |
-| Reinstalación por TUI | Instalación completa, topología, presets y config | Resetea todo y puede cambiar agentes/presets |
+| `brew upgrade gentle-ai` | Only the binary | Usually does not reset the overlay |
+| `gentle-ai sync` | Prompts, skills, MCP configs, SDD assets | Restores upstream runtime state; re-applying the overlay is mandatory |
+| TUI reinstall | Full installation, topology, presets, and config | Resets everything and may change agents/presets |
 
-## Señales de mayor valor
+## Highest-signal indicators
 
-| Señal | Significado | Acción |
+| Signal | Meaning | Action |
 | --- | --- | --- |
-| `base prompt drift: yes` | Cambió `gentle-orchestrator` upstream respecto del baseline auditado | Leer primero `Drift summary:` |
-| `profile ... mismatch` / `base asset injection invariant: mismatch` | Cambió la mecánica upstream de perfiles SDD | Frenar y auditar antes de recomendar `sync` |
-| `topology: unknown orchestrator matched by prefix only` | Apareció un orchestrator upstream nuevo | Auditarlo y decidir si la policy debe incluirlo |
-| `topology: expected orchestrator missing from opencode.json` | Un orchestrator conocido desapareció o fue renombrado | Auditar upstream y actualizar policy/intent si hace falta |
-| `WARNING - unmanaged SDD profiles left untouched` | Hay perfiles presentes en `opencode.json` que no están en la fuente activa `profiles` | Decidir si gestionarlos en config local o removerlos manualmente |
-| `owned asset writes - ...` | `apply` instaló o dejó intactos los assets repo-owned | Revisar verbose si necesitás detalle por archivo |
+| `base prompt drift: yes` | Upstream `gentle-orchestrator` changed relative to the audited baseline | Read `Drift summary:` first |
+| `profile ... mismatch` / `base asset injection invariant: mismatch` | Upstream SDD profile mechanics changed | Stop and audit before recommending `sync` |
+| `topology: unknown orchestrator matched by prefix only` | A new upstream orchestrator appeared | Audit it and decide whether policy must include it |
+| `topology: expected orchestrator missing from opencode.json` | A known orchestrator disappeared or was renamed | Audit upstream and update policy/intent if needed |
+| `WARNING - unmanaged SDD profiles left untouched` | `opencode.json` contains profiles absent from the active `profiles` source | Decide whether to manage them in local config or remove them manually |
+| `owned asset writes - ...` | `apply` installed or left repo-owned assets untouched | Review `--verbose` output if you need file-level detail |
 
-## Verificación post-state
+## Post-state verification
 
-Después del apply, confirmá esto:
+After `apply`, confirm this:
 
-- las skills podadas ya no existen en cada target registrado seleccionado
-- cada `agent_override` efectivo resuelve al `model` / `variant` esperado
-- `agent.gentle-orchestrator.prompt` apunta a `~/.config/opencode/prompts/sdd/orchestrators/gentle-orchestrator.overlay.md`
-- cada `sdd-orchestrator-<name>` gestionado apunta a ese mismo prompt file owned
-- cada fase `sdd-<phase>` y cada fase gestionada `sdd-<phase>-<name>` apunta a su prompt file owned bajo `~/.config/opencode/prompts/sdd/`
-- los files/directorios runtime declarados en `policy/managed-assets.json` existen en disco
-- si `default_profile` existe, la familia base mantiene `model` y `variant` correctos
-- si `profiles` existe, cada perfil declarado mantiene `model` y `variant` correctos
-- `snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md` y `.meta.yaml` siguen consistentes con `state/upstream-state.json`
+- pruned skills no longer exist in each selected registered target
+- each effective `agent_override` resolves to the expected `model` / `variant`
+- `agent.gentle-orchestrator.prompt` points to `~/.config/opencode/prompts/sdd/orchestrators/gentle-orchestrator.overlay.md`
+- each managed `sdd-orchestrator-<name>` points to that same owned prompt file
+- each `sdd-<phase>` and each managed `sdd-<phase>-<name>` points to its owned prompt file under `~/.config/opencode/prompts/sdd/`
+- runtime files/directories declared in `policy/managed-assets.json` exist on disk
+- if `default_profile` exists, the base family keeps the correct `model` and `variant`
+- if `profiles` exists, each declared profile keeps the correct `model` and `variant`
+- `snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md` and `.meta.yaml` stay consistent with `state/upstream-state.json`
+- one fresh-context reviewer/subagent pass checked the changed maintainer artifacts and final summary for workflow consistency
 
-## Config local del overlay
+## Local overlay config
 
-El config por máquina canónico vive fuera del repo en `~/.config/gentle-ai-custom/opencode-local-config.json`.
+The canonical per-machine config lives outside the repo at `~/.config/gentle-ai-custom/opencode-local-config.json`.
 
-Reglas operativas:
+Operational rules:
 
-- `upstream_repo_path` tiene precedencia sobre `GENTLE_AI_CUSTOM_UPSTREAM_REPO`, y ambos sobre `../gentle-ai`
-- `opencode_config_path` es opcional; si se omite, el default sigue siendo `~/.config/opencode/opencode.json`
-- `agent_overrides` maneja solo asignaciones explícitas para built-in agents como `general` o `explore`
-- `default_profile` maneja solo la familia base `gentle-orchestrator` + fases SDD sin sufijo
-- `profiles` maneja solo familias SDD nombradas (`sdd-orchestrator-<name>` + fases)
-- perfiles existentes no declarados quedan intactos y se reportan como unmanaged
+- `upstream_repo_path` takes precedence over `GENTLE_AI_CUSTOM_UPSTREAM_REPO`, and both take precedence over `../gentle-ai`
+- `opencode_config_path` is optional; when omitted, the default remains `~/.config/opencode/opencode.json`
+- `agent_overrides` manages only explicit built-in agent assignments such as `general` or `explore`
+- `default_profile` manages only the base `gentle-orchestrator` family plus unsuffixed SDD phases
+- `profiles` manages only named SDD families (`sdd-orchestrator-<name>` plus phases)
+- existing undeclared profiles remain untouched and are reported as unmanaged
 
-## Checklist de mantenimiento
+## Maintenance checklist
 
-- [ ] `maintenance-intent.md` sigue reflejando qué conservar y qué depurar
-- [ ] `managed-assets.json` sigue alineado con `assets/upstream/` y `assets/owned/`
-- [ ] `upstream-state.json` sigue apuntando a la última frontera upstream realmente mantenida
-- [ ] `apply-gentle-ai-custom` sigue reinstalando prompt refs desde assets owned
-- [ ] el baseline auditado de `gentle-orchestrator` sigue consistente con su metadata
-- [ ] los entrypoints públicos en shell y PowerShell siguen siendo equivalentes
-- [ ] los assignments de perfiles SDD siguen siendo locales y no reaparecieron en la policy versionada
-- [ ] la resolución upstream sigue respetando: config local -> env -> fallback `../gentle-ai`
+- [ ] `maintenance-intent.md` still reflects what to keep and depure
+- [ ] `managed-assets.json` still aligns with `assets/upstream/` and `assets/owned/`
+- [ ] `upstream-state.json` still points to the last upstream boundary that was actually maintained
+- [ ] `apply-gentle-ai-custom` still reinstalls prompt refs from owned assets
+- [ ] the audited `gentle-orchestrator` baseline still matches its metadata
+- [ ] the public shell and PowerShell entrypoints remain equivalent
+- [ ] SDD profile assignments remain local and did not leak back into versioned policy
+- [ ] upstream resolution still respects: local config -> env -> fallback `../gentle-ai`
 
-## Referencias
+## References
 
 - `README.md`
 - `AGENTS.md`
