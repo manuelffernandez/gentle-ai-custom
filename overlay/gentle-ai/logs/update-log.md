@@ -4,6 +4,15 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-06-09 | Adopted upstream v1.37.0 boundary — discarded chained-pr orchestrator binding
+
+- **Type**: `audit`
+- **Upstream scope/range**: `122b35816d3fbc1627359fe0613c6541604980bc` (`v1.36.8`) → `03457e9e3406ee5695da6dca5cd16c1f49a50dad` (`v1.37.0`)
+- **Decision**: accepted the new upstream boundary v1.37.0; discarded the 2-line addition that binds the `chained-pr` skill (`gentle-ai-chained-pr`) as a required skill match in the orchestrator chain strategy — this directly violates the `maintenance-intent.md` hard rule against chained/stacked PR governance in the repo-owned orchestrator; noted Hermes agent support as an upstream addition outside the maintained OpenCode runtime target (no overlay action required); kept `gentle-ai sync` as the upstream refresh path because no topology, preset, or materialization drift was detected for the maintained runtime target.
+- **Why it mattered**: upstream v1.37.0 included a new feature (`feat(sdd): bind chained-pr skill into orchestrator chain strategy #792`) that embeds `chained-pr` skill enforcement into core orchestrator delivery planning. The owned orchestrator prompt already depurates the entire delivery-strategy/chained-PR block, so the new binding line was already excluded by the existing depuration. Accepting the boundary without adopting the content preserves the repo's depuration invariant.
+- **Affected artifacts**: `overlay/gentle-ai/state/upstream-state.json`, `overlay/gentle-ai/assets/upstream/opencode/prompts/orchestrators/gentle-orchestrator.md`
+- **Verification**: fresh-context consistency review — CONSISTENT (6/6 assertions passed); owned orchestrator prompt confirmed absent of `gentle-ai-chained-pr`; runtime pruning confirmed (4 skills removed); `bash apply-gentle-ai-custom.sh opencode` completed with 0 topology warnings and 0 unmanaged profiles.
+
 ## 2026-06-09 | Separated repo sync from runtime refresh recommendations
 
 - **Type**: `policy-change`

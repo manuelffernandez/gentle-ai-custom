@@ -1,7 +1,7 @@
 {
-  "last_maintained_version": "v1.36.8",
-  "last_maintained_tag": "v1.36.8",
-  "last_maintained_commit": "122b35816d3fbc1627359fe0613c6541604980bc",
-  "last_reviewed_at": "2026-06-08T23:14:07Z",
-  "notes": "Updated approved upstream asset snapshots via sync-upstream-assets from 122b35816d3fbc1627359fe0613c6541604980bc."
+  "last_maintained_version": "v1.37.0",
+  "last_maintained_tag": "v1.37.0",
+  "last_maintained_commit": "03457e9e3406ee5695da6dca5cd16c1f49a50dad",
+  "last_reviewed_at": "2026-06-09T14:33:43Z",
+  "notes": "Updated approved upstream asset snapshots via sync-upstream-assets from 03457e9e3406ee5695da6dca5cd16c1f49a50dad."
 }
