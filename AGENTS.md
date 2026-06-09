@@ -173,11 +173,51 @@ The most common pattern in this repo is `shared/skills/<name>/` + global runtime
 
 ---
 
+## Two-layer agentic configuration
+
+This repo contains two conceptually distinct layers of agentic configuration. Conflating them is the most common agent error. Resolve ambiguity by asking which layer is intended before acting.
+
+### Layer 1 — Repo-local runtime (for working IN this repo)
+
+Files that take effect when OpenCode is open in this project. Never installed globally. No apply script step required.
+
+| Path | Purpose |
+|---|---|
+| `.agents/skills/<name>/SKILL.md` | Skills loaded automatically when OpenCode is in this project |
+| `.opencode/commands/<name>.md` | Slash commands available only in this project |
+
+Current repo-local assets:
+- `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md` — maintainer workflow skill
+- `.opencode/commands/maintain.md` — `/maintain` slash command
+
+### Layer 2 — Installer output (what this repo installs globally)
+
+Files that `apply-gentle-ai-custom.sh` installs into the global OpenCode runtime. The files in this repo are the canonical sources; the global copies are derived artifacts.
+
+| Path | Purpose |
+|---|---|
+| `shared/skills/<name>/SKILL.md` | Canonical source for globally-installed skills |
+| `shared/commands/<name>-body.md` | Command body rendered and installed to `~/.config/opencode/commands/` |
+
+### Disambiguation rule
+
+- User is modifying something to use **while working in this repo** → Layer 1 (`.agents/`, `.opencode/`)
+- User is modifying something that gets **installed into other projects** → Layer 2 (`shared/`)
+- When unclear: **stop and ask** — do not assume Layer 2 because `shared/` is larger or more prominent in the codebase
+
+---
+
 ## Key paths
 
-- `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md` — project-only maintainer workflow for auditing and re-applying the overlay.
-- `shared/skills/` — canonical repo-owned skills that can be installed globally.
-- `shared/commands/` — reusable prompt bodies for commit/PR wrapper commands.
+### Layer 1 — Repo-local
+
+- `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md` — project-only maintainer workflow skill (loaded automatically when OpenCode is in this project).
+- `.opencode/commands/maintain.md` — `/maintain` slash command, available only in this project.
+
+### Layer 2 — Installer output (canonical sources)
+
+- `shared/skills/` — canonical repo-owned skills that the apply script installs globally.
+- `shared/commands/` — reusable prompt bodies for commit/PR wrapper commands rendered by the apply script.
 - `overlay/gentle-ai/assets/` — canonical owned-assets tree: approved upstream snapshots plus repo-owned SDD/runtime assets.
 - `overlay/gentle-ai/policy/gentle-ai-policy.json` — keep/prune policy, OpenCode paths, and runtime overrides.
 - `overlay/gentle-ai/policy/managed-assets.json` — canonical manifest for managed upstream/owned assets and repo-owned skill install intent.
@@ -232,13 +272,16 @@ The maintenance model is intentionally split into:
 
 ## Repo-owned skills
 
-Canonical source files live here; `SKILL.md` is always the source of truth for behavior details.
+`SKILL.md` is always the source of truth for behavior details.
 
+**Layer 1 — Project-local (never installed globally):**
+- `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md` — maintainer workflow, only active when OpenCode is in this project
+
+**Layer 2 — Globally installed via apply script:**
 - `shared/skills/code-design/SKILL.md`
 - `shared/skills/commit-planner/SKILL.md`
 - `shared/skills/package-security/SKILL.md`
 - `shared/skills/pr-finalizer/SKILL.md`
-- `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md` — project-only maintainer workflow
 
 ---
 
