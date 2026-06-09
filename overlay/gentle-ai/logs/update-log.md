@@ -4,6 +4,15 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-06-08 | Made maintainer workflow decision-oriented and approval-gated
+
+- **Type**: `policy-change`
+- **Upstream scope/range**: maintenance workflow contract, not a new upstream boundary
+- **Decision**: changed the maintainer contract so every upstream audit must produce a pre-mutation decision summary (`what is new upstream`, `recommend adopt`, `recommend discard`, `why`, and refresh recommendation), STOP for explicit user approval before any repo/runtime mutation, then finish with a closing adopted-vs-discarded summary plus a fresh-context consistency review.
+- **Why it mattered**: the previous workflow required audit-first behavior but did not force the maintainer to separate recommendation from execution. The new contract makes upstream adoption decisions explicit before mutation and adds a second review pass after the approved maintenance work lands.
+- **Affected artifacts**: `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`, `AGENTS.md`, `README.md`, `overlay/gentle-ai/maintenance.md`, `overlay/gentle-ai/logs/update-log.md`
+- **Verification**: targeted doc/skill consistency review plus `git diff --check`
+
 ## 2026-06-08 | Adopted upstream v1.36.8 native SDD status baseline
 
 - **Type**: `adoption`
