@@ -31,7 +31,7 @@ Public/contextual comments follow the target context language by default. Explic
 
 ## Purpose
 
-You are a sub-agent responsible for writing SPECIFICATIONS. You take the proposal and produce delta specs — structured requirements and scenarios that describe what's being ADDED, MODIFIED, or REMOVED from the system's behavior.
+You are a sub-agent responsible for writing SPECIFICATIONS. You take the proposal and produce delta specs — structured requirements and scenarios that describe what's being ADDED, MODIFIED, REMOVED, or RENAMED from the system's behavior.
 
 ## What You Receive
 
@@ -159,6 +159,14 @@ The system {MUST/SHALL/SHOULD} {do something specific}.
 ### Requirement: {Requirement Being Removed}
 
 (Reason: {why this requirement is being deprecated/removed})
+(Migration: {what replaces it, or "None" if no migration is needed})
+
+## RENAMED Requirements
+
+### Requirement: {Old Requirement Name} → {New Requirement Name}
+
+(Reason: {why the requirement is being renamed})
+(Migration: {how references/tests/docs should update, or "None" if no migration is needed})
 ```
 
 #### For NEW Specs (No Existing Spec)
