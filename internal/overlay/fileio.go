@@ -2,10 +2,8 @@ package overlay
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 func readText(path string) (string, error) {
@@ -14,26 +12,6 @@ func readText(path string) (string, error) {
 		return "", err
 	}
 	return string(raw), nil
-}
-
-func parseSimpleYAML(path string) (map[string]string, error) {
-	text, err := readText(path)
-	if err != nil {
-		return nil, err
-	}
-	data := map[string]string{}
-	for idx, rawLine := range strings.Split(text, "\n") {
-		line := strings.TrimSpace(rawLine)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		parts := strings.SplitN(rawLine, ":", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid metadata line %d in %s: missing ':' separator", idx+1, path)
-		}
-		data[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
-	}
-	return data, nil
 }
 
 func copyFileWithStatus(src, dst string) (string, error) {

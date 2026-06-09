@@ -1,8 +1,6 @@
 package overlay
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"strings"
 )
 
@@ -19,7 +17,4 @@ func normalizeLFTerminated(text string) string {
 	return normalized + "\n"
 }
 
-func sha256Text(text string) string {
-	sum := sha256.Sum256([]byte(normalizeLFTerminated(text)))
-	return hex.EncodeToString(sum[:])
-}
+

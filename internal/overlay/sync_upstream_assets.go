@@ -107,10 +107,6 @@ func RunSyncUpstreamAssets(repoRoot string, args []string) int {
 		updatedState.LastReviewedAt = time.Now().UTC().Format(time.RFC3339)
 		updatedState.Notes = fmt.Sprintf("Updated approved upstream asset snapshots via sync-upstream-assets from %s.", upstreamHead)
 	}
-	if err := syncLegacyAuditedBaseline(repoRoot, upstreamRepo, policy, target, updatedState, options.recorder, stats); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
-		return 1
-	}
 	status, err := writeJSONIndentedWithStatus(statePath, updatedState)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: cannot update %s: %v\n", statePath, err)
@@ -318,64 +314,4 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
-}
-
-func syncLegacyAuditedBaseline(repoRoot, upstreamRepo string, policy Policy, target ManagedAssetsTarget, state UpstreamState, recorder *verboseRecorder, stats *syncUpstreamAssetsStats) error {
-	legacySnapshotPath := filepath.Join(repoRoot, policy.OpenCode.OrchestratorSnapshotDir, policy.OpenCode.BaseOrchestratorKey+".last.md")
-	legacyMetaPath := filepath.Join(repoRoot, policy.OpenCode.OrchestratorSnapshotMetadata)
-	orchestratorAsset, ok := findOwnedOverlayAsset(target.OwnedOverlayAssets, "gentle-orchestrator")
-	if !ok {
-		return fmt.Errorf("managed-assets manifest does not define owned overlay asset %q", "gentle-orchestrator")
-	}
-	upstreamPromptPath := filepath.Join(upstreamRepo, filepath.FromSlash(orchestratorAsset.UpstreamPath))
-	promptText, err := readText(upstreamPromptPath)
-	if err != nil {
-		return fmt.Errorf("cannot read upstream orchestrator asset for audited baseline sync at %s: %v", upstreamPromptPath, err)
-	}
-	trimmedPromptText := strings.TrimRight(promptText, "\r\n")
-	status, err := writeTextFileWithStatus(legacySnapshotPath, trimmedPromptText)
-	if err != nil {
-		return fmt.Errorf("cannot update legacy orchestrator snapshot at %s: %v", legacySnapshotPath, err)
-	}
-	trackSyncFileStatus(status, stats)
-	if shouldRecordWriteStatus(status) {
-		recorder.record(legacySnapshotPath, fmt.Sprintf("updated legacy audited orchestrator snapshot (%s)", describeWriteStatus(status)))
-	}
-	metaStatus, err := writeTextFileWithStatus(legacyMetaPath, renderLegacySnapshotMetadata(policy, state, trimmedPromptText))
-	if err != nil {
-		return fmt.Errorf("cannot update legacy orchestrator metadata at %s: %v", legacyMetaPath, err)
-	}
-	trackSyncFileStatus(metaStatus, stats)
-	if shouldRecordWriteStatus(metaStatus) {
-		recorder.record(legacyMetaPath, fmt.Sprintf("updated legacy audited orchestrator metadata (%s)", describeWriteStatus(metaStatus)))
-	}
-	return nil
-}
-
-func renderLegacySnapshotMetadata(policy Policy, state UpstreamState, promptText string) string {
-	baseKey := policy.OpenCode.BaseOrchestratorKey
-	if strings.TrimSpace(baseKey) == "" {
-		baseKey = "gentle-orchestrator"
-	}
-	profileCSV := strings.Join(policy.OpenCode.SDDPhases, ",")
-	lines := []string{
-		"schema_version: 1",
-		fmt.Sprintf("snapshot_file: %s", filepath.Base(baseKey+".last.md")),
-		"snapshot_source: upstream-opencode-inline-asset",
-		fmt.Sprintf("snapshot_sha256: %s", sha256Text(promptText)),
-		fmt.Sprintf("state_file: %s", policy.Maintenance.StateFile),
-		fmt.Sprintf("upstream_repo_name: %s", policy.Upstream.RepoName),
-		fmt.Sprintf("upstream_prompt_rel_path: %s", policy.Upstream.OrchestratorPromptPath),
-		"upstream_inject_source_rel_path: internal/components/sdd/inject.go",
-		"upstream_profiles_source_rel_path: internal/components/sdd/profiles.go",
-		fmt.Sprintf("last_maintained_version: %s", state.LastMaintainedVersion),
-		fmt.Sprintf("last_maintained_tag: %s", state.LastMaintainedTag),
-		fmt.Sprintf("last_maintained_commit: %s", state.LastMaintainedCommit),
-		fmt.Sprintf("last_reviewed_at: %s", state.LastReviewedAt),
-		fmt.Sprintf("base_orchestrator_key: %s", baseKey),
-		fmt.Sprintf("profile_orchestrator_prefix: %s", policy.OpenCode.ProfileOrchestratorPrefix),
-		fmt.Sprintf("profile_phase_order_csv: %s", profileCSV),
-		"profile_task_scope_rule: deny-all-then-allow-suffixed-phases-and-global-jd",
-	}
-	return strings.Join(lines, "\n")
 }

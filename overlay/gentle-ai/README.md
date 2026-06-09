@@ -16,7 +16,6 @@ Esta carpeta agrupa los assets operativos del overlay de Gentle AI.
 - `policy/` — intención y policy machine-readable del overlay
 - `state/` — frontera upstream mantenida
 - `logs/` — historial de decisiones cerradas del overlay
-- `snapshots/` — baseline auditado de `gentle-orchestrator`
 
 ## Modelo vigente
 

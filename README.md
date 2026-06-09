@@ -89,7 +89,7 @@ Maintenance in this repo follows a fixed sequence. What changes is not the order
 3. From `gentle-ai-custom`, ask the maintainer agent to run the upstream audit.
 4. Before any repo mutation, the maintainer must return a concise decision summary: what is new upstream, what it recommends adopting, what it recommends discarding, and why.
 5. Stop for explicit approval before updating this repo, advancing the upstream boundary, syncing approved upstream assets, or refreshing runtime.
-6. If you approved a new upstream boundary, run `sync-gentle-ai-upstream-assets` to refresh the approved upstream copies and the audited baseline.
+6. If you approved a new upstream boundary, run `sync-gentle-ai-upstream-assets` to refresh the approved upstream copies.
 7. Run `gentle-ai sync` or a full reinstall if the audit recommends it.
 8. Re-apply the overlay with `apply-gentle-ai-custom`.
 9. Finish with a fresh-context consistency review plus a closing summary of what was actually adopted vs discarded and why.
@@ -123,7 +123,7 @@ The upstream audit must answer these operator-level questions before any repo mu
 
 Today the audit discovers drift mainly with `git diff --name-status --find-renames <last_maintained_commit>..HEAD`, filtered through `overlay/gentle-ai/policy/managed-assets.json`, while still keeping structural checks for upstream changes that could break integration even when they are not markdown assets.
 
-The `audit-gentle-ai-upstream.*` and `sync-gentle-ai-upstream-assets.*` scripts are public, but the recommended path is still the maintainer skill so the audit result is turned into an approval-gated decision summary before anything mutates. `sync-gentle-ai-upstream-assets` refreshes `overlay/gentle-ai/assets/upstream/` and the audited `gentle-orchestrator` baseline.
+The `audit-gentle-ai-upstream.*` and `sync-gentle-ai-upstream-assets.*` scripts are public, but the recommended path is still the maintainer skill so the audit result is turned into an approval-gated decision summary before anything mutates. `sync-gentle-ai-upstream-assets` refreshes `overlay/gentle-ai/assets/upstream/`.
 
 ### What `apply-gentle-ai-custom` re-applies
 
@@ -175,8 +175,6 @@ Git already preserves the implementation detail. `update-log.md` is reserved for
 
 | Path                                                                                             | Role |
 | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md`        | Versioned baseline of the audited upstream orchestrator. |
-| `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.meta.yaml` | Metadata and minimum invariants for that versioned baseline. |
 | `overlay/gentle-ai/assets/`                                                                      | Canonical tree of approved upstream copies plus owned overlay assets. |
 | `~/.config/gentle-ai-custom/opencode-local-config.json`                                          | Canonical local config: upstream path, optional `opencode.json` override, `agent_overrides`, `default_profile`, and `profiles`. |
 | `overlay/gentle-ai/maintenance.md`                                                               | Central human maintenance guide, signals, and technical notes. |

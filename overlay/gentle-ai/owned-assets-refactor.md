@@ -21,7 +21,6 @@ The owned-assets cutover is complete.
 2. Runtime directories under `~/.config/opencode/` are deployment targets only.
 3. `shared/skills/` remains canonical for portable repo-owned skills installed outside the managed SDD/runtime asset tree.
 4. `shared/commands/` remains canonical for commit/PR wrapper bodies rendered by agent-specific wrappers.
-5. The audited snapshot baseline under `overlay/gentle-ai/snapshots/upstream/...` is for audit/sync only, not for runtime apply.
 
 ## Command responsibilities
 

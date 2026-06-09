@@ -43,8 +43,6 @@
     "config_path": "~/.config/opencode/opencode.json",
     "local_config_path": "~/.config/gentle-ai-custom/opencode-local-config.json",
     "base_orchestrator_key": "gentle-orchestrator",
-    "orchestrator_snapshot_dir": "overlay/gentle-ai/snapshots/upstream/opencode/orchestrators",
-    "orchestrator_snapshot_metadata_file": "overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.meta.yaml",
     "orchestrator_agent_keys": [
       "gentle-orchestrator"
     ],

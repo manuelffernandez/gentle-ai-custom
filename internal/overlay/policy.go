@@ -28,8 +28,6 @@ type Policy struct {
 		ConfigPath                string   `json:"config_path"`
 		LocalConfigPath           string   `json:"local_config_path"`
 		BaseOrchestratorKey       string   `json:"base_orchestrator_key"`
-		OrchestratorSnapshotDir   string   `json:"orchestrator_snapshot_dir"`
-		OrchestratorSnapshotMetadata string `json:"orchestrator_snapshot_metadata_file"`
 		OrchestratorAgentKeys     []string `json:"orchestrator_agent_keys"`
 		OrchestratorAgentPrefixes []string `json:"orchestrator_agent_prefixes"`
 		ProfileOrchestratorPrefix string   `json:"profile_orchestrator_prefix"`

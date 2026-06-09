@@ -43,7 +43,7 @@ That canonical local config also owns:
 Runtime and audit sources are separated by scope:
 
 - `overlay/gentle-ai/assets/owned/opencode/prompts/orchestrators/gentle-orchestrator.md` is the canonical repo-owned runtime source
-- `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md` is the approved upstream audit baseline
+- `overlay/gentle-ai/assets/upstream/opencode/prompts/orchestrators/gentle-orchestrator.md` is the approved upstream audit baseline
 
 The versioned policy preserves portable runtime intent plus the approved upstream baseline; local profile configuration is projected to `opencode.json` at runtime and must not be copied back into `gentle-ai-policy.json`.
 

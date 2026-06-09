@@ -36,9 +36,6 @@ func RunAuditUpstream(repoRoot string, args []string) int {
 		fmt.Fprintf(os.Stderr, "ERROR: managed-assets manifest at %s does not define target %q\n", manifestPath, "opencode")
 		return 1
 	}
-	snapshotPath := filepath.Join(repoRoot, policy.OpenCode.OrchestratorSnapshotDir, policy.OpenCode.BaseOrchestratorKey+".last.md")
-	metaPath := filepath.Join(repoRoot, policy.OpenCode.OrchestratorSnapshotMetadata)
-
 	var state UpstreamState
 	statePath := filepath.Join(repoRoot, policy.Maintenance.StateFile)
 	if err := readJSONFile(statePath, &state); err != nil {
@@ -49,21 +46,11 @@ func RunAuditUpstream(repoRoot string, args []string) int {
 	var failures []string
 	var notes []string
 	var driftSummary []string
-	metadataOK := false
 
 	if strings.TrimSpace(state.LastMaintainedCommit) == "" {
 		fmt.Fprintf(os.Stderr, "ERROR: last_maintained_commit is empty in %s\n", statePath)
 		return 1
 	}
-	metadata, err := parseSimpleYAML(metaPath)
-	if err != nil {
-		failures = append(failures, fmt.Sprintf("cannot read %s: %v", metaPath, err))
-	}
-	snapshotText, err := readText(snapshotPath)
-	if err != nil {
-		failures = append(failures, fmt.Sprintf("cannot read %s: %v", snapshotPath, err))
-	}
-
 	upstreamHead, gitErr := runGit(upstreamRepo, false, "rev-parse", "HEAD")
 	if gitErr != nil {
 		failures = append(failures, fmt.Sprintf("cannot inspect upstream git state: %v", gitErr))
@@ -79,17 +66,6 @@ func RunAuditUpstream(repoRoot string, args []string) int {
 	}
 	if upstreamExactTag != "" && state.LastMaintainedTag != "" && upstreamExactTag != state.LastMaintainedTag {
 		notes = append(notes, fmt.Sprintf("upstream exact tag %s differs from last maintained tag %s; review state/log if you are closing a new upstream audit", upstreamExactTag, state.LastMaintainedTag))
-	}
-	if metadata != nil && snapshotText != "" {
-		metadataFailures, promptMatches := validateLegacyBaseline(policy, state, metadata, snapshotPath, snapshotText, upstreamRepo)
-		if len(metadataFailures) == 0 {
-			metadataOK = true
-		} else {
-			failures = append(failures, metadataFailures...)
-		}
-		if !promptMatches {
-			failures = append(failures, fmt.Sprintf("base prompt drift detected: %s no longer matches %s; review/update the audited baseline before adopting this upstream state", filepath.Join(upstreamRepo, policy.Upstream.OrchestratorPromptPath), snapshotPath))
-		}
 	}
 	diffEntries, err := runGitDiff(upstreamRepo, state.LastMaintainedCommit)
 	if err != nil {
@@ -135,10 +111,8 @@ func RunAuditUpstream(repoRoot string, args []string) int {
 	}
 	fmt.Printf("- Upstream baseline limit: %s\n", state.LastMaintainedCommit)
 	fmt.Printf("- Managed assets manifest: %s\n", manifestPath)
-	fmt.Printf("- Legacy audited snapshot: %s\n", snapshotPath)
 	fmt.Println()
 	fmt.Println("Summary:")
-	fmt.Printf("  audited baseline alignment: %s\n", statusWord(metadataOK))
 	fmt.Printf("  managed assets drift: %s\n", managedDriftStatus(len(managedEntries)))
 	fmt.Printf("  watched but unmanaged drift: %s\n", unmanagedDriftStatus(len(unmanagedEntries)))
 	if !basePromptDrift {
@@ -443,50 +417,6 @@ func managedDriftStatus(count int) string {
 		return "ok"
 	}
 	return fmt.Sprintf("%d tracked file(s) changed", count)
-}
-
-func validateLegacyBaseline(policy Policy, state UpstreamState, metadata map[string]string, snapshotPath, snapshotText, upstreamRepo string) ([]string, bool) {
-	baseKey := policy.OpenCode.BaseOrchestratorKey
-	if baseKey == "" {
-		baseKey = "gentle-orchestrator"
-	}
-	expectedPhaseCSV := strings.Join(policy.OpenCode.SDDPhases, ",")
-	expectedMetadata := map[string]string{
-		"schema_version":                    "1",
-		"snapshot_file":                     filepath.Base(snapshotPath),
-		"snapshot_source":                   "upstream-opencode-inline-asset",
-		"state_file":                        policy.Maintenance.StateFile,
-		"upstream_repo_name":                policy.Upstream.RepoName,
-		"upstream_prompt_rel_path":          policy.Upstream.OrchestratorPromptPath,
-		"upstream_inject_source_rel_path":   "internal/components/sdd/inject.go",
-		"upstream_profiles_source_rel_path": "internal/components/sdd/profiles.go",
-		"last_maintained_version":           state.LastMaintainedVersion,
-		"last_maintained_tag":               state.LastMaintainedTag,
-		"last_maintained_commit":            state.LastMaintainedCommit,
-		"last_reviewed_at":                  state.LastReviewedAt,
-		"base_orchestrator_key":             baseKey,
-		"profile_orchestrator_prefix":       policy.OpenCode.ProfileOrchestratorPrefix,
-		"profile_phase_order_csv":           expectedPhaseCSV,
-		"profile_task_scope_rule":           "deny-all-then-allow-suffixed-phases-and-global-jd",
-	}
-	var failures []string
-	actualSnapshotHash := sha256Text(snapshotText)
-	if metadata["snapshot_sha256"] != actualSnapshotHash {
-		failures = append(failures, fmt.Sprintf("metadata snapshot_sha256 is %q, expected %q from %s", metadata["snapshot_sha256"], actualSnapshotHash, snapshotPath))
-	}
-	for field, expected := range expectedMetadata {
-		actual := metadata[field]
-		if actual != expected {
-			failures = append(failures, fmt.Sprintf("metadata field %q is %q, expected %q", field, actual, expected))
-		}
-	}
-	upstreamPromptPath := filepath.Join(upstreamRepo, filepath.FromSlash(policy.Upstream.OrchestratorPromptPath))
-	upstreamPromptText, err := readText(upstreamPromptPath)
-	if err != nil {
-		failures = append(failures, fmt.Sprintf("cannot read %s: %v", upstreamPromptPath, err))
-		return failures, false
-	}
-	return failures, normalizeLFTerminated(snapshotText) == normalizeLFTerminated(upstreamPromptText)
 }
 
 func evaluateStructuralInvariants(upstreamRepo string, target ManagedAssetsTarget, policy Policy) (structuralInvariantResult, []string) {

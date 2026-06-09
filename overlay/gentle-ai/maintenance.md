@@ -25,7 +25,7 @@ This file describes the current operating model: `apply-gentle-ai-custom` reinst
    - why
    - recommended runtime path: `gentle-ai sync` vs full reinstall
 5. STOP for explicit approval before updating this repo, advancing `state/upstream-state.json`, running `bash sync-gentle-ai-upstream-assets.sh`, or refreshing runtime.
-6. If a new upstream boundary was approved, run `bash sync-gentle-ai-upstream-assets.sh` to refresh `overlay/gentle-ai/assets/upstream/...` and the audited baseline.
+6. If a new upstream boundary was approved, run `bash sync-gentle-ai-upstream-assets.sh` to refresh `overlay/gentle-ai/assets/upstream/...`.
 7. Execute the recommended upstream refresh path:
    - `gentle-ai sync` if topology did not change
    - full reinstall if topology changed or sync no longer materializes the right state
@@ -45,7 +45,6 @@ This file describes the current operating model: `apply-gentle-ai-custom` reinst
 | `shared/skills/` | Portable repo-owned skills installed globally by `apply` |
 | `shared/commands/` | Source bodies for custom wrappers rendered by `apply` |
 | `state/upstream-state.json` | Last maintained upstream boundary |
-| `snapshots/upstream/opencode/orchestrators/` | Audited `gentle-orchestrator` baseline used by audit/sync |
 
 ## What each command does
 
@@ -55,7 +54,6 @@ This file describes the current operating model: `apply-gentle-ai-custom` reinst
 - discovers drift with `git diff --name-status --find-renames <last_maintained_commit>..HEAD`
 - filters that drift through `policy/managed-assets.json`
 - keeps verifying upstream structural invariants (`profiles.go`, `inject.go`, etc.)
-- validates that the audited baseline (`snapshots/.../gentle-orchestrator.last.md` + metadata) stays consistent with upstream/state
 
 ### Decision handoff before mutation
 
@@ -72,7 +70,6 @@ No repo mutation happens before that handoff is approved.
 ### `sync-gentle-ai-upstream-assets`
 
 - copies approved upstream assets into `assets/upstream/...`
-- updates the audited `gentle-orchestrator` baseline
 - advances `state/upstream-state.json` when the new upstream was accepted
 - does not touch local runtime under `~/.config/opencode/`
 
@@ -100,7 +97,7 @@ No repo mutation happens before that handoff is approved.
 
 | Signal | Meaning | Action |
 | --- | --- | --- |
-| `base prompt drift: yes` | Upstream `gentle-orchestrator` changed relative to the audited baseline | Read `Drift summary:` first |
+| `base prompt drift: yes` | Upstream `gentle-orchestrator` changed relative to the approved upstream asset | Read `Drift summary:` first |
 | `profile ... mismatch` / `base asset injection invariant: mismatch` | Upstream SDD profile mechanics changed | Stop and audit before recommending `sync` |
 | `topology: unknown orchestrator matched by prefix only` | A new upstream orchestrator appeared | Audit it and decide whether policy must include it |
 | `topology: expected orchestrator missing from opencode.json` | A known orchestrator disappeared or was renamed | Audit upstream and update policy/intent if needed |
@@ -119,7 +116,6 @@ After `apply`, confirm this:
 - runtime files/directories declared in `policy/managed-assets.json` exist on disk
 - if `default_profile` exists, the base family keeps the correct `model` and `variant`
 - if `profiles` exists, each declared profile keeps the correct `model` and `variant`
-- `snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md` and `.meta.yaml` stay consistent with `state/upstream-state.json`
 - one fresh-context reviewer/subagent pass checked the changed maintainer artifacts and final summary for workflow consistency
 
 ## Local overlay config
@@ -141,7 +137,6 @@ Operational rules:
 - [ ] `managed-assets.json` still aligns with `assets/upstream/` and `assets/owned/`
 - [ ] `upstream-state.json` still points to the last upstream boundary that was actually maintained
 - [ ] `apply-gentle-ai-custom` still reinstalls prompt refs from owned assets
-- [ ] the audited `gentle-orchestrator` baseline still matches its metadata
 - [ ] the public shell and PowerShell entrypoints remain equivalent
 - [ ] SDD profile assignments remain local and did not leak back into versioned policy
 - [ ] upstream resolution still respects: local config -> env -> fallback `../gentle-ai`
