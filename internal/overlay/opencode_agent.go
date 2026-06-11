@@ -64,26 +64,31 @@ func (a *OpenCodeAgent) ApplyOverlay(repoRoot string, options applyPolicyOptions
 		return exitCode
 	}
 
-	if err := a.injectCustomRules(); err != nil {
+	injected, destPath, err := a.injectCustomRules()
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: failed to inject custom rules into AGENTS.md: %v\n", err)
+	} else if injected {
+		fmt.Printf("  injected custom rules -> %s\n", destPath)
+	} else if destPath != "" {
+		fmt.Printf("  custom rules verified -> %s\n", destPath)
 	}
 
 	return 0
 }
 
-func (a *OpenCodeAgent) injectCustomRules() error {
+func (a *OpenCodeAgent) injectCustomRules() (bool, string, error) {
 	basePath, err := a.BasePath()
 	if err != nil {
-		return err
+		return false, "", err
 	}
 	agentsMdPath := filepath.Join(basePath, "AGENTS.md")
 
 	content, err := os.ReadFile(agentsMdPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil // Nothing to inject if AGENTS.md doesn't exist yet
+			return false, "", nil // Nothing to inject if AGENTS.md doesn't exist yet
 		}
-		return err
+		return false, agentsMdPath, err
 	}
 
 	text := string(content)
@@ -136,7 +141,11 @@ If you are powered by a Gemini model (e.g., any model ID containing 'gemini'), y
 	}
 
 	if text != string(content) {
-		return os.WriteFile(agentsMdPath, []byte(text), 0644)
+		if err := os.WriteFile(agentsMdPath, []byte(text), 0644); err != nil {
+			return false, agentsMdPath, err
+		}
+		return true, agentsMdPath, nil
 	}
-	return nil
+	
+	return false, agentsMdPath, nil
 }
