@@ -4,6 +4,15 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-06-11 | Promoted OpenCode AGENTS.md to a managed asset
+
+- **Type**: `tooling-change`
+- **Upstream scope/range**: maintenance contract / OpenCode runtime surface, not a new upstream boundary
+- **Decision**: made `~/.config/opencode/AGENTS.md` a first-class managed asset with an approved upstream-equivalent materialization in `overlay/gentle-ai/assets/upstream/opencode/AGENTS.md` (built from the upstream OpenCode persona + engram sources), a repo-owned runtime copy in `overlay/gentle-ai/assets/owned/opencode/AGENTS.md`, manifest coverage in `policy/managed-assets.json`, and apply/install handling through the normal owned-asset pipeline; removed the post-apply `injectCustomRules()` mutation from the OpenCode agent path.
+- **Why it mattered**: the AGENTS instruction surface was previously mutated ad hoc after apply, which made the runtime state harder to audit and decouple from the maintained upstream materialization inputs. Treating it as a managed asset keeps audit/sync/apply behavior consistent with the rest of the overlay.
+- **Affected artifacts**: `internal/overlay/opencode_agent.go`, `internal/overlay/managed_assets.go`, `internal/overlay/markdown_materialization.go`, `internal/overlay/sync_upstream_assets.go`, `internal/overlay/audit_upstream.go`, `internal/overlay/managed_assets_test.go`, `overlay/gentle-ai/policy/managed-assets.json`, `overlay/gentle-ai/assets/upstream/opencode/AGENTS.md`, `overlay/gentle-ai/assets/owned/opencode/AGENTS.md`, `overlay/gentle-ai/policy/maintenance-intent.md`, `overlay/gentle-ai/maintenance.md`, `overlay/gentle-ai/assets/README.md`, `overlay/gentle-ai/assets/upstream/opencode/README.md`, `overlay/gentle-ai/assets/owned/opencode/README.md`, `overlay/gentle-ai/owned-assets-refactor.md`, `AGENTS.md`
+- **Verification**: `go test ./...`; `git diff --check`
+
 ## 2026-06-09 | Adopted upstream v1.37.0 boundary — discarded chained-pr orchestrator binding
 
 - **Type**: `audit`

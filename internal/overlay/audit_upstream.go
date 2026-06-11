@@ -188,11 +188,12 @@ type structuralInvariantResult struct {
 }
 
 type managedAssetRecord struct {
-	Key          string
-	Class        string
-	Kind         string
-	UpstreamPath string
-	Directory    bool
+	Key           string
+	Class         string
+	Kind          string
+	UpstreamPath  string
+	UpstreamPaths []string
+	Directory     bool
 }
 
 type managedAssetCatalog struct {
@@ -209,12 +210,14 @@ type managedDiffEntry struct {
 func buildManagedAssetCatalog(target ManagedAssetsTarget) managedAssetCatalog {
 	var records []managedAssetRecord
 	for _, asset := range target.OwnedOverlayAssets {
+		paths := ownedAssetUpstreamPaths(asset)
 		records = append(records, managedAssetRecord{
-			Key:          asset.Key,
-			Class:        asset.Class,
-			Kind:         asset.Kind,
-			UpstreamPath: asset.UpstreamPath,
-			Directory:    strings.HasSuffix(asset.Kind, "_directory"),
+			Key:           asset.Key,
+			Class:         asset.Class,
+			Kind:          asset.Kind,
+			UpstreamPath:  asset.UpstreamPath,
+			UpstreamPaths: paths,
+			Directory:     strings.HasSuffix(asset.Kind, "_directory"),
 		})
 	}
 	for _, asset := range target.RetainedUpstreamSkills {
@@ -290,6 +293,11 @@ func matchManagedDiffEntry(entry GitDiffEntry, catalog managedAssetCatalog) (*ma
 }
 
 func recordMatchesPath(record managedAssetRecord, path string) bool {
+	for _, recordPath := range record.UpstreamPaths {
+		if recordPath == path {
+			return true
+		}
+	}
 	if record.Directory {
 		return path == record.UpstreamPath || strings.HasPrefix(path, record.UpstreamPath+"/")
 	}

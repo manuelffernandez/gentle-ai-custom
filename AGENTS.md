@@ -222,6 +222,8 @@ Files that `apply-gentle-ai-custom.sh` installs into the global OpenCode runtime
 - `shared/skills/` — canonical repo-owned skills that the apply script installs globally.
 - `shared/commands/` — reusable prompt bodies for commit/PR wrapper commands rendered by the apply script.
 - `overlay/gentle-ai/assets/` — canonical owned-assets tree: approved upstream snapshots plus repo-owned SDD/runtime assets.
+- `overlay/gentle-ai/assets/upstream/opencode/AGENTS.md` — approved upstream-equivalent OpenCode AGENTS materialization (persona + engram sources, in that order).
+- `overlay/gentle-ai/assets/owned/opencode/AGENTS.md` — repo-owned runtime copy installed to `~/.config/opencode/AGENTS.md` with local overlay semantics.
 - `overlay/gentle-ai/policy/gentle-ai-policy.json` — keep/prune policy, OpenCode paths, and runtime overrides.
 - `overlay/gentle-ai/policy/managed-assets.json` — canonical manifest for managed upstream/owned assets and repo-owned skill install intent.
 - `overlay/gentle-ai/policy/maintenance-intent.md` — semantic source of truth for what to preserve, depure, and enforce in repo-owned orchestrator behavior.

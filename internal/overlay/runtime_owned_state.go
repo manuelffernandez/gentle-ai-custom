@@ -59,6 +59,10 @@ func loadOwnedRuntimeState(path string) (ownedRuntimeState, error) {
 func collectOwnedRuntimePaths(basePath, repoRoot string, target ManagedAssetsTarget, sharedSkillsRoot string) ([]string, error) {
 	paths := map[string]struct{}{}
 	for _, asset := range target.OwnedOverlayAssets {
+		if asset.RepoOwnedPath == "" {
+			// Upstream-source-only asset: no owned file; skipped by apply.
+			continue
+		}
 		if asset.RuntimeSyncMode != "merge" {
 			continue
 		}

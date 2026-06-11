@@ -44,8 +44,12 @@ Runtime and audit sources are separated by scope:
 
 - `overlay/gentle-ai/assets/owned/opencode/prompts/orchestrators/gentle-orchestrator.md` is the canonical repo-owned runtime source
 - `overlay/gentle-ai/assets/upstream/opencode/prompts/orchestrators/gentle-orchestrator.md` is the approved upstream audit baseline
+- `overlay/gentle-ai/assets/upstream/opencode/AGENTS.md` is the approved upstream-equivalent materialization of OpenCode's runtime `AGENTS.md` surface, built from the upstream `persona-gentleman.md` + `engram-protocol.md` inputs in that order
+- `overlay/gentle-ai/assets/owned/opencode/AGENTS.md` is the repo-owned runtime copy of that surface, extended with local overlay semantics (`no-auto-commit`, Gemini anti-sycophancy, etc.)
 
 The versioned policy preserves portable runtime intent plus the approved upstream baseline; local profile configuration is projected to `opencode.json` at runtime and must not be copied back into `gentle-ai-policy.json`.
+
+The global OpenCode `AGENTS.md` surface is overlay-owned completely. Its runtime content is materialized from the upstream OpenCode persona + engram sources, then extended with repo-owned local overlay semantics; it is not maintained through ad-hoc post-apply mutation.
 
 ## What we want to prune
 

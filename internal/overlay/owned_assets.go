@@ -32,6 +32,10 @@ func trackWriteStatus(status string, counters *writeCounters) {
 
 func (s *applyPolicyState) installOwnedAssets(repoRoot string) error {
 	for _, asset := range s.managedTarget.OwnedOverlayAssets {
+		if asset.RepoOwnedPath == "" {
+			// Upstream-source-only asset: no owned file to install; skipped by apply.
+			continue
+		}
 		source := ownedAssetSourcePath(repoRoot, asset)
 		if strings.HasSuffix(asset.Kind, "_directory") {
 			if err := s.installOwnedDirectoryAsset(asset, source); err != nil {
@@ -129,6 +133,10 @@ func (s *applyPolicyState) ensurePromptReference(agentKey, ref string) error {
 func (s *applyPolicyState) verifyOwnedAssetTargets() error {
 	verified := 0
 	for _, asset := range s.managedTarget.OwnedOverlayAssets {
+		if asset.RepoOwnedPath == "" {
+			// Upstream-source-only asset: never installed to runtime; nothing to verify.
+			continue
+		}
 		for _, runtimeTarget := range asset.RuntimeTargets {
 			path := expandUser(runtimeTarget)
 			info, err := os.Stat(path)

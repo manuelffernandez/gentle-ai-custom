@@ -2,7 +2,7 @@
 
 The owned-assets cutover is complete.
 
-`apply-gentle-ai-custom` installs repo-owned SDD/runtime assets directly from `overlay/gentle-ai/assets/owned/...`, while `audit-gentle-ai-upstream` and `sync-gentle-ai-upstream-assets` maintain the approved upstream side of the control plane.
+`apply-gentle-ai-custom` installs repo-owned managed runtime assets directly from `overlay/gentle-ai/assets/owned/...`, while `audit-gentle-ai-upstream` and `sync-gentle-ai-upstream-assets` maintain the approved upstream side of the control plane.
 
 ## Sources of truth
 
@@ -17,7 +17,7 @@ The owned-assets cutover is complete.
 
 ## Runtime rules
 
-1. `overlay/gentle-ai/assets/owned/...` is the canonical runtime source for the OpenCode SDD/orchestrator assets.
+1. `overlay/gentle-ai/assets/owned/...` is the canonical runtime source for the OpenCode managed runtime assets, including the locally extended `AGENTS.md` surface.
 2. Runtime directories under `~/.config/opencode/` are deployment targets only.
 3. `shared/skills/` remains canonical for portable repo-owned skills installed outside the managed SDD/runtime asset tree.
 4. `shared/commands/` remains canonical for commit/PR wrapper bodies rendered by agent-specific wrappers.
@@ -55,10 +55,12 @@ The owned-assets cutover is complete.
 overlay/gentle-ai/
   assets/
     upstream/opencode/
+      AGENTS.md
       prompts/orchestrators/
       skills/
       commands/
     owned/opencode/
+      AGENTS.md
       prompts/orchestrators/
       skills/
       commands/
@@ -68,5 +70,5 @@ overlay/gentle-ai/
 
 - Required SDD phase assets live under `skills/` because upstream ships them from `internal/assets/skills/<phase>/SKILL.md` and runtime reuses the same content both as a skill and as a prompt file.
 - `_shared/`, `strict-tdd.md`, and `strict-tdd-verify.md` are behavior-defining SDD support files and belong in the managed asset set.
-- The repo-owned `gentle-orchestrator` asset encodes the local depuration of PR/review governance directly in the owned prompt file; apply no longer derives that behavior dynamically from upstream runtime state.
+- The repo-owned OpenCode `AGENTS.md` encodes the local depuration of PR/review governance directly in the owned prompt file; apply no longer derives that behavior dynamically from upstream runtime state.
 - Directory-style owned assets can choose between `prune` and `merge` sync modes. `_shared` is fully owned and pruned; `sdd-commands` uses merge mode so OpenCode keeps repo-owned custom wrappers and any unrelated local commands outside the SDD command set.

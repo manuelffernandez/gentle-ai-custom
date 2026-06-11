@@ -6,15 +6,38 @@
     "opencode": {
       "watch_roots": [
         "internal/assets/opencode",
-        "internal/assets/opencode/commands",
+        "internal/assets/claude",
         "internal/assets/skills"
       ],
-      "upstream_path_interpretation": "Paths in this manifest refer to files inside the upstream gentle-ai repository. `repo_upstream_path` stores the approved upstream copy used for drift review, and `repo_owned_path` stores the repo-owned runtime asset that apply installs.",
+      "upstream_path_interpretation": "Paths in this manifest refer to files inside the upstream gentle-ai repository. `watch_roots` lists the upstream directory roots watched for untracked drift. `repo_upstream_path` stores the approved upstream copy used for drift review, and `repo_owned_path` stores the repo-owned runtime asset that apply installs.",
       "structural_invariant_sources": [
         "internal/components/sdd/profiles.go",
         "internal/components/sdd/inject.go"
       ],
       "owned_overlay_assets": [
+        {
+          "key": "opencode-persona-source",
+          "class": "upstream_source",
+          "kind": "upstream_source_file",
+          "upstream_path": "internal/assets/opencode/persona-gentleman.md",
+          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/persona-gentleman.md"
+        },
+        {
+          "key": "opencode-engram-source",
+          "class": "upstream_source",
+          "kind": "upstream_source_file",
+          "upstream_path": "internal/assets/claude/engram-protocol.md",
+          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/engram-protocol.md"
+        },
+        {
+          "key": "opencode-agents",
+          "class": "repo_owned_runtime",
+          "kind": "agent_instruction_file",
+          "repo_owned_path": "overlay/gentle-ai/assets/owned/opencode/AGENTS.md",
+          "runtime_targets": [
+            "~/.config/opencode/AGENTS.md"
+          ]
+        },
         {
           "key": "gentle-orchestrator",
           "class": "required_sdd",

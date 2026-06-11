@@ -27,14 +27,25 @@ type ManagedAssetsTarget struct {
 }
 
 type OwnedOverlayAsset struct {
-	Key              string   `json:"key"`
-	Class            string   `json:"class"`
-	Kind             string   `json:"kind"`
-	UpstreamPath     string   `json:"upstream_path"`
-	RepoUpstreamPath string   `json:"repo_upstream_path"`
-	RepoOwnedPath    string   `json:"repo_owned_path"`
-	RuntimeSyncMode  string   `json:"runtime_sync_mode"`
-	RuntimeTargets   []string `json:"runtime_targets"`
+	Key                  string                     `json:"key"`
+	Class                string                     `json:"class"`
+	Kind                 string                     `json:"kind"`
+	UpstreamPath         string                     `json:"upstream_path"`
+	RepoUpstreamPath     string                     `json:"repo_upstream_path"`
+	RepoOwnedPath        string                     `json:"repo_owned_path"`
+	RuntimeSyncMode      string                     `json:"runtime_sync_mode"`
+	RuntimeTargets       []string                   `json:"runtime_targets"`
+	MaterializedMarkdown *MaterializedMarkdownAsset `json:"materialized_markdown,omitempty"`
+}
+
+type MaterializedMarkdownAsset struct {
+	BaseSectionID  string                       `json:"base_section_id"`
+	SectionSources []MaterializedMarkdownSource `json:"section_sources"`
+}
+
+type MaterializedMarkdownSource struct {
+	SectionID  string `json:"section_id"`
+	SourcePath string `json:"source_path"`
 }
 
 type UpstreamSkillRef struct {
@@ -94,6 +105,29 @@ func findOwnedOverlayAsset(assets []OwnedOverlayAsset, key string) (OwnedOverlay
 		}
 	}
 	return OwnedOverlayAsset{}, false
+}
+
+func ownedAssetUpstreamPaths(asset OwnedOverlayAsset) []string {
+	paths := []string{}
+	add := func(path string) {
+		path = strings.TrimSpace(path)
+		if path == "" {
+			return
+		}
+		for _, existing := range paths {
+			if existing == path {
+				return
+			}
+		}
+		paths = append(paths, path)
+	}
+	add(asset.UpstreamPath)
+	if asset.MaterializedMarkdown != nil {
+		for _, section := range asset.MaterializedMarkdown.SectionSources {
+			add(section.SourcePath)
+		}
+	}
+	return paths
 }
 
 func runtimePromptTarget(asset OwnedOverlayAsset) (string, bool) {

@@ -41,8 +41,8 @@ This file describes the current operating model: `apply-gentle-ai-custom` reinst
 | `policy/maintenance-intent.md` | Human intent: what to keep, depure, and protect |
 | `policy/gentle-ai-policy.json` | Runtime policy consumed by the Go CLI and wrappers |
 | `policy/managed-assets.json` | Canonical map of approved upstream assets and installable owned assets |
-| `assets/upstream/` | Approved upstream copies for review/diff |
-| `assets/owned/` | Repo-owned assets that `apply` installs into runtime |
+| `assets/upstream/` | Approved upstream copies for review/diff, including the materialized OpenCode `AGENTS.md` baseline |
+| `assets/owned/` | Repo-owned assets that `apply` installs into runtime, including `~/.config/opencode/AGENTS.md` with local overlay semantics |
 | `shared/skills/` | Portable repo-owned skills installed globally by `apply` |
 | `shared/commands/` | Source bodies for custom wrappers rendered by `apply` |
 | `state/upstream-state.json` | Last maintained upstream boundary |
@@ -93,7 +93,7 @@ No repo mutation happens before that handoff is approved.
 - installs repo-owned skills from `shared/skills/`
 - renders custom wrappers from `shared/commands/`
 
-`apply` no longer depends on sanitization, inline prompt capture, local operational snapshots, or snapshot-based recovery.
+`apply` no longer depends on sanitization, inline prompt capture, local operational snapshots, snapshot-based recovery, or post-apply `AGENTS.md` mutation.
 
 ## Update types and impact
 
@@ -121,6 +121,8 @@ After `apply`, confirm this:
 - pruned skills no longer exist in each selected registered target
 - each effective `agent_override` resolves to the expected `model` / `variant`
 - `agent.gentle-orchestrator.prompt` points to `~/.config/opencode/prompts/sdd/orchestrators/gentle-orchestrator.overlay.md`
+- `~/.config/opencode/AGENTS.md` matches the repo-owned asset from `assets/owned/opencode/AGENTS.md`
+- the upstream snapshot for that file is materialized from `internal/assets/opencode/persona-gentleman.md` + `internal/assets/claude/engram-protocol.md` in that order
 - each managed `sdd-orchestrator-<name>` points to that same owned prompt file
 - each `sdd-<phase>` and each managed `sdd-<phase>-<name>` points to its owned prompt file under `~/.config/opencode/prompts/sdd/`
 - runtime files/directories declared in `policy/managed-assets.json` exist on disk

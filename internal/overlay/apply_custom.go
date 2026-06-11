@@ -176,6 +176,10 @@ func validateCustomSources(sharedSkillsRoot string, skillNames []string, command
 
 func validateOwnedAssetSources(repoRoot string, assets []OwnedOverlayAsset) error {
 	for _, asset := range assets {
+		if asset.RepoOwnedPath == "" {
+			// Upstream-source-only asset: no owned file; nothing to validate here.
+			continue
+		}
 		src := ownedAssetSourcePath(repoRoot, asset)
 		if _, err := os.Stat(src); err != nil {
 			return fmt.Errorf("Missing source: %s", src)

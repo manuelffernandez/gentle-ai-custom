@@ -164,8 +164,12 @@ func printSyncUpstreamAssetsUsage(out *os.File) {
 
 func syncManagedTarget(repoRoot, upstreamRepo string, target ManagedAssetsTarget, recorder *verboseRecorder, stats *syncUpstreamAssetsStats) error {
 	for _, asset := range target.OwnedOverlayAssets {
-		src := filepath.Join(upstreamRepo, filepath.FromSlash(asset.UpstreamPath))
+		if asset.UpstreamPath == "" {
+			// Apply-only owned asset: no upstream source to sync; installed by apply only.
+			continue
+		}
 		dst := filepath.Join(repoRoot, filepath.FromSlash(asset.RepoUpstreamPath))
+		src := filepath.Join(upstreamRepo, filepath.FromSlash(asset.UpstreamPath))
 		if strings.HasSuffix(asset.Kind, "_directory") {
 			if err := syncDirectoryWithStatus(src, dst, recorder, stats); err != nil {
 				return fmt.Errorf("cannot sync directory asset %q: %w", asset.Key, err)
