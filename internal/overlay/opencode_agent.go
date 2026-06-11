@@ -57,21 +57,21 @@ func (a *OpenCodeAgent) BuildCommandContent(cmd customCommand, body string) stri
 // ApplyOverlay runs the Gentle AI policy pipeline for OpenCode and returns
 // its exit code. The pipeline handles orchestrator generation, opencode.json
 // mutations, and prints its own summary via runApplyPolicyWithOptions.
-// It also injects a custom Gemini-specific override into the global AGENTS.md.
+// It also injects custom rules into the global AGENTS.md.
 func (a *OpenCodeAgent) ApplyOverlay(repoRoot string, options applyPolicyOptions) int {
 	exitCode := runApplyPolicyWithOptions(repoRoot, options)
 	if exitCode != 0 {
 		return exitCode
 	}
 
-	if err := a.injectGeminiOverride(); err != nil {
-		fmt.Fprintf(os.Stderr, "WARNING: failed to inject Gemini override into AGENTS.md: %v\n", err)
+	if err := a.injectCustomRules(); err != nil {
+		fmt.Fprintf(os.Stderr, "WARNING: failed to inject custom rules into AGENTS.md: %v\n", err)
 	}
 
 	return 0
 }
 
-func (a *OpenCodeAgent) injectGeminiOverride() error {
+func (a *OpenCodeAgent) injectCustomRules() error {
 	basePath, err := a.BasePath()
 	if err != nil {
 		return err
@@ -86,40 +86,57 @@ func (a *OpenCodeAgent) injectGeminiOverride() error {
 		return err
 	}
 
-	snippet := `<!-- gentle-ai-custom:gemini-override -->
+	text := string(content)
+
+	// 1. Inject No-Auto-Commit global rule
+	commitRuleSnippet := `<!-- gentle-ai-custom:no-auto-commit -->
+- NEVER commit, push, or create pull requests unless explicitly requested by the user. Do not assume permission to commit even if a task is complete.
+<!-- /gentle-ai-custom:no-auto-commit -->`
+	
+	commitRuleStart := "<!-- gentle-ai-custom:no-auto-commit -->"
+	commitRuleEnd := "<!-- /gentle-ai-custom:no-auto-commit -->"
+	
+	if startIdx := strings.Index(text, commitRuleStart); startIdx != -1 {
+		if endIdx := strings.Index(text, commitRuleEnd); endIdx != -1 && endIdx > startIdx {
+			text = text[:startIdx] + commitRuleSnippet + text[endIdx+len(commitRuleEnd):]
+		}
+	} else {
+		// Inject right after ## Rules
+		rulesMarker := "## Rules\n"
+		if rulesIdx := strings.Index(text, rulesMarker); rulesIdx != -1 {
+			insertPos := rulesIdx + len(rulesMarker)
+			text = text[:insertPos] + "\n" + commitRuleSnippet + "\n" + text[insertPos:]
+		}
+	}
+
+	// 2. Inject Gemini-Specific Override
+	geminiSnippet := `<!-- gentle-ai-custom:gemini-override -->
 ## Gemini-Specific Override
 If you are powered by a Gemini model (e.g., any model ID containing 'gemini'), you MUST adhere to this critical rule: Be brutally honest and strictly critical of my ideas. Do not be sycophantic or flatter me. Do not agree with me just to be polite. Push back firmly and analytically if my approach is flawed.
 <!-- /gentle-ai-custom:gemini-override -->`
 
-	text := string(content)
-	startMarker := "<!-- gentle-ai-custom:gemini-override -->"
-	endMarker := "<!-- /gentle-ai-custom:gemini-override -->"
+	geminiStart := "<!-- gentle-ai-custom:gemini-override -->"
+	geminiEnd := "<!-- /gentle-ai-custom:gemini-override -->"
 
-	startIdx := strings.Index(text, startMarker)
-	endIdx := strings.Index(text, endMarker)
-
-	var newText string
-	if startIdx != -1 && endIdx != -1 && endIdx > startIdx {
-		// Replace existing
-		newText = text[:startIdx] + snippet + text[endIdx+len(endMarker):]
+	if startIdx := strings.Index(text, geminiStart); startIdx != -1 {
+		if endIdx := strings.Index(text, geminiEnd); endIdx != -1 && endIdx > startIdx {
+			text = text[:startIdx] + geminiSnippet + text[endIdx+len(geminiEnd):]
+		}
 	} else {
 		// Search for persona closing tag to inject before it
 		personaEndMarker := "<!-- /gentle-ai:persona -->"
-		personaEndIdx := strings.Index(text, personaEndMarker)
-		
-		if personaEndIdx != -1 {
-			newText = text[:personaEndIdx] + snippet + "\n" + text[personaEndIdx:]
+		if personaEndIdx := strings.Index(text, personaEndMarker); personaEndIdx != -1 {
+			text = text[:personaEndIdx] + geminiSnippet + "\n" + text[personaEndIdx:]
 		} else {
-			// Append at the end if no persona tag is found
 			if !strings.HasSuffix(text, "\n") {
 				text += "\n"
 			}
-			newText = text + "\n" + snippet + "\n"
+			text = text + "\n" + geminiSnippet + "\n"
 		}
 	}
 
-	if newText != text {
-		return os.WriteFile(agentsMdPath, []byte(newText), 0644)
+	if text != string(content) {
+		return os.WriteFile(agentsMdPath, []byte(text), 0644)
 	}
 	return nil
 }
