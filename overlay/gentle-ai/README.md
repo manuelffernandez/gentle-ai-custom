@@ -26,6 +26,18 @@ Esta carpeta agrupa los assets operativos del overlay de Gentle AI.
 - El runtime refresh (`gentle-ai sync` o reinstalación completa) es un paso separado y depende de si el cambio adoptado afecta el runtime target/materialized state que este repo mantiene.
 - `shared/skills/` sigue siendo la fuente canónica de las skills repo-owned portables; no se mueve a este árbol.
 
+## Contrato del informe del maintainer
+
+- `Scope`: `Managed` / `Unmanaged`
+- `Impact`: `Behavioral` / `Runtime` / `Housekeeping`
+- `Decision`: `Adquirir` / `Sanitizar` / `Ignorar`
+- Columnas: `Upstream change`, `Files`, `Scope`, `Impact`, `Decision`, `Why`, `Follow-up`
+- `Upstream change` tiene que ser un resumen humano corto del delta upstream y de por qué importa; no una lista de rutas de archivos.
+- `Follow-up` es opcional; dejalo vacío cuando no haga falta ninguna acción extra.
+- `Runtime` incluye wiring, instalación, configuración o materialización del target mantenido.
+- `Housekeeping` cubre docs irrelevantes, agentes no relacionados o fixes internos sin efecto en el target mantenido.
+- No usar `descartar` como etiqueta principal.
+
 ## Regla simple
 
 - Si querés entender o usar el repo, arrancá por `README.md` en la raíz.

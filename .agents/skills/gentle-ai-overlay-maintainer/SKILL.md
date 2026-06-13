@@ -27,16 +27,43 @@ Use this skill when:
 - `apply-gentle-ai-custom` is now canonical: it installs repo-owned SDD/runtime assets from `overlay/gentle-ai/assets/owned/...`, installs repo-owned portable skills from `shared/skills/`, renders wrapper commands from `shared/commands/`, prunes rejected upstream skills, applies built-in overrides, and reconciles SDD profiles.
 - The apply path is driven by repo-owned runtime assets declared in `overlay/gentle-ai/assets/owned/...` plus portable repo-owned skills from `shared/skills/`.
 - Read semantic intent before making maintenance decisions.
-- Before any repo mutation, produce a concise decision summary that states what is new upstream, what to adopt, what to discard, the rationale for each, whether repo sync is required, and the recommended upstream refresh path.
+- Before any repo mutation, produce a concise decision summary that states what is new upstream, the `Scope` / `Impact` classification, the recommended decision (`Adquirir`, `Sanitizar`, or `Ignorar`), the rationale, whether repo sync is required, and the recommended upstream refresh path.
 - After that summary, STOP for explicit user approval before mutating this repo, advancing the maintained upstream boundary, syncing approved upstream assets, or refreshing local runtime state.
 - Preserve the local keep/prune baseline and the repo-owned orchestrator behavior goals.
 - Keep rejecting upstream changes that reintroduce `chained-pr`, review-budget, or review-workload governance into the repo-owned orchestrator behavior unless the user explicitly changes maintenance intent.
 - Keep bash and PowerShell scripts behaviorally equivalent.
 - Update `AGENTS.md`, `README.md`, `overlay/gentle-ai/maintenance.md`, and `overlay/gentle-ai/logs/update-log.md` when the workflow changes, but write to the log only for eligible closed maintenance events under `AGENTS.md` rule 4.
 - Do not change intent, keep/prune, or repo-owned orchestrator behavior for new upstream changes without explicit user approval.
-- After approved maintenance work, return a closing summary of what was actually adopted, what was actually discarded, and why.
+- After approved maintenance work, return a closing summary of what was actually `Adquirir`, `Sanitizar`, or `Ignorar`, and why.
 - After maintenance edits, run one fresh-context reviewer/subagent consistency pass over the changed maintainer artifacts before closing.
 - The versioned policy MUST NOT carry per-profile orchestrator/phase model+variant choices. Those live in the per-machine local config at `~/.config/gentle-ai-custom/opencode-local-config.json` under `default_profile` and `profiles`.
+
+## Audit report contract
+
+Use this contract in the user-facing maintainer report:
+
+| Axis | Values | Meaning |
+|---|---|---|
+| Scope | `Managed` / `Unmanaged` | `Managed` is inside the overlay/runtime surface this repo maintains. `Unmanaged` is outside that surface or not relevant to it. |
+| Impact | `Behavioral` / `Runtime` / `Housekeeping` | `Behavioral` changes agent or orchestrator behavior. `Runtime` changes maintained-target wiring, install, config, or materialization. `Housekeeping` covers docs, unrelated agents, or internal fixes with no maintained-target effect. |
+
+Decision labels:
+
+| Decision | Use when |
+|---|---|
+| `Adquirir` | The upstream change should be incorporated into the overlay/runtime scope. |
+| `Sanitizar` | The upstream change matters, but it must be adapted so local `maintenance-intent` still wins. |
+| `Ignorar` | The change was evaluated but is not relevant to the maintained target/scope. |
+
+Report rows use this shape:
+
+| Upstream change | Files | Scope | Impact | Decision | Why | Follow-up |
+|---|---|---|---|---|---|---|
+
+- `Upstream change` is a concise human summary of the upstream delta and why it matters; do not use a file-path list as the main content.
+- `Follow-up` is optional; leave it empty when no further action is needed.
+
+Do not use `descartar` as the main decision label for report rows.
 
 ## Update-Type Triage
 
@@ -59,11 +86,11 @@ Re-apply is mandatory after `gentle-ai sync` or reinstall because upstream rewri
 | Script printed `WARNING - unmanaged SDD profiles left untouched` | Ask whether to add the profile(s) to the local config or remove those agent keys manually. NEVER delete them automatically. |
 | `bash audit-gentle-ai-upstream.sh` reports `base prompt drift: yes` | Review `Drift summary:` first, then inspect the upstream delta before updating approved upstream snapshots/state. |
 | `bash audit-gentle-ai-upstream.sh` reports profile/base invariant mismatch | STOP and review before recommending `sync`; the overlay assumptions may be stale even if prompt drift looks small. |
-| Audit is complete and repo/runtime state is still unchanged | Return the decision summary (`new upstream`, `adopt`, `discard`, `why`, `repo sync`, refresh recommendation) and STOP for approval before any mutation. |
+| Audit is complete and repo/runtime state is still unchanged | Return the decision summary (`new upstream`, `Scope`, `Impact`, `Decision`, `why`, `repo sync`, refresh recommendation) and STOP for approval before any mutation. |
 | Adopted change affects topology, presets, or materialization for the maintained runtime target | STOP, summarize the impact, and explicitly recommend a full reinstall before re-applying the overlay. |
 | Upstream only added a new agent/platform outside the maintained runtime target/materialized state | Note it in the audit, but do NOT recommend reinstall for that reason alone. |
 | Upstream added new skills or workflow behavior without maintained-target topology drift | STOP, summarize the impact, and recommend `gentle-ai sync` after the repo is updated. |
-| Upstream tries to reintroduce chained/stacked PR governance into the orchestrator | Recommend discard, preserve the owned depuration, and STOP before changing intent/policy. |
+| Upstream tries to reintroduce chained/stacked PR governance into the orchestrator | Recommend `Sanitizar`, preserve the owned depuration, and STOP before changing intent/policy. |
 | Fresh-context review finds inconsistency after maintenance edits | Fix it before closing, or STOP and surface the inconsistency if the correct resolution is unclear. |
 
 ## Execution Steps
@@ -84,14 +111,16 @@ Re-apply is mandatory after `gentle-ai sync` or reinstall because upstream rewri
     - topology/preset/materialization changes for the maintained runtime target
     - upstream additions outside the maintained runtime target/materialized state
     - recommended upstream adoption path: `gentle-ai sync` vs full reinstall
-11. Produce a short plain-language drift summary before the full diff review.
-12. Convert that audit into a concise decision summary with these exact buckets:
-    - what is new upstream
-    - recommend adopt
-    - recommend discard
-    - why
-    - repo sync requirement: whether approval of a new boundary requires `bash sync-gentle-ai-upstream-assets.sh`
-    - recommended upstream refresh path: `gentle-ai sync` vs full reinstall
+ 11. Produce a short plain-language drift summary before the full diff review.
+ 12. Convert that audit into a concise decision summary with these exact buckets:
+     - what is new upstream
+     - `Scope` (`Managed` / `Unmanaged`)
+     - `Impact` (`Behavioral` / `Runtime` / `Housekeeping`)
+     - `Decision` (`Adquirir` / `Sanitizar` / `Ignorar`)
+     - why
+     - `Follow-up`
+     - repo sync requirement: whether approval of a new boundary requires `bash sync-gentle-ai-upstream-assets.sh`
+     - recommended upstream refresh path: `gentle-ai sync` vs full reinstall
 13. STOP for explicit user approval before editing repo files, advancing `upstream-state.json`, running `sync-gentle-ai-upstream-assets`, or refreshing the local runtime.
 14. After approval, update this repo if needed: owned assets, approved upstream snapshots, policy, docs, state, and logs together. If a new upstream boundary was accepted, run `bash sync-gentle-ai-upstream-assets.sh` as the repo sync step.
 15. Only after repo sync, run the recommended upstream refresh path: `gentle-ai sync` or full reinstall.
@@ -106,7 +135,7 @@ Re-apply is mandatory after `gentle-ai sync` or reinstall because upstream rewri
    - default/named profile assignments still match the local config
    - `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md` plus metadata remain consistent with `upstream-state.json`
 18. Run one fresh-context reviewer/subagent pass against the changed maintainer artifacts and the final maintenance diff to confirm the workflow, docs, and summary outputs stay consistent.
-19. Return a closing summary that states what was actually adopted, what was actually discarded, and why.
+ 19. Return a closing summary that states what was actually `Adquirir`, `Sanitizar`, or `Ignorar`, and why.
 20. If the work closed an eligible maintenance event, record one consolidated entry in `overlay/gentle-ai/logs/update-log.md`.
 
 ## Output Contract
@@ -116,7 +145,8 @@ Return:
 - files changed in the overlay (policy, assets, scripts, docs, log)
 - topology drift detected and how it was resolved
 - brief drift summary in plain language
-- pre-mutation decision summary with `new upstream`, `adopt`, `discard`, `why`, `repo sync requirement`, and refresh recommendation
+- pre-mutation decision summary with `Upstream change`, `Files`, `Scope`, `Impact`, `Decision`, `Why`, `Follow-up`, `repo sync requirement`, and refresh recommendation
+- `Follow-up` is optional; leave it empty when no further action is needed.
 - recommended upstream adoption path (`gentle-ai sync` or full reinstall) and why
 - whether a newly accepted upstream boundary requires `bash sync-gentle-ai-upstream-assets.sh`
 - apply summary counts (owned asset writes, prompt ref updates, topology warnings, profile counts)
@@ -125,7 +155,7 @@ Return:
 - whether keep/prune or repo-owned orchestrator behavior changed
 - what upstream range was audited
 - whether user approval was required and how it affected the result
-- closing summary of what was actually adopted vs discarded and why
+- closing summary of what was actually `Adquirir`, `Sanitizar`, or `Ignorar`, and why
 
 ## References
 

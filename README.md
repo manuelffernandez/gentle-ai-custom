@@ -87,12 +87,12 @@ El mantenimiento en este repositorio sigue siempre los mismos pasos. Lo único q
 1. Actualizá el ejecutable de `gentle-ai`.
 2. Ejecutá `git pull` en tu carpeta local de `gentle-ai`.
 3. Desde la carpeta de `gentle-ai-custom`, pedile al agente de mantenimiento que revise qué cambió en el proyecto original (auditoría).
-4. Antes de cambiar cualquier archivo acá, el agente te tiene que dar un resumen claro: qué hay de nuevo, qué sugiere adoptar, qué sugiere descartar, por qué, y qué comando recomienda para actualizar.
+4. Antes de cambiar cualquier archivo acá, el agente te tiene que dar un resumen claro: qué hay de nuevo, qué sugiere `Adquirir`, `Sanitizar` o `Ignorar`, por qué, y qué comando recomienda para actualizar.
 5. Confirmá que estás de acuerdo antes de que el agente modifique cosas en este repositorio o actualice el sistema.
 6. Si aceptaste los cambios del proyecto original, ejecutá `sync-gentle-ai-upstream-assets.sh` para copiar esos cambios aprobados a este repositorio.
 7. Después de eso, ejecutá el comando recomendado para aplicar todo al sistema: `gentle-ai sync` o bien una reinstalación completa.
 8. Volvé a aplicar nuestra capa customizada usando `apply-gentle-ai-custom.sh`.
-9. Terminá con una revisión general para asegurar que todo quedó bien y dejá un resumen final de lo que se aceptó y descartó.
+9. Terminá con una revisión general para asegurar que todo quedó bien y dejá un resumen final de lo que se adquirió, sanitizó o ignoró.
 10. Reiniciá OpenCode si el archivo `~/.config/opencode/opencode.json` tuvo algún cambio.
 
 ```bash
@@ -115,22 +115,34 @@ bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh opencode
 
 ### Qué tiene que decidir la auditoría
 
-Antes de tocar cualquier archivo, revisar el proyecto original nos tiene que responder estas preguntas de forma clara:
+Antes de tocar cualquier archivo, la auditoría tiene que responder esto de forma simple y fácil de leer:
 
-- qué cosas nuevas hay realmente y si nos afectan.
-- qué cosas conviene incorporar y cuáles descartar, explicando por qué.
-- si primero hay que hacer cambios en nuestro repositorio, si hace falta sincronizar los archivos originales, y si para actualizar conviene usar `gentle-ai sync` o hacer una reinstalación limpia.
+| Eje | Valores |
+| --- | --- |
+| `Scope` | `Managed` / `Unmanaged` |
+| `Impact` | `Behavioral` / `Runtime` / `Housekeeping` |
+| `Decision` | `Adquirir` / `Sanitizar` / `Ignorar` |
 
-Hoy en día, la auditoría busca diferencias usando comandos como `git diff` y las filtra para ignorar lo que no nos interesa, pero sin dejar de revisar cosas importantes de estructura.
+- `Adquirir`: incorporar el cambio al overlay/runtime.
+- `Sanitizar`: adaptar el cambio para que siga mandando `maintenance-intent`.
+- `Ignorar`: se evaluó, pero no aplica al alcance mantenido.
+- El informe debe usar estas columnas: `Upstream change`, `Files`, `Scope`, `Impact`, `Decision`, `Why`, `Follow-up`.
+- `Upstream change` tiene que ser un resumen humano corto del delta upstream y de por qué importa; no una lista de rutas de archivos.
+- `Follow-up` es opcional; dejalo vacío cuando no haga falta ninguna acción extra.
+- `Runtime` incluye wiring, instalación, configuración o materialización del target mantenido, aunque no cambie el comportamiento de los agentes.
+- `Housekeeping` cubre documentación irrelevante, agentes no relacionados o fixes internos sin efecto en el target mantenido.
+- No usar `descartar` como etiqueta principal del informe.
 
-Los scripts `audit-gentle-ai-upstream` y `sync-gentle-ai-upstream-assets` se pueden usar a mano, pero es mucho mejor pedirle al agente de mantenimiento que los use. Así te puede explicar qué pasa y pedirte permiso antes de cambiar nada. El comando `sync-gentle-ai-upstream-assets` solo copia cosas aprobadas a nuestro repositorio; no actualiza la configuración de tu computadora.
+Hoy en día, la auditoría busca diferencias usando comandos como `git diff` y las filtra para separar lo que sí importa de lo que no, pero sin dejar de revisar cosas importantes de estructura.
+
+Los scripts `audit-gentle-ai-upstream` y `sync-gentle-ai-upstream-assets` se pueden usar a mano, pero es mejor pedirle al agente de mantenimiento que los use. Así te puede explicar qué cambió y pedirte permiso antes de tocar nada. El comando `sync-gentle-ai-upstream-assets` solo copia cosas aprobadas a este repositorio; no actualiza la configuración de tu computadora.
 
 ### Cuándo usar `gentle-ai sync` y cuándo reinstalar
 
 - Es preferible usar `gentle-ai sync` si los cambios que adoptamos sirven, pero no rompen de forma profunda cómo están configurados los agentes y perfiles.
 - Conviene hacer una reinstalación completa cuando los cambios del proyecto original afectan la estructura básica de los perfiles que usamos, o cuando un simple `gentle-ai sync` ya no alcanza para armar bien la configuración.
 - Si el proyecto original agrega soporte para un nuevo agente o plataforma que no usamos, no hace falta reinstalar.
-- Si el proyecto original intenta forzar de nuevo el uso de PRs encadenadas (chained PRs) u otras reglas que ya decidimos sacar, se deben seguir descartando a menos que cambies explícitamente de idea.
+- Si el proyecto original intenta forzar de nuevo el uso de PRs encadenadas (chained PRs) u otras reglas que ya decidimos sacar, se deben seguir sanitizando a menos que cambies explícitamente de idea.
 
 ### Qué hace el comando `apply-gentle-ai-custom`
 

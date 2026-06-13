@@ -74,6 +74,17 @@ Any modification that affects operability must be reflected in documentation:
 - `overlay/gentle-ai/maintenance.md` — maintenance guide
 - affected `SKILL.md` files — source of truth for runtime agent behavior
 
+For maintainer audit reports, keep the wording simple and consistent:
+- report rows must use `Upstream change`, `Files`, `Scope`, `Impact`, `Decision`, `Why`, and `Follow-up`
+- `Upstream change` must be a concise human summary of the upstream delta and why it matters; do not use a file-path list as the main content
+- `Follow-up` is optional and should be empty when no further action is needed
+- `Scope` is `Managed` or `Unmanaged`
+- `Impact` is `Behavioral`, `Runtime`, or `Housekeeping`
+- `Decision` is `Adquirir`, `Sanitizar`, or `Ignorar`
+- `Runtime` includes maintained-target wiring, install, config, or materialization changes even when agent behavior stays the same
+- `Housekeeping` covers irrelevant docs, unrelated agents, or internal fixes with no maintained-target effect
+- do not use `descartar` as the main report label
+
 **Language and Tone Rule for README.md:**
 `README.md` MUST be written in Spanish. Use simple, clear, and accessible language to ensure it is easily understood, rather than reading like a highly specialized technical manual. Avoid overly complex words where possible. If technical details are necessary, include them but always aim to explain them in a simple and straightforward way.
 
@@ -122,7 +133,7 @@ Anti-noise rule:
 - Do **not** add one entry per file, commit, or micro-iteration.
 - If the same event spans multiple commits or sessions, wait until the event is closed and then write **one** consolidated entry.
 
-Each entry MUST include:
+Each entry MUST include these fields. `Follow-up` may be omitted or left empty when no extra action is needed:
 
 - `Date`
 - `Title`
@@ -132,7 +143,7 @@ Each entry MUST include:
 - `Why it mattered`
 - `Affected artifacts`
 - `Verification`
-- `Follow-up` (optional)
+- `Follow-up` (optional; dejalo vacío cuando no haga falta ninguna acción extra)
 
 Rule 3 = live state. Rule 4 = maintenance decision ledger.
 
@@ -372,12 +383,12 @@ Canonical order:
 1. update the `gentle-ai` binary
 2. `git pull` in the resolved upstream `gentle-ai` repo (default: `../gentle-ai` relative to this repo)
 3. open `gentle-ai-custom` and run the maintainer audit
-4. read `Summary:` and, if present, `Drift summary:`; convert the audit into a concise decision summary that states what is new upstream, what to adopt, what to discard, whether repo sync is required, why, and the runtime refresh recommendation
+4. read `Summary:` and, if present, `Drift summary:`; convert the audit into a concise decision summary that states what is new upstream, the `Scope` / `Impact` classification, the `Decision` (`Adquirir`, `Sanitizar`, or `Ignorar`), whether repo sync is required, why, and the runtime refresh recommendation
 5. STOP for explicit user approval before any repo mutation, upstream-boundary advance, upstream-asset sync, or runtime refresh
 6. if a new upstream boundary was accepted, run `bash sync-gentle-ai-upstream-assets.sh` as the repo sync step
 7. run the correct upstream refresh path (`gentle-ai sync` or full reinstall) as a separate later runtime step
 8. re-apply the overlay with `apply-gentle-ai-custom.sh opencode` or `apply-gentle-ai-custom.sh all`
-9. run one fresh-context consistency review over the maintainer changes, then return a closing summary of what was adopted vs discarded and why
+9. run one fresh-context consistency review over the maintainer changes, then return a closing summary of what was `Adquirir`, `Sanitizar`, or `Ignorar`, and why
 
 Current audit discovery model:
 

@@ -19,10 +19,12 @@ This file describes the current operating model: `apply-gentle-ai-custom` reinst
 2. Run `git pull` in the resolved upstream `gentle-ai` clone.
 3. From `gentle-ai-custom`, run `bash audit-gentle-ai-upstream.sh`.
 4. Convert the audit into a concise decision summary before any mutation:
-   - what is new upstream
-   - recommend adopt
-   - recommend discard
-   - why
+   - what changed upstream and why it matters
+   - `Scope`: `Managed` / `Unmanaged`
+   - `Impact`: `Behavioral` / `Runtime` / `Housekeeping`
+   - `Decision`: `Adquirir` / `Sanitizar` / `Ignorar`
+   - `Why`
+   - `Follow-up` (optional)
    - repo sync requirement: whether approval of a new boundary requires `bash sync-gentle-ai-upstream-assets.sh`
    - recommended runtime path: `gentle-ai sync` vs full reinstall
 5. STOP for explicit approval before updating this repo, advancing `state/upstream-state.json`, running `bash sync-gentle-ai-upstream-assets.sh`, or refreshing runtime.
@@ -31,7 +33,7 @@ This file describes the current operating model: `apply-gentle-ai-custom` reinst
    - `gentle-ai sync` if the maintained runtime target stays effectively compatible
    - full reinstall if adopted changes affect topology, presets, or materialization for the maintained runtime target, or if sync no longer materializes the right state
 8. Re-apply the overlay with `bash apply-gentle-ai-custom.sh opencode`.
-9. Read `Summary:`, verify the final on-disk state, run one fresh-context consistency review, and return a closing summary of what was actually adopted vs discarded and why.
+9. Read `Summary:`, verify the final on-disk state, run one fresh-context consistency review, and return a closing summary of what was actually `Adquirir`, `Sanitizar`, or `Ignorar`, and why.
 10. If `~/.config/opencode/opencode.json` changed, restart OpenCode.
 
 ## Operating model
@@ -58,14 +60,17 @@ This file describes the current operating model: `apply-gentle-ai-custom` reinst
 
 ### Decision handoff before mutation
 
-Before the maintainer edits repo files or refreshes runtime, turn the audit into an approval gate:
+Before the maintainer edits repo files or refreshes runtime, turn the audit into an approval gate. Use these report columns:
 
-- `What is new upstream` — concise change summary for the reviewed upstream range
-- `Recommend adopt` — overlay-relevant behavior/assets worth carrying forward
-- `Recommend discard` — upstream additions the overlay should keep pruning or reject
-- `Why` — rationale for both lists
-- `Repo sync requirement` — whether approval of a new upstream boundary requires `bash sync-gentle-ai-upstream-assets.sh`
-- `Recommended runtime path` — `gentle-ai sync` vs full reinstall, with the maintained-runtime-target reason when relevant
+| Upstream change | Files | Scope | Impact | Decision | Why | Follow-up |
+| --- | --- | --- | --- | --- | --- | --- |
+
+- `Upstream change`: concise human summary of the upstream delta and why it matters; do not use a file-path list as the main content.
+- `Scope`: `Managed` if the change is inside the overlay/runtime surface this repo maintains; `Unmanaged` if it is outside that surface or not relevant.
+- `Impact`: `Behavioral` for agent/orchestrator behavior; `Runtime` for maintained-target wiring, install, config, or materialization; `Housekeeping` for docs, unrelated agents, or internal fixes with no maintained-target effect.
+- `Decision`: `Adquirir`, `Sanitizar`, or `Ignorar`.
+- `Follow-up`: optional; leave empty when nothing else is needed.
+- Do not use `descartar` as the main report label.
 
 No repo mutation happens before that handoff is approved.
 
@@ -75,6 +80,10 @@ No repo mutation happens before that handoff is approved.
 - Do not recommend reinstall only because upstream added support for some other agent or platform outside the maintained runtime target/materialized state.
 - Recommend a full reinstall when the adopted change affects topology, presets, or materialization for the maintained runtime target, or when `gentle-ai sync` cannot materialize the required state.
 - Keep rejecting upstream attempts to reintroduce `chained-pr`, review-budget, or review-workload governance into the repo-owned orchestrator behavior unless human intent changes first.
+
+`Runtime` includes changes to the maintained target's wiring, install path, config, or materialized files even when the agent behavior itself does not change.
+
+`Housekeeping` covers changes that do not matter for the maintained target, such as irrelevant docs, unrelated agents, or internal fixes with no maintained-target effect.
 
 ### `sync-gentle-ai-upstream-assets`
 

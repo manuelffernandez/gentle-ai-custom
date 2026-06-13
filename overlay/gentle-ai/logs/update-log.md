@@ -4,6 +4,15 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-06-13 | Standardized maintainer report terminology and table shape
+
+- **Type**: `policy-change`
+- **Upstream scope/range**: maintenance workflow contract, not a new upstream boundary
+- **Decision**: standardized maintainer audit reports around `Scope` (`Managed` / `Unmanaged`), `Impact` (`Behavioral` / `Runtime` / `Housekeeping`), and `Decision` (`Adquirir`, `Sanitizar`, `Ignorar`); defined the canonical report columns (`Upstream change`, `Files`, `Scope`, `Impact`, `Decision`, `Why`, `Follow-up`); removed `descartar` as the primary report label.
+- **Why it mattered**: future maintainer runs need one readable decision contract instead of mixed adopt/discard wording, and the report needs to separate maintained-target changes from irrelevant or housekeeping-only drift without changing the existing approval gates.
+- **Affected artifacts**: `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`, `AGENTS.md`, `README.md`, `overlay/gentle-ai/README.md`, `overlay/gentle-ai/maintenance.md`, `overlay/gentle-ai/logs/update-log.md`
+- **Verification**: doc consistency review across the changed maintainer artifacts
+
 ## 2026-06-11 | Promoted OpenCode AGENTS.md to a managed asset
 
 - **Type**: `tooling-change`
@@ -13,11 +22,11 @@ It is not a mirror of every repo change. Git history carries implementation-leve
 - **Affected artifacts**: `internal/overlay/opencode_agent.go`, `internal/overlay/managed_assets.go`, `internal/overlay/markdown_materialization.go`, `internal/overlay/sync_upstream_assets.go`, `internal/overlay/audit_upstream.go`, `internal/overlay/managed_assets_test.go`, `overlay/gentle-ai/policy/managed-assets.json`, `overlay/gentle-ai/assets/upstream/opencode/AGENTS.md`, `overlay/gentle-ai/assets/owned/opencode/AGENTS.md`, `overlay/gentle-ai/policy/maintenance-intent.md`, `overlay/gentle-ai/maintenance.md`, `overlay/gentle-ai/assets/README.md`, `overlay/gentle-ai/assets/upstream/opencode/README.md`, `overlay/gentle-ai/assets/owned/opencode/README.md`, `overlay/gentle-ai/owned-assets-refactor.md`, `AGENTS.md`
 - **Verification**: `go test ./...`; `git diff --check`
 
-## 2026-06-09 | Adopted upstream v1.37.0 boundary — discarded chained-pr orchestrator binding
+## 2026-06-09 | Adopted upstream v1.37.0 boundary — sanitized chained-pr orchestrator binding
 
 - **Type**: `audit`
 - **Upstream scope/range**: `122b35816d3fbc1627359fe0613c6541604980bc` (`v1.36.8`) → `03457e9e3406ee5695da6dca5cd16c1f49a50dad` (`v1.37.0`)
-- **Decision**: accepted the new upstream boundary v1.37.0; discarded the 2-line addition that binds the `chained-pr` skill (`gentle-ai-chained-pr`) as a required skill match in the orchestrator chain strategy — this directly violates the `maintenance-intent.md` hard rule against chained/stacked PR governance in the repo-owned orchestrator; noted Hermes agent support as an upstream addition outside the maintained OpenCode runtime target (no overlay action required); kept `gentle-ai sync` as the upstream refresh path because no topology, preset, or materialization drift was detected for the maintained runtime target.
+- **Decision**: accepted the new upstream boundary v1.37.0; sanitized the 2-line addition that binds the `chained-pr` skill (`gentle-ai-chained-pr`) as a required skill match in the orchestrator chain strategy — this directly violates the `maintenance-intent.md` hard rule against chained/stacked PR governance in the repo-owned orchestrator; noted Hermes agent support as an upstream addition outside the maintained OpenCode runtime target (no overlay action required); kept `gentle-ai sync` as the upstream refresh path because no topology, preset, or materialization drift was detected for the maintained runtime target.
 - **Why it mattered**: upstream v1.37.0 included a new feature (`feat(sdd): bind chained-pr skill into orchestrator chain strategy #792`) that embeds `chained-pr` skill enforcement into core orchestrator delivery planning. The owned orchestrator prompt already depurates the entire delivery-strategy/chained-PR block, so the new binding line was already excluded by the existing depuration. Accepting the boundary without adopting the content preserves the repo's depuration invariant.
 - **Affected artifacts**: `overlay/gentle-ai/state/upstream-state.json`, `overlay/gentle-ai/assets/upstream/opencode/prompts/orchestrators/gentle-orchestrator.md`
 - **Verification**: fresh-context consistency review — CONSISTENT (6/6 assertions passed); owned orchestrator prompt confirmed absent of `gentle-ai-chained-pr`; runtime pruning confirmed (4 skills removed); `bash apply-gentle-ai-custom.sh opencode` completed with 0 topology warnings and 0 unmanaged profiles.
@@ -35,7 +44,7 @@ It is not a mirror of every repo change. Git history carries implementation-leve
 
 - **Type**: `policy-change`
 - **Upstream scope/range**: maintenance workflow contract, not a new upstream boundary
-- **Decision**: changed the maintainer contract so every upstream audit must produce a pre-mutation decision summary (`what is new upstream`, `recommend adopt`, `recommend discard`, `why`, and refresh recommendation), STOP for explicit user approval before any repo/runtime mutation, then finish with a closing adopted-vs-discarded summary plus a fresh-context consistency review.
+- **Decision**: changed the maintainer contract so every upstream audit must produce a pre-mutation decision summary (`what is new upstream`, `Scope`, `Impact`, `Decision` with `Adquirir` / `Sanitizar` / `Ignorar`, `why`, and refresh recommendation), STOP for explicit user approval before any repo/runtime mutation, then finish with a closing summary in the same terminology plus a fresh-context consistency review.
 - **Why it mattered**: the previous workflow required audit-first behavior but did not force the maintainer to separate recommendation from execution. The new contract makes upstream adoption decisions explicit before mutation and adds a second review pass after the approved maintenance work lands.
 - **Affected artifacts**: `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`, `AGENTS.md`, `README.md`, `overlay/gentle-ai/maintenance.md`, `overlay/gentle-ai/logs/update-log.md`
 - **Verification**: targeted doc/skill consistency review plus `git diff --check`
