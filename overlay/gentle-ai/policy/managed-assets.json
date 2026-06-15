@@ -6,10 +6,10 @@
     "opencode": {
       "watch_roots": [
         "internal/assets/opencode",
-        "internal/assets/claude",
+        "internal/assets/claude/engram-protocol.md",
         "internal/assets/skills"
       ],
-      "upstream_path_interpretation": "Paths in this manifest refer to files inside the upstream gentle-ai repository. `watch_roots` lists the upstream directory roots watched for untracked drift. `repo_upstream_path` stores the approved upstream copy used for drift review, and `repo_owned_path` stores the repo-owned runtime asset that apply installs.",
+      "upstream_path_interpretation": "Paths in this manifest refer to files inside the upstream gentle-ai repository. `watch_roots` lists the upstream directory roots or file paths watched for untracked drift. `repo_upstream_path` stores the approved upstream copy used for drift review, and `repo_owned_path` stores the repo-owned runtime asset that apply installs.",
       "structural_invariant_sources": [
         "internal/components/sdd/profiles.go",
         "internal/components/sdd/inject.go"
@@ -28,6 +28,27 @@
           "kind": "upstream_source_file",
           "upstream_path": "internal/assets/claude/engram-protocol.md",
           "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/engram-protocol.md"
+        },
+        {
+          "key": "opencode-overlay-single",
+          "class": "upstream_source",
+          "kind": "upstream_source_file",
+          "upstream_path": "internal/assets/opencode/sdd-overlay-single.json",
+          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/sdd-overlay-single.json"
+        },
+        {
+          "key": "opencode-overlay-multi",
+          "class": "upstream_source",
+          "kind": "upstream_source_file",
+          "upstream_path": "internal/assets/opencode/sdd-overlay-multi.json",
+          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/sdd-overlay-multi.json"
+        },
+        {
+          "key": "opencode-plugins",
+          "class": "upstream_source",
+          "kind": "upstream_source_directory",
+          "upstream_path": "internal/assets/opencode/plugins",
+          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/plugins"
         },
         {
           "key": "opencode-agents",

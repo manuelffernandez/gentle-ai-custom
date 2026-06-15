@@ -7,23 +7,38 @@ import (
 	"testing"
 )
 
-func TestCategorizeGitDiffTreatsMaterializedOpenCodeAgentsSourcesAsManaged(t *testing.T) {
+func TestCategorizeGitDiffTreatsOnlyOpenCodeAndEngramSourcesAsManaged(t *testing.T) {
 	target := testOpenCodeAgentsTarget()
 	managed, unmanaged := categorizeGitDiff([]GitDiffEntry{
 		{Status: "M", Path: "internal/assets/opencode/persona-gentleman.md"},
 		{Status: "M", Path: "internal/assets/claude/engram-protocol.md"},
+		{Status: "M", Path: "internal/assets/opencode/sdd-overlay-single.json"},
+		{Status: "M", Path: "internal/assets/opencode/sdd-overlay-multi.json"},
+		{Status: "M", Path: "internal/assets/opencode/plugins/model-variants.ts"},
+		{Status: "M", Path: "internal/assets/claude/agents/jd-fix-agent.md"},
+		{Status: "M", Path: "internal/assets/claude/commands/sdd-apply.md"},
+		{Status: "A", Path: "internal/assets/claude/output-style-neutral.md"},
 	}, buildManagedAssetCatalog(target))
 
-	if len(managed) != 2 {
-		t.Fatalf("managed entries = %d, want 2", len(managed))
+	if len(managed) != 5 {
+		t.Fatalf("managed entries = %d, want 5", len(managed))
 	}
 	if len(unmanaged) != 0 {
 		t.Fatalf("unmanaged entries = %d, want 0", len(unmanaged))
 	}
-	// Each source file maps to its own record key
-	keys := map[string]bool{managed[0].Record.Key: true, managed[1].Record.Key: true}
-	if !keys["opencode-persona-source"] || !keys["opencode-engram-source"] {
-		t.Fatalf("managed record keys = %q / %q, want opencode-persona-source and opencode-engram-source", managed[0].Record.Key, managed[1].Record.Key)
+	keys := map[string]bool{}
+	for _, entry := range managed {
+		keys[entry.Record.Key] = true
+	}
+	for _, key := range []string{"opencode-persona-source", "opencode-engram-source", "opencode-overlay-single", "opencode-overlay-multi", "opencode-plugins"} {
+		if !keys[key] {
+			t.Fatalf("managed record keys missing %q", key)
+		}
+	}
+	for _, key := range []string{"claude-agents", "claude-commands", "claude-output-style-neutral"} {
+		if keys[key] {
+			t.Fatalf("managed record keys unexpectedly include %q", key)
+		}
 	}
 }
 
@@ -31,8 +46,15 @@ func TestSyncManagedTargetCopiesOpenCodeAgentsSourceFilesFromUpstream(t *testing
 	upstreamRepo := t.TempDir()
 	personaContent := []byte("## Rules\n\n- Upstream persona.\n")
 	engramContent := []byte("## Engram Persistent Memory — Protocol\n\n- mem_save\n")
+	overlaySingleContent := []byte("{\n  \"name\": \"single\"\n}\n")
+	overlayMultiContent := []byte("{\n  \"name\": \"multi\"\n}\n")
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "persona-gentleman.md"), personaContent)
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "claude", "engram-protocol.md"), engramContent)
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "sdd-overlay-single.json"), overlaySingleContent)
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "sdd-overlay-multi.json"), overlayMultiContent)
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "plugins", "model-variants.ts"), []byte("export const modelVariants = [];\n"))
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "plugins", "skill-registry.ts"), []byte("export const skillRegistry = [];\n"))
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "plugins", "background-agents.ts"), []byte("export const backgroundAgents = [];\n"))
 
 	repoRoot := t.TempDir()
 	stats := &syncUpstreamAssetsStats{}
@@ -41,8 +63,11 @@ func TestSyncManagedTargetCopiesOpenCodeAgentsSourceFilesFromUpstream(t *testing
 	}
 
 	// Fix #4: verify stats
-	if stats.FilesNew != 2 {
-		t.Fatalf("stats.FilesNew = %d, want 2", stats.FilesNew)
+	if stats.FilesNew != 7 {
+		t.Fatalf("stats.FilesNew = %d, want 7", stats.FilesNew)
+	}
+	if stats.DirsSynced != 1 {
+		t.Fatalf("stats.DirsSynced = %d, want 1", stats.DirsSynced)
 	}
 
 	// Verify persona-gentleman.md was copied verbatim
@@ -61,6 +86,31 @@ func TestSyncManagedTargetCopiesOpenCodeAgentsSourceFilesFromUpstream(t *testing
 	}
 	if string(gotEngram) != string(engramContent) {
 		t.Fatalf("engram mirror content mismatch\nwant: %q\ngot:  %q", engramContent, gotEngram)
+	}
+
+	gotSingle, err := os.ReadFile(filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "upstream", "opencode", "sdd-overlay-single.json"))
+	if err != nil {
+		t.Fatalf("read single overlay mirror: %v", err)
+	}
+	if string(gotSingle) != string(overlaySingleContent) {
+		t.Fatalf("single overlay mirror content mismatch\nwant: %q\ngot:  %q", overlaySingleContent, gotSingle)
+	}
+
+	gotMulti, err := os.ReadFile(filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "upstream", "opencode", "sdd-overlay-multi.json"))
+	if err != nil {
+		t.Fatalf("read multi overlay mirror: %v", err)
+	}
+	if string(gotMulti) != string(overlayMultiContent) {
+		t.Fatalf("multi overlay mirror content mismatch\nwant: %q\ngot:  %q", overlayMultiContent, gotMulti)
+	}
+
+	for _, name := range []string{"model-variants.ts", "skill-registry.ts", "background-agents.ts"} {
+		if _, err := os.Stat(filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "upstream", "opencode", "plugins", name)); err != nil {
+			t.Fatalf("read plugin mirror %s: %v", name, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "upstream", "claude")); !os.IsNotExist(err) {
+		t.Fatalf("sync wrote unsupported claude snapshot tree")
 	}
 
 	// Verify no AGENTS.md was written (no materialization in sync)
@@ -107,13 +157,16 @@ func TestOpenCodeAgentsOwnedSourceExtendsMaterializedBaseline(t *testing.T) {
 			t.Fatalf("upstream source mirror %s is empty", mirrorPath)
 		}
 	}
+	if _, err := os.Stat(filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "upstream", "claude")); !os.IsNotExist(err) {
+		t.Fatalf("owned AGENTS baseline should not materialize the claude snapshot tree")
+	}
 }
 
 func testOpenCodeAgentsTarget() ManagedAssetsTarget {
 	return ManagedAssetsTarget{
 		WatchRoots: []string{
 			"internal/assets/opencode",
-			"internal/assets/claude",
+			"internal/assets/claude/engram-protocol.md",
 			"internal/assets/skills",
 		},
 		OwnedOverlayAssets: []OwnedOverlayAsset{
@@ -130,6 +183,27 @@ func testOpenCodeAgentsTarget() ManagedAssetsTarget {
 				Kind:             "upstream_source_file",
 				UpstreamPath:     "internal/assets/claude/engram-protocol.md",
 				RepoUpstreamPath: "overlay/gentle-ai/assets/upstream/opencode/engram-protocol.md",
+			},
+			{
+				Key:              "opencode-overlay-single",
+				Class:            "upstream_source",
+				Kind:             "upstream_source_file",
+				UpstreamPath:     "internal/assets/opencode/sdd-overlay-single.json",
+				RepoUpstreamPath: "overlay/gentle-ai/assets/upstream/opencode/sdd-overlay-single.json",
+			},
+			{
+				Key:              "opencode-overlay-multi",
+				Class:            "upstream_source",
+				Kind:             "upstream_source_file",
+				UpstreamPath:     "internal/assets/opencode/sdd-overlay-multi.json",
+				RepoUpstreamPath: "overlay/gentle-ai/assets/upstream/opencode/sdd-overlay-multi.json",
+			},
+			{
+				Key:              "opencode-plugins",
+				Class:            "upstream_source",
+				Kind:             "upstream_source_directory",
+				UpstreamPath:     "internal/assets/opencode/plugins",
+				RepoUpstreamPath: "overlay/gentle-ai/assets/upstream/opencode/plugins",
 			},
 			{
 				Key:            "opencode-agents",

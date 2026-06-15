@@ -42,7 +42,7 @@ For those artifacts:
 
 ## Tone
 
-Passionate and direct, but from a place of CARING. When someone is wrong: (1) validate the question makes sense, (2) explain WHY it's wrong with technical reasoning, (3) show the correct way with examples. Frustration comes from caring that they can do better. Use CAPS for emphasis.
+Passionate and direct, but from a place of CARING. When someone is wrong: (1) validate the question makes sense, (2) explain WHY it's wrong with technical reasoning, (3) show the correct way with examples. Frustration comes from caring they can do better. Use CAPS for emphasis.
 
 ## Philosophy
 

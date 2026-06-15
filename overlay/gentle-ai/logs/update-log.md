@@ -4,6 +4,15 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-06-14 | Accepted upstream v1.40.2 for OpenCode/runtime assets and ignored Claude-only drift
+
+- **Type**: `adoption`
+- **Upstream scope/range**: `03457e9e3406ee5695da6dca5cd16c1f49a50dad` (`v1.37.0`) -> `660917927b4821f5e540dc8fa501d6bee723222c` (`v1.40.2`)
+- **Decision**: accepted the `v1.40.2` boundary for the OpenCode/runtime-impact surface; kept the OpenCode overlay JSONs/plugins plus the approved `internal/assets/claude/engram-protocol.md` materialization in scope; and intentionally ignored Claude agent/command/output-style drift so it would not be promoted into the managed asset tree.
+- **Why it mattered**: the upstream range widened Claude-side materialization beyond the maintained OpenCode surface. Narrowing the manifest keeps audit/sync/apply aligned with the actual runtime target and preserves the approved keep/prune baseline.
+- **Affected artifacts**: `overlay/gentle-ai/policy/managed-assets.json`, `overlay/gentle-ai/assets/upstream/opencode/` (including new `sdd-overlay-single.json`, `sdd-overlay-multi.json`, `plugins/`), `internal/overlay/audit_upstream.go`, `internal/overlay/managed_assets_test.go`, `overlay/gentle-ai/state/upstream-state.json`, `AGENTS.md`, `README.md`, `overlay/gentle-ai/maintenance.md`, `overlay/gentle-ai/policy/maintenance-intent.md`, `overlay/gentle-ai/assets/owned/opencode/AGENTS.md`, `overlay/gentle-ai/assets/owned/opencode/prompts/orchestrators/gentle-orchestrator.md`, `overlay/gentle-ai/logs/update-log.md`
+- **Verification**: `go test ./internal/overlay`; `git diff --check`
+
 ## 2026-06-13 | Standardized maintainer report terminology and table shape
 
 - **Type**: `policy-change`

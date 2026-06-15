@@ -458,6 +458,8 @@ func evaluateStructuralInvariants(upstreamRepo string, target ManagedAssetsTarge
 		`"*": "deny",`,
 		"taskPerms[phase+suffix] = \"allow\"",
 		"taskPerms[jd] = \"allow\"",
+		"taskPerms[reviewAgent] = \"allow\"",
+		`"task":  true,`,
 	}
 	for _, snippet := range requiredProfilesSnippets {
 		if !strings.Contains(upstreamProfilesText, snippet) {
@@ -467,6 +469,7 @@ func evaluateStructuralInvariants(upstreamRepo string, target ManagedAssetsTarge
 	requiredInjectSnippets := []string{
 		`orchestratorRaw, ok := agentsMap["gentle-orchestrator"]`,
 		`orchestratorMap["prompt"] = assets.MustRead(sddOrchestratorAsset(model.AgentOpenCode))`,
+		`taskRaw, ok := permissionRaw["task"].(map[string]any)`,
 	}
 	for _, snippet := range requiredInjectSnippets {
 		if !strings.Contains(upstreamInjectText, snippet) {

@@ -184,7 +184,7 @@ Si falta algo en tu configuración:
 | --- | --- |
 | `overlay/gentle-ai/policy/maintenance-intent.md` | Es el documento donde explicamos claramente nuestra intención: qué cosas queremos conservar, cuáles quitar y cómo queremos que funcione todo. |
 | `overlay/gentle-ai/policy/gentle-ai-policy.json` | Son las reglas exactas que leen los scripts cuando se ejecutan. |
-| `overlay/gentle-ai/policy/managed-assets.json` | Es el mapa oficial que dice qué archivos estamos controlando y adaptando. |
+| `overlay/gentle-ai/policy/managed-assets.json` | Es el mapa oficial que dice qué archivos estamos controlando y adaptando, incluyendo los overlay JSON, los comandos retenidos de OpenCode, los plugins y la copia aprobada de `engram-protocol.md` que seguimos materializando desde Claude. |
 | `overlay/gentle-ai/state/upstream-state.json` | Guarda cuál fue la última versión del proyecto original que revisamos. |
 | `overlay/gentle-ai/logs/update-log.md` | Es un registro donde anotamos las decisiones importantes sobre qué cosas nuevas aceptamos o rechazamos. |
 
@@ -194,7 +194,7 @@ Para ver el código exacto que cambió, siempre podés mirar el historial de Git
 
 | Ruta | Para qué sirve |
 | --- | --- |
-| `overlay/gentle-ai/assets/` | Carpeta principal con las copias aprobadas del proyecto original y nuestros propios archivos. |
+| `overlay/gentle-ai/assets/` | Carpeta principal con las copias aprobadas del proyecto original y nuestros propios archivos, como los overlay JSON, los comandos retenidos de OpenCode, los plugins y la copia aprobada de `engram-protocol.md` que mantenemos desde Claude. |
 | `~/.config/gentle-ai-custom/opencode-local-config.json` | Tu configuración personal: dónde está el código original, qué modelos preferís usar, etc. |
 | `overlay/gentle-ai/maintenance.md` | Guía y notas técnicas pensadas para que las lea una persona que esté manteniendo esto. |
 | `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md` | Instrucciones para que el agente entienda cómo hacer la auditoría y guiarnos en el mantenimiento. |

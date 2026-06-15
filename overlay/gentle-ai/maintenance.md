@@ -43,7 +43,7 @@ This file describes the current operating model: `apply-gentle-ai-custom` reinst
 | `policy/maintenance-intent.md` | Human intent: what to keep, depure, and protect |
 | `policy/gentle-ai-policy.json` | Runtime policy consumed by the Go CLI and wrappers |
 | `policy/managed-assets.json` | Canonical map of approved upstream assets and installable owned assets |
-| `assets/upstream/` | Approved upstream copies for review/diff, including the materialized OpenCode `AGENTS.md` baseline |
+| `assets/upstream/` | Approved upstream copies for review/diff, including the OpenCode snapshot inputs and retained assets: `persona-gentleman.md`, `engram-protocol.md` (mirrors `internal/assets/claude/engram-protocol.md`), the orchestrator prompt, overlay JSONs/plugins, retained `commands/` snapshots, and selected skill snapshots |
 | `assets/owned/` | Repo-owned assets that `apply` installs into runtime, including `~/.config/opencode/AGENTS.md` with local overlay semantics |
 | `shared/skills/` | Portable repo-owned skills installed globally by `apply` |
 | `shared/commands/` | Source bodies for custom wrappers rendered by `apply` |
@@ -131,7 +131,7 @@ After `apply`, confirm this:
 - each effective `agent_override` resolves to the expected `model` / `variant`
 - `agent.gentle-orchestrator.prompt` points to `~/.config/opencode/prompts/sdd/orchestrators/gentle-orchestrator.overlay.md`
 - `~/.config/opencode/AGENTS.md` matches the repo-owned asset from `assets/owned/opencode/AGENTS.md`
-- the upstream snapshot for that file is materialized from `internal/assets/opencode/persona-gentleman.md` + `internal/assets/claude/engram-protocol.md` in that order
+- the upstream OpenCode snapshot inputs under `assets/upstream/opencode/` include `persona-gentleman.md`, `engram-protocol.md`, the orchestrator prompt, overlay JSONs, plugins, and selected skill snapshots used to materialize that runtime file
 - each managed `sdd-orchestrator-<name>` points to that same owned prompt file
 - each `sdd-<phase>` and each managed `sdd-<phase>-<name>` points to its owned prompt file under `~/.config/opencode/prompts/sdd/`
 - runtime files/directories declared in `policy/managed-assets.json` exist on disk

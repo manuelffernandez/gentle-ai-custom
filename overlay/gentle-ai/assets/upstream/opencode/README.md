@@ -1,12 +1,15 @@
 ## Upstream asset snapshots for OpenCode
 
-This tree is reserved for the approved upstream-equivalent materializations of behavior-defining OpenCode assets.
+This tree is reserved for the approved upstream-equivalent inputs and retained assets that feed the owned OpenCode materialization.
 
 Intended contents:
 
-- `AGENTS.md` — materialized upstream OpenCode AGENTS surface (persona + engram, in that order)
+- `persona-gentleman.md` — upstream persona source
+- `engram-protocol.md` — mirrored copy of `internal/assets/claude/engram-protocol.md`, kept here because it feeds the owned OpenCode AGENTS build
 - `prompts/orchestrators/` — upstream orchestrator baselines
-- `skills/` — upstream SDD skills and `_shared` files
-- `commands/` — upstream SDD command wrappers
+- `sdd-overlay-single.json` / `sdd-overlay-multi.json` — upstream overlay JSONs
+- `commands/` — retained upstream command snapshots used to materialize the OpenCode command surface
+- `plugins/` — upstream plugins
+- `skills/` — selected upstream skill snapshots
 
-This tree is the active maintainer snapshot target for `sync-gentle-ai-upstream-assets`. It exists for upstream diff/review; runtime installation still comes from `../owned/opencode/`.
+No stored `AGENTS.md` lives in this tree. This tree is the active maintainer snapshot target for `sync-gentle-ai-upstream-assets`; runtime installation still comes from `../owned/opencode/`.
