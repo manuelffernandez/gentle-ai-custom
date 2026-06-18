@@ -24,7 +24,8 @@ Esta carpeta agrupa los assets operativos del overlay de Gentle AI.
 - `sync-gentle-ai-upstream-assets` hace el repo sync de `assets/upstream/...` más la frontera aprobada; no refresca el runtime.
 - `apply-gentle-ai-custom` usa `assets/owned/...` como source of truth para los prompts/skills/commands SDD del runtime.
 - El runtime refresh (`gentle-ai sync` o reinstalación completa) es un paso separado y depende de si el cambio adoptado afecta el runtime target/materialized state que este repo mantiene.
-- `shared/skills/` sigue siendo la fuente canónica de las skills repo-owned portables; no se mueve a este árbol.
+- `shared/skills/` sigue siendo la fuente canónica de las skills repo-owned portables, incluida `judgment-retrospective`.
+- El hook runtime de `judgment-day` vive en `assets/owned/opencode/skills/judgment-day/` y es el que activa automáticamente la retrospectiva terminal.
 
 ## Contrato del informe del maintainer
 

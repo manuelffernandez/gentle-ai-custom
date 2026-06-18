@@ -6,6 +6,8 @@ Contents are compared against the approved upstream snapshot set in `../upstream
 
 These assets are distinct from `shared/skills/`, which remains the canonical source of portable repo-owned skills.
 
+The runtime Judgment Day hook now lives here under `skills/judgment-day/`; its terminal retrospective companion is the portable `shared/skills/judgment-retrospective/` skill.
+
 The tree now also owns the runtime `AGENTS.md` installed into `~/.config/opencode/AGENTS.md`.
 
 That file is the materialized upstream OpenCode AGENTS baseline plus repo-owned local overlay semantics.

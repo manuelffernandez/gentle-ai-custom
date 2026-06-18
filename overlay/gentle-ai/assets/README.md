@@ -10,7 +10,7 @@ Current roles:
 Rules:
 
 - Keep upstream and owned trees path-mirrored where practical.
-- Store only behavior-defining assets here: materialized OpenCode `AGENTS.md` baseline, orchestrator prompt, SDD phase prompts/skills, shared SDD files, and SDD commands.
+- Store only behavior-defining assets here: materialized OpenCode `AGENTS.md` baseline, owned runtime hooks like `judgment-day`, orchestrator prompt, SDD phase prompts/skills, shared SDD files, and SDD commands.
 - Canonical repo-owned portable skills remain in `shared/skills/`; they are not moved into this tree.
 
 See also:

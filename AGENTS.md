@@ -296,12 +296,18 @@ The maintenance model is intentionally split into:
 **Layer 2 — Globally installed via apply script:**
 - `shared/skills/code-design/SKILL.md`
 - `shared/skills/commit-planner/SKILL.md`
+- `shared/skills/judgment-retrospective/SKILL.md`
 - `shared/skills/package-security/SKILL.md`
 - `shared/skills/pr-finalizer/SKILL.md`
+
+**Overlay-owned runtime hooks installed via apply script:**
+- `overlay/gentle-ai/assets/owned/opencode/skills/judgment-day/SKILL.md` — runtime Judgment Day hook that auto-runs the retrospective skill
 
 ---
 
 ## Overlay policy baseline
+
+The `Keep` list below is the retained upstream-skill baseline only. Repo-owned shared skills and overlay-owned runtime hooks are tracked separately in the sections above, so do not infer the install surface from this list alone.
 
 Keep:
 - `_shared`

@@ -60,6 +60,16 @@
           ]
         },
         {
+          "key": "judgment-day-runtime",
+          "class": "repo_owned_runtime",
+          "kind": "skill_directory",
+          "repo_owned_path": "overlay/gentle-ai/assets/owned/opencode/skills/judgment-day",
+          "runtime_sync_mode": "prune",
+          "runtime_targets": [
+            "~/.config/opencode/skills/judgment-day"
+          ]
+        },
+        {
           "key": "gentle-orchestrator",
           "class": "required_sdd",
           "kind": "orchestrator_prompt",
@@ -303,6 +313,7 @@
         "allowlist": [
           "code-design",
           "commit-planner",
+          "judgment-retrospective",
           "package-security",
           "pr-finalizer"
         ]

@@ -63,7 +63,9 @@ func collectOwnedRuntimePaths(basePath, repoRoot string, target ManagedAssetsTar
 			// Upstream-source-only asset: no owned file; skipped by apply.
 			continue
 		}
-		if asset.RuntimeSyncMode != "merge" {
+		if asset.RuntimeSyncMode != "merge" && asset.RuntimeSyncMode != "prune" {
+			// Assets without an explicit sync mode (e.g. AGENTS.md, SDD prompts) are
+			// installed but never stale-deleted; exclude them from the deletion surface.
 			continue
 		}
 		source := ownedAssetSourcePath(repoRoot, asset)

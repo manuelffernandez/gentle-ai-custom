@@ -4,6 +4,15 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-06-17 | Wired the owned Judgment Day retrospective runtime hook
+
+- **Type**: `tooling-change`
+- **Upstream scope/range**: maintenance contract / OpenCode runtime surface, not a new upstream boundary
+- **Decision**: kept the approved upstream `judgment-day` snapshot as audit-only, moved the automatic retrospective handoff into the owned runtime `judgment-day` asset under `overlay/gentle-ai/assets/owned/opencode/skills/judgment-day/`, kept `judgment-retrospective` as a portable shared skill, and updated the maintainer docs/manifest boundaries so `apply-gentle-ai-custom` installs the runtime hook explicitly. Applied a targeted `merge`/`prune` filter in `collectOwnedRuntimePaths` so only assets that declare a sync mode enter the stale-deletion surface.
+- **Why it mattered**: the new learning loop only becomes real when the runtime hook is owned and installable; snapshot-only edits would not materialize at apply time, and the owned/shared split needed to be explicit for future audit/apply work.
+- **Affected artifacts**: `overlay/gentle-ai/policy/managed-assets.json`, `overlay/gentle-ai/assets/owned/opencode/skills/judgment-day/SKILL.md`, `overlay/gentle-ai/assets/owned/opencode/skills/judgment-day/references/prompts-and-formats.md`, `internal/overlay/runtime_owned_state.go`, `internal/overlay/runtime_owned_state_test.go`, `shared/skills/judgment-retrospective/SKILL.md`, `shared/skills/judgment-retrospective/assets/semantic-memory-contract.md`, `AGENTS.md`, `README.md`, `overlay/gentle-ai/assets/README.md`, `overlay/gentle-ai/assets/owned/opencode/README.md`, `overlay/gentle-ai/README.md`, `overlay/gentle-ai/maintenance.md`
+- **Verification**: `go test ./internal/overlay`; `git diff --check`
+
 ## 2026-06-14 | Accepted upstream v1.40.2 for OpenCode/runtime assets and ignored Claude-only drift
 
 - **Type**: `adoption`
