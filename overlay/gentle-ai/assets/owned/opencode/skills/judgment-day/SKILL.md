@@ -43,11 +43,11 @@ Load this skill only when the user explicitly asks for Judgment Day, dual/advers
 5. Ask before Round 1 fixes; delegate a separate fix agent for confirmed approved fixes only.
 6. Re-judge in parallel after fixes; repeat until approved, escalated, or user asks to stop.
 7. Before any terminal action, verify every active Judgment Day has a terminal state.
-8. Run the terminal retrospective hook with the compact terminal package and include its result in the closing report.
+8. Run the terminal retrospective hook with the compact terminal package, then append its result after the normal Judgment Day closing report.
 
 ## Output Contract
 
-Return `## Judgment Day — {target}` with round number, verdict table, confirmed/suspect/contradiction counts, fixes applied, re-judgment result, retrospective summary/status, persisted observation IDs or keys, `Skill Resolution`, and final `JUDGMENT: APPROVED ✅` or `JUDGMENT: ESCALATED ⚠️`.
+Return `## Judgment Day — {target}` with the primary Judgment Day report first: round number, rich findings/verdict table, confirmed/suspect/contradiction counts, closing synthesis, fixes applied, re-judgment result, `Skill Resolution`, and final `JUDGMENT: APPROVED ✅` or `JUDGMENT: ESCALATED ⚠️`. Append a separate trailing retrospective block afterward with retrospective status, compact summary, pattern updates, intervention history updates, recurrence/effectiveness note, and persisted observation IDs or keys.
 
 ## References
 

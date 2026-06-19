@@ -40,6 +40,22 @@ Always end with: `Skill Resolution: {paths-injected|fallback-registry|fallback-p
 
 When the Judgment Day loop reaches `JUDGMENT: APPROVED` or `JUDGMENT: ESCALATED`, automatically invoke the repo-owned `judgment-retrospective` skill before the closing response.
 
+### Final Report Shape
+
+The closing response must keep the full Judgment Day verdict report as the primary block. Do **not** compress or replace it with the retrospective.
+
+The primary block must include:
+
+- Round number
+- Rich findings/verdict table
+- Confirmed / suspect / contradiction counts
+- Closing synthesis
+- Fixes applied and re-judgment result
+- `Skill Resolution`
+- Final `JUDGMENT: APPROVED ✅` or `JUDGMENT: ESCALATED ⚠️`
+
+Append the retrospective as a separate trailing block after the primary report.
+
 ### Retrospective Input Package
 
 Pass only compact semantic facts:
@@ -61,7 +77,7 @@ Pass only compact semantic facts:
 
 ### Retrospective Output Block
 
-The final report must include:
+The trailing retrospective block must include:
 
 - Retrospective status: `executed`, `failed`, or `skipped`
 - Compact summary
