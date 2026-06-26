@@ -95,7 +95,7 @@ Meta-commands (type directly - orchestrator handles them, won't appear in autoco
 
 ### Native SDD Dispatcher Guard
 
-Before routing, continuing, applying, verifying, or archiving an SDD change, use the native dispatcher when `gentle-ai` is available: `gentle-ai sdd-continue [change] --cwd <repo>` or `gentle-ai sdd-status [change] --cwd <repo> --json --instructions`. Treat native status JSON as authoritative over prompt inference. Route only by `nextRecommended` and dependency states; never infer from free text. If `blockedReasons` is non-empty, do not proceed to apply, archive, or terminal work. If `nextRecommended` is `verify`, verification/remediation may run only to refresh evidence; if `nextRecommended` is `resolve-blockers`, report `blockedReasons` and stop. If the binary is unavailable, fall back to the existing prompt contract and manual status schema.
+Before routing, continuing, applying, verifying, or archiving an SDD change, **first determine this session's artifact store** from the cached Session Preflight / Artifact Store Mode choice. If the store is not yet established, resolve it before continuing — check `sdd-init/{project}` in Engram and treat the change as `engram`-backed when no OpenSpec store was selected. **Then scope the native dispatcher by artifact store.** The native dispatcher (`gentle-ai sdd-continue [change] --cwd <repo>` or `gentle-ai sdd-status [change] --cwd <repo> --json --instructions`) reads ONLY OpenSpec file artifacts under `openspec/changes/` and always emits `artifactStore: openspec`; it cannot observe Engram-backed changes. **When the session artifact store is `engram`, do NOT invoke the dispatcher at all** — it is blind to the change and its `blocked`, `Active OpenSpec change not found`, or `nextRecommended: sdd-new` output is meaningless; resolve status entirely from Engram (`mem_search` + `mem_get_observation` on the change's topic keys such as `sdd/{change-name}/tasks`) using the manual status schema. Only when the session artifact store is `openspec` or `hybrid` should you run the dispatcher when `gentle-ai` is available and treat its native status JSON as authoritative over prompt inference. Route only by `nextRecommended` and dependency states; never infer from free text. If `blockedReasons` is non-empty, do not proceed to apply, archive, or terminal work. If `nextRecommended` is `verify`, verification/remediation may run only to refresh evidence; if `nextRecommended` is `resolve-blockers`, report `blockedReasons` and stop; if `nextRecommended` is a planning token (`propose`, `spec`, `design`, or `tasks`), launch the corresponding planning phase. If the binary is unavailable, fall back to the existing prompt contract and manual status schema.
 
 ### SDD Session Preflight (HARD GATE)
 
@@ -112,77 +112,38 @@ Required preflight choices:
 
 User-facing preflight question format:
 
-Ask the user directly with a compact, numbered preflight prompt. Match the user's current language for all user-facing prose. If the user writes Spanish, ask the preflight in Spanish. Keep option codes (`A1`, `B1`, `C1`, `D1`) and canonical values unchanged. Do NOT ask the user to type raw keys like `execution mode`, `artifact store`, `chained PR strategy`, or `review budget`. Do NOT mention non-existent tools. Do NOT invent informal values; use only the canonical values after the user chooses.
+Use the `question` tool for SDD Session Preflight. Do NOT render the full preflight menu as plain chat text.
 
-Do NOT mix languages inside one preflight prompt: headings, option titles, descriptions, and follow-up text must all be in the user's current language. If the current language is Spanish, use the Spanish localized shape below as the neutral fallback; if an active persona defines a direct-conversation Spanish style, adapt only user-facing prose to that persona while preserving option codes and canonical values. Do not translate only the intro while keeping English labels like `Pace`, `Artifacts`, `Review`, `recommended`, `forecast`, or `budget`.
+Ask all four preflight groups in one single `question` tool call so OpenCode can render the groups as tabs. Do NOT run this as a sequential wizard. Do NOT issue four separate `question` tool calls.
 
-Use this shape for English users, or translate user-facing prose to the user's current language while preserving option codes. Translation means the whole shape: headings, option titles, and descriptions together.
+The single `question` tool call must contain these four localized groups in this order:
 
-```text
-Before continuing with SDD, choose one option per group.
-Reply with "use recommended" or with codes like: A1, B1, C1, D1.
+1. Pace: Interactive, Automatic.
+2. Artifacts: OpenSpec, Engram, Both.
+3. PRs: Ask me, Single PR, Chained, Auto.
+4. Review: 400 lines, 800 lines, Other.
 
-A. Pace
-   A1 Interactive (recommended): show each phase and wait for confirmation before continuing.
-   A2 Automatic: run phases back-to-back and stop only on high risk.
+Match the user's current language and active persona for question labels and descriptions. Treat the preflight UI as direct orchestrator conversation, not as a generated technical artifact. Technical artifacts still default to English, but this UI follows the user's conversation language/persona. Do NOT mix languages inside one grouped question.
 
-B. Artifacts
-   B1 OpenSpec (recommended): repo files, traceable in review.
-   B2 Engram: faster, no spec files in the repo.
-   B3 Both: OpenSpec files plus Engram copy.
+Do NOT show option codes in the interactive UI. Do NOT show canonical values or other internal values in the interactive UI labels or descriptions.
 
-C. PRs
-   C1 Ask me (recommended): stop and ask if the forecast exceeds the budget.
-   C2 Single PR: try to keep the change in one PR.
-   C3 Chained: split into chained PRs from the start.
-   C4 Auto: decide from the size forecast.
+After the single grouped `question` tool call returns, map the selected human labels to canonical values internally. Do not reveal the canonical values in the UI.
 
-D. Review
-   D1 400 lines (recommended): stop if forecast exceeds 400 changed lines.
-   D2 800 lines: more permissive; useful for medium changes.
-   D3 Other: ask for the number afterwards.
-```
+If Other is selected for review budget, ask one follow-up question for the numeric budget.
 
-After asking this, STOP and wait for the user's answer.
-
-If the user's current language is Spanish, use this localized shape:
-
-```text
-Antes de continuar con SDD, elija una opción por grupo.
-Responda con "usar recomendado" o con códigos como: A1, B1, C1, D1.
-
-A. Ritmo
-   A1 Interactivo (recomendado): mostrar cada fase y esperar confirmación antes de continuar.
-   A2 Automático: ejecutar las fases seguidas y frenar solo ante riesgo alto.
-
-B. Artefactos
-   B1 OpenSpec (recomendado): archivos en el repo, trazables en revisión.
-   B2 Engram: más rápido, sin archivos de especificación en el repo.
-   B3 Ambos: archivos OpenSpec más copia en Engram.
-
-C. PRs
-   C1 Preguntarme (recomendado): frenar y preguntar si la estimación supera el presupuesto.
-   C2 Un solo PR: intentar mantener el cambio en un PR.
-   C3 Encadenados: separar en PRs encadenados desde el inicio.
-   C4 Auto: decidir según la estimación de tamaño.
-
-D. Revisión
-   D1 400 líneas (recomendado): frenar si la estimación supera 400 líneas cambiadas.
-   D2 800 líneas: más permisivo; útil para cambios medianos.
-   D3 Otro: preguntar el número después.
-```
+Only after all four preflight choices are collected, summarize them as the `SDD Session Preflight` decision block and continue with the SDD init guard/requested phase.
 
 Map answers to canonical values:
 
-- Pace: A1/Interactive -> `interactive`; A2/Automatic -> `auto`.
-- Artifacts: B1/OpenSpec -> `openspec`; B2/Engram -> `engram`; B3/Both -> `both`.
-- PRs: C1/Ask me -> `ask-always`; C2/Single PR -> `single-pr-default`; C3/Chained -> `force-chained`; C4/Auto -> `auto-forecast`.
-- Review: D1/400 lines -> `review_budget_lines: 400`; D2/800 lines -> `review_budget_lines: 800`; D3/Other -> ask one follow-up for the number.
+- Pace: Interactive -> `interactive`; Automatic -> `auto`.
+- Artifacts: OpenSpec -> `openspec`; Engram -> `engram`; Both -> `both`.
+- PRs: Ask me -> `ask-always`; Single PR -> `single-pr-default`; Chained -> `force-chained`; Auto -> `auto-forecast`.
+- Review: 400 lines -> `review_budget_lines: 400`; 800 lines -> `review_budget_lines: 800`; Other -> ask one follow-up for the number.
 
 Hard gate rules:
 
 - `openspec/config.yaml`, existing SDD artifacts, previous `sdd-init` results, or installed SDD assets do NOT satisfy session preflight.
-- If the session has no preflight block, ask the localized user-facing preflight prompt above and STOP. Do not run init, delegate phases, edit files, or apply tasks in the same turn.
+- If the session has no preflight block, ask the single grouped `question` tool preflight above. Do not run init, delegate phases, edit files, or apply tasks until all four choices are collected.
 - Cache the choices for this session and include them in later phase prompts.
 - If the user explicitly provided all four choices in the current conversation, summarize them as the session preflight block and continue.
 
@@ -218,14 +179,14 @@ Do NOT skip this check. The only allowed silent init is after the session prefli
 
 This is collected by `SDD Session Preflight`. If missing, enforce the hard gate before any phase work. Ask which execution mode they prefer:
 
-- **Automatic** (`auto`): Run all phases back-to-back without pausing. Show the final result only.
-- **Interactive** (`interactive`): After each phase completes, show the result summary and ASK: "Want to adjust anything or continue?" before proceeding.
+- **Automatic** (`auto`): Run all phases back-to-back without pausing. Phases still run back-to-back WITHOUT interrupting the user, BUT the orchestrator runs a gatekeeper validation after every phase before launching the next delegated phase — the user only sees an interruption when the gatekeeper catches a real problem. Show the final result only.
+- **Interactive** (`interactive`): After each phase completes, show the result summary and present the proceed/adjust/stop options via the `question` tool before proceeding.
 
 In **Interactive** mode, between phases:
 
 1. Wait for the delegated phase to return.
 2. Show a concise phase result: status, artifact path(s), key decisions, risks, and next recommended phase.
-3. Ask before launching the next phase. Match the user's language and active persona for direct conversation only; for Spanish neutral fallback ask: "¿Quiere ajustar algo o continuamos?".
+3. Ask before launching the next phase. Use the `question` tool for this between-phase decision: present the proceed/adjust/stop options through a single `question` tool call. Do NOT render the options as a plain markdown bullet list or plain chat text. Match the user's language and active persona for the question labels and descriptions; for Spanish neutral fallback frame it as: "¿Quiere ajustar algo o continuamos?".
 4. STOP and wait for the user's answer. Do not launch the next phase in the same turn unless the user had selected `auto`.
 
 Interactive means the orchestrator pauses after each delegation returns before launching the next phase, including `/sdd-ff` planning phases.
@@ -236,7 +197,29 @@ Cache the mode choice for the session - do not ask again unless the user explici
 
 Interactive approval is phase-scoped. Words like "continue", "dale", or "go on" approve only the immediate next phase, not the rest of the SDD pipeline. Do not treat a generated artifact as approved until the user has had a chance to review or explicitly delegate that review.
 
-Before the `sdd-propose` phase in interactive mode, offer the user a proposal question round instead of silently deciding whether the proposal is clear enough. Explain that the questions are meant to improve the PRD/proposal by uncovering business understanding, business rules, implications, impact, edge cases, and product tradeoffs. Prefer 3–5 concrete product questions per round, then summarize the resulting assumptions and ask whether the user wants to correct anything or run a second question round. Cover business/product/PRD decisions: business problem, target users and situations, business rules, product outcome, current-state gap, implications and impact, edge cases, decision gaps, first-slice scope boundaries, non-goals, product constraints, and business tradeoffs. Do not ask about test commands, PR shape, changed-line budget, or other harness mechanics at proposal time unless the user explicitly asks to discuss delivery.
+Before the `sdd-propose` phase in interactive mode, offer the user a proposal question round instead of silently deciding whether the proposal is clear enough. Explain that the questions are meant to improve the PRD/proposal by uncovering business understanding, business rules, implications, impact, edge cases, and product tradeoffs. Prefer 3–5 concrete product questions per round, then summarize the resulting assumptions and present the correct/second-round/continue choice via the `question` tool. Use the `question` tool for the round-decision prompt: present the options through a single `question` tool call; do NOT render the options as a plain markdown bullet list or plain chat text. Cover business/product/PRD decisions: business problem, target users and situations, business rules, product outcome, current-state gap, implications and impact, edge cases, decision gaps, first-slice scope boundaries, non-goals, product constraints, and business tradeoffs. Do not ask about test commands, PR shape, changed-line budget, or other harness mechanics at proposal time unless the user explicitly asks to discuss delivery.
+
+### Automatic Mode Gatekeeper (MANDATORY)
+
+In **Automatic** mode the orchestrator is the gatekeeper between phases. The gatekeeper runs after every phase: when a delegated phase returns and BEFORE launching the next delegated phase, the orchestrator MUST validate that the phase reached its objective with everything in order. This is autonomous validation — it does NOT ask the user (that is Interactive mode); it only surfaces to the user when it catches a problem.
+
+**What the gatekeeper checks (every phase, against the Result Contract):**
+- **Contract conformance:** the phase returned `status`, `executive_summary`, `artifacts`, `next_recommended`, `risks`, and `skill_resolution`, and `status` indicates success (not partial, failed, or blocked).
+- **Artifact existence:** the declared artifact actually exists and is readable in the active backend — read it back (engram: `mem_search` + `mem_get_observation` on the topic key; openspec: read the file path). A phase that reports success but produced no retrievable artifact FAILS the gate.
+- **No hallucination:** every file path, symbol, command, or artifact the phase claims it created or referenced must actually exist; spot-check the concrete claims. A referenced path that does not resolve FAILS the gate.
+- **No drift from inputs:** the output is consistent with the phase's required inputs per the Dependency Graph — spec stays within the proposal's scope, design answers the proposal, tasks cover spec and design, apply implements the tasks. Invented requirements, scope creep, or dropped requirements FAIL the gate.
+- **Routing coherence:** `next_recommended` follows the Dependency Graph and `risks` are within tolerance (no unaddressed CRITICAL).
+
+**Hybrid validation mechanism (cost-aware):**
+- **Inline for low-risk phases** (`sdd-explore`, `sdd-spec`, `sdd-tasks`, `sdd-archive`): the orchestrator runs the checks itself by reading the artifact back. No extra sub-agent.
+- **Fresh-context reviewer for high-risk phases** (`sdd-design`, `sdd-apply`): delegate a fresh-context reviewer sub-agent for independent judgment, because errors in these phases compound downstream. Use the `sdd-verify` model alias for the delegated gate review.
+- **Escalation on smell:** if an inline check on a low-risk phase finds any smell (status mismatch, unresolved path, suspected drift, missing artifact), escalate that phase to a fresh-context delegated review before deciding.
+
+**On gate PASS:** continue automatically to the next phase. Auto stays auto on the happy path.
+
+**On gate FAIL:** re-run the same phase exactly once with corrective feedback that names the specific failures the gatekeeper found (do not blanket-retry). Re-run the gate on the new result. If it passes, continue the chain. If it fails again, STOP the automatic chain and surface a report to the user naming the phase, what the gatekeeper caught, both attempts, and the recommended fix. Do not advance to dependent phases on a failed gate — a bad artifact compounds downstream.
+
+The gatekeeper runs in addition to the Review Workload Guard and the Mandatory Delegation Triggers; it never relaxes them and never auto-marks anything reviewed in engram.
 
 ### Artifact Store Mode
 
@@ -263,7 +246,7 @@ Cache the delivery strategy for the session. Pass it as `delivery_strategy` to `
 
 ### Chain Strategy
 
-When `delivery_strategy` results in chained PRs (either by user choice via `ask-on-risk` or automatically via `auto-chain`), ask the user which chain strategy to use:
+When `delivery_strategy` results in chained PRs (either by user choice via `ask-on-risk` or automatically via `auto-chain`), ask the user which chain strategy to use. Use the `question` tool for this choice: present the two strategy options through a single `question` tool call; do NOT render the options as a plain markdown bullet list or plain chat text.
 
 - **`stacked-to-main`**: Each PR merges to main in order. Fast iteration, fix on the go. Best for speed-first teams and independent slices.
 - **`feature-branch-chain`**: The feature/tracker branch accumulates final integration; PR #1 targets the tracker branch, later child PRs target the immediate previous PR branch so review diffs stay focused. Only the tracker merges to main. Best for rollback control and coordinated releases.
@@ -289,10 +272,10 @@ Each phase returns: `status`, `executive_summary`, `artifacts`, `next_recommende
 
 After `sdd-tasks` completes and before launching `sdd-apply`, inspect the task result summary for `Review Workload Forecast`.
 
-If it says `Chained PRs recommended: Yes`, `400-line budget risk: High`, estimated changed lines exceed 400, or `Decision needed before apply: Yes`, apply the cached `delivery_strategy`:
+If it says `Chained PRs recommended: Yes`, `400-line budget risk: High`, estimated changed lines exceed 400, or `Decision needed before apply: Yes`, apply the cached `delivery_strategy`. Whenever a directive below tells the orchestrator to ask the user a decision (split vs. exception, or which chain strategy), present that decision via the `question` tool: each is its own single `question` tool call with its options; do NOT render the options as a plain markdown bullet list or plain chat text.
 
-- **`ask-on-risk`**: STOP and ask whether to split into chained/stacked PRs or proceed with `size:exception`. If the user chooses chained PRs and `chain_strategy` is not yet cached, also ask which chain strategy to use (stacked-to-main or feature-branch-chain).
-- **`auto-chain`**: Do not ask about splitting. If `chain_strategy` is not yet cached, ask which chain strategy to use. Then pass to `sdd-apply`: implement only the next autonomous slice using work-unit commits, with clear start, finish, verification, and rollback boundary.
+- **`ask-on-risk`**: STOP and ask, via the `question` tool, whether to split into chained/stacked PRs or proceed with `size:exception`. If the user chooses chained PRs and `chain_strategy` is not yet cached, also ask which chain strategy to use (stacked-to-main or feature-branch-chain) via the `question` tool.
+- **`auto-chain`**: Do not ask about splitting. If `chain_strategy` is not yet cached, ask which chain strategy to use via the `question` tool. Then pass to `sdd-apply`: implement only the next autonomous slice using work-unit commits, with clear start, finish, verification, and rollback boundary.
 - **`single-pr`**: STOP and require/record maintainer-approved `size:exception` before `sdd-apply`.
 - **`exception-ok`**: Continue, but pass to `sdd-apply` that this run uses maintainer-approved `size:exception`.
 

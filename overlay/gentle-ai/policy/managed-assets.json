@@ -301,6 +301,11 @@
           "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/issue-creation"
         },
         {
+          "key": "hermes-ephemeral-delegation",
+          "upstream_path": "internal/assets/skills/hermes-ephemeral-delegation",
+          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/hermes-ephemeral-delegation"
+        },
+        {
           "key": "work-unit-commits",
           "upstream_path": "internal/assets/skills/work-unit-commits",
           "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/work-unit-commits"

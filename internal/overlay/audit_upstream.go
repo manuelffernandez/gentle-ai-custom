@@ -459,12 +459,15 @@ func evaluateStructuralInvariants(upstreamRepo string, target ManagedAssetsTarge
 		"taskPerms[phase+suffix] = \"allow\"",
 		"taskPerms[jd] = \"allow\"",
 		"taskPerms[reviewAgent] = \"allow\"",
-		`"task":  true,`,
 	}
 	for _, snippet := range requiredProfilesSnippets {
 		if !strings.Contains(upstreamProfilesText, snippet) {
 			failures = append(failures, fmt.Sprintf("upstream profile task scoping snippet missing from profiles.go: %q", snippet))
 		}
+	}
+	taskToolPattern := regexp.MustCompile(`"task":\s+true,`)
+	if !taskToolPattern.MatchString(upstreamProfilesText) {
+		failures = append(failures, `upstream profiles.go no longer enables the task tool in the profile orchestrator entry`)
 	}
 	requiredInjectSnippets := []string{
 		`orchestratorRaw, ok := agentsMap["gentle-orchestrator"]`,
@@ -477,7 +480,7 @@ func evaluateStructuralInvariants(upstreamRepo string, target ManagedAssetsTarge
 		}
 	}
 	result.ProfileNamingOK = strings.Contains(upstreamProfilesText, profilePrefixSnippet) && strings.Contains(upstreamProfilesText, profileKeyBuilderSnippet)
-	result.TaskScopingOK = containsAll(upstreamProfilesText, requiredProfilesSnippets)
+	result.TaskScopingOK = containsAll(upstreamProfilesText, requiredProfilesSnippets) && taskToolPattern.MatchString(upstreamProfilesText)
 	result.BaseAssetInjectionOK = containsAll(upstreamInjectText, requiredInjectSnippets)
 	result.PhaseOrderOK = len(phaseOrder) > 0 && sameStrings(phaseOrder, policy.OpenCode.SDDPhases)
 	return result, failures

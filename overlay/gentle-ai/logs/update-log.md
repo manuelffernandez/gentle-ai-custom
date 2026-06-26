@@ -4,6 +4,16 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-06-25 | Adopted upstream v1.42.0-1-g8a67347 and classified Hermes-only drift as outside the maintained OpenCode boundary
+
+- **Type**: `adoption`
+- **Upstream scope/range**: `660917927b4821f5e540dc8fa501d6bee723222c` (`v1.40.2`) -> `8a673472a402f1949f1080f72e72d760a61d28bf` (`v1.42.0-1-g8a67347`)
+- **Decision**: accepted the new upstream OpenCode baseline, added `hermes-ephemeral-delegation` to the pruned upstream-skill boundary so the maintained overlay stays OpenCode-only, relaxed the profile task-scoping audit check to tolerate upstream formatting changes in the `task` tool entry, synced the approved upstream snapshots, and re-applied the overlay.
+- **Why it mattered**: upstream added the Automatic Mode Gatekeeper plus new OpenCode commands/skills, while Hermes-only additions remained outside the maintained target. The audit also had a brittle whitespace-sensitive invariant that needed to track the real behavior, not a formatting accident.
+- **Affected artifacts**: `overlay/gentle-ai/policy/managed-assets.json`, `internal/overlay/audit_upstream.go`, `overlay/gentle-ai/policy/maintenance-intent.md`, `AGENTS.md`, `overlay/gentle-ai/assets/upstream/opencode/commands/sdd-continue.md`, `overlay/gentle-ai/assets/upstream/opencode/commands/sdd-status.md`, `overlay/gentle-ai/assets/upstream/opencode/commands/skill-creator.md`, `overlay/gentle-ai/assets/upstream/opencode/commands/skill-registry.md`, `overlay/gentle-ai/assets/upstream/opencode/prompts/orchestrators/gentle-orchestrator.md`, `overlay/gentle-ai/assets/upstream/opencode/sdd-overlay-single.json`, `overlay/gentle-ai/assets/upstream/opencode/sdd-overlay-multi.json`, `overlay/gentle-ai/assets/upstream/opencode/skills/_shared/sdd-status-contract.md`, `overlay/gentle-ai/assets/upstream/opencode/skills/hermes-ephemeral-delegation/`, `overlay/gentle-ai/assets/upstream/opencode/skills/skill-creator/`, `overlay/gentle-ai/assets/upstream/opencode/skills/skill-improver/`, `overlay/gentle-ai/state/upstream-state.json`
+- **Verification**: `bash audit-gentle-ai-upstream.sh` (initially failed on unmapped Hermes drift and a whitespace-sensitive task-scoping check); `bash sync-gentle-ai-upstream-assets.sh`; `go test ./internal/overlay`; `bash apply-gentle-ai-custom.sh opencode`; on-disk post-state verification of runtime prompt refs, profile assignments, pruned skills, and upstream-state consistency
+- **Follow-up**: `gentle-ai sync` still failed in this environment because the rollback logic refuses the symlinked `~/.gemini/antigravity-cli/mcp_config.json`; investigate that host-level config if a future runtime refresh must complete without manual intervention.
+
 ## 2026-06-17 | Wired the owned Judgment Day retrospective runtime hook
 
 - **Type**: `tooling-change`

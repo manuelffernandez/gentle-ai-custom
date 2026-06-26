@@ -59,6 +59,7 @@ We want to prune conventions that impose a specific way of collaborating in repo
 - `chained-pr`
 - `issue-creation`
 - `work-unit-commits`
+- `hermes-ephemeral-delegation` and other Hermes-only upstream additions outside the maintained OpenCode runtime target
 - orchestrator blocks that impose:
   - PR strategy
   - review budget

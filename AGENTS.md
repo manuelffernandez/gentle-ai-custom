@@ -322,6 +322,7 @@ Prune:
 - `branch-pr`
 - `chained-pr`
 - `issue-creation`
+- `hermes-ephemeral-delegation`
 - `work-unit-commits`
 
 Built-in OpenCode agent overrides:
