@@ -27,6 +27,7 @@ Use this skill when:
 - `apply-gentle-ai-custom` is now canonical: it installs repo-owned SDD/runtime assets from `overlay/gentle-ai/assets/owned/...`, installs repo-owned portable skills from `shared/skills/`, renders wrapper commands from `shared/commands/`, prunes rejected upstream skills, applies built-in overrides, and reconciles SDD profiles.
 - The apply path is driven by repo-owned runtime assets declared in `overlay/gentle-ai/assets/owned/...` plus portable repo-owned skills from `shared/skills/`.
 - Read semantic intent before making maintenance decisions.
+- When editing Markdown primarily consumed by agents or LLMs, follow the runtime Agent-Readable Markdown Standard and keep only local reminders here; do not restate the full rule set.
 - Before any repo mutation, produce a concise decision summary that states what is new upstream, the `Scope` / `Impact` classification, the recommended decision (`Adquirir`, `Sanitizar`, or `Ignorar`), the rationale, whether repo sync is required, and the recommended upstream refresh path.
 - After that summary, STOP for explicit user approval before mutating this repo, advancing the maintained upstream boundary, syncing approved upstream assets, or refreshing local runtime state.
 - Preserve the local keep/prune baseline and the repo-owned orchestrator behavior goals.
@@ -133,7 +134,7 @@ Re-apply is mandatory after `gentle-ai sync` or reinstall because upstream rewri
    - each managed named profile orchestrator points to the same owned runtime prompt file
    - each unsuffixed and managed suffixed SDD phase agent points to the owned runtime prompt file for that phase
    - default/named profile assignments still match the local config
-   - `overlay/gentle-ai/snapshots/upstream/opencode/orchestrators/gentle-orchestrator.last.md` plus metadata remain consistent with `upstream-state.json`
+   - `overlay/gentle-ai/assets/upstream/opencode/prompts/orchestrators/gentle-orchestrator.md` and related upstream metadata remain consistent with `upstream-state.json`
 18. Run one fresh-context reviewer/subagent pass against the changed maintainer artifacts and the final maintenance diff to confirm the workflow, docs, and summary outputs stay consistent.
  19. Return a closing summary that states what was actually `Adquirir`, `Sanitizar`, or `Ignorar`, and why.
 20. If the work closed an eligible maintenance event, record one consolidated entry in `overlay/gentle-ai/logs/update-log.md`.

@@ -2,6 +2,12 @@
 
 Operating instructions for AI agents (Claude, OpenCode, Codex, and equivalents) working in this repository.
 
+## Agent-readable Markdown standard
+
+For Markdown whose primary audience is agents or LLMs (`AGENTS.md`, `SKILL.md`, maintainer docs, intent/policy docs, and similar runtime instruction files), follow the overlay-owned runtime `Agent-Readable Markdown Standard` defined in `overlay/gentle-ai/assets/owned/opencode/AGENTS.md` and installed to `~/.config/opencode/AGENTS.md`.
+
+Repo-specific additions in this file stay local, preserve the runtime standard, and only add clarifying constraints needed for this repository.
+
 ---
 
 ## Operating rules
@@ -16,14 +22,11 @@ This includes:
 - changes to installation or maintenance flow
 - changes to overlay policy/maintenance/docs
 
-For files whose primary reader is an agent/LLM (for example `AGENTS.md`, `SKILL.md`, maintenance docs, intent/policy docs), optimize the writing for machine consumption:
+Repo-specific additions that stay local to this file:
+
 - default to English unless a file has an explicit reason to be another language
-- prefer explicit paths, headings, bullets, tables, and checklists over narrative prose
-- avoid ASCII tree diagrams for repository maps; use short `Key paths` lists instead
 - keep one source of truth per topic and link to it instead of duplicating detailed rules
 - separate intent, policy, procedure, and runtime behavior into the correct artifacts
-- state invariants and stop conditions directly; do not bury them inside examples
-- keep examples minimal and only when they materially reduce ambiguity
 - write for diffability: short sections, stable headings, and low-noise edits
 
 ### 2. Exact parity between paired automation scripts

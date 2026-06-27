@@ -6,7 +6,8 @@ This file describes the current operating model: `apply-gentle-ai-custom` reinst
 
 ## What this file does not define
 
-- agent/runtime behavior -> `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`
+- agent/runtime behavior -> overlay-owned runtime assets first (especially `overlay/gentle-ai/assets/owned/opencode/AGENTS.md`), then maintainer workflow specifics in `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`
+- Markdown style for agent-consumed docs -> overlay-owned runtime standard in `overlay/gentle-ai/assets/owned/opencode/AGENTS.md` (installed to `~/.config/opencode/AGENTS.md`); repo-local additions live in `AGENTS.md` and only supplement it
 - repo ownership and policy -> `AGENTS.md`
 - keep/prune intent and desired orchestrator behavior -> `policy/maintenance-intent.md`
 - machine-readable policy -> `policy/gentle-ai-policy.json`
