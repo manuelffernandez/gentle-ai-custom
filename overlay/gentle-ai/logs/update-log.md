@@ -4,6 +4,15 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-06-30 | Softened the 4-file exploration gate with a scoped inline override
+
+- **Type**: `policy-change`
+- **Upstream scope/range**: maintenance contract / OpenCode runtime surface, not a new upstream boundary
+- **Decision**: kept delegation as the default for 4+ file exploration, but allowed a user-requested inline exception for that specific exploration only; recorded the override in the owned orchestrator prompt, maintenance intent, and maintainer docs so the other hard gates stay intact.
+- **Why it mattered**: the old wording treated 4-file exploration as an unskippable gate even when the human explicitly asked to keep that read inline, which created unnecessary friction without improving the other delegation safeguards.
+- **Affected artifacts**: `overlay/gentle-ai/assets/owned/opencode/prompts/orchestrators/gentle-orchestrator.md`, `overlay/gentle-ai/policy/maintenance-intent.md`, `AGENTS.md`, `README.md`, `overlay/gentle-ai/maintenance.md`, `overlay/gentle-ai/README.md`
+- **Verification**: manual diff review for consistency across prompt and docs; upstream assets intentionally left untouched
+
 ## 2026-06-25 | Adopted upstream v1.42.0-1-g8a67347 and classified Hermes-only drift as outside the maintained OpenCode boundary
 
 - **Type**: `adoption`

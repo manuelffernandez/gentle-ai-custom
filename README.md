@@ -252,6 +252,8 @@ La idea general es simple: esta capa conserva lo que suma capacidad técnica rea
 
 El overlay NO rompe el corazón técnico del orchestrator. Lo que hace es mantener una versión repo-owned que ya excluye la parte de gobernanza de PRs y carga de revisión, para dejar un coordinador SDD útil pero sin preguntas ni gates que no aplican a este flujo.
 
+Por defecto, si una exploración requiere leer 4 o más archivos, se delega. Si vos pedís explícitamente mantener inline esa exploración puntual, el orchestrator la acepta, marca el costo de contexto una sola vez y no usa esa excepción para aflojar ningún otro gate duro, incluido el de fresh review de PR.
+
 | Qué se modifica                                                                                      | Intención                                                                                                   |
 | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | Se eliminan las preguntas de preflight sobre estrategia de PR encadenadas y presupuesto de revisión. | No quiero que el flujo arranque preguntando cómo gestionar PRs o cuántas líneas aceptar en review.          |
@@ -259,8 +261,9 @@ El overlay NO rompe el corazón técnico del orchestrator. Lo que hace es manten
 | Se quitan secciones como `Delivery Strategy`, `Chain Strategy` y `Review Workload Guard`.            | No quiero que el orchestrator me imponga stacked PRs, budgets o forecast de carga como condición del flujo. |
 | Se elimina la exigencia de “pasar” un guard de workload antes de `sdd-apply`.                        | La implementación no debe depender de un gate pensado para proteger un proceso de review que acá no uso.    |
 | Se neutralizan referencias a `size:exception`, reviewer burden y políticas similares.                | Son reglas válidas en otros contextos, pero no son la fuente de verdad de este entorno.                     |
+| Las exploraciones puntuales de 4+ archivos se pueden dejar inline si lo pedís de forma explícita.    | Esa excepción existe para una exploración concreta; no afloja multi-file write, el gate de fresh review de PR, incidentes ni long-session safeguards. |
 
-Lo que se preserva es la parte valiosa: delegación, routing SDD, preflight básico, init guard, dependency graph, TDD forwarding, continuidad de apply y protocolos de contexto. En resumen: se conserva la capacidad técnica y se saca la gobernanza de colaboración.
+Lo que se preserva es la parte valiosa: delegación, routing SDD, preflight básico, init guard, dependency graph, TDD forwarding, continuidad de apply y protocolos de contexto. En resumen: se conserva la capacidad técnica y se saca la gobernanza de colaboración. La fuente semántica de esta regla está en `overlay/gentle-ai/policy/maintenance-intent.md`.
 
 ### Overrides de agentes
 

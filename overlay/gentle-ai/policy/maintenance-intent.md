@@ -106,6 +106,12 @@ Preserve as much as possible of:
 - Keep wording as close to upstream as possible unless removal requires a minimal rewrite.
 - Prefer explicit owned-file edits over dynamic transformation logic.
 
+### Scoped inline exploration override
+
+- Default behavior: delegate exploration that needs 4+ files.
+- If the user explicitly asks to keep a specific 4+ file exploration inline, honor that request for that exploration only, acknowledge the context-cost tradeoff once, and do not keep resisting it.
+- This override does not weaken multi-file write delegation, the PR fresh-review gate, incident safeguards, or long-session safeguards.
+
 ## Why these conventions do not apply
 
 They might be valid for the upstream project or for other teams, but they are not the source of truth for the local workflow.

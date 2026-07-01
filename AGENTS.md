@@ -240,7 +240,7 @@ Files that `apply-gentle-ai-custom.sh` installs into the global OpenCode runtime
 - `overlay/gentle-ai/assets/owned/opencode/AGENTS.md` — repo-owned runtime copy installed to `~/.config/opencode/AGENTS.md` with local overlay semantics.
 - `overlay/gentle-ai/policy/gentle-ai-policy.json` — keep/prune policy, OpenCode paths, and runtime overrides.
 - `overlay/gentle-ai/policy/managed-assets.json` — canonical manifest for managed upstream/owned assets and repo-owned skill install intent.
-- `overlay/gentle-ai/policy/maintenance-intent.md` — semantic source of truth for what to preserve, depure, and enforce in repo-owned orchestrator behavior.
+- `overlay/gentle-ai/policy/maintenance-intent.md` — semantic source of truth for what to preserve, depure, and enforce in repo-owned orchestrator behavior, including the scoped inline-exploration override for user-requested 4+ file reads.
 - `overlay/gentle-ai/state/upstream-state.json` — last maintained upstream boundary.
 - `overlay/gentle-ai/maintenance.md` — centralized human maintenance guide.
 - `overlay/gentle-ai/owned-assets-refactor.md` — architecture reference for the repo-owned managed-assets runtime model.

@@ -10,6 +10,7 @@ This file describes the current operating model: `apply-gentle-ai-custom` reinst
 - Markdown style for agent-consumed docs -> overlay-owned runtime standard in `overlay/gentle-ai/assets/owned/opencode/AGENTS.md` (installed to `~/.config/opencode/AGENTS.md`); repo-local additions live in `AGENTS.md` and only supplement it
 - repo ownership and policy -> `AGENTS.md`
 - keep/prune intent and desired orchestrator behavior -> `policy/maintenance-intent.md`
+- the scoped inline-exploration override for user-requested 4+ file reads -> `policy/maintenance-intent.md`
 - machine-readable policy -> `policy/gentle-ai-policy.json`
 - maintained upstream boundary -> `state/upstream-state.json`
 - closed-event ledger -> `logs/update-log.md`
