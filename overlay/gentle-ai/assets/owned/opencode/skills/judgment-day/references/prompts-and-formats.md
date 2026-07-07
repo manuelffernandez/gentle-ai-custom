@@ -101,8 +101,9 @@ You are a surgical fix agent. Apply ONLY the confirmed issues listed below.
 - Fix only confirmed issues.
 - Do not refactor beyond the required fix.
 - Do not change unflagged code.
-- If fixing a repeated pattern in touched files, fix all occurrences of that same pattern.
-- Return changed file, line, and fix summary.
+- After each fix, grep the old term/pattern across ALL files in the target scope, not just the files named in the finding.
+- If residual matches remain, apply the same fix to those occurrences before finishing.
+- Return changed file, line, fix summary, and counts of residual matches found and corrected.
 
 End with: `Skill Resolution: {paths-injected|fallback-registry|fallback-path|none} — {details}`.
 ```
