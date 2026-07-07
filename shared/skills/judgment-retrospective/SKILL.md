@@ -4,7 +4,7 @@ description: "Trigger: invoked automatically by the judgment-day terminal hook a
 license: Apache-2.0
 metadata:
   author: manuelfernandez
-  version: "1.0"
+  version: "1.1"
 ---
 
 ## Activation Contract
@@ -22,28 +22,43 @@ Do **not** use it for live judging, and do **not** use it to replace the judge/f
 ## Hard Rules
 
 - Consume only the compact terminal package from Judgment Day.
-- Never store raw full judge output, judge transcripts, or unfiltered verdict dumps.
-- Persist selective semantic knowledge only: compact run summary, aggregated reusable patterns, and intervention history.
-- Track recurrence after mitigation. If a pattern reappears after a prior fix, update the existing pattern/intervention records with the recurrence signal.
-- Keep run summaries compact and overwrite them with the exact topic key `judgment-retrospective/run/{target-slug}`.
-- Use Engram upserts, not ad-hoc notes.
-- Set `capture_prompt: false` when the schema supports it; this is automated retrospective work.
+- Never store raw judge output, full transcripts, or verdict dumps.
+- Persist only selective semantic knowledge: compact run summary, aggregated patterns, and intervention history.
+- Keep run summaries on the exact topic key `judgment-retrospective/run/{target-slug}`.
+- Preserve the existing topic-key families unchanged:
+  - `judgment-retrospective/run/{target-slug}`
+  - `judgment-retrospective/pattern/{pattern-slug}`
+  - `judgment-retrospective/intervention/{intervention-slug}`
+- Use the v2 semantic-memory contract in [assets/semantic-memory-contract.md](assets/semantic-memory-contract.md) for new topic-key families and when hydrating legacy observations.
+- Use `mem_save` / `mem_update` only. No ad-hoc notes.
+- Set `capture_prompt: false` when the schema supports it.
+- Track recurrence after mitigation and update the same family when the pattern or intervention reappears.
+
+## Compatibility Rules
+
+- Before creating a new pattern or intervention, search current topic-key candidates and legacy title/text shapes such as `JD pattern:`, `JD retrospective:`, `Pattern:`, `Retrospective:`, and `Issue:` plus domain terms from the current target.
+- If a v2 record is found, expand lookup using its `aliases` and `retrieval_terms` to surface related legacy observations. If no v2 record is found, derive lookup terms from the current compact terminal package: target name, normalized slug, and key domain terms.
+- If initial lookup is sparse, broaden to nearby title/text shapes before concluding no match exists.
+- If a relevant legacy record exists, hydrate it in place by adding missing v2 fields. If the legacy content includes raw judge output, transcripts, prompt dumps, or unfiltered verdict dumps, replace that material with a compact summary before appending v2 fields. See the asset for the compact summary definition.
+- If partial matches exist, compare them semantically and update the most relevant record.
+- Do not fork near-duplicate pattern or intervention families.
+- Migration is opportunistic and lazy, not a required bulk backfill.
 
 ## Decision Gates
 
 | Condition | Action |
 |---|---|
-| Terminal state not reached | Skip the retrospective and report parent-facing status `skipped`. |
+| Terminal state not reached | Skip the retrospective; report parent-facing status `skipped`. |
 | Existing pattern/intervention topic found | Update that topic instead of creating a duplicate family. |
-| Prior mitigation exists and recurrence is detected | Mark the mitigation as only partially effective or ineffective, and note the recurrence count. |
-| Engram unavailable | Return parent-facing status `failed` and do not fabricate persistence. |
+| Prior mitigation exists and recurrence detected | Mark the mitigation as only partially effective or ineffective; note the recurrence count. |
+| Engram unavailable | Return parent-facing status `failed`; do not fabricate persistence. |
 
 ## Execution Steps
 
 1. Normalize the terminal Judgment Day package into compact semantic facts.
 2. Derive stable slugs for the target, pattern family, and intervention family.
-3. Search Engram for existing run-summary, pattern, and intervention observations.
-4. Save or update the compact run-summary observation at `judgment-retrospective/run/{target-slug}`.
+3. Search Engram for existing run-summary, pattern, and intervention observations, including legacy title/text shapes.
+4. Always upsert the compact run-summary observation to the exact topic key `judgment-retrospective/run/{target-slug}`.
 5. Save or update one or more pattern observations with aggregate evidence and recurrence data.
 6. Save or update intervention history with effectiveness, recurrence after mitigation, and the last observed terminal state.
 7. Return a concise retrospective report with observation IDs/keys and effectiveness notes.
