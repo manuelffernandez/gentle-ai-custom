@@ -4,6 +4,15 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-07-07 | Adopted upstream persona guardrails and sanitized orchestrator review lenses
+
+- **Type**: `adoption`
+- **Upstream scope/range**: `8a673472a402f1949f1080f72e72d760a61d28bf` (`v1.42.0-1-g8a67347`) -> `42cf98501413610d3dd8e94cd390e8663fc014f2` (`v1.43.4-2-g42cf985`)
+- **Decision**: accepted the upstream reply-language guardrails into the repo-owned OpenCode AGENTS runtime asset and sanitized the owned orchestrator prompt to keep the concrete review-lens routing while preserving the local depuration that rejects PR strategy selection, review budgets, chained/stacked PR flow, `size:exception`, and review-workload branching.
+- **Why it mattered**: the upstream prompt drift improved direct-reply language consistency and made the review path more concrete, but the repo must keep its owned orchestrator free of repository-governance controls that do not belong in the local workflow.
+- **Affected artifacts**: `overlay/gentle-ai/assets/owned/opencode/AGENTS.md`, `overlay/gentle-ai/assets/owned/opencode/prompts/orchestrators/gentle-orchestrator.md`, `overlay/gentle-ai/assets/upstream/opencode/persona-gentleman.md`, `overlay/gentle-ai/assets/upstream/opencode/prompts/orchestrators/gentle-orchestrator.md`, `overlay/gentle-ai/state/upstream-state.json`
+- **Verification**: `bash sync-gentle-ai-upstream-assets.sh`; `gentle-ai sync`; post-edit `bash apply-gentle-ai-custom.sh opencode` initially stopped on the noninteractive version preflight, then passed when rerun in a pseudo-tty; on-disk runtime checks for prompt refs, pruned skills, and upstream-state consistency
+
 ## 2026-06-30 | Softened the 4-file exploration gate with a scoped inline override
 
 - **Type**: `policy-change`
