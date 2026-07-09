@@ -16,7 +16,7 @@ Load this skill only when the user explicitly asks for Judgment Day, dual/advers
 - Resolve project skills before launching agents: read skill registry, match skill paths by target files/task, and inject the same `Skills to load before work` block into both judge prompts and fix prompts.
 - Launch **two blind judges in parallel** with identical target and criteria; never review the code yourself.
 - Wait for both judges before synthesis; never accept a partial verdict.
-- Classify warnings as `WARNING (real)` only if normal intended use can trigger them; otherwise downgrade to INFO as `WARNING (theoretical)`.
+- Follow [../_shared/review-ledger-contract.md](../_shared/review-ledger-contract.md) as the single canonical contract for the judge/fix loop.
 - Ask before fixing Round 1 confirmed issues.
 - After any fix agent runs, immediately re-launch both judges in parallel before commit/push/done/session summary.
 - Terminal states are only `JUDGMENT: APPROVED` or `JUDGMENT: ESCALATED`.
@@ -38,17 +38,21 @@ Load this skill only when the user explicitly asks for Judgment Day, dual/advers
 
 1. Confirm target and optional custom criteria.
 2. Resolve exact skill paths from registry or warn if missing.
-3. Start Judge A and Judge B concurrently via delegation.
-4. Synthesize findings into confirmed, suspect, contradiction, and INFO buckets.
-5. Ask before Round 1 fixes; delegate a separate fix agent for confirmed approved fixes only.
-6. Re-judge in parallel after fixes; repeat until approved, escalated, or user asks to stop.
+3. Start Judge A and Judge B concurrently via delegation; each runs the exhaustive first pass and emits its own findings ledger.
+4. Synthesize findings into confirmed, suspect, contradiction, and INFO buckets; merge both judges' ledger rows into the persisted ledger and persist per the artifact-store branch.
+5. Ask before Round 1 fixes; delegate a separate fix agent for confirmed approved fixes only. The fix agent reads the persisted ledger, applies only confirmed fixes, and sets addressed ledger ids to `fixed`.
+6. Re-judge in parallel after fixes, scoped to the persisted ledger and the fix diff per the Scoped re-review contract; repeat until approved, escalated, or user asks to stop.
 7. Before any terminal action, verify every active Judgment Day has a terminal state.
 8. Run the terminal retrospective hook with the compact terminal package, then append its result after the normal Judgment Day closing report.
 
 ## Output Contract
 
-Return `## Judgment Day — {target}` with the primary Judgment Day report first: round number, rich findings/verdict table, confirmed/suspect/contradiction counts, closing synthesis, fixes applied, re-judgment result, `Skill Resolution`, and final `JUDGMENT: APPROVED ✅` or `JUDGMENT: ESCALATED ⚠️`. Append a separate trailing retrospective block afterward with retrospective status, compact summary, pattern updates, intervention history updates, recurrence/effectiveness note, and persisted observation IDs or keys.
+Return `## Judgment Day — {target}` with the primary Judgment Day report first. Use the final report shape defined in [references/prompts-and-formats.md](references/prompts-and-formats.md); do not restate it here. Append a separate trailing retrospective block afterward with retrospective status, compact summary, pattern updates, intervention history updates, recurrence/effectiveness note, and persisted observation IDs or keys.
+
+## Ledger and Re-Judge Contract
+
+See [../_shared/review-ledger-contract.md](../_shared/review-ledger-contract.md) for the canonical judge/fix contract and residual-scan rule.
 
 ## References
 
-- [references/prompts-and-formats.md](references/prompts-and-formats.md) — judge/fix prompts, warning rubric, verdict tables, and language snippets.
+- [references/prompts-and-formats.md](references/prompts-and-formats.md) — judge/fix prompts, shared ledger contract reference, and language snippets.

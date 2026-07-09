@@ -6,7 +6,7 @@
     "opencode": {
       "watch_roots": [
         "internal/assets/opencode",
-        "internal/assets/claude/engram-protocol.md",
+        "internal/assets/engram/protocol.md",
         "internal/assets/skills"
       ],
       "upstream_path_interpretation": "Paths in this manifest refer to files inside the upstream gentle-ai repository. `watch_roots` lists the upstream directory roots or file paths watched for untracked drift. `repo_upstream_path` stores the approved upstream copy used for drift review, and `repo_owned_path` stores the repo-owned runtime asset that apply installs.",
@@ -26,7 +26,7 @@
           "key": "opencode-engram-source",
           "class": "upstream_source",
           "kind": "upstream_source_file",
-          "upstream_path": "internal/assets/claude/engram-protocol.md",
+          "upstream_path": "internal/assets/engram/protocol.md",
           "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/engram-protocol.md"
         },
         {

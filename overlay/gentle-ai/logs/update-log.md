@@ -4,6 +4,15 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-07-08 | Adopted upstream v1.44.3 review ledger contract
+
+- **Type**: `adoption`
+- **Upstream scope/range**: `42cf98501413610d3dd8e94cd390e8663fc014f2` (`v1.43.4-2-g42cf985`) -> `b6737129a295980962ec5e8daf41c971fac700b9` (`v1.44.3`)
+- **Decision**: adopted the review ledger contract (review convergence with persisted findings, exhaustive sweep loop, scoped re-review) into the owned orchestrator, judgment-day, and `_shared`, then converted the runtime prompts to reference the shared contract instead of repeating it. Sanitized the engram protocol source path in `managed-assets.json` after upstream consolidated and relocated the file.
+- **Why it mattered**: the ledger mechanism improves review and JD convergence quality without reintroducing PR governance, chained-pr, or review-budget gates. The engram path repoint was mandatory because upstream relocated the file to `internal/assets/engram/protocol.md`, and the previous boundary needed to remain visible for audit traceability.
+- **Affected artifacts**: `overlay/gentle-ai/assets/owned/opencode/prompts/orchestrators/gentle-orchestrator.md`, `overlay/gentle-ai/assets/owned/opencode/commands/sdd-status.md`, `overlay/gentle-ai/assets/owned/opencode/skills/judgment-day/SKILL.md`, `overlay/gentle-ai/assets/owned/opencode/skills/judgment-day/references/prompts-and-formats.md`, `overlay/gentle-ai/assets/owned/opencode/skills/_shared/review-ledger-contract.md` (new), `overlay/gentle-ai/assets/owned/opencode/skills/_shared/sdd-status-contract.md`, `overlay/gentle-ai/policy/managed-assets.json`, `overlay/gentle-ai/state/upstream-state.json`, `overlay/gentle-ai/maintenance.md`, `AGENTS.md`, `overlay/gentle-ai/assets/upstream/opencode/README.md`, `overlay/gentle-ai/assets/upstream/opencode/engram-protocol.md`, `shared/skills/judgment-retrospective/SKILL.md`
+- **Verification**: `bash sync-gentle-ai-upstream-assets.sh`; `go test ./internal/overlay -run 'TestCategorizeGitDiffTreatsOnlyOpenCodeAndEngramSourcesAsManaged|TestSyncManagedTargetCopiesOpenCodeAgentsSourceFilesFromUpstream'`; `gentle-ai sync`; `bash apply-gentle-ai-custom.sh opencode`; post-state on-disk checks for pruned skills, prompt refs, owned assets, and upstream-state consistency; fresh-context R3 reliability review of the owned/upstream judgment-day skill and prompt mirrors plus the shared review-ledger contract block (6 files total) passed 7/7 checks, with one SUGGESTION-level gap fixed (review-ledger topic key added to orchestrator table)
+
 ## 2026-07-07 | Adopted upstream persona guardrails and sanitized orchestrator review lenses
 
 - **Type**: `adoption`

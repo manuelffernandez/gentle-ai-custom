@@ -236,7 +236,7 @@ Files that `apply-gentle-ai-custom.sh` installs into the global OpenCode runtime
 - `shared/skills/` — canonical repo-owned skills that the apply script installs globally.
 - `shared/commands/` — reusable prompt bodies for commit/PR wrapper commands rendered by the apply script.
 - `overlay/gentle-ai/assets/` — canonical owned-assets tree: approved upstream snapshots plus repo-owned SDD/runtime assets.
-- `overlay/gentle-ai/assets/upstream/opencode/` — approved upstream-equivalent OpenCode snapshot set: `persona-gentleman.md`, `engram-protocol.md` (mirrors `internal/assets/claude/engram-protocol.md` for the owned AGENTS build), the orchestrator prompt, overlay JSONs, plugins, retained `commands/` snapshots, and selected skill snapshots.
+- `overlay/gentle-ai/assets/upstream/opencode/` — approved upstream-equivalent OpenCode snapshot set: `persona-gentleman.md`, `engram-protocol.md` (mirrors `internal/assets/engram/protocol.md` for the owned AGENTS build), the orchestrator prompt, overlay JSONs, plugins, retained `commands/` snapshots, and selected skill snapshots.
 - `overlay/gentle-ai/assets/owned/opencode/AGENTS.md` — repo-owned runtime copy installed to `~/.config/opencode/AGENTS.md` with local overlay semantics.
 - `overlay/gentle-ai/policy/gentle-ai-policy.json` — keep/prune policy, OpenCode paths, and runtime overrides.
 - `overlay/gentle-ai/policy/managed-assets.json` — canonical manifest for managed upstream/owned assets and repo-owned skill install intent.
@@ -274,7 +274,7 @@ It does two classes of work:
 
 The repo now uses a **repo-owned managed-assets** model:
 
-- `overlay/gentle-ai/assets/upstream/` will hold approved upstream behavior assets for diff/audit review, including the OpenCode overlay JSONs/plugins and only the approved `internal/assets/claude/engram-protocol.md` snapshot tracked by the managed-assets manifest
+- `overlay/gentle-ai/assets/upstream/` will hold approved upstream behavior assets for diff/audit review, including the OpenCode overlay JSONs/plugins and only the approved `internal/assets/engram/protocol.md` snapshot tracked by the managed-assets manifest
 - `overlay/gentle-ai/assets/owned/` will hold repo-owned SDD/runtime behavior assets applied to the local runtime
 - `shared/skills/` remains the canonical source for portable repo-owned skills and is NOT folded into the overlay asset tree
 

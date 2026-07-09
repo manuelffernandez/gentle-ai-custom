@@ -69,6 +69,14 @@ These are parent-orchestrator stop rules. When a trigger fires, perform the spec
 
 If multiple rows match, run the narrow set that covers the risk. Example: shell integration that mutates live state should use `review-reliability` plus `review-resilience`, not `review-readability` by default.
 
+#### Review Execution Contract
+
+Use [../../skills/_shared/review-ledger-contract.md](../../skills/_shared/review-ledger-contract.md) as the canonical contract for the 4R review lenses and judgment-day. Do not duplicate the ledger clauses here.
+
+If a fix round reveals the same confirmed pattern elsewhere in the target scope, expand the fix to every residual match before handing the change back to the reviewer.
+
+**Execution mode.** Inline mode (this adapter has no dedicated review-*/jd-* subagents): run each lens sequentially inside your own orchestrator context and maintain the merged ledger directly.
+
 #### Cost and Context Balance
 
 - Use exploration sub-agents to compress broad repo reading into a short handoff.
@@ -120,7 +128,7 @@ This applies to `/sdd-new`, `/sdd-ff`, `/sdd-continue`, `/sdd-explore`, `/sdd-st
 Required preflight choices:
 
 1. **Execution mode**: `interactive` or `auto`.
-2. **Artifact store**: `openspec`, `engram`, or `both` when Engram is callable. If Engram is unavailable, offer only file/inline-safe choices.
+2. **Artifact store**: `openspec`, `engram`, or `hybrid` when Engram is callable. If Engram is unavailable, offer only file/inline-safe choices.
 3. **Chained PR strategy**: `auto-forecast`, `ask-always`, `single-pr-default`, or `force-chained`.
 4. **Review budget**: maximum changed lines before stopping for reviewer-burden approval.
 
@@ -150,7 +158,7 @@ Only after all four preflight choices are collected, summarize them as the `SDD 
 Map answers to canonical values:
 
 - Pace: Interactive -> `interactive`; Automatic -> `auto`.
-- Artifacts: OpenSpec -> `openspec`; Engram -> `engram`; Both -> `both`.
+- Artifacts: OpenSpec -> `openspec`; Engram -> `engram`; Both -> `hybrid`.
 - PRs: Ask me -> `ask-always`; Single PR -> `single-pr-default`; Chained -> `force-chained`; Auto -> `auto-forecast`.
 - Review: 400 lines -> `review_budget_lines: 400`; 800 lines -> `review_budget_lines: 800`; Other -> ask one follow-up for the number.
 
@@ -241,7 +249,7 @@ This is collected by `SDD Session Preflight`. If missing, enforce the hard gate 
 
 - **`engram`**: Fast, no files created. Artifacts live in engram only.
 - **`openspec`**: File-based. Creates `openspec/` with a shareable artifact trail.
-- **`both` / `hybrid`**: Both - files for team sharing + engram for cross-session recovery.
+- **`hybrid`**: Both - files for team sharing + engram for cross-session recovery.
 
 If the user doesn't specify, detect: if engram is available -> default to `engram`. Otherwise -> `none`.
 

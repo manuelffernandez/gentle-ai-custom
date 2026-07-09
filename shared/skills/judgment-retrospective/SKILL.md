@@ -4,7 +4,7 @@ description: "Trigger: invoked automatically by the judgment-day terminal hook a
 license: Apache-2.0
 metadata:
   author: manuelfernandez
-  version: "1.1"
+  version: "1.2"
 ---
 
 ## Activation Contract
@@ -51,6 +51,8 @@ Do **not** use it for live judging, and do **not** use it to replace the judge/f
 | Terminal state not reached | Skip the retrospective; report parent-facing status `skipped`. |
 | Existing pattern/intervention topic found | Update that topic instead of creating a duplicate family. |
 | Prior mitigation exists and recurrence detected | Mark the mitigation as only partially effective or ineffective; note the recurrence count. |
+| Pattern `evidence_count` >= 3, no linked intervention | Propose a structural intervention in the retrospective output. Three separate hits are enough to stop treating the pattern as a one-off, so call out the pattern and its evidence count. |
+| `recurrence_after_mitigation_count` >= 2 | Mark the existing mitigation as ineffective. Two recurrences after a mitigation mean the fix is not holding, so propose revising the intervention strategy in the retrospective output. |
 | Engram unavailable | Return parent-facing status `failed`; do not fabricate persistence. |
 
 ## Execution Steps
@@ -74,6 +76,7 @@ Return `## Judgment Retrospective — {target}` with:
 - pattern updates
 - intervention history updates
 - recurrence/effectiveness note
+- proposed actions (when recurrence thresholds are met)
 - persisted observation IDs or topic keys
 
 Status mapping:

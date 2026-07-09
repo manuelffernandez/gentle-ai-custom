@@ -11,7 +11,7 @@ func TestCategorizeGitDiffTreatsOnlyOpenCodeAndEngramSourcesAsManaged(t *testing
 	target := testOpenCodeAgentsTarget()
 	managed, unmanaged := categorizeGitDiff([]GitDiffEntry{
 		{Status: "M", Path: "internal/assets/opencode/persona-gentleman.md"},
-		{Status: "M", Path: "internal/assets/claude/engram-protocol.md"},
+		{Status: "M", Path: "internal/assets/engram/protocol.md"},
 		{Status: "M", Path: "internal/assets/opencode/sdd-overlay-single.json"},
 		{Status: "M", Path: "internal/assets/opencode/sdd-overlay-multi.json"},
 		{Status: "M", Path: "internal/assets/opencode/plugins/model-variants.ts"},
@@ -49,7 +49,7 @@ func TestSyncManagedTargetCopiesOpenCodeAgentsSourceFilesFromUpstream(t *testing
 	overlaySingleContent := []byte("{\n  \"name\": \"single\"\n}\n")
 	overlayMultiContent := []byte("{\n  \"name\": \"multi\"\n}\n")
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "persona-gentleman.md"), personaContent)
-	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "claude", "engram-protocol.md"), engramContent)
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "engram", "protocol.md"), engramContent)
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "sdd-overlay-single.json"), overlaySingleContent)
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "sdd-overlay-multi.json"), overlayMultiContent)
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "plugins", "model-variants.ts"), []byte("export const modelVariants = [];\n"))
@@ -166,7 +166,7 @@ func testOpenCodeAgentsTarget() ManagedAssetsTarget {
 	return ManagedAssetsTarget{
 		WatchRoots: []string{
 			"internal/assets/opencode",
-			"internal/assets/claude/engram-protocol.md",
+			"internal/assets/engram/protocol.md",
 			"internal/assets/skills",
 		},
 		OwnedOverlayAssets: []OwnedOverlayAsset{
@@ -181,7 +181,7 @@ func testOpenCodeAgentsTarget() ManagedAssetsTarget {
 				Key:              "opencode-engram-source",
 				Class:            "upstream_source",
 				Kind:             "upstream_source_file",
-				UpstreamPath:     "internal/assets/claude/engram-protocol.md",
+				UpstreamPath:     "internal/assets/engram/protocol.md",
 				RepoUpstreamPath: "overlay/gentle-ai/assets/upstream/opencode/engram-protocol.md",
 			},
 			{

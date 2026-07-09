@@ -69,6 +69,14 @@ These are parent-orchestrator stop rules. When a trigger fires, perform the spec
 
 If multiple rows match, run the narrow set that covers the risk. Example: shell integration that mutates live state should use `review-reliability` plus `review-resilience`, not `review-readability` by default.
 
+#### Review Execution Contract
+
+Use [../../skills/_shared/review-ledger-contract.md](../../skills/_shared/review-ledger-contract.md) as the canonical contract for the 4R review lenses and judgment-day. Do not duplicate the ledger clauses here.
+
+If a fix round reveals the same confirmed pattern elsewhere in the target scope, expand the fix to every residual match before handing the change back to the reviewer.
+
+**Execution mode.** This adapter has dedicated review-*/jd-* subagents: each agent runs its lens exhaustively and returns its own ledger rows; the orchestrator merges them into the persisted ledger and persists per the branch above.
+
 #### Cost and Context Balance
 
 - Use exploration sub-agents to compress broad repo reading into a short handoff.
@@ -109,7 +117,7 @@ Meta-commands (type directly - orchestrator handles them, won't appear in autoco
 
 ### Native SDD Dispatcher Guard
 
-Before routing, continuing, applying, verifying, or archiving an SDD change, use the native dispatcher when `gentle-ai` is available: `gentle-ai sdd-continue [change] --cwd <repo>` or `gentle-ai sdd-status [change] --cwd <repo> --json --instructions`. Treat native status JSON as authoritative over prompt inference. Route only by `nextRecommended` and dependency states; never infer from free text. If `blockedReasons` is non-empty, do not proceed to apply, archive, or terminal work. If `nextRecommended` is `verify`, verification/remediation may run only to refresh evidence; if `nextRecommended` is `resolve-blockers`, report `blockedReasons` and stop. If the binary is unavailable, fall back to the existing prompt contract and manual status schema.
+Before routing, continuing, applying, verifying, or archiving an SDD change, **first determine this session's artifact store** from the cached Session Preflight / Artifact Store Mode choice. If the store is not yet established, resolve it before continuing — check `sdd-init/{project}` in Engram and treat the change as `engram`-backed when no OpenSpec store was selected. **Then scope the native dispatcher by artifact store.** The native dispatcher (`gentle-ai sdd-continue [change] --cwd <repo>` or `gentle-ai sdd-status [change] --cwd <repo> --json --instructions`) reads ONLY OpenSpec file artifacts under `openspec/changes/` and always emits `artifactStore: openspec`; it cannot observe Engram-backed changes. **When the session artifact store is `engram`, do NOT invoke the dispatcher at all** — it is blind to the change and its `blocked`, `Active OpenSpec change not found`, or `nextRecommended: sdd-new` output is meaningless; resolve status entirely from Engram (`mem_search` + `mem_get_observation` on the change's topic keys such as `sdd/{change-name}/tasks`) using the manual status schema. Only when the session artifact store is `openspec` or `hybrid` should you run the dispatcher when `gentle-ai` is available and treat its native status JSON as authoritative over prompt inference. Route only by `nextRecommended` and dependency states; never infer from free text. If `blockedReasons` is non-empty, do not proceed to apply, archive, or terminal work. If `nextRecommended` is `verify`, verification/remediation may run only to refresh evidence; if `nextRecommended` is `resolve-blockers`, report `blockedReasons` and stop; if `nextRecommended` is a planning token (`propose`, `spec`, `design`, or `tasks`), launch the corresponding planning phase. If the binary is unavailable, fall back to the existing prompt contract and manual status schema.
 
 ### SDD Session Preflight (HARD GATE)
 
@@ -120,7 +128,7 @@ This applies to `/sdd-new`, `/sdd-ff`, `/sdd-continue`, `/sdd-explore`, `/sdd-st
 Required preflight choices:
 
 1. **Execution mode**: `interactive` or `auto`.
-2. **Artifact store**: `openspec`, `engram`, or `both` when Engram is callable. If Engram is unavailable, offer only file/inline-safe choices.
+2. **Artifact store**: `openspec`, `engram`, or `hybrid` when Engram is callable. If Engram is unavailable, offer only file/inline-safe choices.
 
 User-facing preflight question format:
 
@@ -167,7 +175,7 @@ B. Artefactos
 Map answers to canonical values:
 
 - Pace: A1/Interactive -> `interactive`; A2/Automatic -> `auto`.
-- Artifacts: B1/OpenSpec -> `openspec`; B2/Engram -> `engram`; B3/Both -> `both`.
+- Artifacts: B1/OpenSpec -> `openspec`; B2/Engram -> `engram`; B3/Both -> `hybrid`.
 
 Hard gate rules:
 
@@ -234,7 +242,7 @@ This is collected by `SDD Session Preflight`. If missing, enforce the hard gate 
 
 - **`engram`**: Fast, no files created. Artifacts live in engram only.
 - **`openspec`**: File-based. Creates `openspec/` with a shareable artifact trail.
-- **`both` / `hybrid`**: Both - files for team sharing + engram for cross-session recovery.
+- **`hybrid`**: Both - files for team sharing + engram for cross-session recovery.
 
 If the user doesn't specify, detect: if engram is available -> default to `engram`. Otherwise -> `none`.
 
@@ -358,4 +366,6 @@ When launching `sdd-apply` for a continuation batch:
 | Tasks           | `sdd/{change-name}/tasks`          |
 | Apply progress  | `sdd/{change-name}/apply-progress` |
 | Verify report   | `sdd/{change-name}/verify-report`  |
+| Review ledger   | `sdd/{change-name}/review-ledger`  |
+| Review ledger (ad-hoc) | `review/{target-slug}/ledger`  |
 | Archive report  | `sdd/{change-name}/archive-report` |
