@@ -80,7 +80,8 @@ If a fix round reveals the same confirmed pattern elsewhere in the target scope,
 #### Review/fix convergence guard
 
 - Do not run an unbounded delegated cycle of review -> fix -> review -> fix.
-- Default to one delegated fix round after a fresh review, followed by one scoped re-review when the change is non-trivial code or otherwise needs fresh judgment.
+- Default to one delegated fix round after a fresh review iteration, followed by one scoped re-review iteration when the change is non-trivial code or otherwise needs fresh judgment.
+- A review iteration may include multiple selected lenses, including full 4R (`review-risk`, `review-resilience`, `review-readability`, `review-reliability`); the convergence guard limits repeated fix/re-review cycles, not the number of lenses in the iteration.
 - If the scoped re-review returns small, local, or already-understood residual findings, fix them inline when safe instead of delegating another writer.
 - Launch another delegated fix round only when there is a new high-risk issue, security/data-loss exposure, broad behavior change, unclear implementation context, or a fix that is no longer safe/manageable inline.
 - If the same issue pattern survives the fix round, stop the loop: summarize the residual risk, what was already attempted, and ask the user or escalate to judgment-day instead of continuing automatic delegation.

@@ -118,7 +118,8 @@ Preserve as much as possible of:
 ### Review/fix convergence guard
 
 - The repo-owned orchestrator must not alternate delegated review and delegated fix rounds indefinitely.
-- Default convergence path: one delegated fix round after a fresh review, then one scoped re-review when the change is non-trivial code or otherwise needs fresh judgment.
+- Default convergence path: one delegated fix round after a fresh review iteration, then one scoped re-review iteration when the change is non-trivial code or otherwise needs fresh judgment.
+- A review iteration may include multiple selected lenses, including full 4R (`review-risk`, `review-resilience`, `review-readability`, `review-reliability`); the guard limits repeated fix/re-review cycles, not the number of lenses in one iteration.
 - If re-review returns small, local, or already-understood residual findings, the orchestrator may fix them inline when safe instead of delegating another writer.
 - Another delegated fix round is allowed only for a new high-risk issue, security/data-loss exposure, broad behavior change, unclear implementation context, or a fix that is no longer safe/manageable inline.
 - If the same issue pattern survives the fix round, the orchestrator stops the loop and asks the user or escalates to judgment-day with a concise summary of what was attempted.

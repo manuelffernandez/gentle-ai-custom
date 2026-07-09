@@ -8,7 +8,7 @@ It is not a mirror of every repo change. Git history carries implementation-leve
 
 - **Type**: `policy-change`
 - **Upstream scope/range**: maintenance contract / OpenCode runtime surface, not a new upstream boundary
-- **Decision**: kept fresh review and safety gates intact, but capped automatic delegated review/fix loops. The repo-owned orchestrator now defaults to one delegated fix round plus one scoped re-review, fixes small understood residuals inline when safe, and stops to ask or escalate when the same pattern persists.
+- **Decision**: kept fresh review and safety gates intact, but capped automatic delegated review/fix loops. The repo-owned orchestrator now defaults to one delegated fix round plus one scoped re-review iteration, explicitly allows multiple review lenses in that iteration including full 4R, fixes small understood residuals inline when safe, and stops to ask or escalate when the same pattern persists.
 - **Why it mattered**: unbounded review -> fix -> review delegation cycles waste time and tokens without improving safety when the residual findings are local, already understood, or repetitive.
 - **Affected artifacts**: `overlay/gentle-ai/assets/owned/opencode/prompts/orchestrators/gentle-orchestrator.md`, `overlay/gentle-ai/policy/maintenance-intent.md`, `overlay/gentle-ai/maintenance.md`, `overlay/gentle-ai/README.md`, `AGENTS.md`, `README.md`
 - **Verification**: `git diff --check`; fresh-context readability review found stale pending-verification wording in this entry, then the finding was fixed inline; `bash apply-gentle-ai-custom.sh opencode` wrote 1 changed owned asset with 0 topology warnings; runtime prompt grep confirmed the convergence guard was installed
