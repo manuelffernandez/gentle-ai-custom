@@ -4,6 +4,15 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-07-09 | Expanded scoped inline overrides to multi-file operational delegation
+
+- **Type**: `policy-change`
+- **Upstream scope/range**: maintenance contract / OpenCode runtime surface, not a new upstream boundary
+- **Decision**: kept delegation as the default for context/cost/coordination-heavy work, but extended the repo-owned orchestrator contract so an explicit scoped user request may keep a specific multi-file write inline, alongside the existing 4+ file exploration override. Preserved the non-bypassable safety, permission, data-loss, security, commit/push/PR, review, and incident gates.
+- **Why it mattered**: the previous contract still treated multi-file writes as an absolute delegation requirement, which caused avoidable resistance even when the human intentionally wanted a narrowly scoped inline change and the task remained safe and manageable.
+- **Affected artifacts**: `overlay/gentle-ai/assets/owned/opencode/prompts/orchestrators/gentle-orchestrator.md`, `overlay/gentle-ai/policy/maintenance-intent.md`, `overlay/gentle-ai/maintenance.md`, `overlay/gentle-ai/README.md`, `AGENTS.md`, `README.md`
+- **Verification**: final diff review plus repo search for stale contradictory wording around the old multi-file hard gate; upstream prompt snapshots intentionally left untouched
+
 ## 2026-07-08 | Adopted upstream v1.44.3 review ledger contract
 
 - **Type**: `adoption`

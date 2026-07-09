@@ -106,11 +106,14 @@ Preserve as much as possible of:
 - Keep wording as close to upstream as possible unless removal requires a minimal rewrite.
 - Prefer explicit owned-file edits over dynamic transformation logic.
 
-### Scoped inline exploration override
+### Scoped inline delegation overrides
 
-- Default behavior: delegate exploration that needs 4+ files.
-- If the user explicitly asks to keep a specific 4+ file exploration inline, honor that request for that exploration only, acknowledge the context-cost tradeoff once, and do not keep resisting it.
-- This override does not weaken multi-file write delegation, the PR fresh-review gate, incident safeguards, or long-session safeguards.
+- Hard gates remain non-bypassable by chat: safety, permission, data-loss, security, commit/push/PR, review-after-code-changes, and incident safeguards.
+- Default behavior: delegate exploration that needs 4+ files and multi-file writes that touch 2+ non-trivial files.
+- If the user explicitly asks to keep one specific 4+ file exploration or one specific scoped multi-file write inline, honor that request for that task only, acknowledge the context/reliability tradeoff once, keep the scope tight, and do not keep resisting it.
+- Do not split a logically multi-file change into artificial smaller edits just to evade the default delegation preference; the scoped override exists so the rule can be honored directly when the task remains safe and manageable.
+- These overrides do not weaken the review-after-code-changes gate: any inline multi-file code change still requires fresh review immediately after that write batch, before continuing toward commit/push/PR.
+- These overrides do not weaken incident safeguards or any other hard safety/permission/data-loss/security/commit-push-PR rule.
 
 ## Why these conventions do not apply
 
