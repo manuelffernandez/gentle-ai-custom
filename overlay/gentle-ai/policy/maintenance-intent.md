@@ -115,6 +115,15 @@ Preserve as much as possible of:
 - These overrides do not weaken the review-after-code-changes gate: any inline multi-file code change still requires fresh review immediately after that write batch, before continuing toward commit/push/PR.
 - These overrides do not weaken incident safeguards or any other hard safety/permission/data-loss/security/commit-push-PR rule.
 
+### Review/fix convergence guard
+
+- The repo-owned orchestrator must not alternate delegated review and delegated fix rounds indefinitely.
+- Default convergence path: one delegated fix round after a fresh review, then one scoped re-review when the change is non-trivial code or otherwise needs fresh judgment.
+- If re-review returns small, local, or already-understood residual findings, the orchestrator may fix them inline when safe instead of delegating another writer.
+- Another delegated fix round is allowed only for a new high-risk issue, security/data-loss exposure, broad behavior change, unclear implementation context, or a fix that is no longer safe/manageable inline.
+- If the same issue pattern survives the fix round, the orchestrator stops the loop and asks the user or escalates to judgment-day with a concise summary of what was attempted.
+- This guard caps automatic delegation loops; it does not weaken fresh-review, incident, security, permission, data-loss, or commit/push/PR gates.
+
 ## Why these conventions do not apply
 
 They might be valid for the upstream project or for other teams, but they are not the source of truth for the local workflow.

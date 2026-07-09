@@ -254,6 +254,8 @@ El overlay NO rompe el corazón técnico del orchestrator. Lo que hace es manten
 
 Por defecto, si una exploración requiere leer 4 o más archivos, o si una implementación toca varios archivos no triviales, se delega. Pero si vos pedís explícitamente mantener inline una exploración puntual o un multi-file write bien acotado, el orchestrator lo puede aceptar: marca una sola vez el costo de contexto/confiabilidad, mantiene el alcance cerrado y no sigue resistiendo si la tarea sigue siendo segura y manejable.
 
+También hay una regla anti-loop para reviews: el flujo normal es una ronda de fix delegada después de una review y, si hace falta, una re-review acotada. Si aparecen detalles chicos, locales o ya entendidos, el orchestrator puede corregirlos inline en vez de volver a delegar otro fix. Solo vuelve a delegar si aparece riesgo real: seguridad, pérdida de datos, cambio de comportamiento amplio, contexto poco claro o un fix que ya no es seguro manejar inline.
+
 Lo que NO se puede saltear por chat son los gates de seguridad, permisos, pérdida o exposición de datos, commit/push/PR, review después de cambios de código e incidentes. Si un multi-file code change queda inline por override, ese review fresh-context se tiene que hacer inmediatamente después de ese batch de escritura, antes de seguir hacia commit/push/PR. Tampoco se vale partir artificialmente un cambio lógicamente multi-file solo para esquivar la preferencia de delegar; la regla ya permite ese override puntual cuando corresponde.
 
 | Qué se modifica                                                                                      | Intención                                                                                                   |
@@ -264,8 +266,9 @@ Lo que NO se puede saltear por chat son los gates de seguridad, permisos, pérdi
 | Se elimina la exigencia de “pasar” un guard de workload antes de `sdd-apply`.                        | La implementación no debe depender de un gate pensado para proteger un proceso de review que acá no uso.    |
 | Se neutralizan referencias a `size:exception`, reviewer burden y políticas similares.                | Son reglas válidas en otros contextos, pero no son la fuente de verdad de este entorno.                     |
 | Las exploraciones de 4+ archivos y los multi-file writes acotados se pueden dejar inline si lo pedís de forma explícita. | La delegación sigue siendo el default por costo/contexto, pero esa preferencia se puede overridear para una tarea puntual segura y manejable; no afloja seguridad, permisos, datos, commit/push/PR, review ni incidentes, y si hay code changes inline en varios archivos el fresh-context review va inmediatamente después de ese batch antes de seguir. |
+| El ciclo review -> fix -> review tiene una regla de convergencia. | Evita loops automáticos de delegación: después de una ronda de fix y una re-review, los residuos chicos se resuelven inline si es seguro; los riesgos reales se escalan o se consultan. |
 
-Lo que se preserva es la parte valiosa: delegación, routing SDD, preflight básico, init guard, dependency graph, TDD forwarding, continuidad de apply y protocolos de contexto. En resumen: se conserva la capacidad técnica y se saca la gobernanza de colaboración. La fuente semántica de esta regla está en `overlay/gentle-ai/policy/maintenance-intent.md`.
+Lo que se preserva es la parte valiosa: delegación, routing SDD, preflight básico, init guard, dependency graph, TDD forwarding, continuidad de apply y protocolos de contexto. En resumen: se conserva la capacidad técnica y se saca la gobernanza de colaboración. La fuente semántica de estas reglas está en `overlay/gentle-ai/policy/maintenance-intent.md`.
 
 ### Overrides de agentes
 
