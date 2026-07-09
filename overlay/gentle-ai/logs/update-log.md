@@ -4,6 +4,15 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-07-09 | Raised exploration and fix delegation thresholds
+
+- **Type**: `policy-change`
+- **Upstream scope/range**: maintenance contract / OpenCode runtime surface, not a new upstream boundary
+- **Decision**: changed the repo-owned orchestrator thresholds so exploration delegates by default only after a metadata-only size preflight for 5+ files, and fixes stay inline by default up to 3 files when safe/manageable; 4+ non-trivial writes still delegate by default.
+- **Why it mattered**: small multi-file explorations and 2-3 file fixes were paying unnecessary delegation cost, losing precision through an extra agent layer even when direct inline handling was cheaper and clearer.
+- **Affected artifacts**: `overlay/gentle-ai/assets/owned/opencode/prompts/orchestrators/gentle-orchestrator.md`, `overlay/gentle-ai/policy/maintenance-intent.md`, `overlay/gentle-ai/maintenance.md`, `overlay/gentle-ai/README.md`, `AGENTS.md`, `README.md`
+- **Verification**: `git diff --check`; `bash apply-gentle-ai-custom.sh opencode` wrote 1 changed owned asset with 0 topology warnings; runtime prompt grep confirmed the 5+ exploration, metadata-size preflight, 4+ write, and long-session threshold changes were installed; fresh-context reliability review found stale pending-verification wording in this entry, then the finding was fixed inline
+
 ## 2026-07-09 | Added review/fix convergence guard
 
 - **Type**: `policy-change`

@@ -21,11 +21,11 @@ Core principle: **does this inflate my context without need?** If yes -> delegat
 
 | Action                                                     | Inline                                                                  | Delegate                     |
 | ---------------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------- |
-| Read to decide/verify (1-3 files)                          | Yes                                                                     | No                           |
-| Read to explore/understand (4+ files)                      | No by default; inline only if the user explicitly asks for that specific exploration | Yes by default               |
+| Read to decide/verify (1-4 files)                          | Yes                                                                     | No                           |
+| Read to explore/understand (5+ files)                      | Metadata-size preflight first; inline if files are small/manageable     | Yes by default when size is large/unknown |
 | Read as preparation for writing                            | No                                                                      | Yes, together with the write |
-| Write atomic (one file, mechanical, you already know what) | Yes                                                                     | No                           |
-| Write with analysis (multiple files, new logic)            | No by default; inline only if the user explicitly asks for that specific scoped write and it stays safe/manageable | Yes by default               |
+| Write atomic/mechanical or already-understood (1-3 files)  | Yes when safe/manageable                                                | No                           |
+| Write with analysis (4+ files, new logic)                  | No by default; inline only if the user explicitly asks for that specific scoped write and it stays safe/manageable | Yes by default               |
 | Bash for state (git, gh)                                   | Yes                                                                     | No                           |
 | Bash for execution (test, install, external tooling)       | No                                                                      | Yes                          |
 
@@ -33,8 +33,8 @@ Use OpenCode's native `task` tool for delegated work. When `OPENCODE_EXPERIMENTA
 
 Anti-patterns that usually inflate context without need:
 
-- Reading 4+ files to "understand" the codebase inline -> delegate an exploration, unless the user explicitly asks to keep that specific exploration inline
-- Writing a feature across multiple files inline -> delegate by default, unless the user explicitly asks to keep that specific scoped write inline and it remains safe/manageable
+- Reading 5+ files to "understand" the codebase inline without first checking metadata-only file sizes -> run the size preflight, then delegate only if the files are large/unknown or the task is not manageable inline
+- Writing a feature across 4+ files inline -> delegate by default, unless the user explicitly asks to keep that specific scoped write inline and it remains safe/manageable
 - Running tests or external tools inline -> delegate
 - Reading files as preparation for edits, then editing -> delegate the whole thing together
 
@@ -50,11 +50,11 @@ Semantic guard: **delegate** means using OpenCode's native `task` tool to invoke
 
 These are parent-orchestrator stop rules. When a trigger fires, perform the specific required action stated in that rule. Rules that say **delegate** require native sub-agent delegation. Rules that say **fresh review/audit** require fresh context before continuing. Do not pass these rules to child agents as permission to spawn more agents; children receive concrete role work and must not orchestrate.
 
-1. **4-file rule (default delegation preference)**: if understanding requires reading 4+ files, delegate a narrow exploration/mapping task by default. If the user explicitly asks to keep this specific exploration inline, acknowledge the context-cost tradeoff once, do that exploration inline, and do not keep arguing; this override applies only to that exploration and does not relax the hard gates.
-2. **Multi-file write rule (default delegation preference)**: if implementation will touch 2+ non-trivial files, delegate one writer by default. If the user explicitly asks to keep that specific multi-file write inline, acknowledge the context/reliability tradeoff once, keep the work tightly scoped, do not split a logically multi-file change into artificial smaller edits just to evade the rule, and continue inline only while the task remains safe and manageable. Any inline multi-file code change still triggers the fresh review rule immediately after the write batch; do not continue toward commit/push/PR without that fresh-context review.
+1. **5-file exploration rule (default delegation preference)**: if understanding requires reading 5+ files, first run a metadata-only size preflight using file paths and byte sizes; do not read file contents just to decide whether to delegate. Keep the exploration inline when the files are small and the total context remains manageable. Delegate a narrow exploration/mapping task when file size is large/unknown, the target set is broad, or inline reading would inflate context without need. If the user explicitly asks to keep this specific exploration inline, acknowledge the context-cost tradeoff once, do that exploration inline only while it remains safe/manageable, and do not keep arguing; this override applies only to that exploration and does not relax the hard gates.
+2. **Multi-file write rule (default delegation preference)**: if implementation will touch 4+ non-trivial files, delegate one writer by default. Keep 1-3 file fixes inline when the change is already understood, safe, and manageable. If the user explicitly asks to keep that specific 4+ file write inline, acknowledge the context/reliability tradeoff once, keep the work tightly scoped, do not split a logically multi-file change into artificial smaller edits just to evade the rule, and continue inline only while the task remains safe and manageable. Any inline multi-file code change still triggers the fresh review rule immediately after the write batch; do not continue toward commit/push/PR without that fresh-context review.
 3. **Review lens rule (hard gate)**: before commit, push, or PR after code changes, run the concrete review lens(es) selected by Review Lens Selection unless the diff is trivial docs/text.
 4. **Incident rule (hard gate)**: after wrong `cwd`, accidental repo/worktree mutation, merge recovery, confusing test command, or environment workaround, stop and run the concrete audit/review lens(es) selected by Review Lens Selection before continuing.
-5. **Long-session rule (hard stop for complexity pressure)**: after roughly 20 tool calls, 5 exploratory file reads, or 2 non-mechanical edits without delegation and growing complexity, pause and delegate the remaining work. If delegation tooling is unavailable, document the blocker and stop the complex work instead of stretching the inline exception further.
+5. **Long-session rule (hard stop for complexity pressure)**: after roughly 20 tool calls, 8 exploratory file reads, or 3 non-mechanical edits without delegation and growing complexity, pause and delegate the remaining work. If delegation tooling is unavailable, document the blocker and stop the complex work instead of stretching the inline exception further.
 6. **Fresh review rule (hard gate)**: use fresh context with the selected concrete review lens(es) for adversarial review of diffs, conflicts, PR readiness, and incidents; use continuity/forked context only for implementation work that needs inherited state.
 
 #### Review Lens Selection

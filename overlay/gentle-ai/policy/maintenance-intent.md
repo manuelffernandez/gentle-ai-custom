@@ -109,8 +109,10 @@ Preserve as much as possible of:
 ### Scoped inline delegation overrides
 
 - Hard gates remain non-bypassable by chat: safety, permission, data-loss, security, commit/push/PR, review-after-code-changes, and incident safeguards.
-- Default behavior: delegate exploration that needs 4+ files and multi-file writes that touch 2+ non-trivial files.
-- If the user explicitly asks to keep one specific 4+ file exploration or one specific scoped multi-file write inline, honor that request for that task only, acknowledge the context/reliability tradeoff once, keep the scope tight, and do not keep resisting it.
+- Default behavior: for exploration that needs 5+ files, run a metadata-only size preflight before deciding; delegate when file size is large/unknown or inline reading would inflate context without need. Delegate multi-file writes that touch 4+ non-trivial files.
+- The size preflight must use file paths and byte sizes only; do not read file contents just to decide whether to delegate.
+- Keep exploration inline when the 5+ files are small and the total context remains manageable. Keep 1-3 file fixes inline when the change is already understood, safe, and manageable.
+- If the user explicitly asks to keep one specific 5+ file exploration or one specific scoped 4+ file write inline, honor that request for that task only, acknowledge the context/reliability tradeoff once, keep the scope tight, and do not keep resisting it.
 - Do not split a logically multi-file change into artificial smaller edits just to evade the default delegation preference; the scoped override exists so the rule can be honored directly when the task remains safe and manageable.
 - These overrides do not weaken the review-after-code-changes gate: any inline multi-file code change still requires fresh review immediately after that write batch, before continuing toward commit/push/PR.
 - These overrides do not weaken incident safeguards or any other hard safety/permission/data-loss/security/commit-push-PR rule.
