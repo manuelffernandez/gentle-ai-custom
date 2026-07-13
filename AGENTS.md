@@ -261,13 +261,17 @@ This repository is now a **unified custom layer** on top of Gentle AI.
 It does two classes of work:
 
 1. **Custom overlays owned by the user**
-   - `commit-planner`
-   - `pr-finalizer`
+   - `commit-planner` as the explicit user-invoked operational layer for local commits
+   - sanitized repo-owned `branch-pr` as the preferred final PR workflow
+   - sanitized repo-owned `chained-pr` and `issue-creation` runtime copies for explicit GitHub repo scoping
+   - `pr-finalizer` as temporary deprecated compatibility during the migration
    - generated wrappers/commands per target
 
 2. **Maintenance/depuration of upstream Gentle AI behavior**
    - audit the upstream `gentle-orchestrator` asset before sync/reinstall work
-   - prune unwanted workflow skills
+   - prune only explicitly rejected upstream skills that stay outside the maintained runtime target
+   - keep approved upstream `work-unit-commits`, `chained-pr`, and `issue-creation` snapshots for audit/sync when they do not conflict with the local layer
+   - keep the upstream `branch-pr` copy pruned because its mandatory issue-first rule conflicts with the local PR workflow, then reinstall the repo-owned sanitized `branch-pr`
    - set runtime model overrides for built-in OpenCode agents
 	- refresh approved upstream asset snapshots for diff/review
 	- maintain a repo-owned SDD/orchestrator runtime layer
@@ -297,8 +301,11 @@ The maintenance model is intentionally split into:
 - `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md` — maintainer workflow, only active when OpenCode is in this project
 
 **Layer 2 — Globally installed via apply script:**
+- `shared/skills/branch-pr/SKILL.md`
+- `shared/skills/chained-pr/SKILL.md`
 - `shared/skills/code-design/SKILL.md`
 - `shared/skills/commit-planner/SKILL.md`
+- `shared/skills/issue-creation/SKILL.md`
 - `shared/skills/judgment-retrospective/SKILL.md`
 - `shared/skills/package-security/SKILL.md`
 - `shared/skills/pr-finalizer/SKILL.md`
@@ -312,21 +319,23 @@ The maintenance model is intentionally split into:
 
 The `Keep` list below is the retained upstream-skill baseline only. Repo-owned shared skills and overlay-owned runtime hooks are tracked separately in the sections above, so do not infer the install surface from this list alone.
 
+`chained-pr` and `issue-creation` are dual-tracked on purpose: approved upstream snapshots stay retained for audit/sync, while `shared/skills/` provides the sanitized runtime copies that apply installs.
+
 Keep:
 - `_shared`
+- `chained-pr`
 - `cognitive-doc-design`
 - `comment-writer`
 - `go-testing`
+- `issue-creation`
 - `judgment-day`
 - `sdd-init`, `sdd-explore`, `sdd-propose`, `sdd-spec`, `sdd-design`, `sdd-tasks`, `sdd-apply`, `sdd-verify`, `sdd-archive`, `sdd-onboard`
 - `skill-registry`, `skill-creator`, `skill-improver`
+- `work-unit-commits`
 
 Prune:
 - `branch-pr`
-- `chained-pr`
-- `issue-creation`
 - `hermes-ephemeral-delegation`
-- `work-unit-commits`
 
 Built-in OpenCode agent overrides:
 - `general` → `openai/gpt-5.4` / `high`
@@ -421,7 +430,7 @@ Adoption rule:
 - If the upstream delta is overlay-relevant and the maintained runtime target stays effectively compatible, use `gentle-ai sync` and then re-apply the overlay.
 - Do NOT recommend a full reinstall only because upstream added support for a new agent or platform that does not affect the runtime target/materialized state this repo actually maintains.
 - Recommend a full reinstall when adopted upstream changes affect topology, presets, or materialization for the maintained runtime target, or when `gentle-ai sync` cannot materialize the required state.
-- Keep rejecting upstream changes that reintroduce `chained-pr` governance or review-workload gates into the repo-owned orchestrator behavior unless the user explicitly changes maintenance intent.
+- Compare upstream commit/PR workflow changes against the explicit local customizations in `maintenance-intent.md`; sanitize only when they conflict with that smaller local layer.
 
 Operational reminders:
 

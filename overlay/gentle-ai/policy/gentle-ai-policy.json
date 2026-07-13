@@ -14,9 +14,11 @@
   "skills": {
     "keep": [
       "_shared",
+      "chained-pr",
       "cognitive-doc-design",
       "comment-writer",
       "go-testing",
+      "issue-creation",
       "judgment-day",
       "sdd-apply",
       "sdd-archive",
@@ -30,13 +32,12 @@
       "sdd-verify",
       "skill-creator",
       "skill-improver",
-      "skill-registry"
+      "skill-registry",
+      "work-unit-commits"
     ],
     "prune": [
       "branch-pr",
-      "chained-pr",
-      "issue-creation",
-      "work-unit-commits"
+      "hermes-ephemeral-delegation"
     ]
   },
   "opencode": {

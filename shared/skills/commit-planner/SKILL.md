@@ -52,8 +52,20 @@ If neither is present in the current message, this skill does not apply — rega
 5. If a clean plan would require splitting the **same file** across different commits, **stop and report the blocker**.
 6. Never stage or commit likely secrets (`.env`, credential files, tokens, generated secret dumps).
 7. Never push, open PRs, or edit PRs as part of this skill. That belongs to a separate release/PR flow.
-8. State-changing steps (`git add`, `git commit`) require explicit user approval.
+8. State-changing steps (`git add`, `git commit`) require explicit user approval, except when the user explicitly invoked `auto` / `/commit-fast`.
 9. **Language constraint**: Unless the user explicitly requests otherwise, all generated commit messages, plan bodies, and comments must be in **ENGLISH**.
+
+## Grouping Criteria — use `work-unit-commits` when available
+
+- If the runtime exposes `work-unit-commits`, read and use it as a **criteria source** before finalizing the grouping.
+- Do **not** execute, delegate to, or hand control to `work-unit-commits`. `commit-planner` remains the skill that proposes or executes the plan.
+- When `work-unit-commits` is available, each proposed commit should be evaluated as a reviewable work unit with:
+  - a clear unit of change
+  - tests/docs grouped with the change when they are part of the same proof
+  - a rollback boundary that still makes sense if reverted alone
+  - verification evidence worth citing in the plan
+  - a note about PR-slice readiness or whether the work belongs inside a chained/review-budget split
+- If `work-unit-commits` is not available, apply the same criteria directly.
 
 ## Read-Only Evidence Gathering
 
@@ -86,7 +98,9 @@ Do NOT run `git fetch` at any point. Detection is passive — based solely on th
 When building the plan:
 
 - Prefer **one commit per coherent intention**, not per folder by default
+- Prefer **one reviewable work unit per commit** when that improves history clarity
 - Keep infrastructure, docs, tests, and implementation changes separate only when that improves history clarity
+- Keep tests and docs with the implementation change when they are part of the same proof
 - If all changed files belong to one single behavioral change, prefer a single commit
 - If there are unrelated changes in the working tree, call them out explicitly and either:
   - exclude them from the plan, or
@@ -106,6 +120,7 @@ Return a proposal with this structure:
 
 - `Working Tree Summary`
 - `Convention Source`
+- `Grouping Criteria Source`
 - `Proposed Commits`
 - `Excluded or Blocked Files`
 - `Approval Prompt`
@@ -113,9 +128,13 @@ Return a proposal with this structure:
 Inside `Proposed Commits`, include for each commit:
 
 - commit number
+- work unit
 - intent / rationale
 - files to stage
 - suggested commit message
+- verification evidence
+- rollback boundary
+- PR-slice / chained-budget note
 
 `plan` mode is strictly read-only.
 
@@ -181,4 +200,4 @@ Natural-language triggers:
 ## Resources
 
 - **Agent-level instruction surface** when present (examples: `~/.config/opencode/AGENTS.md`, `~/.claude/CLAUDE.md`)
-- **Examples of release / PR conventions** in repo-local docs or companion skills such as `branch-pr` when available
+- **Examples of commit / review conventions** in repo-local docs or companion skills such as `work-unit-commits` when available

@@ -1,173 +1,162 @@
 # Maintenance Intent — Gentle AI Custom
 
-## Why this repo exists
+This file is the semantic source of truth for how this repo maintains a small local layer on top of Gentle AI.
 
-`gentle-ai-custom` exists to preserve the valuable technical capabilities of Gentle AI without automatically accepting workflow conventions that do not apply to the user's personal flow.
+The current strategy is **upstream-first migration**: move the overlay toward the current Gentle AI v2 runtime behavior, keep only explicit local customizations, and avoid carrying old overlay patches forward unless they still solve a confirmed problem.
 
-The goal is not to fork the upstream or replace it. The goal is to interpose a local layer that:
+## Current baseline
 
-- preserves SDD and useful utilities
-- prunes unwanted PR/branch/review-budget conventions
-- maintains explicit and reviewable local criteria
+- Last maintained boundary before this strategy shift: `v1.44.3`.
+- New migration target: current Gentle AI v2+ upstream behavior, to be pinned in `upstream-state.json` only after the v2 audit/adoption event closes.
+- The local overlay must be reduced while preserving the customizations listed in this file.
+- Do not treat old v1.44-era owned runtime assets as authoritative just because they exist in the repo.
 
-## What we want to keep
+## Why this repo exists now
 
-We want to keep anything that improves structure, reasoning, and technical quality:
+`gentle-ai-custom` exists to keep a small set of local preferences and owned skills installable after Gentle AI updates.
 
-- the full SDD flow
-- skill resolver / registry
-- documentation and commenting utilities
-- useful testing
-- skill creation and improvement
-- adversarial review
+It should not be a broad fork of Gentle AI.
 
-## What is NOT versioned
+The goal is to:
 
-Local, per-machine choices regarding OpenCode SDD profiles are not part of the shared repository policy.
+- follow upstream SDD/runtime behavior by default
+- preserve a small list of explicit local customizations
+- keep maintainer decisions reviewable before runtime mutation
+- avoid reintroducing old patches without fresh evidence that they are still needed
 
-This includes:
+## What we keep as local overlay behavior
 
-- `model` and `variant` assignments per named SDD profile
-- custom user profile names (`sdd-orchestrator-<profile>` and their associated phases)
-- per-profile orchestrator snapshots (`sdd-orchestrator-<profile>.last.md`)
-- any local combination of providers/models intended for a single machine or personal preference
+Keep these customizations unless the user explicitly changes this intent:
 
-Those decisions live outside the repo, in `~/.config/gentle-ai-custom/opencode-local-config.json`.
+- `judgment-retrospective` as a repo-owned shared skill.
+- The `judgment-day` runtime hook that invokes `judgment-retrospective` at terminal completion.
+- `package-security` as a repo-owned shared skill.
+- `code-design` as a repo-owned shared skill.
+- `commit-planner` as the preferred local commit-planning workflow.
+- A sanitized repo-owned `branch-pr` as the preferred local PR finalization workflow.
+- Sanitized repo-owned runtime copies of `chained-pr` and `issue-creation` so GitHub CLI actions resolve an explicit `owner/repo` and avoid wrong-repo mutation.
+- `pr-finalizer` as a temporary deprecated compatibility skill during the `branch-pr` migration.
+- Agent-Readable Markdown Standard for agent-consumed Markdown.
+- `no-auto-commit`: never commit, push, or create PRs unless the user explicitly asks.
+- Gemini anti-sycophancy guardrails for direct replies when a Gemini model is active.
 
-That canonical local config also owns:
+## What we acquire from upstream by default
 
+Acquire current upstream behavior by default for:
+
+- SDD orchestration and phase behavior.
+- Review and remediation lifecycle.
+- Review receipts, review state, and native upstream review gates.
+- Engram protocol updates.
+- OpenCode command surfaces and runtime materialization that are not in direct conflict with the local customizations above.
+- PR strategy, review-budget, chained PR, and work-unit concepts, unless they directly conflict with an explicit local customization or the user rejects them in a concrete maintenance decision.
+- `issue-creation` as an optional upstream issue workflow when it helps the user's process.
+- Approved upstream `chained-pr` and `issue-creation` snapshots remain retained for audit/sync even though runtime installation uses sanitized repo-owned shared copies for explicit GitHub repo scoping.
+- Upstream `branch-pr` remains the explicit exception: keep the upstream copy pruned because its mandatory issue-first rule conflicts with the local workflow where not every PR should require an approved issue. Replace it locally with the sanitized repo-owned `branch-pr` skill instead.
+
+Upstream-first means these areas are not rejected globally anymore, except for explicit confirmed conflicts such as the upstream `branch-pr` copy.
+
+## What we do not carry forward as local patches
+
+Do not preserve these v1.44-era local patches by default:
+
+- custom delegation thresholds
+- metadata-only file-size preflight as a local orchestration rule
+- scoped inline multi-file override rules
+- custom review/fix anti-loop convergence guard
+- old local SDD review lifecycle behavior that predates upstream v2 review/remediation
+
+If a similar problem reappears on the v2 baseline, solve it against the v2 design instead of copying the old patch forward.
+
+## Commit and PR workflow boundary
+
+The repo keeps `commit-planner` and the sanitized repo-owned `branch-pr` as opt-in local workflows.
+
+`pr-finalizer` remains installable only as temporary deprecated compatibility while commands and references migrate to `branch-pr`.
+
+These tools may replace the user's day-to-day use of upstream commit/PR skills, but they do not authorize self-initiated commits, pushes, or PR creation. State-changing actions still require explicit user invocation and the approval boundaries defined by each command.
+
+`work-unit-commits` stays retained from upstream as the default planning criterion when commit grouping is needed.
+
+Relationship:
+
+- `work-unit-commits` defines the grouping standard: reviewable work units, tests/docs with the change when appropriate, rollback boundary, evidence, and awareness of chained-PR or review-budget slicing.
+- `commit-planner` is the local operational layer: when the user explicitly invokes `/commit-plan`, `/commit-apply`, or `/commit-fast`, it should use that retained upstream criterion when available and then propose or execute concrete local commits.
+
+Rules:
+
+- Keep `commit-planner` and its commands installable.
+- Keep the repo-owned sanitized `branch-pr` installable as the preferred PR workflow skill.
+- Keep sanitized repo-owned `chained-pr` and `issue-creation` installable while retaining their approved upstream snapshots for audit/sync.
+- Keep `pr-finalizer` installable temporarily as deprecated compatibility.
+- Preserve the `no-auto-commit` rule above them.
+- When upstream adds or changes commit/PR workflows, compare them against these tools instead of assuming either side wins automatically. Upstream `branch-pr` remains a confirmed conflict and stays pruned; `work-unit-commits`, `chained-pr`, and `issue-creation` are retained by default, with `issue-creation` remaining contextual rather than universal.
+- If command names collide, stop and ask before choosing which command owns the runtime entrypoint.
+
+## Judgment Day boundary
+
+The retrospective handoff is local behavior and should be preserved.
+
+The base `judgment-day` protocol should track upstream unless the hook requires a minimal owned runtime wrapper.
+
+When updating against upstream:
+
+- Start from upstream `judgment-day` behavior.
+- Add only the retrospective handoff needed to invoke `judgment-retrospective`.
+- Do not keep older custom Judgment Day protocol differences unless the user explicitly approves them after review.
+
+## Agent-readable Markdown boundary
+
+The Agent-Readable Markdown Standard remains local runtime policy.
+
+Apply it to Markdown whose primary audience is agents or LLMs, including:
+
+- `AGENTS.md`
+- `SKILL.md`
+- maintainer docs
+- intent and policy docs
+- runtime instruction files
+
+Keep this standard as a small, explicit policy layer. Do not use it as a reason to rewrite unrelated human docs during upstream adoption.
+
+## Runtime and config ownership
+
+Local, per-machine choices regarding OpenCode models and SDD profiles are not part of shared repo policy.
+
+These live outside the repo in `~/.config/gentle-ai-custom/opencode-local-config.json`:
+
+- `model` and `variant` assignments
+- custom named SDD profiles
 - optional `upstream_repo_path`
 - optional `opencode_config_path`
-- optional explicit `agent_overrides` for built-in agent keys
+- explicit built-in agent overrides
 
-Runtime and audit sources are separated by scope:
+The versioned repo owns portable runtime intent and installer behavior only.
 
-- `overlay/gentle-ai/assets/owned/opencode/prompts/orchestrators/gentle-orchestrator.md` is the canonical repo-owned runtime source
-- `overlay/gentle-ai/assets/upstream/opencode/prompts/orchestrators/gentle-orchestrator.md` is the approved upstream audit baseline
-- There is no stored upstream `AGENTS.md` in the OpenCode snapshot tree; the runtime `AGENTS.md` surface is materialized directly from the upstream `persona-gentleman.md` + `engram-protocol.md` inputs in that order.
-- `overlay/gentle-ai/assets/owned/opencode/AGENTS.md` is the repo-owned runtime copy of that surface, extended with local overlay semantics (`no-auto-commit`, Gemini anti-sycophancy, etc.)
+## Managed asset boundary
 
-The versioned policy preserves portable runtime intent plus the approved upstream baseline; local profile configuration is projected to `opencode.json` at runtime and must not be copied back into `gentle-ai-policy.json`.
-
-The global OpenCode `AGENTS.md` surface is overlay-owned completely. Its runtime content is materialized directly from the upstream OpenCode persona + engram sources into the repo-owned runtime copy, then extended with repo-owned local overlay semantics; it is not maintained through ad-hoc post-apply mutation.
-
-## What we want to prune
-
-We want to prune conventions that impose a specific way of collaborating in repositories:
-
-- `branch-pr`
-- `chained-pr`
-- `issue-creation`
-- `work-unit-commits`
-- `hermes-ephemeral-delegation` and other Hermes-only upstream additions outside the maintained OpenCode runtime target
-- orchestrator blocks that impose:
-  - PR strategy
-  - review budget
-  - chained/stacked PRs
-  - `size:exception`
-  - reviewer burnout protection as a PR policy
-
-## Repo-owned orchestrator behavior goals
-
-The repo-owned OpenCode orchestrator asset must keep core SDD orchestration behavior while removing PR/budget workflow governance.
-
-### Remove (hard rule)
-
-When updating the repo-owned orchestrator asset, remove or neutralize all content tied to:
-
-- PR strategy selection in SDD preflight
-- review budget / changed-lines budget gates
-- chained/stacked PR flow control
-- size-exception policy handling
-- review workload forecast branching before `sdd-apply`
-
-This includes both explicit sections and references embedded inside other sections.
-
-### Preserve (hard rule)
-
-Preserve as much as possible of:
-
-- coordinator/delegation role boundaries
-- SDD command map and routing
-- session preflight concept (execution mode + artifact store)
-- init guard
-- dependency graph
-- result contract
-- skill resolver protocol
-- sub-agent context protocol
-- strict TDD forwarding
-- apply-progress continuity
-- topic-key conventions
-
-### Guardrails
-
-- The repo-owned orchestrator prompt must remain a standalone valid prompt.
-- Do not inject repo-specific hacks into core orchestration logic.
-- Keep wording as close to upstream as possible unless removal requires a minimal rewrite.
-- Prefer explicit owned-file edits over dynamic transformation logic.
-
-### Scoped inline delegation overrides
-
-- Hard gates remain non-bypassable by chat: safety, permission, data-loss, security, commit/push/PR, review-after-code-changes, and incident safeguards.
-- Default behavior: for exploration that needs 5+ files, run a metadata-only size preflight before deciding; delegate when file size is large/unknown or inline reading would inflate context without need. Delegate multi-file writes that touch 4+ non-trivial files.
-- The size preflight must use file paths and byte sizes only; do not read file contents just to decide whether to delegate.
-- Keep exploration inline when the 5+ files are small and the total context remains manageable. Keep 1-3 file fixes inline when the change is already understood, safe, and manageable.
-- If the user explicitly asks to keep one specific 5+ file exploration or one specific scoped 4+ file write inline, honor that request for that task only, acknowledge the context/reliability tradeoff once, keep the scope tight, and do not keep resisting it.
-- Do not split a logically multi-file change into artificial smaller edits just to evade the default delegation preference; the scoped override exists so the rule can be honored directly when the task remains safe and manageable.
-- These overrides do not weaken the review-after-code-changes gate: any inline multi-file code change still requires fresh review immediately after that write batch, before continuing toward commit/push/PR.
-- These overrides do not weaken incident safeguards or any other hard safety/permission/data-loss/security/commit-push-PR rule.
-
-### Review/fix convergence guard
-
-- The repo-owned orchestrator must not alternate delegated review and delegated fix rounds indefinitely.
-- Default convergence path: one delegated fix round after a fresh review iteration, then one scoped re-review iteration when the change is non-trivial code or otherwise needs fresh judgment.
-- A review iteration may include multiple selected lenses, including full 4R (`review-risk`, `review-resilience`, `review-readability`, `review-reliability`); the guard limits repeated fix/re-review cycles, not the number of lenses in one iteration.
-- If re-review returns small, local, or already-understood residual findings, the orchestrator may fix them inline when safe instead of delegating another writer.
-- Another delegated fix round is allowed only for a new high-risk issue, security/data-loss exposure, broad behavior change, unclear implementation context, or a fix that is no longer safe/manageable inline.
-- If the same issue pattern survives the fix round, the orchestrator stops the loop and asks the user or escalates to judgment-day with a concise summary of what was attempted.
-- This guard caps automatic delegation loops; it does not weaken fresh-review, incident, security, permission, data-loss, or commit/push/PR gates.
-
-## Why these conventions do not apply
-
-They might be valid for the upstream project or for other teams, but they are not the source of truth for the local workflow.
-
-In this environment:
-
-- the value lies in technical capabilities, not in PR governance
-- repository collaboration is handled with our own tools and criteria
-- the agent must not impose a branch/PR workflow unless explicitly requested by the user
-- the orchestrator should keep SDD coordination value without reintroducing repository-governance policy by default
-
-## How to evaluate upstream changes
-
-### Relevant changes for the overlay
-
-They are relevant when they affect observable behavior, local user experience, or assets managed by this repo. Examples:
-
-- new skills or changes to existing skills
-- changes in orchestrator or subagent prompts
-- changes in install/sync or asset generation
-- new workflow conventions imposed by default
-- changes in OpenCode profiles, agent references, or model tables
-- changes that require adding, removing, or reclassifying entries in `policy/managed-assets.json`, including owned/upstream paths, runtime targets, sync modes, or structural invariant coverage
-
-### Low-priority changes or noise
-
-They normally do not require touching the overlay if they don't change observable behavior:
-
-- internal bugfixes with no impact on prompts, skills, or generated config
-- internal maintenance chores
-- refactors without functional changes
-- upstream docs that do not alter the runtime or assets
-- manifest-only churn in `policy/managed-assets.json` that does not change owned assets, approved upstream copies, runtime targets, or audit/apply behavior
-
-## Managed-assets boundary
-
-`policy/managed-assets.json` is the machine-readable asset ownership and installation map for audit/sync/apply.
+`overlay/gentle-ai/policy/managed-assets.json` is the machine-readable map for audit, sync, and apply.
 
 It does not define intent by itself.
 
-If the manifest and this file diverge, this file defines the meaning of what should be kept, pruned, staged, or installed, and the manifest must be brought back into alignment after human confirmation.
+If the manifest conflicts with this file, this file wins semantically and the manifest must be updated after human confirmation.
+
+## Maintainer workflow
+
+Before mutating repo or runtime state for upstream alignment:
+
+1. Confirm the current upstream version and dirty state.
+2. Audit drift against the last maintained boundary.
+3. Classify each meaningful change as `Adquirir`, `Sanitizar`, or `Ignorar`.
+4. Produce a concise pre-mutation decision summary.
+5. Stop for explicit user approval.
+
+After approval:
+
+- update owned assets, policy, docs, and state together when needed
+- keep Bash and PowerShell entrypoints behaviorally equivalent when either side changes
+- run the relevant verification
+- run one fresh-context consistency review before closing maintenance work
 
 ## Maintenance log scope
 
@@ -178,40 +167,30 @@ Log only:
 - closed upstream audit outcomes
 - adopted, rejected, or postponed upstream changes or ranges
 - maintenance contract or policy decisions tied to upstream alignment
-- tooling/runtime changes that affect audit/apply/recover/verify behavior against upstream
+- tooling/runtime changes that affect audit, apply, recovery, or verification against upstream
 - maintenance incidents and recoveries
 
 Do not log:
 
 - documentation wording cleanups
 - repo-local refactors with no upstream-maintenance impact
-- new local features or skills unrelated to upstream maintenance
 - cosmetic edits or intermediate iterations already explained by Git history
 
-Keep one consolidated entry per closed maintenance event. If no maintenance decision or incident was closed, do not update the log.
+Keep one consolidated entry per closed maintenance event.
 
-## Mandatory human gate
+## Human gate
 
-If relevant changes appear during the audit that could modify:
+Stop and ask before changing:
 
-- keep/prune
-- the repo-owned orchestrator behavior
-- the interpretation of what to keep or prune
-
-the agent must **stop and ask** before changing intent, policy, or scripts.
-
-## What must be updated after a human decision
-
-Once the decision is made:
-
-- `maintenance-intent.md` if the intent changed
-- `gentle-ai-policy.json` if the operational policy changed
-- `managed-assets.json` if the approved upstream asset map, owned runtime assets, runtime targets, sync modes, or structural invariant coverage changed
-- `upstream-state.json` when maintenance is closed
-- `update-log.md` only when a closed, eligible maintenance event or contract change needs high-signal traceability beyond Git history
+- the retained local customization list
+- the upstream-first acquisition policy
+- the commit/PR workflow boundary
+- the Judgment Day boundary
+- managed asset ownership or runtime targets
+- install/apply behavior
 
 ## Final rule
 
 Intent overrides automation.
 
-If a script, `gentle-ai-policy.json`, `managed-assets.json`, or a skill conflicts with this file, the agent must treat this document as the semantic source of truth and ask for human confirmation before proceeding.
+If a script, policy file, managed-assets manifest, runtime asset, or skill conflicts with this file, treat this file as the semantic source of truth and ask for human confirmation before proceeding.

@@ -142,7 +142,7 @@ Los scripts `audit-gentle-ai-upstream` y `sync-gentle-ai-upstream-assets` se pue
 - Es preferible usar `gentle-ai sync` si los cambios que adoptamos sirven, pero no rompen de forma profunda cómo están configurados los agentes y perfiles.
 - Conviene hacer una reinstalación completa cuando los cambios del proyecto original afectan la estructura básica de los perfiles que usamos, o cuando un simple `gentle-ai sync` ya no alcanza para armar bien la configuración.
 - Si el proyecto original agrega soporte para un nuevo agente o plataforma que no usamos, no hace falta reinstalar.
-- Si el proyecto original intenta forzar de nuevo el uso de PRs encadenadas (chained PRs) u otras reglas que ya decidimos sacar, se deben seguir sanitizando a menos que cambies explícitamente de idea.
+- Las reglas del proyecto original sobre estrategia de PR, PRs encadenadas y presupuesto de revisión se adoptan por defecto. Solo se sanitizan si chocan con una personalización local explícita.
 
 ### Qué hace el comando `apply-gentle-ai-custom`
 
@@ -213,7 +213,7 @@ Toda la guía para humanos está en `overlay/gentle-ai/maintenance.md`. El compo
 
 Esta sección resume la policy en lenguaje humano. El detalle más preciso, técnico y normativo vive en `overlay/gentle-ai/policy/maintenance-intent.md`.
 
-La idea general es simple: esta capa conserva lo que suma capacidad técnica real al trabajo con IA y poda lo que intenta imponer una manera específica de manejar ramas, PRs y carga de revisión. El valor que quiero mantener de Gentle AI está en SDD, testing, documentación, skill tooling y revisión técnica; no en gobernanza de colaboración que no aplica a mi flujo personal.
+La idea general ahora es **upstream-first**: esta capa arranca desde el comportamiento actual de Gentle AI v2+, conserva unas pocas personalizaciones locales explícitas y evita seguir cargando parches viejos si ya no hacen falta. El foco está en mantener un overlay chico y entendible.
 
 ### Skills del overlay
 
@@ -238,37 +238,39 @@ La idea general es simple: esta capa conserva lo que suma capacidad técnica rea
 | `skill-creator`        | Se conserva | Ayuda a crear nuevas skills.                                                   | Hace extensible la capa custom.                                                                                                              |
 | `skill-improver`       | Se conserva | Ayuda a revisar y mejorar skills existentes.                                   | Permite evolucionar tooling propio con criterio.                                                                                             |
 | `skill-registry`       | Se conserva | Indexa las skills disponibles y sus triggers.                                  | Hace mantenible el ecosistema de skills.                                                                                                     |
-| `branch-pr`            | Se poda     | Empuja un workflow de branch + PR predefinido.                                 | Esa gobernanza no forma parte de mi flujo local.                                                                                             |
-| `chained-pr`           | Se poda     | Empuja PRs encadenadas/stacked como mecánica de trabajo.                       | No quiero que el agente imponga ese modelo por defecto.                                                                                      |
-| `issue-creation`       | Se poda     | Empuja la creación de issues dentro del proceso.                               | No necesito que el flujo técnico dependa de ese ritual.                                                                                      |
+| `branch-pr`            | Se sanitiza | La copia upstream se poda, pero se reinstala como skill repo-owned para crear o regenerar PRs desde cambios ya commiteados. | Conserva el nombre y lo útil del flujo de PR, pero elimina el issue-first universal: issue link, labels y checks quedan como policy contextual del repo, no como regla global. |
+| `chained-pr`           | Se retiene + se sanitiza en runtime | El snapshot upstream sigue auditado, pero `apply` instala una copia repo-owned sanitizada para PRs encadenadas o stacked. | Conserva el workflow upstream y solo agrega una protección operativa: resolver `owner/repo` y usar `--repo` en comandos `gh`, evitando mutaciones sobre el repo equivocado. |
+| `issue-creation`       | Se retiene + se sanitiza en runtime | El snapshot upstream sigue auditado, pero `apply` instala una copia repo-owned sanitizada para crear o editar issues. | Mantiene la semántica upstream y agrega scoping explícito de `owner/repo` más ejecución segura por argumentos para evitar mutaciones sobre el repo equivocado. |
 | `hermes-ephemeral-delegation` | Se poda     | Queda fuera del boundary mantenido de OpenCode.                                 | No forma parte del comportamiento mantenido local.                                                                                           |
-| `work-unit-commits`    | Se poda     | Impone una estrategia particular de commits por unidad.                        | Prefiero decidir ese criterio según contexto, no como policy fija.                                                                           |
+| `work-unit-commits`    | Se adquiere | Trae el workflow upstream para dividir cambios en unidades de trabajo.         | Se conserva como criterio upstream de agrupación: work units revisables, evidencia, rollback boundary y awareness de chained/review-budget. |
 | `code-design`          | Se agrega   | Ayuda a pensar estructura, separación de responsabilidades y diseño de código. | Es una mejora concreta para calidad técnica diaria.                                                                                          |
-| `commit-planner`       | Se agrega   | Ordena cambios en commits coherentes.                                          | Sí impone una forma de agrupar commits, pero esa gobernanza responde a mi criterio personal de trabajo y por eso la quiero disponible.       |
+| `commit-planner`       | Se agrega   | Ordena cambios en commits coherentes.                                          | Queda como capa operativa local: cuando la invoco, propone o ejecuta commits explícitos y usa `work-unit-commits` como criterio si existe. |
 | `package-security`     | Se agrega   | Revisa riesgos al instalar o actualizar paquetes.                              | Agrega una capa práctica de seguridad de supply chain.                                                                                       |
-| `pr-finalizer`         | Se agrega   | Ayuda a preparar o regenerar PRs a partir de cambios ya hechos.                | Sí introduce una manera concreta de cerrar PRs, pero en este caso refleja mi forma elegida de prepararlas y por eso se incorpora al overlay. |
+| `pr-finalizer`         | Compat temporal | Sigue instalada de forma transitoria para referencias viejas mientras migra la capa final de PR a `branch-pr`. | Ya no es la skill preferida: queda como compatibilidad/deprecada hasta terminar la migración de comandos y referencias. |
 
 ### Comportamiento del orchestrator repo-owned
 
-El overlay NO rompe el corazón técnico del orchestrator. Lo que hace es mantener una versión repo-owned que ya excluye la parte de gobernanza de PRs y carga de revisión, para dejar un coordinador SDD útil pero sin preguntas ni gates que no aplican a este flujo.
+El overlay está migrando hacia el comportamiento upstream de SDD y del orchestrator de Gentle AI v2+. La idea ya no es mantener un fork grande con reglas locales viejas, sino conservar solo una capa chica y explícita. La frontera mantenida exacta se fija recién cuando se cierre la auditoría/adopción en `upstream-state.json`.
 
-Por defecto, una exploración recién considera delegación al llegar a 5 o más archivos, y antes de delegar tiene que mirar tamaños por metadata —paths y bytes, sin leer contenido—. Si son archivos chicos y el contexto sigue manejable, puede leerlos inline. Para fixes, el default pasa a ser inline hasta 3 archivos cuando el cambio está entendido y sigue siendo seguro; 4 o más archivos no triviales vuelven a delegación por defecto. Si vos pedís explícitamente mantener inline una exploración puntual o un multi-file write bien acotado, el orchestrator lo puede aceptar: marca una sola vez el costo de contexto/confiabilidad, mantiene el alcance cerrado y no sigue resistiendo si la tarea sigue siendo segura y manejable.
+Se mantiene localmente:
 
-También hay una regla anti-loop para reviews: el flujo normal es una ronda de fix delegada después de una iteración de review y, si hace falta, una re-review acotada. Una iteración puede incluir varios lentes —incluso los 4R completos—; lo que se limita es repetir ciclos de fix/re-review sin fin. Si aparecen detalles chicos, locales o ya entendidos, el orchestrator puede corregirlos inline en vez de volver a delegar otro fix. Solo vuelve a delegar si aparece riesgo real: seguridad, pérdida de datos, cambio de comportamiento amplio, contexto poco claro o un fix que ya no es seguro manejar inline.
+- el hook `judgment-day` -> `judgment-retrospective`
+- las skills repo-owned `code-design`, `package-security`, `commit-planner` y la `branch-pr` sanitizada, con `pr-finalizer` como compatibilidad temporal
+- las copias repo-owned sanitizadas de `chained-pr` e `issue-creation` para runtime, mientras sus snapshots upstream siguen retenidos para auditoría
+- las reglas `no-auto-commit`, Agent-Readable Markdown Standard y Gemini anti-sycophancy
 
-Lo que NO se puede saltear por chat son los gates de seguridad, permisos, pérdida o exposición de datos, commit/push/PR, review después de cambios de código e incidentes. Si un multi-file code change queda inline por override, ese review fresh-context se tiene que hacer inmediatamente después de ese batch de escritura, antes de seguir hacia commit/push/PR. Tampoco se vale partir artificialmente un cambio lógicamente multi-file solo para esquivar la preferencia de delegar; la regla ya permite ese override puntual cuando corresponde.
+Se adquiere desde upstream por defecto:
 
-| Qué se modifica                                                                                      | Intención                                                                                                   |
-| ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Se eliminan las preguntas de preflight sobre estrategia de PR encadenadas y presupuesto de revisión. | No quiero que el flujo arranque preguntando cómo gestionar PRs o cuántas líneas aceptar en review.          |
-| Se remueven los bloques del preflight dedicados a PRs y review.                                      | Esa conversación de gobernanza no es parte del valor que busco conservar.                                   |
-| Se quitan secciones como `Delivery Strategy`, `Chain Strategy` y `Review Workload Guard`.            | No quiero que el orchestrator me imponga stacked PRs, budgets o forecast de carga como condición del flujo. |
-| Se elimina la exigencia de “pasar” un guard de workload antes de `sdd-apply`.                        | La implementación no debe depender de un gate pensado para proteger un proceso de review que acá no uso.    |
-| Se neutralizan referencias a `size:exception`, reviewer burden y políticas similares.                | Son reglas válidas en otros contextos, pero no son la fuente de verdad de este entorno.                     |
-| Las exploraciones de 5+ archivos hacen preflight de tamaño antes de delegar; los fixes de hasta 3 archivos pueden quedar inline por defecto. | La delegación sigue existiendo para exploraciones grandes y writes de 4+ archivos, pero no se desperdicia una capa agentica cuando los archivos son chicos o el fix está acotado; no afloja seguridad, permisos, datos, commit/push/PR, review ni incidentes, y si hay code changes inline en varios archivos el fresh-context review va inmediatamente después de ese batch antes de seguir. |
-| El ciclo review -> fix -> review tiene una regla de convergencia. | Evita loops automáticos de delegación: después de una ronda de fix y una re-review, los residuos chicos se resuelven inline si es seguro; los riesgos reales se escalan o se consultan. |
+- el comportamiento SDD/orchestrator
+- el lifecycle moderno de review y remediation
+- `issue-creation` cuando haga falta abrir un issue
+- los conceptos de PR/chained/work-unit/review-budget, salvo conflicto concreto con la capa local
 
-Lo que se preserva es la parte valiosa: delegación, routing SDD, preflight básico, init guard, dependency graph, TDD forwarding, continuidad de apply y protocolos de contexto. En resumen: se conserva la capacidad técnica y se saca la gobernanza de colaboración. La fuente semántica de estas reglas está en `overlay/gentle-ai/policy/maintenance-intent.md`.
+Excepción concreta:
+
+- la copia upstream de `branch-pr` se poda, pero se reemplaza por una `branch-pr` repo-owned sanitizada que no obliga issue aprobado para toda PR
+
+En otras palabras: la fuente semántica ya no es una lista de parches heredados de v1.44, sino `overlay/gentle-ai/policy/maintenance-intent.md`, que define qué queda local y qué vuelve a upstream.
 
 ### Overrides de agentes
 
@@ -352,3 +354,5 @@ Si necesitás ir más allá de los overrides básicos y querés configurar famil
 - `/pr-regenerate`
 
 Todos se instalan desde `shared/` y generan wrappers específicos por agente en tiempo de aplicación.
+
+`/pr-create` y `/pr-regenerate` mantienen el mismo nombre, pero ahora pasan a estar gobernados por `branch-pr`.

@@ -24,8 +24,14 @@ Esta carpeta agrupa los assets operativos del overlay de Gentle AI.
 - `sync-gentle-ai-upstream-assets` hace el repo sync de `assets/upstream/...` más la frontera aprobada; no refresca el runtime.
 - `apply-gentle-ai-custom` usa `assets/owned/...` como source of truth para los prompts/skills/commands SDD del runtime.
 - El runtime refresh (`gentle-ai sync` o reinstalación completa) es un paso separado y depende de si el cambio adoptado afecta el runtime target/materialized state que este repo mantiene.
-- Las reglas de delegación operativa viven en `policy/maintenance-intent.md`: las exploraciones de 5+ archivos hacen preflight de tamaño por metadata antes de delegar, los fixes de hasta 3 archivos pueden quedar inline si son seguros/manejables, y los writes de 4+ archivos delegan por defecto; el ciclo review -> fix -> review también tiene un límite de convergencia para evitar loops automáticos.
+- La estrategia vigente es upstream-first: SDD, orchestrator y workflows de PR/chained/work-unit se adquieren desde upstream por defecto, salvo conflicto concreto con una customización local explícita.
+- `chained-pr`, `issue-creation` y `work-unit-commits` siguen retenidas como parte de esa estrategia.
+- `shared/skills/chained-pr/` y `shared/skills/issue-creation/` instalan copias repo-owned sanitizadas para runtime: preservan la semántica upstream, pero fuerzan resolver `owner/repo`, usar `--repo <owner/repo>` y ejecutar `gh` con argumentos seguros.
+- la copia upstream de `branch-pr` sigue podada porque su regla obligatoria de issue-first choca con el flujo local, pero `shared/skills/branch-pr/` la reemplaza con una versión repo-owned sanitizada.
+- `hermes-ephemeral-delegation` sigue fuera del runtime OpenCode mantenido y permanece como skill upstream no retenida.
 - `shared/skills/` sigue siendo la fuente canónica de las skills repo-owned portables, incluida `judgment-retrospective`.
+- `shared/skills/commit-planner/SKILL.md` sigue siendo la capa operativa local para `/commit-plan`, `/commit-apply` y `/commit-fast`; cuando `work-unit-commits` está disponible, usa ese criterio para agrupar commits.
+- `shared/skills/branch-pr/SKILL.md` pasa a ser la capa operativa local preferida para `/pr-create` y `/pr-regenerate`; `pr-finalizer` queda como compatibilidad temporal.
 - El hook runtime de `judgment-day` vive en `assets/owned/opencode/skills/judgment-day/` y es el que activa automáticamente la retrospectiva terminal.
 
 ## Contrato del informe del maintainer

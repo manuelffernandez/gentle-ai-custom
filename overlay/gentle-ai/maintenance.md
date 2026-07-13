@@ -9,8 +9,7 @@ This file describes the current operating model: `apply-gentle-ai-custom` reinst
 - agent/runtime behavior -> overlay-owned runtime assets first (especially `overlay/gentle-ai/assets/owned/opencode/AGENTS.md`), then maintainer workflow specifics in `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`
 - Markdown style for agent-consumed docs -> overlay-owned runtime standard in `overlay/gentle-ai/assets/owned/opencode/AGENTS.md` (installed to `~/.config/opencode/AGENTS.md`); repo-local additions live in `AGENTS.md` and only supplement it
 - repo ownership and policy -> `AGENTS.md`
-- keep/prune intent and desired orchestrator behavior -> `policy/maintenance-intent.md`
-- the delegation thresholds, scoped inline overrides, and review/fix convergence guard -> `policy/maintenance-intent.md`
+- keep/prune intent, upstream-first boundaries, and explicit local customizations -> `policy/maintenance-intent.md`
 - machine-readable policy -> `policy/gentle-ai-policy.json`
 - maintained upstream boundary -> `state/upstream-state.json`
 - closed-event ledger -> `logs/update-log.md`
@@ -42,12 +41,12 @@ This file describes the current operating model: `apply-gentle-ai-custom` reinst
 
 | Artifact | Role |
 | --- | --- |
-| `policy/maintenance-intent.md` | Human intent: what to keep, depure, and protect |
+| `policy/maintenance-intent.md` | Human intent: upstream-first baseline plus the small local layer to keep |
 | `policy/gentle-ai-policy.json` | Runtime policy consumed by the Go CLI and wrappers |
 | `policy/managed-assets.json` | Canonical map of approved upstream assets and installable owned assets |
 | `assets/upstream/` | Approved upstream copies for review/diff, including the OpenCode snapshot inputs and retained assets: `persona-gentleman.md`, `engram-protocol.md` (mirrors `internal/assets/engram/protocol.md`), the orchestrator prompt, overlay JSONs/plugins, retained `commands/` snapshots, and selected skill snapshots |
 | `assets/owned/` | Repo-owned assets that `apply` installs into runtime, including `~/.config/opencode/AGENTS.md` with local overlay semantics and the owned `judgment-day` runtime hook |
-| `shared/skills/` | Portable repo-owned skills installed globally by `apply`, including the Judgment Day retrospective companion skill that is activated by the `judgment-day` terminal hook |
+| `shared/skills/` | Portable repo-owned skills installed globally by `apply`, including the sanitized `branch-pr`, `chained-pr`, and `issue-creation`, the temporary `pr-finalizer` compatibility skill, and the Judgment Day retrospective companion skill that is activated by the `judgment-day` terminal hook |
 | `shared/commands/` | Source bodies for custom wrappers rendered by `apply` |
 | `state/upstream-state.json` | Last maintained upstream boundary |
 
@@ -81,7 +80,7 @@ No repo mutation happens before that handoff is approved.
 - Prefer `gentle-ai sync` when the adopted change matters to the runtime target this repo actually maintains, but that target's topology, presets, and materialized state remain effectively compatible.
 - Do not recommend reinstall only because upstream added support for some other agent or platform outside the maintained runtime target/materialized state.
 - Recommend a full reinstall when the adopted change affects topology, presets, or materialization for the maintained runtime target, or when `gentle-ai sync` cannot materialize the required state.
-- Keep rejecting upstream attempts to reintroduce `chained-pr`, review-budget, or review-workload governance into the repo-owned orchestrator behavior unless human intent changes first.
+- If upstream changes commit/PR governance, compare it against the explicit local customizations first; only sanitize when there is a concrete conflict.
 
 `Runtime` includes changes to the maintained target's wiring, install path, config, or materialized files even when the agent behavior itself does not change.
 
@@ -98,10 +97,11 @@ No repo mutation happens before that handoff is approved.
 
 - installs repo-owned SDD/runtime assets from `assets/owned/...`
 - rewrites `opencode.json` so the base and SDD profiles use those prompt files
-- prunes rejected upstream skills only in the selected registered targets
+- prunes only explicitly rejected upstream skills in the selected registered targets
 - applies `agent_overrides`
 - reconciles `default_profile` and `profiles`
 - installs repo-owned skills from `shared/skills/`
+- installs the sanitized repo-owned `chained-pr` and `issue-creation` copies while keeping their upstream snapshots retained for audit/sync
 - renders custom wrappers from `shared/commands/`
 
 `apply` no longer depends on sanitization, inline prompt capture, local operational snapshots, snapshot-based recovery, or post-apply `AGENTS.md` mutation.
@@ -129,7 +129,7 @@ No repo mutation happens before that handoff is approved.
 
 After `apply`, confirm this:
 
-- pruned skills no longer exist in each selected registered target
+- explicitly pruned skills no longer exist in each selected registered target
 - each effective `agent_override` resolves to the expected `model` / `variant`
 - `agent.gentle-orchestrator.prompt` points to `~/.config/opencode/prompts/sdd/orchestrators/gentle-orchestrator.overlay.md`
 - `~/.config/opencode/AGENTS.md` matches the repo-owned asset from `assets/owned/opencode/AGENTS.md`

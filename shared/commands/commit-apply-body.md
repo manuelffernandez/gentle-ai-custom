@@ -6,4 +6,5 @@ Rules for this command:
 - If there is already an explicitly approved commit plan in this conversation, execute that exact plan
 - If there is no approved plan yet, generate one first and **stop** for approval
 - Use repository commit conventions first; if none are defined, fall back to Conventional Commits
+- Respect `work-unit-commits` grouping criteria when that skill is available
 - Never push or create/update PRs as part of this command

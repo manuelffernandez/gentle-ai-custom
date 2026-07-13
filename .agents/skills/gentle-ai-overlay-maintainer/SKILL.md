@@ -30,8 +30,8 @@ Use this skill when:
 - When editing Markdown primarily consumed by agents or LLMs, follow the runtime Agent-Readable Markdown Standard and keep only local reminders here; do not restate the full rule set.
 - Before any repo mutation, produce a concise decision summary that states what is new upstream, the `Scope` / `Impact` classification, the recommended decision (`Adquirir`, `Sanitizar`, or `Ignorar`), the rationale, whether repo sync is required, and the recommended upstream refresh path.
 - After that summary, STOP for explicit user approval before mutating this repo, advancing the maintained upstream boundary, syncing approved upstream assets, or refreshing local runtime state.
-- Preserve the local keep/prune baseline and the repo-owned orchestrator behavior goals.
-- Keep rejecting upstream changes that reintroduce `chained-pr`, review-budget, or review-workload governance into the repo-owned orchestrator behavior unless the user explicitly changes maintenance intent.
+- Preserve the local keep/prune baseline and the repo-owned orchestrator behavior goals defined in `maintenance-intent.md`.
+- Treat upstream PR strategy, chained PR, review-budget, and review-workload governance as adopt-by-default under the current upstream-first intent; sanitize only when a concrete conflict with explicit local customizations is confirmed.
 - Keep bash and PowerShell scripts behaviorally equivalent.
 - Update `AGENTS.md`, `README.md`, `overlay/gentle-ai/maintenance.md`, and `overlay/gentle-ai/logs/update-log.md` when the workflow changes, but write to the log only for eligible closed maintenance events under `AGENTS.md` rule 4.
 - Do not change intent, keep/prune, or repo-owned orchestrator behavior for new upstream changes without explicit user approval.
@@ -91,7 +91,7 @@ Re-apply is mandatory after `gentle-ai sync` or reinstall because upstream rewri
 | Adopted change affects topology, presets, or materialization for the maintained runtime target | STOP, summarize the impact, and explicitly recommend a full reinstall before re-applying the overlay. |
 | Upstream only added a new agent/platform outside the maintained runtime target/materialized state | Note it in the audit, but do NOT recommend reinstall for that reason alone. |
 | Upstream added new skills or workflow behavior without maintained-target topology drift | STOP, summarize the impact, and recommend `gentle-ai sync` after the repo is updated. |
-| Upstream tries to reintroduce chained/stacked PR governance into the orchestrator | Recommend `Sanitizar`, preserve the owned depuration, and STOP before changing intent/policy. |
+| Upstream changes PR strategy, chained/stacked PR governance, review budget, or review workload behavior | Compare against explicit local customizations in `maintenance-intent.md`; recommend `Sanitizar` only for concrete conflicts, otherwise recommend `Adquirir`. |
 | Fresh-context review finds inconsistency after maintenance edits | Fix it before closing, or STOP and surface the inconsistency if the correct resolution is unclear. |
 
 ## Execution Steps

@@ -249,6 +249,11 @@
       ],
       "retained_upstream_skills": [
         {
+          "key": "chained-pr",
+          "upstream_path": "internal/assets/skills/chained-pr",
+          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/chained-pr"
+        },
+        {
           "key": "cognitive-doc-design",
           "upstream_path": "internal/assets/skills/cognitive-doc-design",
           "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/cognitive-doc-design"
@@ -262,6 +267,11 @@
           "key": "go-testing",
           "upstream_path": "internal/assets/skills/go-testing",
           "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/go-testing"
+        },
+        {
+          "key": "issue-creation",
+          "upstream_path": "internal/assets/skills/issue-creation",
+          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/issue-creation"
         },
         {
           "key": "judgment-day",
@@ -282,6 +292,11 @@
           "key": "skill-registry",
           "upstream_path": "internal/assets/skills/skill-registry",
           "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/skill-registry"
+        },
+        {
+          "key": "work-unit-commits",
+          "upstream_path": "internal/assets/skills/work-unit-commits",
+          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/work-unit-commits"
         }
       ],
       "pruned_upstream_skills": [
@@ -291,24 +306,9 @@
           "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/branch-pr"
         },
         {
-          "key": "chained-pr",
-          "upstream_path": "internal/assets/skills/chained-pr",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/chained-pr"
-        },
-        {
-          "key": "issue-creation",
-          "upstream_path": "internal/assets/skills/issue-creation",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/issue-creation"
-        },
-        {
           "key": "hermes-ephemeral-delegation",
           "upstream_path": "internal/assets/skills/hermes-ephemeral-delegation",
           "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/hermes-ephemeral-delegation"
-        },
-        {
-          "key": "work-unit-commits",
-          "upstream_path": "internal/assets/skills/work-unit-commits",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/work-unit-commits"
         }
       ],
       "repo_owned_shared_skills": {
@@ -316,8 +316,11 @@
         "runtime_root": "~/.config/opencode/skills",
         "install_mode": "copy_skill_directory",
         "allowlist": [
+          "branch-pr",
+          "chained-pr",
           "code-design",
           "commit-planner",
+          "issue-creation",
           "judgment-retrospective",
           "package-security",
           "pr-finalizer"
@@ -355,7 +358,7 @@
           {
             "key": "pr-create",
             "body_path": "shared/commands/pr-create-body.md",
-	            "owner_skill": "pr-finalizer",
+	            "owner_skill": "branch-pr",
 	            "mode": "create",
 	            "command_type": "state-changing",
 	            "description": "Draft a PR from committed changes and optionally create it after approval"
@@ -363,7 +366,7 @@
           {
             "key": "pr-regenerate",
             "body_path": "shared/commands/pr-regenerate-body.md",
-	            "owner_skill": "pr-finalizer",
+	            "owner_skill": "branch-pr",
 	            "mode": "regenerate",
 	            "command_type": "state-changing",
 	            "description": "Regenerate or update an existing PR from the current committed diff after approval"
