@@ -29,7 +29,7 @@ Do **not** auto-run this skill after SDD, after commits, or after push. This is 
    - `docs/CONVENTIONS.md`
    - `CONTRIBUTING.md`
    - `README.md`
-   - companion skills or repo workflow docs when they are explicitly relevant, especially `chained-pr` and `issue-creation`
+   - companion skills or repo workflow docs when they are explicitly relevant, especially `chained-pr`
    - fallback generic PR template
 5. **Repo policy is contextual, not universal**. Preserve and apply issue linkage, approval labels, PR type labels, branch naming rules, contributor checklists, and required checks only when the repository explicitly declares them. Do **not** invent global requirements such as mandatory approved issues, universal `Closes #N`, universal `status:approved`, or universal `type:*` labels.
 6. **Base branch resolution order**:
@@ -251,5 +251,5 @@ These wrappers may be exposed differently by each agent surface, but the workflo
 ## Resources
 
 - Agent-level instruction surface when present (examples: `~/.config/opencode/AGENTS.md`, `~/.claude/CLAUDE.md`)
-- Companion workflow skills when present, especially `chained-pr` and `issue-creation`
+- Companion workflow skills when present, especially `chained-pr`
 - Repo-local PR conventions when they exist (`.github/PULL_REQUEST_TEMPLATE.md`, `docs/CONVENTIONS.md`, `CONTRIBUTING.md`, `README.md`)

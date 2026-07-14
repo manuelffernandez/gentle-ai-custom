@@ -252,3 +252,509 @@ func mustWriteFile(t *testing.T, path string, content []byte) {
 		t.Fatalf("write %s: %v", path, err)
 	}
 }
+
+func TestProfileTaskScopingInvariantOKAcceptsEquivalentDenyFormatting(t *testing.T) {
+	text := `
+profileMap := map[string]any{}
+taskPerms := map[string]any{
+	"*":       "deny",
+	"general": "allow",
+	"explore": "allow",
+}
+for _, phase := range profilePhaseOrder {
+	taskPerms[phase+suffix] = "allow"
+}
+for _, jd := range opencode.JDPhases() {
+	taskPerms[jd] = "allow"
+}
+for _, reviewAgent := range opencode.ReviewPhases() {
+	taskPerms[reviewAgent] = "allow"
+}
+profileMap["permission"] = map[string]any{
+	"bash": true,
+	"task": taskPerms,
+}
+`
+	if !profileTaskScopingInvariantOK(text) {
+		t.Fatal("profileTaskScopingInvariantOK() = false, want true for equivalent deny-by-default map formatting")
+	}
+}
+
+func TestProfileTaskScopingInvariantOKRejectsUnwiredDenyMap(t *testing.T) {
+	text := `
+taskPerms := map[string]any{
+	"*": "deny",
+}
+for _, phase := range profilePhaseOrder {
+	taskPerms[phase+suffix] = "allow"
+}
+for _, jd := range opencode.JDPhases() {
+	taskPerms[jd] = "allow"
+}
+for _, reviewAgent := range opencode.ReviewPhases() {
+	taskPerms[reviewAgent] = "allow"
+}
+otherMap["permission"] = map[string]any{
+	"task": randomPerms,
+}
+`
+	if profileTaskScopingInvariantOK(text) {
+		t.Fatal("profileTaskScopingInvariantOK() = true, want false when deny map is not wired to named profile permissions")
+	}
+}
+
+func TestProfileTaskScopingInvariantOKRejectsCommentAndStringDecoys(t *testing.T) {
+	text := `
+// taskPerms := map[string]any{"*": "deny"}
+message := "taskPerms[phase+suffix] = \"allow\"; taskPerms[jd] = \"allow\"; taskPerms[reviewAgent] = \"allow\"; profileMap[\"permission\"] = map[string]any{\"task\": taskPerms}"
+_ = message
+`
+	if profileTaskScopingInvariantOK(text) {
+		t.Fatal("profileTaskScopingInvariantOK() = true, want false for comment/string decoys")
+	}
+}
+
+func TestProfileTaskToolInvariantOKAcceptsDirectProfileToolsWiring(t *testing.T) {
+	text := `
+profileMap := map[string]any{
+	"tools": map[string]any{
+		"task": true,
+	},
+}
+`
+	if !profileTaskToolInvariantOK(text) {
+		t.Fatal("profileTaskToolInvariantOK() = false, want true for direct profile tools wiring")
+	}
+}
+
+func TestProfileTaskToolInvariantOKAcceptsV2ReplacementWiring(t *testing.T) {
+	text := `
+orchEntry := map[string]any{
+	"name": "sdd-orchestrator-demo",
+	"tools": map[string]any{
+		"__replace__": map[string]any{
+			"task": true,
+			"bash": true,
+		},
+	},
+}
+`
+	if !profileTaskToolInvariantOK(text) {
+		t.Fatal("profileTaskToolInvariantOK() = false, want true for v2 __replace__ tools wiring")
+	}
+}
+
+func TestProfileTaskToolInvariantOKRejectsUnrelatedLiveTaskDecoy(t *testing.T) {
+	text := `
+decoy := map[string]any{
+	"task": true,
+}
+otherMap["metadata"] = map[string]any{
+	"task": true,
+}
+`
+	if profileTaskToolInvariantOK(text) {
+		t.Fatal("profileTaskToolInvariantOK() = true, want false for unrelated live task decoys")
+	}
+}
+
+func TestProfileTaskScopingInvariantOKAcceptsV2ReplacementWiring(t *testing.T) {
+	text := `
+taskPerms := map[string]any{
+	"*": "deny",
+}
+for _, phase := range profilePhaseOrder {
+	taskPerms[phase+suffix] = "allow"
+}
+for _, jd := range opencode.JDPhases() {
+	if hasProfileAssignment(profile, jd) {
+		taskPerms[jd+suffix] = "allow"
+	} else {
+		taskPerms[jd] = "allow"
+	}
+}
+for _, reviewAgent := range opencode.ReviewPhases() {
+	taskPerms[reviewAgent] = "allow"
+}
+orchEntry := map[string]any{
+	"permission": map[string]any{
+		"task": map[string]any{
+			"__replace__": taskPerms,
+		},
+	},
+}
+_ = orchEntry
+`
+	if !profileTaskScopingInvariantOK(text) {
+		t.Fatal("profileTaskScopingInvariantOK() = false, want true for v2 __replace__ permission wiring")
+	}
+}
+
+func TestEvaluateStructuralInvariantsRejectsProfileTaskScopingCommentDecoy(t *testing.T) {
+	upstreamRepo := t.TempDir()
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "profiles.go"), []byte(`package opencode
+
+var profilePhaseOrder = []string{
+	"sdd-init",
+	"sdd-apply",
+}
+
+func DetectProfiles() string {
+	const orchPrefix = "sdd-orchestrator-"
+	return orchPrefix
+}
+
+func ProfileAgentKeys(suffix string) []string {
+	keys := []string{}
+	keys = append(keys, "sdd-orchestrator"+suffix)
+	return keys
+}
+
+func wiring() {
+	profileMap := map[string]any{
+		"tools": map[string]any{"task": true},
+	}
+	_ = profileMap
+	// taskPerms := map[string]any{"*": "deny"}
+	message := "taskPerms[phase+suffix] = \"allow\"; taskPerms[jd] = \"allow\"; taskPerms[reviewAgent] = \"allow\"; profileMap[\"permission\"] = map[string]any{\"task\": taskPerms}"
+	_ = message
+}
+`))
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "inject.go"), []byte(`package opencode
+
+func inject() {
+	orchestratorRaw, ok := agentsMap["gentle-orchestrator"]
+	_ = orchestratorRaw
+	_ = ok
+	orchestratorMap["prompt"] = renderSDDOrchestratorAsset(model.AgentOpenCode)
+	taskRaw, ok := permissionRaw["task"].(map[string]any)
+	_ = taskRaw
+	_ = ok
+}
+`))
+	mustInitGitRepo(t, upstreamRepo)
+
+	target := ManagedAssetsTarget{StructuralInvariantSources: []string{"internal/profiles.go", "internal/inject.go"}}
+	policy := Policy{}
+	policy.OpenCode.SDDPhases = []string{"sdd-init", "sdd-apply"}
+
+	result, failures := evaluateStructuralInvariants(upstreamRepo, target, policy)
+	if result.TaskScopingOK {
+		t.Fatal("evaluateStructuralInvariants() TaskScopingOK = true, want false for profile task-scoping comment/string decoy")
+	}
+	if len(failures) == 0 {
+		t.Fatal("evaluateStructuralInvariants() failures = none, want task-scoping invariant failure")
+	}
+	if !strings.Contains(strings.Join(failures, "\n"), "deny-by-default task permission map") {
+		t.Fatalf("evaluateStructuralInvariants() failures = %v, want task-scoping failure", failures)
+	}
+}
+
+func TestEvaluateStructuralInvariantsRejectsProfileTaskToolDecoy(t *testing.T) {
+	upstreamRepo := t.TempDir()
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "profiles.go"), []byte(`package opencode
+
+var profilePhaseOrder = []string{
+	"sdd-init",
+	"sdd-apply",
+}
+
+func DetectProfiles() string {
+	const orchPrefix = "sdd-orchestrator-"
+	return orchPrefix
+}
+
+func ProfileAgentKeys(suffix string) []string {
+	keys := []string{}
+	keys = append(keys, "sdd-orchestrator"+suffix)
+	return keys
+}
+
+func wiring(suffix string) {
+	decoy := map[string]any{
+		"task": true,
+	}
+	_ = decoy
+	taskPerms := map[string]any{"*": "deny"}
+	for _, phase := range profilePhaseOrder {
+		taskPerms[phase+suffix] = "allow"
+	}
+	for _, jd := range JDPhases() {
+		taskPerms[jd] = "allow"
+	}
+	for _, reviewAgent := range ReviewPhases() {
+		taskPerms[reviewAgent] = "allow"
+	}
+	profileMap := map[string]any{}
+	profileMap["permission"] = map[string]any{
+		"bash": true,
+		"task": taskPerms,
+	}
+}
+`))
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "inject.go"), []byte(`package opencode
+
+func inject() {
+	orchestratorRaw, ok := agentsMap["gentle-orchestrator"]
+	_ = orchestratorRaw
+	_ = ok
+	orchestratorMap["prompt"] = renderSDDOrchestratorAsset(model.AgentOpenCode)
+	taskRaw, ok := permissionRaw["task"].(map[string]any)
+	_ = taskRaw
+	_ = ok
+}
+`))
+	mustInitGitRepo(t, upstreamRepo)
+
+	target := ManagedAssetsTarget{StructuralInvariantSources: []string{"internal/profiles.go", "internal/inject.go"}}
+	policy := Policy{}
+	policy.OpenCode.SDDPhases = []string{"sdd-init", "sdd-apply"}
+
+	result, failures := evaluateStructuralInvariants(upstreamRepo, target, policy)
+	if result.TaskScopingOK {
+		t.Fatal("evaluateStructuralInvariants() TaskScopingOK = true, want false for task-tool decoy without profile tool wiring")
+	}
+	if len(failures) == 0 {
+		t.Fatal("evaluateStructuralInvariants() failures = none, want task-tool invariant failure")
+	}
+	if !strings.Contains(strings.Join(failures, "\n"), "enables the task tool") {
+		t.Fatalf("evaluateStructuralInvariants() failures = %v, want task-tool failure", failures)
+	}
+}
+
+func TestBaseAssetInjectionInvariantOKAcceptsRenderPath(t *testing.T) {
+	text := `
+orchestratorRaw, ok := agentsMap["gentle-orchestrator"]
+orchestratorMap["prompt"] = renderSDDOrchestratorAsset(model.AgentOpenCode)
+taskRaw, ok := permissionRaw["task"].(map[string]any)
+`
+	if !baseAssetInjectionInvariantOK(text) {
+		t.Fatal("baseAssetInjectionInvariantOK() = false, want true for renderSDDOrchestratorAsset binding")
+	}
+}
+
+func TestBaseAssetInjectionInvariantOKAcceptsLegacyAssetRead(t *testing.T) {
+	text := `
+orchestratorRaw, ok := agentsMap["gentle-orchestrator"]
+orchestratorMap["prompt"] = assets.MustRead(sddOrchestratorAsset(model.AgentOpenCode))
+taskRaw, ok := permissionRaw["task"].(map[string]any)
+`
+	if !baseAssetInjectionInvariantOK(text) {
+		t.Fatal("baseAssetInjectionInvariantOK() = false, want true for legacy asset-read binding")
+	}
+}
+
+func TestBaseAssetInjectionInvariantOKRejectsDecoyRenderCall(t *testing.T) {
+	text := `
+orchestratorRaw, ok := agentsMap["gentle-orchestrator"]
+_ = renderSDDOrchestratorAsset(model.AgentOpenCode)
+taskRaw, ok := permissionRaw["task"].(map[string]any)
+`
+	if baseAssetInjectionInvariantOK(text) {
+		t.Fatal("baseAssetInjectionInvariantOK() = true, want false for decoy render call without prompt assignment")
+	}
+}
+
+func TestBaseAssetInjectionInvariantOKRejectsWrongAssignmentTarget(t *testing.T) {
+	text := `
+orchestratorRaw, ok := agentsMap["gentle-orchestrator"]
+profileMap["prompt"] = renderSDDOrchestratorAsset(model.AgentOpenCode)
+taskRaw, ok := permissionRaw["task"].(map[string]any)
+`
+	if baseAssetInjectionInvariantOK(text) {
+		t.Fatal("baseAssetInjectionInvariantOK() = true, want false when render path is assigned to the wrong map")
+	}
+}
+
+func TestBaseAssetInjectionInvariantOKRejectsMissingPromptAssignment(t *testing.T) {
+	text := `
+orchestratorRaw, ok := agentsMap["gentle-orchestrator"]
+taskRaw, ok := permissionRaw["task"].(map[string]any)
+`
+	if baseAssetInjectionInvariantOK(text) {
+		t.Fatal("baseAssetInjectionInvariantOK() = true, want false when prompt assignment is missing")
+	}
+}
+
+func TestBaseAssetInjectionInvariantOKRejectsCommentAndStringDecoys(t *testing.T) {
+	text := `
+// orchestratorMap["prompt"] = renderSDDOrchestratorAsset(model.AgentOpenCode)
+message := "orchestratorMap[\"prompt\"] = assets.MustRead(sddOrchestratorAsset(model.AgentOpenCode))"
+orchestratorRaw, ok := agentsMap["gentle-orchestrator"]
+taskRaw, ok := permissionRaw["task"].(map[string]any)
+_ = message
+`
+	if baseAssetInjectionInvariantOK(text) {
+		t.Fatal("baseAssetInjectionInvariantOK() = true, want false for comment/string decoys")
+	}
+}
+
+func TestEvaluateStructuralInvariantsAcceptsEquivalentTaskScopingWiring(t *testing.T) {
+	upstreamRepo := t.TempDir()
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "profiles.go"), []byte(`package opencode
+
+var profilePhaseOrder = []string{
+	"sdd-init",
+	"sdd-apply",
+}
+
+func DetectProfiles() string {
+	const orchPrefix = "sdd-orchestrator-"
+	return orchPrefix
+}
+
+func ProfileAgentKeys(suffix string) []string {
+	keys := []string{}
+	keys = append(keys, "sdd-orchestrator"+suffix)
+	return keys
+}
+
+func wiring(suffix string) {
+	profileMap := map[string]any{}
+	orchestratorMap := map[string]any{
+		"tools": map[string]any{
+			"task": true,
+		},
+	}
+	_ = orchestratorMap
+	taskPerms := map[string]any{
+		"*":       "deny",
+		"general": "allow",
+	}
+	for _, phase := range profilePhaseOrder {
+		taskPerms[phase+suffix] = "allow"
+	}
+	for _, jd := range JDPhases() {
+		taskPerms[jd] = "allow"
+	}
+	for _, reviewAgent := range ReviewPhases() {
+		taskPerms[reviewAgent] = "allow"
+	}
+	profileMap["permission"] = map[string]any{
+		"bash": true,
+		"task": taskPerms,
+	}
+}
+`))
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "inject.go"), []byte(`package opencode
+
+func inject() {
+	orchestratorRaw, ok := agentsMap["gentle-orchestrator"]
+	_ = orchestratorRaw
+	_ = ok
+	orchestratorMap["prompt"] = renderSDDOrchestratorAsset(model.AgentOpenCode)
+	taskRaw, ok := permissionRaw["task"].(map[string]any)
+	_ = taskRaw
+	_ = ok
+}
+`))
+	mustInitGitRepo(t, upstreamRepo)
+
+	target := ManagedAssetsTarget{StructuralInvariantSources: []string{"internal/profiles.go", "internal/inject.go"}}
+	policy := Policy{}
+	policy.OpenCode.SDDPhases = []string{"sdd-init", "sdd-apply"}
+
+	result, failures := evaluateStructuralInvariants(upstreamRepo, target, policy)
+	if len(failures) != 0 {
+		t.Fatalf("evaluateStructuralInvariants() failures = %v, want none", failures)
+	}
+	if !result.TaskScopingOK {
+		t.Fatal("evaluateStructuralInvariants() TaskScopingOK = false, want true for equivalent wiring")
+	}
+	if !result.BaseAssetInjectionOK {
+		t.Fatal("evaluateStructuralInvariants() BaseAssetInjectionOK = false, want true")
+	}
+}
+
+func TestEvaluateStructuralInvariantsRejectsBaseAssetCommentDecoy(t *testing.T) {
+	upstreamRepo := t.TempDir()
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "profiles.go"), []byte(`package opencode
+
+var profilePhaseOrder = []string{
+	"sdd-init",
+	"sdd-apply",
+}
+
+func DetectProfiles() string {
+	const orchPrefix = "sdd-orchestrator-"
+	return orchPrefix
+}
+
+func ProfileAgentKeys(suffix string) []string {
+	keys := []string{}
+	keys = append(keys, "sdd-orchestrator"+suffix)
+	return keys
+}
+
+func wiring(suffix string) {
+	profileMap := map[string]any{}
+	orchestratorMap := map[string]any{
+		"task": true,
+	}
+	_ = orchestratorMap
+	taskPerms := map[string]any{"*": "deny"}
+	for _, phase := range profilePhaseOrder {
+		taskPerms[phase+suffix] = "allow"
+	}
+	for _, jd := range JDPhases() {
+		taskPerms[jd] = "allow"
+	}
+	for _, reviewAgent := range ReviewPhases() {
+		taskPerms[reviewAgent] = "allow"
+	}
+	profileMap["permission"] = map[string]any{
+		"bash": true,
+		"task": taskPerms,
+	}
+}
+`))
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "inject.go"), []byte(`package opencode
+
+func inject() {
+	orchestratorRaw, ok := agentsMap["gentle-orchestrator"]
+	_ = orchestratorRaw
+	_ = ok
+	// orchestratorMap["prompt"] = renderSDDOrchestratorAsset(model.AgentOpenCode)
+	message := "orchestratorMap[\"prompt\"] = assets.MustRead(sddOrchestratorAsset(model.AgentOpenCode))"
+	_ = message
+	taskRaw, ok := permissionRaw["task"].(map[string]any)
+	_ = taskRaw
+	_ = ok
+}
+`))
+	mustInitGitRepo(t, upstreamRepo)
+
+	target := ManagedAssetsTarget{StructuralInvariantSources: []string{"internal/profiles.go", "internal/inject.go"}}
+	policy := Policy{}
+	policy.OpenCode.SDDPhases = []string{"sdd-init", "sdd-apply"}
+
+	result, failures := evaluateStructuralInvariants(upstreamRepo, target, policy)
+	if result.BaseAssetInjectionOK {
+		t.Fatal("evaluateStructuralInvariants() BaseAssetInjectionOK = true, want false for comment/string decoy")
+	}
+	if len(failures) == 0 {
+		t.Fatal("evaluateStructuralInvariants() failures = none, want invariant failure")
+	}
+	if !strings.Contains(strings.Join(failures, "\n"), "canonical SDD asset render path") {
+		t.Fatalf("evaluateStructuralInvariants() failures = %v, want base asset injection failure", failures)
+	}
+}
+
+func mustInitGitRepo(t *testing.T, repo string) {
+	t.Helper()
+	if _, err := runGit(repo, false, "init"); err != nil {
+		t.Fatalf("git init %s: %v", repo, err)
+	}
+	if _, err := runGit(repo, false, "config", "user.name", "Test User"); err != nil {
+		t.Fatalf("git config user.name %s: %v", repo, err)
+	}
+	if _, err := runGit(repo, false, "config", "user.email", "test@example.com"); err != nil {
+		t.Fatalf("git config user.email %s: %v", repo, err)
+	}
+	if _, err := runGit(repo, false, "add", "."); err != nil {
+		t.Fatalf("git add %s: %v", repo, err)
+	}
+	if _, err := runGit(repo, false, "commit", "-m", "test fixture"); err != nil {
+		t.Fatalf("git commit %s: %v", repo, err)
+	}
+}

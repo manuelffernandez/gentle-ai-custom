@@ -34,7 +34,7 @@ Keep these customizations unless the user explicitly changes this intent:
 - `code-design` as a repo-owned shared skill.
 - `commit-planner` as the preferred local commit-planning workflow.
 - A sanitized repo-owned `branch-pr` as the preferred local PR finalization workflow.
-- Sanitized repo-owned runtime copies of `chained-pr` and `issue-creation` so GitHub CLI actions resolve an explicit `owner/repo` and avoid wrong-repo mutation.
+- A sanitized repo-owned runtime copy of `chained-pr` so GitHub CLI actions resolve an explicit `owner/repo`, avoid wrong-repo mutation, and keep automatic SDD/review-budget activation plan-only until the user explicitly requests branch/PR execution.
 - `pr-finalizer` as a temporary deprecated compatibility skill during the `branch-pr` migration.
 - Agent-Readable Markdown Standard for agent-consumed Markdown.
 - `no-auto-commit`: never commit, push, or create PRs unless the user explicitly asks.
@@ -50,8 +50,8 @@ Acquire current upstream behavior by default for:
 - Engram protocol updates.
 - OpenCode command surfaces and runtime materialization that are not in direct conflict with the local customizations above.
 - PR strategy, review-budget, chained PR, and work-unit concepts, unless they directly conflict with an explicit local customization or the user rejects them in a concrete maintenance decision.
-- `issue-creation` as an optional upstream issue workflow when it helps the user's process.
-- Approved upstream `chained-pr` and `issue-creation` snapshots remain retained for audit/sync even though runtime installation uses sanitized repo-owned shared copies for explicit GitHub repo scoping.
+- Approved upstream `chained-pr` snapshots remain retained for audit/sync even though runtime installation uses a sanitized repo-owned shared copy for explicit GitHub repo scoping.
+- Upstream `issue-creation` is outside the default repo-owned runtime/install surface. Keep it pruned from OpenCode runtime unless the user later asks to restore an issue workflow explicitly.
 - Upstream `branch-pr` remains the explicit exception: keep the upstream copy pruned because its mandatory issue-first rule conflicts with the local workflow where not every PR should require an approved issue. Replace it locally with the sanitized repo-owned `branch-pr` skill instead.
 
 Upstream-first means these areas are not rejected globally anymore, except for explicit confirmed conflicts such as the upstream `branch-pr` copy.
@@ -87,10 +87,11 @@ Rules:
 
 - Keep `commit-planner` and its commands installable.
 - Keep the repo-owned sanitized `branch-pr` installable as the preferred PR workflow skill.
-- Keep sanitized repo-owned `chained-pr` and `issue-creation` installable while retaining their approved upstream snapshots for audit/sync.
+- Keep the sanitized repo-owned `chained-pr` installable while retaining its approved upstream snapshot for audit/sync.
+- Keep upstream `issue-creation` pruned from the default OpenCode runtime surface.
 - Keep `pr-finalizer` installable temporarily as deprecated compatibility.
 - Preserve the `no-auto-commit` rule above them.
-- When upstream adds or changes commit/PR workflows, compare them against these tools instead of assuming either side wins automatically. Upstream `branch-pr` remains a confirmed conflict and stays pruned; `work-unit-commits`, `chained-pr`, and `issue-creation` are retained by default, with `issue-creation` remaining contextual rather than universal.
+- When upstream adds or changes commit/PR workflows, compare them against these tools instead of assuming either side wins automatically. Upstream `branch-pr` remains a confirmed conflict and stays pruned; `work-unit-commits` and `chained-pr` are retained by default, while `issue-creation` remains intentionally outside the default runtime surface.
 - If command names collide, stop and ask before choosing which command owns the runtime entrypoint.
 
 ## Judgment Day boundary

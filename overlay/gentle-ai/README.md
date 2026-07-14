@@ -23,16 +23,19 @@ Esta carpeta agrupa los assets operativos del overlay de Gentle AI.
 - `audit-gentle-ai-upstream` cubre audit + recomendación antes de cualquier mutación.
 - `sync-gentle-ai-upstream-assets` hace el repo sync de `assets/upstream/...` más la frontera aprobada; no refresca el runtime.
 - `apply-gentle-ai-custom` usa `assets/owned/...` como source of truth para los prompts/skills/commands SDD del runtime.
+- Esos assets owned de SDD/orchestrator deben seguir la base upstream v2 por defecto; la sanitización local se limita a conflictos confirmados como `branch-pr`, `issue-creation` y la copia runtime segura de `chained-pr`.
 - El runtime refresh (`gentle-ai sync` o reinstalación completa) es un paso separado y depende de si el cambio adoptado afecta el runtime target/materialized state que este repo mantiene.
 - La estrategia vigente es upstream-first: SDD, orchestrator y workflows de PR/chained/work-unit se adquieren desde upstream por defecto, salvo conflicto concreto con una customización local explícita.
-- `chained-pr`, `issue-creation` y `work-unit-commits` siguen retenidas como parte de esa estrategia.
-- `shared/skills/chained-pr/` y `shared/skills/issue-creation/` instalan copias repo-owned sanitizadas para runtime: preservan la semántica upstream, pero fuerzan resolver `owner/repo`, usar `--repo <owner/repo>` y ejecutar `gh` con argumentos seguros.
+- `chained-pr` y `work-unit-commits` siguen retenidas como parte de esa estrategia.
+- `issue-creation` queda fuera del runtime OpenCode por defecto: se poda del runtime y no tiene copia repo-owned instalada.
+- `shared/skills/chained-pr/` instala una copia repo-owned sanitizada para runtime: preserva la semántica upstream, pero fuerza resolver `owner/repo`, usar `--repo <owner/repo>`, ejecutar `gh` con argumentos seguros, y no crear branches/PRs desde activación automática sin pedido explícito.
 - la copia upstream de `branch-pr` sigue podada porque su regla obligatoria de issue-first choca con el flujo local, pero `shared/skills/branch-pr/` la reemplaza con una versión repo-owned sanitizada.
 - `hermes-ephemeral-delegation` sigue fuera del runtime OpenCode mantenido y permanece como skill upstream no retenida.
 - `shared/skills/` sigue siendo la fuente canónica de las skills repo-owned portables, incluida `judgment-retrospective`.
 - `shared/skills/commit-planner/SKILL.md` sigue siendo la capa operativa local para `/commit-plan`, `/commit-apply` y `/commit-fast`; cuando `work-unit-commits` está disponible, usa ese criterio para agrupar commits.
 - `shared/skills/branch-pr/SKILL.md` pasa a ser la capa operativa local preferida para `/pr-create` y `/pr-regenerate`; `pr-finalizer` queda como compatibilidad temporal.
 - El hook runtime de `judgment-day` vive en `assets/owned/opencode/skills/judgment-day/` y es el que activa automáticamente la retrospectiva terminal.
+- Las referencias `assets/owned/opencode/skills/sdd-design/references/threat-matrix.md` y `assets/owned/opencode/skills/sdd-verify/references/report-format.md` forman parte del runtime SDD mantenido y deben mapearse también en `policy/managed-assets.json`.
 
 ## Contrato del informe del maintainer
 

@@ -13,11 +13,12 @@ CONTEXT:
 
 HARD GATES:
 
-1. SDD Session Preflight must already be complete for this session. It must include execution mode and artifact store. If missing, ask the exact orchestrator preflight prompt and STOP. Do not run apply in the same turn.
+1. SDD Session Preflight must already be complete for this session. It must include execution mode, artifact store, chained PR strategy, and review budget. If missing, ask the exact orchestrator preflight prompt and STOP. Do not run apply in the same turn.
 2. `sdd-init` must already exist or be run after preflight, per the orchestrator init guard.
 3. Resolve the active change using the status contract. If `$ARGUMENTS` is missing or ambiguous, ask the user to choose and STOP. Do not guess.
 4. Produce structured status before acting and use it to confirm the active change has spec, design, and tasks artifacts in the selected artifact store.
-5. actionContext must allow implementation edits. If status reports `workspace-planning` with no allowed edit roots, STOP before launching apply.
+5. Review workload guard must have passed. If task forecast exceeds the session review budget or needs a chained-PR decision, ASK and STOP unless the preflight strategy already resolves it.
+6. actionContext must allow implementation edits. If status reports `workspace-planning` with no allowed edit roots, STOP before launching apply.
 
 DEPENDENCY CHECK:
 
@@ -30,6 +31,20 @@ If all gates pass, launch the hidden `sdd-apply` sub-agent with:
 - The resolved artifact store from session preflight; do not hardcode Engram.
 - The structured status: schemaName, planningHome/changeRoot, artifactPaths/contextFiles, task progress, applyState, dependency states, and actionContext.
 - References to the spec, design, tasks, and any apply-progress artifacts.
+- The resolved delivery/chained PR strategy and review budget.
 - Strict TDD instructions if `sdd-init` detected strict TDD.
 
 Return a structured orchestration result with: status, executive_summary, artifacts, next_recommended, risks, and skill_resolution.
+
+POST-APPLY REVIEW ROUTING:
+After apply returns, resolve post-apply status through the artifact-store guard before routing:
+
+- `openspec` or `hybrid`: rerun native status/dispatcher and treat its JSON as authoritative.
+- `engram`: do NOT rerun the native dispatcher/status command; reconstruct status from Engram using the manual schema because the native engine is blind to Engram-backed changes.
+- unresolved or contradictory post-apply status source: fail closed and report a recovery blocker. Do not guess.
+
+If the resolved post-apply status says `nextRecommended: review`, the parent orchestrator runs `gentle-ai review start --cwd <repo>`. The facade derives repository scope, lineage, tier, lenses, and correction budget from live Git. The apply executor never launches review.
+
+{{GENTLE_AI_AUTHORITY_FIRST_TERMINAL_PROCEDURE}}
+
+Reuse a valid receipt; later commit/push/PR/release events only validate it.

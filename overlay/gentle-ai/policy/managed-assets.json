@@ -141,6 +141,17 @@
           ]
         },
         {
+          "key": "sdd-design-threat-matrix",
+          "class": "required_sdd",
+          "kind": "shared_sdd_file",
+          "upstream_path": "internal/assets/skills/sdd-design/references/threat-matrix.md",
+          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/sdd-design/references/threat-matrix.md",
+          "repo_owned_path": "overlay/gentle-ai/assets/owned/opencode/skills/sdd-design/references/threat-matrix.md",
+          "runtime_targets": [
+            "~/.config/opencode/skills/sdd-design/references/threat-matrix.md"
+          ]
+        },
+        {
           "key": "sdd-tasks",
           "class": "required_sdd",
           "kind": "phase_skill_prompt",
@@ -174,6 +185,17 @@
           "runtime_targets": [
             "~/.config/opencode/skills/sdd-verify/SKILL.md",
             "~/.config/opencode/prompts/sdd/sdd-verify.md"
+          ]
+        },
+        {
+          "key": "sdd-verify-report-format",
+          "class": "required_sdd",
+          "kind": "shared_sdd_file",
+          "upstream_path": "internal/assets/skills/sdd-verify/references/report-format.md",
+          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/sdd-verify/references/report-format.md",
+          "repo_owned_path": "overlay/gentle-ai/assets/owned/opencode/skills/sdd-verify/references/report-format.md",
+          "runtime_targets": [
+            "~/.config/opencode/skills/sdd-verify/references/report-format.md"
           ]
         },
         {
@@ -269,11 +291,6 @@
           "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/go-testing"
         },
         {
-          "key": "issue-creation",
-          "upstream_path": "internal/assets/skills/issue-creation",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/issue-creation"
-        },
-        {
           "key": "judgment-day",
           "upstream_path": "internal/assets/skills/judgment-day",
           "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/judgment-day"
@@ -306,6 +323,11 @@
           "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/branch-pr"
         },
         {
+          "key": "issue-creation",
+          "upstream_path": "internal/assets/skills/issue-creation",
+          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/issue-creation"
+        },
+        {
           "key": "hermes-ephemeral-delegation",
           "upstream_path": "internal/assets/skills/hermes-ephemeral-delegation",
           "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/hermes-ephemeral-delegation"
@@ -320,7 +342,6 @@
           "chained-pr",
           "code-design",
           "commit-planner",
-          "issue-creation",
           "judgment-retrospective",
           "package-security",
           "pr-finalizer"

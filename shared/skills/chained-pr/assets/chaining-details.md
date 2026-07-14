@@ -94,10 +94,12 @@ Before any `gh` read or write:
 
 ## Commands
 
+Use these commands only after the user explicitly requests chained PR execution or approves the repo PR workflow handoff. Automatic SDD or review-budget activation may produce a chain plan, but must not create branches or PRs by itself.
+
 ```bash
 gh pr view <PR_NUMBER> --repo <owner/repo> --json additions,deletions,changedFiles,title,url
-gh pr create --repo <owner/repo> --base feat/my-feature --title "feat(scope): focused slice" --body-file pr-body.md
-gh pr create --repo <owner/repo> --base feat/my-feature-01-core --title "feat(scope): next focused slice" --body-file pr-body.md
+gh pr create --repo <owner/repo> --base feat/my-feature --head feat/my-feature-01-core --title "feat(scope): focused slice" --body-file pr-body.md
+gh pr create --repo <owner/repo> --base feat/my-feature-01-core --head feat/my-feature-02-shared --title "feat(scope): next focused slice" --body-file pr-body.md
 ```
 
 ## Reviewer Guidance

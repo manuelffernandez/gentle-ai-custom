@@ -239,8 +239,8 @@ La idea general ahora es **upstream-first**: esta capa arranca desde el comporta
 | `skill-improver`       | Se conserva | Ayuda a revisar y mejorar skills existentes.                                   | Permite evolucionar tooling propio con criterio.                                                                                             |
 | `skill-registry`       | Se conserva | Indexa las skills disponibles y sus triggers.                                  | Hace mantenible el ecosistema de skills.                                                                                                     |
 | `branch-pr`            | Se sanitiza | La copia upstream se poda, pero se reinstala como skill repo-owned para crear o regenerar PRs desde cambios ya commiteados. | Conserva el nombre y lo útil del flujo de PR, pero elimina el issue-first universal: issue link, labels y checks quedan como policy contextual del repo, no como regla global. |
-| `chained-pr`           | Se retiene + se sanitiza en runtime | El snapshot upstream sigue auditado, pero `apply` instala una copia repo-owned sanitizada para PRs encadenadas o stacked. | Conserva el workflow upstream y solo agrega una protección operativa: resolver `owner/repo` y usar `--repo` en comandos `gh`, evitando mutaciones sobre el repo equivocado. |
-| `issue-creation`       | Se retiene + se sanitiza en runtime | El snapshot upstream sigue auditado, pero `apply` instala una copia repo-owned sanitizada para crear o editar issues. | Mantiene la semántica upstream y agrega scoping explícito de `owner/repo` más ejecución segura por argumentos para evitar mutaciones sobre el repo equivocado. |
+| `chained-pr`           | Se retiene + se sanitiza en runtime | El snapshot upstream sigue auditado, pero `apply` instala una copia repo-owned sanitizada para PRs encadenadas o stacked. | Conserva el workflow upstream y agrega protecciones operativas: resolver `owner/repo`, usar `--repo` en comandos `gh`, y permitir planificación automática sin crear branches/PRs hasta que haya pedido explícito. |
+| `issue-creation`       | Se poda     | Queda fuera de la instalación por defecto del overlay y no se reinstala como skill repo-owned. | Hoy este repo no necesita imponer por defecto un workflow de issues orientado a colaborar con el upstream; si más adelante vuelve a hacer falta, se puede reevaluar como decisión explícita. |
 | `hermes-ephemeral-delegation` | Se poda     | Queda fuera del boundary mantenido de OpenCode.                                 | No forma parte del comportamiento mantenido local.                                                                                           |
 | `work-unit-commits`    | Se adquiere | Trae el workflow upstream para dividir cambios en unidades de trabajo.         | Se conserva como criterio upstream de agrupación: work units revisables, evidencia, rollback boundary y awareness de chained/review-budget. |
 | `code-design`          | Se agrega   | Ayuda a pensar estructura, separación de responsabilidades y diseño de código. | Es una mejora concreta para calidad técnica diaria.                                                                                          |
@@ -250,20 +250,20 @@ La idea general ahora es **upstream-first**: esta capa arranca desde el comporta
 
 ### Comportamiento del orchestrator repo-owned
 
-El overlay está migrando hacia el comportamiento upstream de SDD y del orchestrator de Gentle AI v2+. La idea ya no es mantener un fork grande con reglas locales viejas, sino conservar solo una capa chica y explícita. La frontera mantenida exacta se fija recién cuando se cierre la auditoría/adopción en `upstream-state.json`.
+El runtime owned ya quedó reacoplado a la base upstream de SDD/orchestrator de Gentle AI v2+ por defecto. La idea ya no es mantener un fork grande con reglas locales viejas, sino conservar solo una capa chica y explícita. La frontera mantenida exacta se fija recién cuando se cierre la auditoría/adopción en `upstream-state.json`.
 
 Se mantiene localmente:
 
 - el hook `judgment-day` -> `judgment-retrospective`
 - las skills repo-owned `code-design`, `package-security`, `commit-planner` y la `branch-pr` sanitizada, con `pr-finalizer` como compatibilidad temporal
-- las copias repo-owned sanitizadas de `chained-pr` e `issue-creation` para runtime, mientras sus snapshots upstream siguen retenidos para auditoría
+- la copia repo-owned sanitizada de `chained-pr` para runtime, mientras su snapshot upstream sigue retenido para auditoría
+- los assets de soporte locales estrictamente necesarios para SDD v2, como `sdd-design/references/threat-matrix.md` y `sdd-verify/references/report-format.md`
 - las reglas `no-auto-commit`, Agent-Readable Markdown Standard y Gemini anti-sycophancy
 
 Se adquiere desde upstream por defecto:
 
 - el comportamiento SDD/orchestrator
 - el lifecycle moderno de review y remediation
-- `issue-creation` cuando haga falta abrir un issue
 - los conceptos de PR/chained/work-unit/review-budget, salvo conflicto concreto con la capa local
 
 Excepción concreta:

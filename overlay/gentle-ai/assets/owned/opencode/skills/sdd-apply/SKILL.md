@@ -26,9 +26,9 @@ If you ARE the `sdd-apply` sub-agent (NOT the orchestrator), the gate above does
 
 Generated technical artifacts default to English. Do not inherit the user's conversational language or the active persona's regional voice for SDD artifacts unless the user explicitly requests that artifact language or the project convention requires it.
 
-If Spanish technical artifacts are explicitly requested, use neutral/professional Spanish unless the user explicitly asks for a regional variant.
+If technical artifacts are explicitly requested in another language, use a neutral/professional register unless the user explicitly requests a different tone or regional variant.
 
-Public/contextual comments follow the target context language by default. Explicit user language or tone overrides win; Spanish comments default to neutral/professional Spanish unless the user or target context clearly calls for regional tone.
+Public/contextual comments follow the target context language by default. Explicit user language or tone overrides win; otherwise use a neutral/professional register unless the target context clearly calls for another tone or regional variant.
 
 ## Purpose
 
@@ -41,6 +41,7 @@ From the orchestrator:
 - The specific task(s) to implement (e.g., "Phase 1, tasks 1.1-1.3")
 - Artifact store mode (`engram | openspec | hybrid | none`)
 - Structured status from `skills/_shared/sdd-status-contract.md`: `schemaName`, `planningHome`, `changeRoot`, `artifactPaths`, `contextFiles`, `applyState`, task progress, dependency states, and `actionContext`
+- Delivery strategy and resolved workload decision (`ask-on-risk | auto-chain | single-pr | exception-ok`, plus PR slice or `size:exception` when applicable)
 
 ## Execution and Persistence Contract
 
@@ -77,7 +78,29 @@ Before writing ANY code:
 5. Read existing code in affected files — understand current patterns
 6. Check the project's coding conventions from `config.yaml`
 
-#### Step 2a: Read Previous Apply-Progress (if exists)
+#### Step 2a: Enforce Review Workload Decision
+
+Before implementing, inspect the tasks artifact for `Review Workload Forecast`.
+
+If the forecast says any of the following:
+
+- `400-line budget risk: High`
+- `Chained PRs recommended: Yes`
+- `Decision needed before apply: Yes`
+
+Then you MUST confirm the orchestrator/user provided a resolved delivery path:
+
+1. **`auto-chain` or chosen chained/stacked PR mode**: implement only the assigned work-unit slice, keep scope autonomous, and report the intended PR boundary. Follow the `Chain strategy` from the tasks artifact (`stacked-to-main` or `feature-branch-chain`) for branch targeting.
+2. **`exception-ok` or single PR with exception**: continue only if the prompt explicitly says the maintainer accepts `size:exception`.
+3. **`single-pr` above budget**: continue only after the prompt explicitly records `size:exception`.
+
+Also check for `Chain strategy` in the tasks artifact. If present and not `pending`, follow it consistently:
+- `stacked-to-main`: each PR targets `main` in order. After a parent PR merges, rebase or retarget the next PR so the diff stays focused on the current slice.
+- `feature-branch-chain`: PR #1 targets the feature/tracker branch; later PRs target the immediate previous PR branch. The tracker PR aggregates the feature branch to `main`; child PR diffs must stay focused on only the current work unit and must never target `main` directly.
+
+If neither delivery decision nor chain strategy is present, STOP before writing code and return `blocked` with: `Workload decision required before apply: estimated work may exceed 400 changed lines. Orchestrator must resolve chain strategy or size:exception before apply.`
+
+#### Step 2b: Read Previous Apply-Progress (if exists)
 
 Before starting work, check for existing apply-progress:
 
@@ -122,6 +145,22 @@ If Strict TDD Mode is active (either from orchestrator injection or self-discove
 
 **There is no silent fallback.** If you resolved Strict TDD as active, you follow it or you report failure. You do NOT quietly switch to Standard Mode.
 
+#### Hard Gate (All Modes): Work Unit Evidence
+
+Every assigned work unit, including standard mode, MUST produce a **Work Unit Evidence** table before its tasks are marked complete:
+
+| Evidence | Required value |
+|---|---|
+| Focused test command and exact result | Smallest command proving this unit; command, exit/result, and relevant counts |
+| Runtime harness command/scenario and exact result | Real integration/runtime path; explicit `N/A` only when no runtime boundary exists, with reason |
+| Rollback boundary | Exact files/behavior that can be reverted without removing unrelated work |
+
+If design/tasks contain applicable threat-matrix cases, write and run each mapped RED test before the corresponding production change even in standard mode. Preserve Strict TDD's full RED → GREEN → REFACTOR evidence when active; this table supplements it and never replaces it. Do not mark the work unit complete if focused tests or an applicable runtime harness fail.
+
+When all implementation work units finish, return control to the parent orchestrator. The executor never launches 4R, Judgment Day, a refuter, a correction actor, or a scoped validator. The parent may explicitly start ordinary `review/start(target)` after apply only when no valid content-bound receipt exists.
+
+Focused remediation is the sole `applyState: all_done` exception. It requires the persisted transaction's exact `lineage_id`, `generation`, mode-specific `fix_batch`, and `failed_evidence_revision`. Record those values in both the `gentle-ai.remediation-result/v1` envelope and its immediately following `gentle-ai.remediation-evidence/v1` JSON. A bare envelope, stale revision, mismatched lineage/generation, or exhausted budget never completes remediation.
+
 ### Step 4: Implement Tasks (Standard Workflow)
 
 This step is used when Strict TDD Mode is NOT active:
@@ -162,7 +201,7 @@ Follow **Section C** from `skills/_shared/sdd-phase-common.md`.
 #### Merge Protocol
 
 When saving apply-progress:
-1. If you read previous progress in Step 2a, your artifact MUST include ALL previously completed tasks (copy their status and evidence) PLUS your new completions
+1. If you read previous progress in Step 2b, your artifact MUST include ALL previously completed tasks (copy their status and evidence) PLUS your new completions
 2. The final artifact should show the cumulative state of ALL tasks across ALL batches
 3. Format: keep the same structure but ensure no completed task is lost from prior batches
 
@@ -202,6 +241,12 @@ If none, say "None."}
 - [ ] {next task}
 - [ ] {next task}
 
+### Workload / PR Boundary
+- Mode: {single PR | chained PR slice | stacked PR slice | size:exception}
+- Current work unit: {unit name or "N/A"}
+- Boundary: {what this apply batch starts from and ends with}
+- Estimated review budget impact: {brief note}
+
 ### Status
 {N}/{total} tasks complete. {Ready for next batch / Ready for verify / Blocked by X}
 ```
@@ -217,6 +262,9 @@ If none, say "None."}
 - Before returning, re-read the persisted tasks artifact and ensure completed tasks are visibly marked `[x]`; internal todos are not completion evidence
 - If you discover the design is wrong or incomplete, NOTE IT in your return summary — don't silently deviate
 - If a task is blocked by something unexpected, STOP and report back
+- If workload forecast requires a decision and none was provided, STOP before writing code
+- When applying a chained/stacked PR slice, keep the batch autonomous: one deliverable scope, verification included, and clear rollback boundary
+- When applying `size:exception`, state it explicitly in apply-progress and the return summary
 - NEVER implement tasks that weren't assigned to you
 - Skill loading is handled in Step 1 — follow any loaded skills strictly when writing code
 - Apply any `rules.apply` from `openspec/config.yaml`
@@ -240,6 +288,14 @@ metadata:
 
 > **ORCHESTRATOR GATE**: If you loaded this skill via the `skill()` tool, you are the ORCHESTRATOR — STOP. Do NOT execute these instructions inline. Do NOT delegate, do NOT call task/delegate, and do NOT launch sub-agents. Read this SKILL.md and follow it exactly.
 
+## Language Domain Contract
+
+Generated technical artifacts default to English. Do not inherit the user's conversational language or the active persona's regional voice for SDD artifacts unless the user explicitly requests that artifact language or the project convention requires it.
+
+If technical artifacts are explicitly requested in another language, use a neutral/professional register unless the user explicitly requests a different tone or regional variant.
+
+Public/contextual comments follow the target context language by default. Explicit user language or tone overrides win; otherwise use a neutral/professional register unless the target context clearly calls for another tone or regional variant.
+
 ## Purpose
 
 You are an IMPLEMENTER sub-agent. You receive specific tasks and implement them by writing actual code. Follow the specs and design strictly. Do NOT delegate.
@@ -250,22 +306,28 @@ You are an IMPLEMENTER sub-agent. You receive specific tasks and implement them 
 - Read max 3 files at a time — if you need more to understand a task, stop and report `needs-explore`
 - Keep edits minimal and localized to task files
 - Consume structured status when provided; stop on `blocked`, `all_done`, or unsafe `actionContext`
+- If workload forecast is above budget, block only when no resolved chained/stacked slice or explicit exception is already present
 - If previous apply-progress exists, read it via mem_search + mem_get_observation and MERGE before saving
+- Focused remediation is the sole `all_done` exception and must bind both evidence blocks to the exact lineage_id, generation, fix_batch, and failed_evidence_revision from native status
 
 ## Steps
 
 1. Load up to 2 SKILL.md paths passed by orchestrator (only these — do not load additional skills)
 2. Read structured status if provided; stop unless apply is ready and edit roots are safe
-3. Read the task description and acceptance criteria in spec
-4. Read the design decisions
-5. Read only files explicitly referenced by the task (max 3 files)
-6. Implement code changes — minimal, localized edits
-7. Persist progress immediately after each completed task:
+3. Inspect the tasks artifact for `Review Workload Forecast` and any resolved delivery strategy:
+    - If forecast is within budget, continue.
+    - If forecast is above budget, continue only when the delivery strategy is already resolved as a current chained/stacked slice (`auto-chain` or equivalent chosen slice), `exception-ok`, or an explicit approved `size:exception` for single-PR delivery.
+    - If forecast is above budget and no such resolved path is present, STOP and return `blocked: workload-decision-required`.
+4. Read the task description and acceptance criteria in spec
+5. Read the design decisions
+6. Read only files explicitly referenced by the task (max 3 files)
+7. Implement code changes — minimal, localized edits
+8. Persist progress immediately after each completed task:
     - `engram`: `mem_update` the `sdd/{change-name}/tasks` observation so completed tasks are marked `[x]`, then `mem_save` or `mem_update` for `sdd/{change-name}/apply-progress`
     - `openspec`: mark tasks.md checkboxes
     - `hybrid`: both
-8. Re-read persisted tasks and verify completed tasks are checked before returning.
-9. Return short summary: files changed list, completed tasks, blocked items.
+9. Re-read persisted tasks and verify completed tasks are checked before returning.
+10. Return short summary: files changed list, completed tasks, blocked items.
 
 ## Return Envelope
 

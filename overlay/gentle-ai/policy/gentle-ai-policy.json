@@ -18,7 +18,6 @@
       "cognitive-doc-design",
       "comment-writer",
       "go-testing",
-      "issue-creation",
       "judgment-day",
       "sdd-apply",
       "sdd-archive",
@@ -37,6 +36,7 @@
     ],
     "prune": [
       "branch-pr",
+      "issue-creation",
       "hermes-ephemeral-delegation"
     ]
   },

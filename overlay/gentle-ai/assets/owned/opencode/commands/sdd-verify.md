@@ -13,7 +13,7 @@ CONTEXT:
 
 HARD GATES:
 
-1. SDD Session Preflight must already be complete for this session. It must include execution mode and artifact store. If missing, ask the exact orchestrator preflight prompt and STOP. Do not run verify in the same turn.
+1. SDD Session Preflight must already be complete for this session. It must include execution mode, artifact store, chained PR strategy, and review budget. If missing, ask the exact orchestrator preflight prompt and STOP. Do not run verify in the same turn.
 2. `sdd-init` must already exist or be run after preflight, per the orchestrator init guard.
 3. Resolve the active change using the status contract. If `$ARGUMENTS` is missing or ambiguous, ask the user to choose and STOP. Do not guess.
 4. Produce structured status before acting. Use the resolved artifact store from session preflight; do not hardcode Engram.
@@ -26,6 +26,6 @@ DEPENDENCY CHECK:
 - Tell the user what is missing and suggest `/sdd-continue <change>` or `/sdd-apply <change>` as appropriate.
 
 TASK:
-If all gates pass, launch the hidden `sdd-verify` sub-agent with the structured status, references to available artifacts, and strict TDD instructions if `sdd-init` detected strict TDD.
+If all gates pass and the native bounded transaction is `ready_final_verification` or `final_verifying`, launch the hidden `sdd-verify` sub-agent with the structured status, exact transaction/ledger references, available artifacts, and strict TDD instructions if `sdd-init` detected strict TDD. This is the single independent requirements/runtime verification; a contradiction escalates and never starts another review/refuter/fix loop.
 
 Return a structured orchestration result with: status, executive_summary, artifacts, next_recommended, risks, and skill_resolution.

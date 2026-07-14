@@ -92,13 +92,20 @@ Example:
 (other values: `fallback-registry`, `fallback-path`, or `none — no registry found`)
 ```
 
-## E. Task Slicing Guard
+## E. Review Workload Guard
 
-SDD must produce implementation tasks that are readable, ordered, and safe to execute incrementally.
+SDD must protect reviewer cognitive load, not only generate tasks.
 
-- `sdd-tasks` SHOULD split work into small phases or slices when a change spans multiple concerns, files, or integration points.
-- Each phase SHOULD have a clear goal, clear verification target, and a sensible stop point.
-- `sdd-apply` SHOULD implement only the tasks that are explicitly assigned and ready.
-- Prefer concrete implementation slices over vague bulk tasks so the user can stop, review, or resume safely at any phase boundary.
+- The default PR review budget is **400 changed lines** (`additions + deletions`).
+- Count authored text additions plus deletions only for this threshold. Generated goldens are excluded from authored risk count but remain included in complete snapshot identity and receipt validation.
+- The orchestrator MUST cache a delivery strategy at session start: `ask-on-risk` (default), `auto-chain`, `single-pr`, or `exception-ok`.
+- The orchestrator owns the user decision flow for delivery and chain strategy. `sdd-tasks` forecasts and recommends only; phase executors do not ask the user directly unless the orchestrator explicitly tells them to stop on a blocker.
+- The orchestrator MUST pass `delivery_strategy` to `sdd-tasks` and the resolved delivery/chain decision to `sdd-apply`.
+- `sdd-tasks` MUST forecast whether the planned work may exceed that budget.
+- The forecast MUST include exact plain-text guard lines: `Decision needed before apply: Yes|No`, `Chained PRs recommended: Yes|No`, and `400-line budget risk: Low|Medium|High`.
+- If the forecast is high, `sdd-tasks` MUST recommend chained or stacked PRs using deliverable work units.
+- `sdd-apply` MUST NOT start oversized work unless the delivery strategy resolves to chained/stacked PR slices or explicitly accepted `size:exception`.
+- Each chained PR slice must have a clear start, clear finish, autonomous scope, verification, and reasonable rollback.
+- In a Feature Branch Chain, PR #1 targets the feature/tracker branch and later child PRs target the immediate previous PR branch; if GitHub shows previous slices in a child diff, retarget/rebase until the diff is clean.
 
-This guard exists to keep the SDD flow understandable without imposing repository governance policy.
+This guard exists to reduce reviewer burnout and keep implementation delivery safe. Do not treat it as optional process noise.

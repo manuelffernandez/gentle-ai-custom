@@ -7,7 +7,7 @@ You are the `gentle-orchestrator`. This command is read-only. Do not launch SDD 
 
 HARD GATE:
 
-SDD Session Preflight must already be complete for this session. It must include execution mode and artifact store. If missing, ask the exact orchestrator preflight prompt and STOP. Do not inspect status in the same turn.
+SDD Session Preflight must already be complete for this session. It must include execution mode, artifact store, chained PR strategy, and review budget. If missing, ask the exact orchestrator preflight prompt and STOP. Do not inspect status in the same turn.
 
 CONTEXT:
 
@@ -37,5 +37,9 @@ READ-ONLY RULES:
 - Do not create, update, or delete artifacts.
 - Do not mark tasks complete.
 - Do not launch apply, verify, archive, or continue.
-- Do not infer routing from free text. Use `nextRecommended` and dependency states. If `blockedReasons` is non-empty, do not proceed to apply, archive, or terminal work. If `nextRecommended` is `verify`, verification/remediation may run only to refresh evidence; if `nextRecommended` is `resolve-blockers`, report `blockedReasons` and stop; if `nextRecommended` is a planning token (`propose`, `spec`, `design`, or `tasks`), launch the corresponding planning phase.
+- Do not infer routing from free text. Use `nextRecommended` and dependency states only to REPORT the next step.
+- Do not launch planning, apply, review, remediate, verify, archive, or continue from `/sdd-status`.
+- If `nextRecommended` is a planning token (`propose`, `spec`, `design`, or `tasks`), report which phase should be launched next by a separate command.
+- If `nextRecommended` is `review`, `remediate`, `resolve-review`, or `resolve-blockers`, report the blocker or required follow-up action and stop.
+- If status cannot be resolved safely or `nextRecommended` is unknown, return a blocked read-only report with the missing information.
 - If status cannot be resolved safely, return `status: blocked` with the missing information.

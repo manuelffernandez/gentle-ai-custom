@@ -2,10 +2,14 @@ package overlay
 
 import (
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -453,25 +457,14 @@ func evaluateStructuralInvariants(upstreamRepo string, target ManagedAssetsTarge
 	if !strings.Contains(upstreamProfilesText, profileKeyBuilderSnippet) {
 		failures = append(failures, "upstream ProfileAgentKeys no longer builds profile orchestrator keys from 'sdd-orchestrator'+suffix")
 	}
-	requiredProfilesSnippets := []string{
-		"taskPerms := map[string]any{",
-		`"*": "deny",`,
-		"taskPerms[phase+suffix] = \"allow\"",
-		"taskPerms[jd] = \"allow\"",
-		"taskPerms[reviewAgent] = \"allow\"",
+	if !profileTaskScopingInvariantOK(upstreamProfilesText) {
+		failures = append(failures, "upstream profiles.go no longer preserves a deny-by-default task permission map for named profile orchestrators")
 	}
-	for _, snippet := range requiredProfilesSnippets {
-		if !strings.Contains(upstreamProfilesText, snippet) {
-			failures = append(failures, fmt.Sprintf("upstream profile task scoping snippet missing from profiles.go: %q", snippet))
-		}
-	}
-	taskToolPattern := regexp.MustCompile(`"task":\s+true,`)
-	if !taskToolPattern.MatchString(upstreamProfilesText) {
+	if !profileTaskToolInvariantOK(upstreamProfilesText) {
 		failures = append(failures, `upstream profiles.go no longer enables the task tool in the profile orchestrator entry`)
 	}
 	requiredInjectSnippets := []string{
 		`orchestratorRaw, ok := agentsMap["gentle-orchestrator"]`,
-		`orchestratorMap["prompt"] = assets.MustRead(sddOrchestratorAsset(model.AgentOpenCode))`,
 		`taskRaw, ok := permissionRaw["task"].(map[string]any)`,
 	}
 	for _, snippet := range requiredInjectSnippets {
@@ -479,11 +472,350 @@ func evaluateStructuralInvariants(upstreamRepo string, target ManagedAssetsTarge
 			failures = append(failures, fmt.Sprintf("upstream inject.go no longer contains expected base orchestrator asset binding snippet: %q", snippet))
 		}
 	}
+	if !baseAssetInjectionInvariantOK(upstreamInjectText) {
+		failures = append(failures, "upstream inject.go no longer binds the OpenCode orchestrator prompt from the canonical SDD asset render path")
+	}
 	result.ProfileNamingOK = strings.Contains(upstreamProfilesText, profilePrefixSnippet) && strings.Contains(upstreamProfilesText, profileKeyBuilderSnippet)
-	result.TaskScopingOK = containsAll(upstreamProfilesText, requiredProfilesSnippets) && taskToolPattern.MatchString(upstreamProfilesText)
-	result.BaseAssetInjectionOK = containsAll(upstreamInjectText, requiredInjectSnippets)
+	result.TaskScopingOK = profileTaskToolInvariantOK(upstreamProfilesText) && profileTaskScopingInvariantOK(upstreamProfilesText)
+	result.BaseAssetInjectionOK = containsAll(upstreamInjectText, requiredInjectSnippets) && baseAssetInjectionInvariantOK(upstreamInjectText)
 	result.PhaseOrderOK = len(phaseOrder) > 0 && sameStrings(phaseOrder, policy.OpenCode.SDDPhases)
 	return result, failures
+}
+
+func profileTaskScopingInvariantOK(text string) bool {
+	if strings.TrimSpace(text) == "" {
+		return false
+	}
+	file, err := parseInvariantGoSource(text)
+	if err != nil {
+		return false
+	}
+	state := profileTaskScopingState{}
+	ast.Inspect(file, func(node ast.Node) bool {
+		assign, ok := node.(*ast.AssignStmt)
+		if !ok {
+			return true
+		}
+		inspectProfileTaskScopingAssignment(assign, &state)
+		return true
+	})
+	return state.denyDefault && state.phaseAllow && state.jdAllow && state.reviewAllow && state.wiredToProfilePermission
+}
+
+type profileTaskScopingState struct {
+	denyDefault              bool
+	phaseAllow               bool
+	jdAllow                  bool
+	reviewAllow              bool
+	wiredToProfilePermission bool
+}
+
+func inspectProfileTaskScopingAssignment(assign *ast.AssignStmt, state *profileTaskScopingState) {
+	for i, lhs := range assign.Lhs {
+		if i >= len(assign.Rhs) {
+			continue
+		}
+		rhs := assign.Rhs[i]
+		if ident, ok := lhs.(*ast.Ident); ok && ident.Name == "taskPerms" {
+			if lit, ok := rhs.(*ast.CompositeLit); ok && compositeLitHasStringEntry(lit, "*", "deny") {
+				state.denyDefault = true
+			}
+		}
+		if index, ok := lhs.(*ast.IndexExpr); ok && isIdent(index.X, "taskPerms") && isStringLiteral(rhs, "allow") {
+			if isBinaryIdentPlusIdent(index.Index, "phase", "suffix") {
+				state.phaseAllow = true
+			}
+			if isIdent(index.Index, "jd") || isBinaryIdentPlusIdent(index.Index, "jd", "suffix") {
+				state.jdAllow = true
+			}
+			if isIdent(index.Index, "reviewAgent") {
+				state.reviewAllow = true
+			}
+		}
+		if profilePermissionAssignmentUsesTaskPerms(lhs, rhs) {
+			state.wiredToProfilePermission = true
+		}
+	}
+}
+
+func profilePermissionAssignmentUsesTaskPerms(lhs ast.Expr, rhs ast.Expr) bool {
+	if index, ok := lhs.(*ast.IndexExpr); ok && isProfileMapIdent(index.X) {
+		if key, ok := stringLiteralValue(index.Index); ok && key == "permission" {
+			return permissionMapUsesTaskPerms(rhs)
+		}
+	}
+	ident, ok := lhs.(*ast.Ident)
+	if !ok || !isProfileMapName(ident.Name) {
+		return false
+	}
+	lit, ok := rhs.(*ast.CompositeLit)
+	if !ok {
+		return false
+	}
+	return compositeLitHasKeyMatching(lit, "permission", permissionMapUsesTaskPerms)
+}
+
+func isProfileMapIdent(expr ast.Expr) bool {
+	ident, ok := expr.(*ast.Ident)
+	return ok && isProfileMapName(ident.Name)
+}
+
+func isProfileMapName(name string) bool {
+	switch name {
+	case "orchEntry", "profileMap", "orchestratorMap":
+		return true
+	default:
+		return false
+	}
+}
+
+func permissionMapUsesTaskPerms(expr ast.Expr) bool {
+	lit, ok := expr.(*ast.CompositeLit)
+	if !ok {
+		return false
+	}
+	return compositeLitHasKeyMatching(lit, "task", taskPermissionValueUsesTaskPerms)
+}
+
+func taskPermissionValueUsesTaskPerms(expr ast.Expr) bool {
+	if isIdent(expr, "taskPerms") {
+		return true
+	}
+	lit, ok := expr.(*ast.CompositeLit)
+	if !ok {
+		return false
+	}
+	return compositeLitHasKeyMatching(lit, "__replace__", func(value ast.Expr) bool {
+		return isIdent(value, "taskPerms")
+	})
+}
+
+func profileTaskToolInvariantOK(text string) bool {
+	if strings.TrimSpace(text) == "" {
+		return false
+	}
+	file, err := parseInvariantGoSource(text)
+	if err != nil {
+		return false
+	}
+	state := profileTaskToolState{}
+	ast.Inspect(file, func(node ast.Node) bool {
+		assign, ok := node.(*ast.AssignStmt)
+		if !ok {
+			return true
+		}
+		inspectProfileTaskToolAssignment(assign, &state)
+		return true
+	})
+	return state.wiredToProfileTools
+}
+
+type profileTaskToolState struct {
+	wiredToProfileTools bool
+}
+
+func inspectProfileTaskToolAssignment(assign *ast.AssignStmt, state *profileTaskToolState) {
+	for i, lhs := range assign.Lhs {
+		if i >= len(assign.Rhs) {
+			continue
+		}
+		if profileToolsAssignmentUsesTaskTrue(lhs, assign.Rhs[i]) {
+			state.wiredToProfileTools = true
+		}
+	}
+}
+
+func profileToolsAssignmentUsesTaskTrue(lhs ast.Expr, rhs ast.Expr) bool {
+	if index, ok := lhs.(*ast.IndexExpr); ok && isProfileMapIdent(index.X) {
+		if key, ok := stringLiteralValue(index.Index); ok && key == "tools" {
+			return toolMapEnablesTask(rhs)
+		}
+	}
+	ident, ok := lhs.(*ast.Ident)
+	if !ok || !isProfileMapName(ident.Name) {
+		return false
+	}
+	lit, ok := rhs.(*ast.CompositeLit)
+	if !ok {
+		return false
+	}
+	return compositeLitHasKeyMatching(lit, "tools", toolMapEnablesTask)
+}
+
+func toolMapEnablesTask(expr ast.Expr) bool {
+	lit, ok := expr.(*ast.CompositeLit)
+	if !ok {
+		return false
+	}
+	if compositeLitHasKeyMatching(lit, "task", isBoolTrueLiteral) {
+		return true
+	}
+	return compositeLitHasKeyMatching(lit, "__replace__", func(value ast.Expr) bool {
+		replaceLit, ok := value.(*ast.CompositeLit)
+		if !ok {
+			return false
+		}
+		return compositeLitHasKeyMatching(replaceLit, "task", isBoolTrueLiteral)
+	})
+}
+
+func baseAssetInjectionInvariantOK(text string) bool {
+	if strings.TrimSpace(text) == "" {
+		return false
+	}
+	file, err := parseInvariantGoSource(text)
+	if err != nil {
+		return false
+	}
+	matched := false
+	ast.Inspect(file, func(node ast.Node) bool {
+		assign, ok := node.(*ast.AssignStmt)
+		if !ok {
+			return true
+		}
+		for i := range assign.Lhs {
+			if i >= len(assign.Rhs) {
+				continue
+			}
+			if isOrchestratorPromptAssignment(assign.Lhs[i]) && isCanonicalOrchestratorPromptSource(assign.Rhs[i]) {
+				matched = true
+				return false
+			}
+		}
+		return true
+	})
+	return matched
+}
+
+func parseInvariantGoSource(text string) (*ast.File, error) {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return nil, fmt.Errorf("empty source")
+	}
+	source := trimmed
+	if !strings.HasPrefix(trimmed, "package ") {
+		source = "package invariant\nfunc _() {\n" + text + "\n}\n"
+	}
+	return parser.ParseFile(token.NewFileSet(), "invariant.go", source, parser.SkipObjectResolution)
+}
+
+func isOrchestratorPromptAssignment(expr ast.Expr) bool {
+	indexExpr, ok := expr.(*ast.IndexExpr)
+	if !ok {
+		return false
+	}
+	ident, ok := indexExpr.X.(*ast.Ident)
+	if !ok || ident.Name != "orchestratorMap" {
+		return false
+	}
+	key, ok := stringLiteralValue(indexExpr.Index)
+	return ok && key == "prompt"
+}
+
+func isCanonicalOrchestratorPromptSource(expr ast.Expr) bool {
+	call, ok := expr.(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+	if isRenderSDDOrchestratorAssetCall(call) {
+		return true
+	}
+	return isLegacyOrchestratorAssetReadCall(call)
+}
+
+func isRenderSDDOrchestratorAssetCall(call *ast.CallExpr) bool {
+	ident, ok := call.Fun.(*ast.Ident)
+	if !ok || ident.Name != "renderSDDOrchestratorAsset" || len(call.Args) != 1 {
+		return false
+	}
+	return isModelAgentOpenCodeSelector(call.Args[0])
+}
+
+func isLegacyOrchestratorAssetReadCall(call *ast.CallExpr) bool {
+	selector, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || selector.Sel == nil || selector.Sel.Name != "MustRead" {
+		return false
+	}
+	x, ok := selector.X.(*ast.Ident)
+	if !ok || x.Name != "assets" || len(call.Args) != 1 {
+		return false
+	}
+	innerCall, ok := call.Args[0].(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+	innerIdent, ok := innerCall.Fun.(*ast.Ident)
+	if !ok || innerIdent.Name != "sddOrchestratorAsset" || len(innerCall.Args) != 1 {
+		return false
+	}
+	return isModelAgentOpenCodeSelector(innerCall.Args[0])
+}
+
+func isModelAgentOpenCodeSelector(expr ast.Expr) bool {
+	selector, ok := expr.(*ast.SelectorExpr)
+	if !ok || selector.Sel == nil || selector.Sel.Name != "AgentOpenCode" {
+		return false
+	}
+	ident, ok := selector.X.(*ast.Ident)
+	return ok && ident.Name == "model"
+}
+
+func stringLiteralValue(expr ast.Expr) (string, bool) {
+	lit, ok := expr.(*ast.BasicLit)
+	if !ok || lit.Kind != token.STRING {
+		return "", false
+	}
+	value, err := strconv.Unquote(lit.Value)
+	if err != nil {
+		return "", false
+	}
+	return value, true
+}
+
+func compositeLitHasStringEntry(lit *ast.CompositeLit, key string, value string) bool {
+	return compositeLitHasKeyMatching(lit, key, func(expr ast.Expr) bool {
+		return isStringLiteral(expr, value)
+	})
+}
+
+func compositeLitHasKeyMatching(lit *ast.CompositeLit, key string, matchValue func(ast.Expr) bool) bool {
+	for _, elt := range lit.Elts {
+		kv, ok := elt.(*ast.KeyValueExpr)
+		if !ok {
+			continue
+		}
+		entryKey, ok := stringLiteralValue(kv.Key)
+		if !ok || entryKey != key {
+			continue
+		}
+		if matchValue(kv.Value) {
+			return true
+		}
+	}
+	return false
+}
+
+func isIdent(expr ast.Expr, name string) bool {
+	ident, ok := expr.(*ast.Ident)
+	return ok && ident.Name == name
+}
+
+func isBinaryIdentPlusIdent(expr ast.Expr, left string, right string) bool {
+	binary, ok := expr.(*ast.BinaryExpr)
+	if !ok || binary.Op != token.ADD {
+		return false
+	}
+	return isIdent(binary.X, left) && isIdent(binary.Y, right)
+}
+
+func isStringLiteral(expr ast.Expr, expected string) bool {
+	value, ok := stringLiteralValue(expr)
+	return ok && value == expected
+}
+
+func isBoolTrueLiteral(expr ast.Expr) bool {
+	ident, ok := expr.(*ast.Ident)
+	return ok && ident.Name == "true"
 }
 
 func unmanagedDriftStatus(count int) string {

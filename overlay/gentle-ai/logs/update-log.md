@@ -4,6 +4,25 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-07-13 | Prepared the owned runtime for the upstream-first SDD v2 baseline
+
+- **Type**: `policy-change`
+- **Upstream scope/range**: owned-runtime preparation for `b6737129a295980962ec5e8daf41c971fac700b9` (`v1.44.3`) -> `b47f8af5d1cc9f6368bff17ac9e1c5694713d2c5` (`v2.0.2-24-gb47f8af`) without boundary advance
+- **Decision**: refreshed the repo-owned OpenCode orchestrator, shared SDD contracts, SDD phase skills, and SDD commands so the owned runtime defaults to the upstream v2 behavior while preserving only the confirmed local workflow layer (`branch-pr` pruned/replaced, `issue-creation` pruned, sanitized runtime `chained-pr`, local shared skills/hooks). Added the new upstream SDD support references for the design threat matrix and verify report format to the managed-assets/runtime surface. Relaxed maintainer audit invariants so they verify deny-by-default task scoping and the canonical OpenCode orchestrator asset render path instead of failing on obsolete string literals.
+- **Why it mattered**: the repo-owned SDD/runtime surface was still carrying v1.44-era overlay behavior. Reacquiring upstream v2 by default shrinks local drift, preserves only real custom behavior, and prepares a later approved sync/apply cycle without reintroducing issue-first PR gating or unsafe automatic branch/PR mutation.
+- **Affected artifacts**: `overlay/gentle-ai/assets/owned/opencode/prompts/orchestrators/gentle-orchestrator.md`, `overlay/gentle-ai/assets/owned/opencode/skills/_shared/*.md`, `overlay/gentle-ai/assets/owned/opencode/skills/sdd-*/SKILL.md`, `overlay/gentle-ai/assets/owned/opencode/skills/sdd-design/references/threat-matrix.md`, `overlay/gentle-ai/assets/owned/opencode/skills/sdd-verify/references/report-format.md`, `overlay/gentle-ai/assets/owned/opencode/commands/sdd-*.md`, `overlay/gentle-ai/assets/upstream/opencode/skills/sdd-design/references/threat-matrix.md`, `overlay/gentle-ai/assets/upstream/opencode/skills/sdd-verify/references/report-format.md`, `overlay/gentle-ai/policy/managed-assets.json`, `internal/overlay/audit_upstream.go`, `internal/overlay/managed_assets_test.go`, `README.md`, `overlay/gentle-ai/README.md`, `overlay/gentle-ai/maintenance.md`, `AGENTS.md`, `overlay/gentle-ai/logs/update-log.md`
+- **Verification**: `git diff --check`; `go test ./internal/overlay`; repo searches for stale `issue-creation` runtime claims, upstream branch-pr dependencies inside owned SDD assets, old local orchestrator sanitization wording, and missing managed reference files; `git status --short --untracked-files=all`. This event did not advance `overlay/gentle-ai/state/upstream-state.json` and did not run upstream snapshot sync, runtime refresh, or overlay apply.
+- **Follow-up**: approved upstream snapshot sync, runtime refresh, and `upstream-state.json` advancement remain intentionally pending.
+
+## 2026-07-13 | Pruned issue-creation and tightened chained-pr runtime safety
+
+- **Type**: `policy-change`
+- **Upstream scope/range**: maintenance contract / OpenCode runtime surface, not a new upstream boundary
+- **Decision**: kept `issue-creation` auditable in upstream snapshots, but moved it to the pruned runtime boundary and removed the repo-owned shared install surface so `apply-gentle-ai-custom` no longer installs or preserves an issue workflow by default. Kept sanitized `chained-pr` installable and tightened it so automatic SDD/review-budget activation may plan only; branch/PR mutation requires explicit user request or approved PR workflow handoff.
+- **Why it mattered**: the current local overlay is not meant to enforce an upstream-collaboration-oriented issue workflow when the user is not actively collaborating with that upstream repository, and retained chained PR behavior must not bypass the local no-self-initiated PR boundary.
+- **Affected artifacts**: `overlay/gentle-ai/policy/gentle-ai-policy.json`, `overlay/gentle-ai/policy/managed-assets.json`, `overlay/gentle-ai/policy/maintenance-intent.md`, `shared/skills/branch-pr/SKILL.md`, `shared/skills/chained-pr/SKILL.md`, `shared/skills/chained-pr/assets/chaining-details.md`, `shared/skills/issue-creation/SKILL.md`, `README.md`, `overlay/gentle-ai/README.md`, `overlay/gentle-ai/maintenance.md`, `AGENTS.md`, `overlay/gentle-ai/logs/update-log.md`
+- **Verification**: `git diff --check`; repo search for stale `issue-creation` install/runtime claims; fresh-context risk/readability review found chained-pr execution wording and examples to tighten, then those findings were fixed inline
+
 ## 2026-07-09 | Raised exploration and fix delegation thresholds
 
 - **Type**: `policy-change`
