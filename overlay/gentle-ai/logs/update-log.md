@@ -4,6 +4,26 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-07-14 | Closed managed SDD reference coverage gap for sdd-init
+
+- **Type**: `tooling-change`
+- **Upstream scope/range**: current approved v2 boundary `b47f8af5d1cc9f6368bff17ac9e1c5694713d2c5` (`v2.0.2-24-gb47f8af`), post-sync maintenance fix
+- **Decision**: added `sdd-init/references/init-details.md` to `managed-assets.json` as an explicit required SDD shared file, materialized matching upstream and owned copies inside the repo, and added behavior-level overlay tests that fail when required SDD phase skills link to unmanaged or missing `references/*.md` files.
+- **Why it mattered**: the repo had accepted the v2 snapshot boundary, but `sdd-init/SKILL.md` in both trees linked to a missing local reference file that was neither tracked by the manifest nor covered by tests. That gap would let future upstream/shared-reference drift bypass audit confidence and repo snapshot consistency.
+- **Affected artifacts**: `overlay/gentle-ai/policy/managed-assets.json`, `overlay/gentle-ai/assets/upstream/opencode/skills/sdd-init/references/init-details.md`, `overlay/gentle-ai/assets/owned/opencode/skills/sdd-init/references/init-details.md`, `internal/overlay/managed_assets_test.go`, `overlay/gentle-ai/logs/update-log.md`
+- **Verification**: `gofmt -w internal/overlay/managed_assets_test.go`; `go test ./internal/overlay`; `git diff --check`; SHA-256 comparison against upstream `internal/assets/skills/sdd-init/references/init-details.md` confirmed the new repo upstream snapshot file matches upstream HEAD exactly.
+- **Follow-up**: no runtime refresh or overlay re-apply was performed in this maintenance fix.
+
+## 2026-07-14 | Synced upstream snapshots to the current v2 boundary
+
+- **Type**: `adoption`
+- **Upstream scope/range**: `b6737129a295980962ec5e8daf41c971fac700b9` (`v1.44.3`) -> `b47f8af5d1cc9f6368bff17ac9e1c5694713d2c5` (`v2.0.2-24-gb47f8af`)
+- **Decision**: advanced the approved upstream snapshot boundary and refreshed only the repo's upstream snapshot assets. No `gentle-ai sync`, reinstall, overlay re-apply, or owned-runtime mutation was performed.
+- **Why it mattered**: the owned runtime had already been prepared for the upstream-first v2 behavior, but the approved upstream snapshot tree still mixed `v1.44.3`, newer v2 content, and files that matched neither boundary. Refreshing the snapshots restores the audit baseline without changing the installed runtime layer.
+- **Affected artifacts**: `overlay/gentle-ai/assets/upstream/opencode/commands/sdd-apply.md`, `overlay/gentle-ai/assets/upstream/opencode/commands/sdd-archive.md`, `overlay/gentle-ai/assets/upstream/opencode/commands/sdd-verify.md`, `overlay/gentle-ai/assets/upstream/opencode/engram-protocol.md`, `overlay/gentle-ai/assets/upstream/opencode/prompts/orchestrators/gentle-orchestrator.md`, `overlay/gentle-ai/assets/upstream/opencode/sdd-overlay-single.json`, `overlay/gentle-ai/assets/upstream/opencode/sdd-overlay-multi.json`, `overlay/gentle-ai/assets/upstream/opencode/skills/_shared/*.md`, `overlay/gentle-ai/assets/upstream/opencode/skills/judgment-day/`, `overlay/gentle-ai/assets/upstream/opencode/skills/sdd-*/SKILL.md`, `overlay/gentle-ai/assets/upstream/opencode/skills/work-unit-commits/SKILL.md`, `overlay/gentle-ai/state/upstream-state.json`
+- **Verification**: read-only git diff confirmed the only newly added managed upstream asset in the range was `internal/assets/skills/sdd-design/references/threat-matrix.md`, already tracked by `sdd-design-threat-matrix` and already present in the local snapshot; `bash sync-gentle-ai-upstream-assets.sh` reported 26 managed files changed, 24 files changed, 35 unchanged, 15 directories synced, and upstream state changed; fresh-context reliability review found no blockers. `managed-assets.json` did not change.
+- **Follow-up**: runtime refresh remains intentionally pending; do not run `gentle-ai sync` or `apply-gentle-ai-custom.sh` until the user explicitly requests that later phase.
+
 ## 2026-07-13 | Prepared the owned runtime for the upstream-first SDD v2 baseline
 
 - **Type**: `policy-change`

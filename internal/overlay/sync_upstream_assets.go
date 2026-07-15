@@ -101,11 +101,12 @@ func RunSyncUpstreamAssets(repoRoot string, args []string) int {
 	updatedState := state
 	boundaryChanged := state.LastMaintainedCommit != upstreamHead || state.LastMaintainedVersion != firstNonEmpty(upstreamExactTag, upstreamDescribe, upstreamHead) || state.LastMaintainedTag != firstNonEmpty(upstreamExactTag, upstreamDescribe)
 	if boundaryChanged {
+		previousCommit := state.LastMaintainedCommit
 		updatedState.LastMaintainedCommit = upstreamHead
 		updatedState.LastMaintainedVersion = firstNonEmpty(upstreamExactTag, upstreamDescribe, upstreamHead)
 		updatedState.LastMaintainedTag = firstNonEmpty(upstreamExactTag, upstreamDescribe)
 		updatedState.LastReviewedAt = time.Now().UTC().Format(time.RFC3339)
-		updatedState.Notes = fmt.Sprintf("Updated approved upstream asset snapshots via sync-upstream-assets from %s.", upstreamHead)
+		updatedState.Notes = formatUpstreamAssetSyncNote(previousCommit, upstreamHead)
 	}
 	status, err := writeJSONIndentedWithStatus(statePath, updatedState)
 	if err != nil {
@@ -318,4 +319,13 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func formatUpstreamAssetSyncNote(previousCommit, newCommit string) string {
+	previousCommit = strings.TrimSpace(previousCommit)
+	newCommit = strings.TrimSpace(newCommit)
+	if previousCommit == "" {
+		return fmt.Sprintf("Updated approved upstream asset snapshots via sync-upstream-assets to %s.", newCommit)
+	}
+	return fmt.Sprintf("Updated approved upstream asset snapshots via sync-upstream-assets from %s to %s.", previousCommit, newCommit)
 }

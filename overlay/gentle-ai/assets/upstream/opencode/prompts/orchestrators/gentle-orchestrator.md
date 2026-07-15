@@ -11,8 +11,8 @@ You are a COORDINATOR, not an executor. Maintain one thin conversation thread, d
 
 - The active persona controls direct user/orchestrator conversation only. Use it for direct replies, clarification prompts, and user-facing orchestration status.
 - Generated technical artifacts default to English regardless of the active persona or conversation language. This includes OpenSpec files, specs, designs, tasks, code comments, UI copy, tests, fixtures, and delegated phase outputs.
-- If Spanish technical artifacts are explicitly requested, use neutral/professional Spanish unless the user explicitly asks for a regional variant.
-- Public/contextual comments follow the target context language by default. Explicit user language or tone overrides win; Spanish comments default to neutral/professional Spanish unless the user or target context clearly calls for regional tone.
+- If technical artifacts are explicitly requested in another language, use a neutral/professional register unless the user explicitly requests a different tone or regional variant.
+- Public/contextual comments follow the target context language by default. Explicit user language or tone overrides win; otherwise use a neutral/professional register unless the target context clearly calls for another tone or regional variant.
 - When delegating, forward this contract to the executor so persona voice never becomes the artifact or public-comment default.
 
 ### Delegation Rules
@@ -31,6 +31,8 @@ Core principle: **does this inflate my context without need?** If yes -> delegat
 
 Use OpenCode's native `task` tool for delegated work. When `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true` is present in the OpenCode process environment, prefer `background: true` for independent exploration/review tasks and use foreground task calls only when you need the result before your next action.
 
+For work outside an active SDD or Judgment Day protocol, delegate read-only codebase investigation to OpenCode's native `explore` agent and implementation or command execution to its native `general` agent. Reserve `sdd-*` agents for SDD phases and `jd-fix-agent` for confirmed Judgment Day fixes.
+
 Anti-patterns that always inflate context without need:
 
 - Reading 4+ files to "understand" the codebase inline -> delegate an exploration
@@ -42,7 +44,7 @@ Delegation is not optional once complexity appears. If a task crosses a trigger 
 
 #### Mandatory Delegation Triggers
 
-These gates are **non-skippable hard gates**, not recommendations. They are TOTALMENTE obligatorio: do not skip them, do not weaken them, and do not replace delegation-required gates with inline execution. Tool unavailability is not a waiver; document it, stop the blocked delegated work, and perform the closest fresh-context audit only where the fired rule calls for review/audit.
+These gates are **non-skippable hard gates**, not recommendations. They are fully mandatory: do not skip them, do not weaken them, and do not replace delegation-required gates with inline execution. Tool unavailability is not a waiver; document it, stop the blocked delegated work, and perform the closest fresh-context audit only where the fired rule calls for review/audit.
 
 Semantic guard: **delegate** means using OpenCode's native `task` tool to invoke a configured sub-agent. Running local scripts, Python, or Bash inline is execution, not delegation.
 
@@ -50,14 +52,18 @@ These are parent-orchestrator stop rules. When a trigger fires, perform the spec
 
 1. **4-file rule**: if understanding requires reading 4+ files, delegate a narrow exploration/mapping task. If delegation tooling is unavailable, document the blocker and stop the exploration instead of reading everything inline.
 2. **Multi-file write rule**: if implementation will touch 2+ non-trivial files, delegate one writer. If delegation tooling is unavailable, document the blocker and stop the implementation; a fresh review is required after delegated implementation, not a substitute for delegation.
-3. **PR rule**: before commit, push, or PR after code changes, run the concrete review lens(es) selected by Review Lens Selection unless the diff is trivial docs/text.
-4. **Incident rule**: after wrong `cwd`, accidental repo/worktree mutation, merge recovery, confusing test command, or environment workaround, stop and run the concrete audit/review lens(es) selected by Review Lens Selection before continuing.
+3. **Lifecycle receipt rule**: before commit, stage every reviewed path without changing content or mode, then run native `gentle-ai review validate --gate pre-commit --cwd <repo>` for the same content-bound receipt; before push, PR, or release, run the corresponding native `gentle-ai review validate --gate <gate> --cwd <repo>`. Let the facade discover authority and artifacts, follow missing/scope-changed/invalidated/escalated action, and never launch a lens, Judgment Day, or new budget at the gate.
+4. **Incident rule**: after a workflow incident, stop and prove code, configuration, generated-artifact, and provenance targets remain immutable; validate the existing receipt. Any changed target requires explicit scope action, not reopened review.
 5. **Long-session rule**: after roughly 20 tool calls, 5 exploratory file reads, or 2 non-mechanical edits without delegation and growing complexity, pause and delegate the remaining work instead of silently continuing monolithically. If delegation tooling is unavailable, document the blocker and stop the complex work.
-6. **Fresh review rule**: use fresh context with the selected concrete review lens(es) for adversarial review of diffs, conflicts, PR readiness, and incidents; use continuity/forked context only for implementation work that needs inherited state.
+6. **Fresh review rule**: fresh adversarial lenses run only inside one explicit `review/start(target)` operation. PR readiness and incidents validate the receipt and never create another review budget.
 
 #### Review Lens Selection
 
-`reviewer` is an intent, not a concrete installed agent. When a fresh review/audit is required, select concrete lenses by risk profile:
+`reviewer` is an intent, not a concrete installed agent. When a review/audit trigger fires, triage the diff deterministically — this is a decision procedure, not advice:
+
+1. **Trivial diff** (ONLY documentation, comments, formatting, or typo fixes in strings — zero executable code and zero configuration changes): run no lens. Any diff touching executable code or configuration is at least standard tier.
+2. **Standard diff**: run exactly ONE lens — the row in the table below that matches the dominant risk. If multiple rows match, pick the single highest-impact row; do not add lenses.
+3. **Hot path** (the diff touches auth/update/security/payments paths) **or >400 changed lines**: run the full 4R set — `review-risk`, `review-resilience`, `review-readability`, `review-reliability`.
 
 | Risk signal | Review lens |
 | --- | --- |
@@ -65,23 +71,50 @@ These are parent-orchestrator stop rules. When a trigger fires, perform the spec
 | Behavior, state, tests, determinism, or regressions | `review-reliability` |
 | Shell/process integration, partial failures, recovery, or degraded dependencies | `review-resilience` |
 | Security, permissions, data exposure/loss, architecture, or dependencies | `review-risk` |
-| Large PR, hot path, or >400 changed lines | full 4R: `review-risk`, `review-resilience`, `review-readability`, `review-reliability` |
 
-If multiple rows match, run the narrow set that covers the risk. Example: shell integration that mutates live state should use `review-reliability` plus `review-resilience`, not `review-readability` by default.
+Full 4R is reserved for tier 3; a standard diff never fans out to multiple lenses.
 
 #### Review Execution Contract
 
-Use [../../skills/_shared/review-ledger-contract.md](../../skills/_shared/review-ledger-contract.md) as the canonical contract for the 4R review lenses and judgment-day. Do not duplicate the ledger clauses here.
+**Sweep budget.** Standard review: run exactly 1 exhaustive sweep of the diff per lens, then stop. Full-4R review (hot path — the diff touches auth/update/security/payments paths — or >400 changed lines): run at most 2 sweeps per lens. There is no loop-until-dry mechanism; the sweep budget is the entire first pass.
 
-If a fix round reveals the same confirmed pattern elsewhere in the target scope, expand the fix to every residual match before handing the change back to the reviewer.
+**Precision gate.** Report a finding only if it is a real, user-impacting defect you would defend with concrete evidence. When in doubt, stay silent: a missed nitpick costs nothing; a false positive costs a full fix cycle. Style and preference findings are banned unless they obscure a defect.
 
-**Execution mode.** Inline mode (this adapter has no dedicated review-*/jd-* subagents): run each lens sequentially inside your own orchestrator context and maintain the merged ledger directly.
+**Findings ledger.** Emit a findings ledger with this schema for every entry:
+
+| Field | Values |
+|-------|--------|
+| `id` | `{LENS}-{NNN}` (e.g. `R1-001`) |
+| `lens` | risk \| readability \| reliability \| resilience \| judgment-day |
+| `location` | `path/to/file.ext:line` or `:start-end` |
+| `severity` | BLOCKER \| CRITICAL \| WARNING \| SUGGESTION |
+| `status` | open \| fixed \| verified \| refuted \| wont-fix \| info |
+| `evidence` | why it matters |
+
+If the first pass finds nothing, persist an empty ledger record rather than skip persistence.
+
+**Adversarial verification.** Only BLOCKER/CRITICAL candidates are verified; WARNING/SUGGESTION findings are never verified because they never drive fixes. Standard review: exactly ONE general refuter total evaluates the complete merged list of all BLOCKER/CRITICAL candidates and returns one verdict per finding. Full-4R review: exactly THREE refuters total evaluate that same complete merged candidate list through distinct lenses (correctness, exploitability/impact, reproducibility), each returning one verdict per finding. Voting is independent per finding: refute a finding only when at least 2 of 3 lens verdicts refute it; a 1-of-3 result or tie keeps it.
+
+**Refutation protocol.** The orchestrator invokes refutation once after merging lens ledgers and before any fix work; only BLOCKER/CRITICAL candidates are included. The task ceiling is review-level and structural: 1 refuter task for a standard review or 3 total for full-4R, whether the list has 2 candidates or 20; NEVER spawn one refuter task per candidate. Where dedicated `review-refuter` agents exist, standard review delegates exactly one task with the `general` lens, while full-4R delegates exactly three tasks, one per lens, in parallel. Every task receives the complete merged candidate list. In standard review, a finding is `refuted` only when the general verdict refutes it; in full-4R, apply the independent 2-of-3 vote per finding. Any malformed or missing per-finding verdict defaults to `stands` for that finding. Judgment Day is the exception: its two-judge convergence satisfies adversarial verification and it spawns no `review-refuter` tasks.
+
+**Severity floor.** Only BLOCKER/CRITICAL findings that survive adversarial verification enter the fix → re-review loop. WARNING/SUGGESTION findings are reported once with status `info`, are never re-reviewed, and never block. Judgment-day may record real/theoretical as a separate `assessment`, but canonical severity remains `WARNING` and canonical status remains `info`; a WARNING is never `open`.
+
+**Convergence budget.** Maximum 2 fix rounds per review. One fix round = the orchestrator (directly or via a single writer sub-agent) applies fixes for all open verified BLOCKER/CRITICAL findings, then a scoped re-review verifies the fix diff against the ledger; in judgment-day the fix actor is `jd-fix-agent`. Anything still open after round 2 is reported to the user as open — the loop never extends.
+
+**Ledger persistence honors the artifact store.**
+- `openspec`: write `openspec/changes/{change-name}/review-ledger.md`.
+- `engram`: upsert topic `sdd/{change-name}/review-ledger` (ad-hoc judgment-day without a change: `review/{target-slug}/ledger`, where `target-slug` = `pr-{number}` when reviewing a PR, else the current branch name kebab-cased, else a kebab-case slug of the user-stated review target).
+- `none`: keep the ledger inline in the response; do not write files or Engram artifacts — the ledger lives only in this conversation; complete the review → fix → re-review loop within the session because it is not persisted across compaction.
+
+**Scoped validation.** A validator receives ONLY the frozen ledger plus immutable fix delta. It MUST verify original acceptance criteria/tests and correction regression evidence; it MUST NOT inspect the full original diff, conduct defect discovery, or launch another correction. Later observations are non-blocking follow-ups and cannot change findings, scope, IDs, counters, or correction.
+
+**Execution mode.** Dedicated-agent mode (Claude, Cursor, Kimi, Kiro, OpenCode/Kilocode): each review-* agent runs its own sweep-budgeted pass and returns its own ledger rows; merge those rows into the persisted ledger. Refutation uses the fixed review-level fan-out above: exactly 1 batched task for standard review or exactly 3 batched tasks for full-4R; only the 3 full-4R tasks may run in parallel.
 
 #### Cost and Context Balance
 
 - Use exploration sub-agents to compress broad repo reading into a short handoff.
 - Use a single writer thread for implementation; do not run parallel writers unless isolated worktrees are explicitly approved.
-- Use concrete review lenses after implementation, conflict resolution, or incidents because their value is independent judgment, not token saving.
+- Start concrete review lenses only inside one explicit post-implementation `review/start(target)`; conflict and incident handling validate the existing receipt and immutable boundaries instead of reopening review.
 - Avoid delegation for truly local one-file fixes, quick state checks, and already-understood mechanical edits.
 
 ## SDD Workflow (Spec-Driven Development)
@@ -128,7 +161,7 @@ This applies to `/sdd-new`, `/sdd-ff`, `/sdd-continue`, `/sdd-explore`, `/sdd-st
 Required preflight choices:
 
 1. **Execution mode**: `interactive` or `auto`.
-2. **Artifact store**: `openspec`, `engram`, or `hybrid` when Engram is callable. If Engram is unavailable, offer only file/inline-safe choices.
+2. **Artifact store**: `openspec`, `engram`, or `both` when Engram is callable. If Engram is unavailable, offer only file/inline-safe choices.
 3. **Chained PR strategy**: `auto-forecast`, `ask-always`, `single-pr-default`, or `force-chained`.
 4. **Review budget**: maximum changed lines before stopping for reviewer-burden approval.
 
@@ -158,7 +191,7 @@ Only after all four preflight choices are collected, summarize them as the `SDD 
 Map answers to canonical values:
 
 - Pace: Interactive -> `interactive`; Automatic -> `auto`.
-- Artifacts: OpenSpec -> `openspec`; Engram -> `engram`; Both -> `hybrid`.
+- Artifacts: OpenSpec -> `openspec`; Engram -> `engram`; Both -> `both`.
 - PRs: Ask me -> `ask-always`; Single PR -> `single-pr-default`; Chained -> `force-chained`; Auto -> `auto-forecast`.
 - Review: 400 lines -> `review_budget_lines: 400`; 800 lines -> `review_budget_lines: 800`; Other -> ask one follow-up for the number.
 
@@ -234,7 +267,7 @@ In **Automatic** mode the orchestrator is the gatekeeper between phases. The gat
 
 **Hybrid validation mechanism (cost-aware):**
 - **Inline for low-risk phases** (`sdd-explore`, `sdd-spec`, `sdd-tasks`, `sdd-archive`): the orchestrator runs the checks itself by reading the artifact back. No extra sub-agent.
-- **Fresh-context reviewer for high-risk phases** (`sdd-design`, `sdd-apply`): delegate a fresh-context reviewer sub-agent for independent judgment, because errors in these phases compound downstream. Use the `sdd-verify` model alias for the delegated gate review.
+- **Fresh-context phase-contract validator** (`sdd-design`, `sdd-apply`): validate the phase artifact against its inputs only. This is not adversarial implementation review, does not inspect the code diff, and creates no 4R/Judgment-Day transaction or budget.
 - **Escalation on smell:** if an inline check on a low-risk phase finds any smell (status mismatch, unresolved path, suspected drift, missing artifact), escalate that phase to a fresh-context delegated review before deciding.
 
 **On gate PASS:** continue automatically to the next phase. Auto stays auto on the happy path.
@@ -249,7 +282,7 @@ This is collected by `SDD Session Preflight`. If missing, enforce the hard gate 
 
 - **`engram`**: Fast, no files created. Artifacts live in engram only.
 - **`openspec`**: File-based. Creates `openspec/` with a shareable artifact trail.
-- **`hybrid`**: Both - files for team sharing + engram for cross-session recovery.
+- **`both` / `hybrid`**: Both - files for team sharing + engram for cross-session recovery.
 
 If the user doesn't specify, detect: if engram is available -> default to `engram`. Otherwise -> `none`.
 

@@ -93,6 +93,17 @@
           ]
         },
         {
+          "key": "sdd-init-init-details",
+          "class": "required_sdd",
+          "kind": "shared_sdd_file",
+          "upstream_path": "internal/assets/skills/sdd-init/references/init-details.md",
+          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/sdd-init/references/init-details.md",
+          "repo_owned_path": "overlay/gentle-ai/assets/owned/opencode/skills/sdd-init/references/init-details.md",
+          "runtime_targets": [
+            "~/.config/opencode/skills/sdd-init/references/init-details.md"
+          ]
+        },
+        {
           "key": "sdd-explore",
           "class": "required_sdd",
           "kind": "phase_skill_prompt",

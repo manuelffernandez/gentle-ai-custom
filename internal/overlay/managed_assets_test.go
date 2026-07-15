@@ -1,11 +1,16 @@
 package overlay
 
 import (
+	"encoding/json"
 	"os"
+	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
+
+var skillReferenceLinkPattern = regexp.MustCompile(`\[[^\]]+\]\((references/[^)#]+\.md)\)`)
 
 func TestCategorizeGitDiffTreatsOnlyOpenCodeAndEngramSourcesAsManaged(t *testing.T) {
 	target := testOpenCodeAgentsTarget()
@@ -119,6 +124,180 @@ func TestSyncManagedTargetCopiesOpenCodeAgentsSourceFilesFromUpstream(t *testing
 	}
 }
 
+func TestFormatUpstreamAssetSyncNoteRecordsPreviousAndNewCommit(t *testing.T) {
+	got := formatUpstreamAssetSyncNote(
+		"b6737129a295980962ec5e8daf41c971fac700b9",
+		"b47f8af5d1cc9f6368bff17ac9e1c5694713d2c5",
+	)
+	want := "Updated approved upstream asset snapshots via sync-upstream-assets from b6737129a295980962ec5e8daf41c971fac700b9 to b47f8af5d1cc9f6368bff17ac9e1c5694713d2c5."
+	if got != want {
+		t.Fatalf("formatUpstreamAssetSyncNote() = %q, want %q", got, want)
+	}
+}
+
+func TestFormatUpstreamAssetSyncNoteHandlesUnknownPreviousCommit(t *testing.T) {
+	got := formatUpstreamAssetSyncNote("", "b47f8af5d1cc9f6368bff17ac9e1c5694713d2c5")
+	want := "Updated approved upstream asset snapshots via sync-upstream-assets to b47f8af5d1cc9f6368bff17ac9e1c5694713d2c5."
+	if got != want {
+		t.Fatalf("formatUpstreamAssetSyncNote() = %q, want %q", got, want)
+	}
+}
+
+func TestRunSyncUpstreamAssetsRecordsPreviousMaintainedCommitInStateNote(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	upstreamRepo := t.TempDir()
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "persona-gentleman.md"), []byte("## Rules\n\n- Persona v1.\n"))
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "engram", "protocol.md"), []byte("## Engram Persistent Memory — Protocol\n\n- v1\n"))
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "sdd-overlay-single.json"), []byte("{\n  \"name\": \"single\"\n}\n"))
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "sdd-overlay-multi.json"), []byte("{\n  \"name\": \"multi\"\n}\n"))
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "plugins", "model-variants.ts"), []byte("export const modelVariants = [];\n"))
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "plugins", "skill-registry.ts"), []byte("export const skillRegistry = [];\n"))
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "plugins", "background-agents.ts"), []byte("export const backgroundAgents = [];\n"))
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "components", "sdd", "profiles.go"), []byte(`package opencode
+
+var profilePhaseOrder = []string{
+	"sdd-init",
+	"sdd-apply",
+}
+
+func DetectProfiles() string {
+	const orchPrefix = "sdd-orchestrator-"
+	return orchPrefix
+}
+
+func ProfileAgentKeys(suffix string) []string {
+	keys := []string{}
+	keys = append(keys, "sdd-orchestrator"+suffix)
+	return keys
+}
+
+func wiring(suffix string) {
+	profileMap := map[string]any{}
+	orchestratorMap := map[string]any{
+		"tools": map[string]any{
+			"task": true,
+		},
+	}
+	_ = orchestratorMap
+	taskPerms := map[string]any{
+		"*":       "deny",
+		"general": "allow",
+	}
+	for _, phase := range profilePhaseOrder {
+		taskPerms[phase+suffix] = "allow"
+	}
+	for _, jd := range JDPhases() {
+		taskPerms[jd] = "allow"
+	}
+	for _, reviewAgent := range ReviewPhases() {
+		taskPerms[reviewAgent] = "allow"
+	}
+	profileMap["permission"] = map[string]any{
+		"bash": true,
+		"task": taskPerms,
+	}
+}
+`))
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "components", "sdd", "inject.go"), []byte(`package opencode
+
+func inject() {
+	orchestratorRaw, ok := agentsMap["gentle-orchestrator"]
+	_ = orchestratorRaw
+	_ = ok
+	orchestratorMap["prompt"] = renderSDDOrchestratorAsset(model.AgentOpenCode)
+	taskRaw, ok := permissionRaw["task"].(map[string]any)
+	_ = taskRaw
+	_ = ok
+}
+`))
+	mustInitGitRepo(t, upstreamRepo)
+
+	previousCommit, err := runGit(upstreamRepo, false, "rev-parse", "HEAD")
+	if err != nil {
+		t.Fatalf("git rev-parse previous HEAD: %v", err)
+	}
+
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "persona-gentleman.md"), []byte("## Rules\n\n- Persona v2.\n"))
+	if _, err := runGit(upstreamRepo, false, "add", "."); err != nil {
+		t.Fatalf("git add updated upstream fixture: %v", err)
+	}
+	if _, err := runGit(upstreamRepo, false, "commit", "-m", "update persona snapshot"); err != nil {
+		t.Fatalf("git commit updated upstream fixture: %v", err)
+	}
+
+	upstreamHead, err := runGit(upstreamRepo, false, "rev-parse", "HEAD")
+	if err != nil {
+		t.Fatalf("git rev-parse upstream HEAD: %v", err)
+	}
+
+	repoRoot := t.TempDir()
+	t.Setenv(upstreamRepoEnvVar, upstreamRepo)
+
+	policy := Policy{}
+	policy.Version = 1
+	policy.Name = "test-overlay"
+	policy.Description = "test policy"
+	policy.Maintenance.IntentFile = "overlay/gentle-ai/policy/maintenance-intent.md"
+	policy.Maintenance.StateFile = "overlay/gentle-ai/state/upstream-state.json"
+	policy.Maintenance.LogFile = "overlay/gentle-ai/logs/update-log.md"
+	policy.Upstream.RepoName = "gentle-ai"
+	policy.Upstream.OrchestratorPromptPath = "internal/assets/opencode/sdd-orchestrator.md"
+	policy.OpenCode.ConfigPath = "~/.config/opencode/opencode.json"
+	policy.OpenCode.LocalConfigPath = "~/.config/gentle-ai-custom/opencode-local-config.json"
+	policy.OpenCode.BaseOrchestratorKey = "gentle-orchestrator"
+	policy.OpenCode.OrchestratorAgentKeys = []string{"gentle-orchestrator"}
+	policy.OpenCode.OrchestratorAgentPrefixes = []string{"sdd-orchestrator"}
+	policy.OpenCode.ProfileOrchestratorPrefix = "sdd-orchestrator-"
+	policy.OpenCode.SDDPhases = []string{"sdd-init", "sdd-apply"}
+	writeJSONFixture(t, filepath.Join(repoRoot, "overlay", "gentle-ai", "policy", "gentle-ai-policy.json"), policy)
+
+	manifest := ManagedAssetsManifest{
+		Version:     1,
+		Status:      "active_runtime_canonical",
+		Description: "test manifest",
+		Targets: map[string]ManagedAssetsTarget{
+			"opencode": {
+				WatchRoots:                 testOpenCodeAgentsTarget().WatchRoots,
+				StructuralInvariantSources: []string{"internal/components/sdd/profiles.go", "internal/components/sdd/inject.go"},
+				OwnedOverlayAssets:         testOpenCodeAgentsTarget().OwnedOverlayAssets,
+			},
+		},
+	}
+	writeJSONFixture(t, filepath.Join(repoRoot, "overlay", "gentle-ai", "policy", "managed-assets.json"), manifest)
+
+	statePath := filepath.Join(repoRoot, "overlay", "gentle-ai", "state", "upstream-state.json")
+	writeJSONFixture(t, statePath, UpstreamState{
+		LastMaintainedVersion: previousCommit,
+		LastMaintainedCommit:  previousCommit,
+		Notes:                 "before sync",
+	})
+
+	if exitCode := RunSyncUpstreamAssets(repoRoot, nil); exitCode != 0 {
+		t.Fatalf("RunSyncUpstreamAssets() exit code = %d, want 0", exitCode)
+	}
+
+	var updatedState UpstreamState
+	if err := readJSONFile(statePath, &updatedState); err != nil {
+		t.Fatalf("read updated state: %v", err)
+	}
+
+	if updatedState.LastMaintainedCommit != upstreamHead {
+		t.Fatalf("updated last_maintained_commit = %q, want %q", updatedState.LastMaintainedCommit, upstreamHead)
+	}
+
+	wantNote := formatUpstreamAssetSyncNote(previousCommit, upstreamHead)
+	if updatedState.Notes != wantNote {
+		t.Fatalf("updated notes = %q, want %q", updatedState.Notes, wantNote)
+	}
+
+	regressionNote := formatUpstreamAssetSyncNote(upstreamHead, upstreamHead)
+	if updatedState.Notes == regressionNote {
+		t.Fatalf("updated notes regressed to head->head note %q", regressionNote)
+	}
+}
+
 func TestOpenCodeAgentsOwnedSourceExtendsMaterializedBaseline(t *testing.T) {
 	if testing.Short() {
 		t.Skip("integration: reads committed repo files to verify owned AGENTS.md invariants")
@@ -159,6 +338,54 @@ func TestOpenCodeAgentsOwnedSourceExtendsMaterializedBaseline(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "upstream", "claude")); !os.IsNotExist(err) {
 		t.Fatalf("owned AGENTS baseline should not materialize the claude snapshot tree")
+	}
+}
+
+func TestRequiredSDDSkillReferenceLinksAreManagedAndMaterialized(t *testing.T) {
+	repoRoot := repoRootForTest(t)
+	target, _, err := loadManagedAssetsTarget(repoRoot, "opencode")
+	if err != nil {
+		t.Fatalf("loadManagedAssetsTarget() error = %v", err)
+	}
+
+	checkedLinks := 0
+	for _, asset := range target.OwnedOverlayAssets {
+		if asset.Class != "required_sdd" || asset.Kind != "phase_skill_prompt" {
+			continue
+		}
+
+		seenLinks := map[string]bool{}
+		for _, skillPath := range []string{asset.RepoUpstreamPath, asset.RepoOwnedPath} {
+			for _, link := range markdownReferenceLinks(mustReadFile(t, filepath.Join(repoRoot, filepath.FromSlash(skillPath)))) {
+				if seenLinks[link] {
+					continue
+				}
+				seenLinks[link] = true
+				checkedLinks++
+
+				repoUpstreamPath := path.Join(path.Dir(asset.RepoUpstreamPath), link)
+				repoOwnedPath := path.Join(path.Dir(asset.RepoOwnedPath), link)
+				assertFileExists(t, filepath.Join(repoRoot, filepath.FromSlash(repoUpstreamPath)))
+				assertFileExists(t, filepath.Join(repoRoot, filepath.FromSlash(repoOwnedPath)))
+
+				referenceAsset, ok := findOwnedOverlayAssetByRepoPaths(target.OwnedOverlayAssets, repoUpstreamPath, repoOwnedPath)
+				if !ok {
+					t.Fatalf("missing managed-assets mapping for %s and %s", repoUpstreamPath, repoOwnedPath)
+				}
+				if referenceAsset.Class != "required_sdd" || referenceAsset.Kind != "shared_sdd_file" {
+					t.Fatalf("reference asset %q must be required_sdd/shared_sdd_file, got class=%q kind=%q", referenceAsset.Key, referenceAsset.Class, referenceAsset.Kind)
+				}
+
+				wantRuntimeTarget := repoOwnedPathToRuntimeTarget(repoOwnedPath)
+				if !stringSliceContains(referenceAsset.RuntimeTargets, wantRuntimeTarget) {
+					t.Fatalf("reference asset %q runtime targets = %v, want %q", referenceAsset.Key, referenceAsset.RuntimeTargets, wantRuntimeTarget)
+				}
+			}
+		}
+	}
+
+	if checkedLinks == 0 {
+		t.Fatal("no required_sdd phase skill reference links were discovered; link coverage test is not exercising any managed references")
 	}
 }
 
@@ -234,6 +461,54 @@ func repoRootForTest(t *testing.T) string {
 	}
 }
 
+func markdownReferenceLinks(markdown string) []string {
+	matches := skillReferenceLinkPattern.FindAllStringSubmatch(markdown, -1)
+	seen := map[string]bool{}
+	links := make([]string, 0, len(matches))
+	for _, match := range matches {
+		if len(match) < 2 {
+			continue
+		}
+		link := match[1]
+		if seen[link] {
+			continue
+		}
+		seen[link] = true
+		links = append(links, link)
+	}
+	return links
+}
+
+func findOwnedOverlayAssetByRepoPaths(assets []OwnedOverlayAsset, repoUpstreamPath, repoOwnedPath string) (OwnedOverlayAsset, bool) {
+	for _, asset := range assets {
+		if asset.RepoUpstreamPath == repoUpstreamPath && asset.RepoOwnedPath == repoOwnedPath {
+			return asset, true
+		}
+	}
+	return OwnedOverlayAsset{}, false
+}
+
+func repoOwnedPathToRuntimeTarget(repoOwnedPath string) string {
+	const ownedRuntimePrefix = "overlay/gentle-ai/assets/owned/opencode/"
+	return "~/.config/opencode/" + strings.TrimPrefix(repoOwnedPath, ownedRuntimePrefix)
+}
+
+func assertFileExists(t *testing.T, path string) {
+	t.Helper()
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("expected file %s to exist: %v", path, err)
+	}
+}
+
+func stringSliceContains(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
 func mustReadFile(t *testing.T, path string) string {
 	t.Helper()
 	raw, err := os.ReadFile(path)
@@ -251,6 +526,15 @@ func mustWriteFile(t *testing.T, path string, content []byte) {
 	if err := os.WriteFile(path, content, 0o644); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}
+}
+
+func writeJSONFixture(t *testing.T, path string, value any) {
+	t.Helper()
+	raw, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal json fixture %s: %v", path, err)
+	}
+	mustWriteFile(t, path, append(raw, '\n'))
 }
 
 func TestProfileTaskScopingInvariantOKAcceptsEquivalentDenyFormatting(t *testing.T) {

@@ -1,56 +1,52 @@
 ---
 name: judgment-day
-description: "Trigger: judgment day, dual review, adversarial review, juzgar. Run blind dual review, fix confirmed issues, then re-judge."
+description: "Trigger: judgment day, dual review, adversarial review, juzgar. Run explicit blind dual review with at most two scoped fix/re-judgment rounds."
 license: Apache-2.0
 metadata:
   author: gentleman-programming
-  version: "1.4"
+  version: "1.6"
 ---
 
 ## Activation Contract
 
-Load this skill only when the user explicitly asks for Judgment Day, dual/adversarial review, or equivalent Spanish trigger (`juzgar`, `que lo juzguen`). Review a specific target: files, feature, PR, or architecture slice.
+Load only when the user explicitly requests Judgment Day or equivalent dual/adversarial review for a concrete target. Judgment Day replaces ordinary 4R for that target; never run both.
 
 ## Hard Rules
 
-- Resolve project skills before launching agents: read skill registry, match skill paths by target files/task, and inject the same `Skills to load before work` block into both judge prompts and fix prompts.
-- Launch **two blind judges in parallel** with identical target and criteria; never review the code yourself.
-- Wait for both judges before synthesis; never accept a partial verdict.
-- Follow [../_shared/review-ledger-contract.md](../_shared/review-ledger-contract.md) as the single canonical contract for the judge/fix loop.
-- Ask before fixing Round 1 confirmed issues.
-- After any fix agent runs, immediately re-launch both judges in parallel before commit/push/done/session summary.
-- Terminal states are only `JUDGMENT: APPROVED` or `JUDGMENT: ESCALATED`.
-- After 2 fix iterations with remaining issues, ask the user whether to continue.
+- Resolve matching project skills before starting and pass the same paths to both judges and any fix actor.
+- Build one complete immutable target, then launch two blind read-only judges in parallel with identical scope and criteria.
+- Each judge returns one neutral findings result and terminates. Wait for both; never accept a partial judgment.
+- Never launch `review-refuter`; two-judge agreement is the corroboration mechanism.
+- Only the parent orchestrator merges/persists findings, launches the fix actor, launches scoped re-judgment, and updates native counters.
+- Fix only severe findings confirmed by both judges. WARNING/SUGGESTION rows remain `info`.
+- Permit at most two fix rounds and two scoped re-judgments. Re-judgment sees only the frozen ledger plus fix delta and may record fix-caused defects.
+- Terminal transaction states are only `approved | escalated`; never reset or extend an exhausted lineage.
 
 ## Decision Gates
 
 | Condition | Action |
 |---|---|
-| Target unclear | Ask for scope; do not launch judges. |
-| No skill registry | Warn, proceed with generic criteria, and record `Skill Resolution: none`. |
-| Both judges find same CRITICAL/real WARNING | Confirmed; ask/fix according to round rules. |
-| One judge finds issue | Suspect; report and triage, do not auto-fix. |
-| Judges contradict | Escalate for manual decision. |
-| Round 2+ has only theoretical warnings/suggestions | Report as INFO; do not re-judge. |
+| Target unclear | Ask one scope question and stop. |
+| Both judges confirm severe finding | Ask before round-one correction; then use the bounded fix actor. |
+| One judge reports it | Record suspect; do not auto-fix. |
+| Judges contradict | Escalate for explicit human decision. |
+| Scoped re-judgment fails before round two | Parent may launch the final bounded fix round. |
+| Any issue remains after round two | Escalate and stop. |
 
 ## Execution Steps
 
-1. Confirm target and optional custom criteria.
-2. Resolve exact skill paths from registry or warn if missing.
-3. Start Judge A and Judge B concurrently via delegation; each runs the exhaustive first pass and emits its own findings ledger.
-4. Synthesize findings into confirmed, suspect, contradiction, and INFO buckets; merge both judges' ledger rows into the persisted ledger and persist per the artifact-store branch.
-5. Ask before Round 1 fixes; delegate a separate fix agent for confirmed approved fixes only. The fix agent reads the persisted ledger, applies only confirmed fixes, and sets addressed ledger ids to `fixed`.
-6. Re-judge in parallel after fixes, scoped to the persisted ledger and the fix diff per the Scoped re-review contract; repeat until approved, escalated, or user asks to stop.
-7. Before any terminal action, verify every active Judgment Day has a terminal state.
+1. Start `review/start(target, mode=judgment_day)` and persist the transaction.
+2. Launch both read-only judges against the same immutable target.
+3. Merge findings into the frozen ledger and persist it through the selected artifact store.
+4. Ask before round-one correction; run the fix actor only for confirmed severe IDs.
+5. Run both judges again only over the frozen ledger plus immutable fix delta.
+6. Repeat once at most, then run independent final verification and emit the terminal receipt.
 
 ## Output Contract
 
-Return `## Judgment Day — {target}` with the primary Judgment Day report first. Use the final report shape defined in [references/prompts-and-formats.md](references/prompts-and-formats.md); do not restate it here. Append a separate trailing retrospective block afterward with retrospective status, compact summary, pattern updates, intervention history updates, recurrence/effectiveness note, and persisted observation IDs or keys.
-
-## Ledger and Re-Judge Contract
-
-See [../_shared/review-ledger-contract.md](../_shared/review-ledger-contract.md) for the canonical judge/fix contract and residual-scan rule.
+Return target identity, round, confirmed/suspect/contradiction/INFO counts, correction work units, scoped re-judgment result, artifact references, skill resolution, and exactly one final `JUDGMENT: APPROVED ✅` or `JUDGMENT: ESCALATED ⚠️`.
 
 ## References
 
-- [references/prompts-and-formats.md](references/prompts-and-formats.md) — judge/fix prompts, shared ledger contract reference, and language snippets.
+- [../_shared/review-ledger-contract.md](../_shared/review-ledger-contract.md) — canonical transaction, ledger, persistence, and lifecycle contract.
+- [references/prompts-and-formats.md](references/prompts-and-formats.md) — compact judge/fix prompts and verdict shape.
