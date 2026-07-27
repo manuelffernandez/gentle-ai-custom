@@ -24,17 +24,20 @@ Use this skill when:
 - Follow this order for maintainer updates: update `gentle-ai` binary -> `git pull` upstream -> audit from `gentle-ai-custom` -> approval gate -> repo sync via `sync-gentle-ai-upstream-assets` when a new boundary was accepted -> refresh upstream runtime (`gentle-ai sync` or reinstall) -> run `apply-gentle-ai-custom`.
 - `audit-gentle-ai-upstream` discovers drift from `git diff --name-status --find-renames <last_maintained_commit>..HEAD`, filtered through `overlay/gentle-ai/policy/managed-assets.json`, while still checking structural invariants from upstream integration code.
 - `sync-gentle-ai-upstream-assets` refreshes `overlay/gentle-ai/assets/upstream/...` plus the maintained boundary only after the drift has been reviewed and accepted.
-- `apply-gentle-ai-custom` is now canonical: it installs repo-owned SDD/runtime assets from `overlay/gentle-ai/assets/owned/...`, installs repo-owned portable skills from `shared/skills/`, renders wrapper commands from `shared/commands/`, prunes rejected upstream skills, applies built-in overrides, and reconciles SDD profiles.
-- The apply path is driven by repo-owned runtime assets declared in `overlay/gentle-ai/assets/owned/...` plus portable repo-owned skills from `shared/skills/`.
+- `apply-gentle-ai-custom` installs true repo-owned assets and portable skills, renders wrappers, prunes rejected skills, applies overrides, and reconciles profiles while preserving upstream-materialized SDD/review runtime assets.
+- Before any runtime write, apply validates only its own prerequisites: ownership boundaries, base prompts consumed by configured profiles, safe obsolete-reference migration, and compatible Judgment Day patch anchors.
+- Apply must not inspect or certify upstream plugin, contract, prompt, or review semantics. Opaque or absent upstream plugins do not block unrelated custom operations.
+- Owned-state cleanup must track every custom-installed output while protecting upstream runtime targets, retained upstream skill trees, and surgical patch targets without claiming whole-file ownership.
 - Read semantic intent before making maintenance decisions.
+- For approved upstream assets, replacement-first means upstream Gentle AI materializes the finished runtime artifact. Keep raw snapshots for audit only and apply explicit surgical deltas from `maintenance-intent.md` against a compatible installed artifact.
 - When editing Markdown primarily consumed by agents or LLMs, follow the runtime Agent-Readable Markdown Standard and keep only local reminders here; do not restate the full rule set.
 - Before any repo mutation, produce a concise decision summary that states what is new upstream, the `Scope` / `Impact` classification, the recommended decision (`Adquirir`, `Sanitizar`, or `Ignorar`), the rationale, whether repo sync is required, and the recommended upstream refresh path.
 - After that summary, STOP for explicit user approval before mutating this repo, advancing the maintained upstream boundary, syncing approved upstream assets, or refreshing local runtime state.
-- Preserve the local keep/prune baseline and the repo-owned orchestrator behavior goals defined in `maintenance-intent.md`.
+- Preserve the local keep/prune baseline and upstream/runtime ownership boundaries defined in `maintenance-intent.md`.
 - Treat upstream PR strategy, chained PR, review-budget, and review-workload governance as adopt-by-default under the current upstream-first intent; sanitize only when a concrete conflict with explicit local customizations is confirmed.
 - Keep bash and PowerShell scripts behaviorally equivalent.
 - Update `AGENTS.md`, `README.md`, `overlay/gentle-ai/maintenance.md`, and `overlay/gentle-ai/logs/update-log.md` when the workflow changes, but write to the log only for eligible closed maintenance events under `AGENTS.md` rule 4.
-- Do not change intent, keep/prune, or repo-owned orchestrator behavior for new upstream changes without explicit user approval.
+- Do not change intent, keep/prune, runtime ownership, or local patch behavior for new upstream changes without explicit user approval.
 - After approved maintenance work, return a closing summary of what was actually `Adquirir`, `Sanitizar`, or `Ignorar`, and why.
 - After maintenance edits, run one fresh-context reviewer/subagent consistency pass over the changed maintainer artifacts before closing.
 - The versioned policy MUST NOT carry per-profile orchestrator/phase model+variant choices. Those live in the per-machine local config at `~/.config/gentle-ai-custom/opencode-local-config.json` under `default_profile` and `profiles`.
@@ -81,7 +84,7 @@ Re-apply is mandatory after `gentle-ai sync` or reinstall because upstream rewri
 | If | Then |
 |---|---|
 | User updated upstream (`git pull`) but has NOT run `gentle-ai sync` yet | Run `bash audit-gentle-ai-upstream.sh` FIRST. Use it to detect managed-asset drift + profile invariants before recommending repo sync + runtime refresh. |
-| User just ran `gentle-ai sync` | Re-apply overlay immediately with `bash apply-gentle-ai-custom.sh opencode` (minimum) or `all`. |
+| User just ran `gentle-ai sync` | Re-apply with `bash apply-gentle-ai-custom.sh opencode` (minimum) or `all`; if runtime preflight fails, reinstall/sync must restore the missing upstream surface first. |
 | User just ran TUI reinstall | Audit topology BEFORE re-applying. |
 | Script printed `topology: ...` warnings | Investigate each warning. STOP and ask before mutating policy/intent. |
 | Script printed `WARNING - unmanaged SDD profiles left untouched` | Ask whether to add the profile(s) to the local config or remove those agent keys manually. NEVER delete them automatically. |
@@ -130,9 +133,12 @@ Re-apply is mandatory after `gentle-ai sync` or reinstall because upstream rewri
    - pruned skills are absent only in the selected registered runtime targets
    - owned runtime targets declared in `managed-assets.json` exist on disk
    - `agent_overrides` resolve to the configured `model` / `variant`
-   - `agent.gentle-orchestrator.prompt` points to the owned runtime prompt file
-   - each managed named profile orchestrator points to the same owned runtime prompt file
-   - each unsuffixed and managed suffixed SDD phase agent points to the owned runtime prompt file for that phase
+   - `agent.gentle-orchestrator.prompt` remains the upstream-owned prompt or reference
+   - each managed named profile orchestrator reuses the upstream base orchestrator prompt
+   - each unsuffixed and managed suffixed SDD phase agent reuses its upstream base phase prompt/reference
+   - representative upstream-owned prompt, plugin, and contract files remain byte- and mode-unchanged by custom apply
+   - no managed agent references an obsolete `.overlay.md` prompt
+   - Judgment Day differs from its compatible installed upstream baseline only by the declared retrospective handoff
    - default/named profile assignments still match the local config
    - `overlay/gentle-ai/assets/upstream/opencode/prompts/orchestrators/gentle-orchestrator.md` and related upstream metadata remain consistent with `upstream-state.json`
 18. Run one fresh-context reviewer/subagent pass against the changed maintainer artifacts and the final maintenance diff to confirm the workflow, docs, and summary outputs stay consistent.
@@ -153,7 +159,7 @@ Return:
 - apply summary counts (owned asset writes, prompt ref updates, topology warnings, profile counts)
 - post-state verification result (what passed / failed)
 - fresh-context reviewer/subagent result (what it checked and whether it found inconsistencies)
-- whether keep/prune or repo-owned orchestrator behavior changed
+- whether keep/prune, runtime ownership, or local patch behavior changed
 - what upstream range was audited
 - whether user approval was required and how it affected the result
 - closing summary of what was actually `Adquirir`, `Sanitizar`, or `Ignorar`, and why

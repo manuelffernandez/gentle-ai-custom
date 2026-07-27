@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -75,7 +76,7 @@ func TestReconcileOwnedRuntimeOutputsTracksPruneModeDirectoryAssets(t *testing.T
 	}
 }
 
-func TestCollectOwnedRuntimePathsFiltersBySyncMode(t *testing.T) {
+func TestCollectOwnedRuntimePathsTracksEveryRepoOwnedAsset(t *testing.T) {
 	repoRoot := t.TempDir()
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
@@ -95,21 +96,21 @@ func TestCollectOwnedRuntimePathsFiltersBySyncMode(t *testing.T) {
 	mustWriteFile(t, filepath.Join(pruneSourcePath, "refs", "ref.md"), []byte("ref\n"))
 
 	tests := []struct {
-		name       string
-		asset      OwnedOverlayAsset
-		wantPaths  []string // expected tracked paths; nil means none
+		name      string
+		asset     OwnedOverlayAsset
+		wantPaths []string // expected tracked paths; nil means none
 	}{
 		{
-			name: "file-mode asset with no RuntimeSyncMode is NOT tracked",
+			name: "single-file asset without sync mode is tracked",
 			asset: OwnedOverlayAsset{
 				Key:             "opencode-agents",
 				Class:           "repo_owned_runtime",
 				Kind:            "agent_instruction_file",
-				RepoOwnedPath:  "overlay/gentle-ai/assets/owned/opencode/AGENTS.md",
+				RepoOwnedPath:   "overlay/gentle-ai/assets/owned/opencode/AGENTS.md",
 				RuntimeSyncMode: "",
 				RuntimeTargets:  []string{"~/.config/opencode/AGENTS.md"},
 			},
-			wantPaths: nil,
+			wantPaths: []string{filepath.Join(basePath, "AGENTS.md")},
 		},
 		{
 			name: "merge-mode directory asset IS tracked",
@@ -117,7 +118,7 @@ func TestCollectOwnedRuntimePathsFiltersBySyncMode(t *testing.T) {
 				Key:             "sdd-commands",
 				Class:           "repo_owned_runtime",
 				Kind:            "command_directory",
-				RepoOwnedPath:  "overlay/gentle-ai/assets/owned/opencode/commands",
+				RepoOwnedPath:   "overlay/gentle-ai/assets/owned/opencode/commands",
 				RuntimeSyncMode: "merge",
 				RuntimeTargets:  []string{"~/.config/opencode/commands"},
 			},
@@ -129,7 +130,7 @@ func TestCollectOwnedRuntimePathsFiltersBySyncMode(t *testing.T) {
 				Key:             "test-prune-skill",
 				Class:           "repo_owned_runtime",
 				Kind:            "skill_directory",
-				RepoOwnedPath:  "overlay/gentle-ai/assets/owned/opencode/skills/test-prune-skill",
+				RepoOwnedPath:   "overlay/gentle-ai/assets/owned/opencode/skills/test-prune-skill",
 				RuntimeSyncMode: "prune",
 				RuntimeTargets:  []string{"~/.config/opencode/skills/test-prune-skill"},
 			},
@@ -149,12 +150,6 @@ func TestCollectOwnedRuntimePathsFiltersBySyncMode(t *testing.T) {
 			if err != nil {
 				t.Fatalf("collectOwnedRuntimePaths() error = %v", err)
 			}
-			if tt.wantPaths == nil {
-				if len(paths) != 0 {
-					t.Errorf("expected no tracked paths, got %v", paths)
-				}
-				return
-			}
 			if !reflect.DeepEqual(paths, tt.wantPaths) {
 				t.Errorf("tracked paths = %v, want %v", paths, tt.wantPaths)
 			}
@@ -162,7 +157,7 @@ func TestCollectOwnedRuntimePathsFiltersBySyncMode(t *testing.T) {
 	}
 }
 
-func TestReconcileOwnedRuntimeOutputsStalePathsOnlyForSyncModeAssets(t *testing.T) {
+func TestReconcileOwnedRuntimeOutputsDeletesMissingCustomOutputs(t *testing.T) {
 	repoRoot := t.TempDir()
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
@@ -218,8 +213,7 @@ func TestReconcileOwnedRuntimeOutputsStalePathsOnlyForSyncModeAssets(t *testing.
 		t.Errorf("current prune-mode path was incorrectly deleted: %s", currentPrunePath)
 	}
 
-	// The saved state must contain only paths for mode-carrying assets (prune/merge).
-	// No-mode assets (e.g. AGENTS.md) must never appear in state.
+	// The saved state contains exactly the currently custom-owned output.
 	gotStateRaw := mustReadFile(t, filepath.Join(basePath, ".gentle-ai-custom-owned-state.json"))
 	var gotState ownedRuntimeState
 	if err := json.Unmarshal([]byte(gotStateRaw), &gotState); err != nil {
@@ -231,7 +225,7 @@ func TestReconcileOwnedRuntimeOutputsStalePathsOnlyForSyncModeAssets(t *testing.
 	}
 }
 
-func TestCollectOwnedRuntimePathsNoModeAssetIsNotTracked(t *testing.T) {
+func TestCollectOwnedRuntimePathsTracksSingleFileAssetWithoutSyncMode(t *testing.T) {
 	repoRoot := t.TempDir()
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
@@ -251,7 +245,7 @@ func TestCollectOwnedRuntimePathsNoModeAssetIsNotTracked(t *testing.T) {
 				Class:           "repo_owned_runtime",
 				Kind:            "agent_instruction_file",
 				RepoOwnedPath:   "overlay/gentle-ai/assets/owned/opencode/AGENTS.md",
-				RuntimeSyncMode: "", // no sync mode → must not enter the deletion surface
+				RuntimeSyncMode: "",
 				RuntimeTargets:  []string{"~/.config/opencode/AGENTS.md"},
 			},
 		},
@@ -261,10 +255,212 @@ func TestCollectOwnedRuntimePathsNoModeAssetIsNotTracked(t *testing.T) {
 	if err != nil {
 		t.Fatalf("collectOwnedRuntimePaths() error = %v", err)
 	}
-	for _, p := range paths {
-		if p == noModeTarget {
-			t.Errorf("no-mode asset path %q must not appear in tracked runtime paths", noModeTarget)
-		}
+	if !reflect.DeepEqual(paths, []string{noModeTarget}) {
+		t.Fatalf("tracked runtime paths = %v, want %s", paths, noModeTarget)
 	}
 }
 
+func TestReconcileOwnedRuntimeOutputsPreservesUpstreamManagedFilesFromOldState(t *testing.T) {
+	repoRoot := t.TempDir()
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	basePath := filepath.Join(homeDir, ".config", "opencode")
+	sharedSkillsRoot := filepath.Join(repoRoot, "shared", "skills")
+	upstreamCommand := filepath.Join(basePath, "commands", "sdd-apply.md")
+	mustWriteFile(t, upstreamCommand, []byte("upstream materialized command\n"))
+	state := ownedRuntimeState{Version: 1, Paths: []string{upstreamCommand}}
+	encoded, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustWriteFile(t, filepath.Join(basePath, ".gentle-ai-custom-owned-state.json"), encoded)
+	target := ManagedAssetsTarget{OwnedOverlayAssets: []OwnedOverlayAsset{{
+		Key: "sdd-commands", Class: "upstream_runtime_snapshot", Kind: "command_directory",
+		RuntimeTargets: []string{"~/.config/opencode/commands"},
+	}}}
+
+	if err := reconcileOwnedRuntimeOutputs(runtimeOwnedStateAgent{basePath: basePath}, repoRoot, target, sharedSkillsRoot, newVerboseRecorder(false)); err != nil {
+		t.Fatal(err)
+	}
+	if got := mustReadFile(t, upstreamCommand); got != "upstream materialized command\n" {
+		t.Fatalf("upstream-managed command changed: %q", got)
+	}
+}
+
+func TestReconcileOwnedRuntimeOutputsMigrationPreservesUpstreamAndTracksOwnedFile(t *testing.T) {
+	repoRoot := repoRootForTest(t)
+	home, configPath := writeCompatibleRuntimeFixture(t, repoRoot)
+	basePath := filepath.Dir(configPath)
+	target, _, err := loadManagedAssetsTarget(repoRoot, "opencode")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Patch targets must be protected independently of retained-skill protection.
+	target.RetainedUpstreamSkills = nil
+
+	judgmentSkill := filepath.Join(basePath, "skills", "judgment-day", "SKILL.md")
+	judgmentPrompt := filepath.Join(basePath, "skills", "judgment-day", "references", "prompts-and-formats.md")
+	agentsPath := filepath.Join(basePath, "AGENTS.md")
+	phasePrompt := filepath.Join(basePath, "prompts", "sdd", "sdd-init.md")
+	sharedContract := filepath.Join(basePath, "skills", "_shared", "review-ledger-contract.md")
+	phaseSkill := filepath.Join(basePath, "skills", "sdd-init", "SKILL.md")
+	obsoleteCustom := filepath.Join(basePath, "legacy-custom", "obsolete.md")
+	mustWriteFile(t, agentsPath, []byte("stale agents\n"))
+	mustWriteFile(t, phaseSkill, []byte("upstream phase skill\n"))
+	mustWriteFile(t, obsoleteCustom, []byte("obsolete custom output\n"))
+	writeOwnedRuntimeStateFixture(t, basePath, []string{
+		judgmentSkill,
+		judgmentPrompt,
+		agentsPath,
+		phasePrompt,
+		sharedContract,
+		phaseSkill,
+		obsoleteCustom,
+	})
+
+	options := applyPolicyOptions{
+		recorder:     newVerboseRecorder(false),
+		skillTargets: []string{filepath.Join(basePath, "skills")},
+	}
+	agent := runtimeOwnedStateAgent{basePath: basePath}
+	sharedSkillsRoot := filepath.Join(repoRoot, filepath.FromSlash(target.RepoOwnedSharedSkills.Root))
+	commandBodiesRoot := filepath.Join(repoRoot, filepath.FromSlash(target.RepoOwnedCommandBodies.Root))
+	commandBodies := mapCommandBodiesByKey(commandBodiesRoot, target.RepoOwnedCommandBodies.Entries)
+	if code := runApplyPolicyWithOptions(repoRoot, options); code != 0 {
+		t.Fatalf("runApplyPolicyWithOptions() code = %d, want 0", code)
+	}
+	if err := installAgentAssets(agent, target, sharedSkillsRoot, commandBodies, options.recorder); err != nil {
+		t.Fatal(err)
+	}
+	if err := reconcileOwnedRuntimeOutputs(agent, repoRoot, target, sharedSkillsRoot, options.recorder); err != nil {
+		t.Fatal(err)
+	}
+
+	for path, marker := range map[string]string{
+		judgmentSkill:  "invoke the repo-owned `judgment-retrospective` skill",
+		judgmentPrompt: "## Terminal Retrospective Handoff",
+	} {
+		if !strings.Contains(mustReadFile(t, path), marker) {
+			t.Fatalf("patched upstream file %s did not survive stale reconciliation", path)
+		}
+	}
+	for _, path := range []string{phasePrompt, sharedContract, phaseSkill} {
+		if !pathExists(path) {
+			t.Fatalf("upstream-returned runtime path was deleted: %s", path)
+		}
+	}
+	if pathExists(obsoleteCustom) {
+		t.Fatalf("truly obsolete custom output survived: %s", obsoleteCustom)
+	}
+	if got := mustReadFile(t, agentsPath); got != mustReadFile(t, filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "owned", "opencode", "AGENTS.md")) {
+		t.Fatal("freshly installed repo-owned AGENTS.md did not survive reconciliation")
+	}
+	state, err := loadOwnedRuntimeState(filepath.Join(basePath, ".gentle-ai-custom-owned-state.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !stringSliceContains(state.Paths, agentsPath) {
+		t.Fatal("current state does not record repo-owned AGENTS.md")
+	}
+	for _, upstreamPath := range []string{judgmentSkill, judgmentPrompt, phasePrompt, sharedContract, phaseSkill} {
+		if stringSliceContains(state.Paths, upstreamPath) {
+			t.Fatalf("current state incorrectly claims upstream-owned path %s", upstreamPath)
+		}
+	}
+
+	first := snapshotTree(t, home)
+	if code := runApplyPolicyWithOptions(repoRoot, options); code != 0 {
+		t.Fatalf("repeat runApplyPolicyWithOptions() code = %d, want 0", code)
+	}
+	if err := installAgentAssets(agent, target, sharedSkillsRoot, commandBodies, options.recorder); err != nil {
+		t.Fatal(err)
+	}
+	if err := reconcileOwnedRuntimeOutputs(agent, repoRoot, target, sharedSkillsRoot, options.recorder); err != nil {
+		t.Fatal(err)
+	}
+	if second := snapshotTree(t, home); !reflect.DeepEqual(second, first) {
+		t.Fatal("repeat apply and owned-state reconciliation is not idempotent")
+	}
+}
+
+func TestReconcileOwnedRuntimeOutputsUsesSafeProtectionContainment(t *testing.T) {
+	t.Run("retained skill descendant is preserved", func(t *testing.T) {
+		basePath, repoRoot, sharedSkillsRoot := runtimeStateTestPaths(t)
+		path := filepath.Join(basePath, "skills", "judgment-day", "references", "format.md")
+		mustWriteFile(t, path, []byte("upstream\n"))
+		writeOwnedRuntimeStateFixture(t, basePath, []string{path})
+		target := ManagedAssetsTarget{RetainedUpstreamSkills: []UpstreamSkillRef{{Key: "judgment-day"}}}
+		if err := reconcileOwnedRuntimeOutputs(runtimeOwnedStateAgent{basePath: basePath}, repoRoot, target, sharedSkillsRoot, newVerboseRecorder(false)); err != nil {
+			t.Fatal(err)
+		}
+		if !pathExists(path) {
+			t.Fatal("retained upstream skill descendant was deleted")
+		}
+	})
+
+	t.Run("prefix collision is deleted", func(t *testing.T) {
+		basePath, repoRoot, sharedSkillsRoot := runtimeStateTestPaths(t)
+		path := filepath.Join(basePath, "skills", "judgment-day-copy", "legacy.md")
+		mustWriteFile(t, path, []byte("obsolete\n"))
+		writeOwnedRuntimeStateFixture(t, basePath, []string{path})
+		target := ManagedAssetsTarget{RetainedUpstreamSkills: []UpstreamSkillRef{{Key: "judgment-day"}}}
+		if err := reconcileOwnedRuntimeOutputs(runtimeOwnedStateAgent{basePath: basePath}, repoRoot, target, sharedSkillsRoot, newVerboseRecorder(false)); err != nil {
+			t.Fatal(err)
+		}
+		if pathExists(path) {
+			t.Fatal("prefix-collision path was incorrectly protected")
+		}
+	})
+
+	t.Run("outside base path is rejected", func(t *testing.T) {
+		basePath, repoRoot, sharedSkillsRoot := runtimeStateTestPaths(t)
+		path := filepath.Join(filepath.Dir(basePath), "outside", "legacy.md")
+		mustWriteFile(t, path, []byte("outside\n"))
+		writeOwnedRuntimeStateFixture(t, basePath, []string{path})
+		if err := reconcileOwnedRuntimeOutputs(runtimeOwnedStateAgent{basePath: basePath}, repoRoot, ManagedAssetsTarget{}, sharedSkillsRoot, newVerboseRecorder(false)); err == nil {
+			t.Fatal("reconciliation accepted an outside-root stale path")
+		}
+		if !pathExists(path) {
+			t.Fatal("outside-root path was mutated")
+		}
+	})
+
+	t.Run("outside upstream protection root is rejected", func(t *testing.T) {
+		basePath, repoRoot, sharedSkillsRoot := runtimeStateTestPaths(t)
+		outsideRoot := filepath.Join(filepath.Dir(basePath), "outside-upstream")
+		target := ManagedAssetsTarget{OwnedOverlayAssets: []OwnedOverlayAsset{{
+			Key: "unsafe-upstream", Class: "upstream_runtime_snapshot", RuntimeTargets: []string{outsideRoot},
+		}}}
+		if err := reconcileOwnedRuntimeOutputs(runtimeOwnedStateAgent{basePath: basePath}, repoRoot, target, sharedSkillsRoot, newVerboseRecorder(false)); err == nil {
+			t.Fatal("reconciliation accepted an outside-root upstream protection path")
+		}
+	})
+}
+
+func runtimeStateTestPaths(t *testing.T) (basePath, repoRoot, sharedSkillsRoot string) {
+	t.Helper()
+	repoRoot = t.TempDir()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	basePath = filepath.Join(home, ".config", "opencode")
+	sharedSkillsRoot = filepath.Join(repoRoot, "shared", "skills")
+	return basePath, repoRoot, sharedSkillsRoot
+}
+
+func writeOwnedRuntimeStateFixture(t *testing.T, basePath string, paths []string) {
+	t.Helper()
+	raw, err := json.MarshalIndent(ownedRuntimeState{Version: 1, Paths: paths}, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustWriteFile(t, filepath.Join(basePath, ".gentle-ai-custom-owned-state.json"), raw)
+}
+
+func stringSliceContains(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}

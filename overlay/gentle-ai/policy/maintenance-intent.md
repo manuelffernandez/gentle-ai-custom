@@ -4,6 +4,8 @@ This file is the semantic source of truth for how this repo maintains a small lo
 
 The current strategy is **upstream-first migration**: move the overlay toward the current Gentle AI v2 runtime behavior, keep only explicit local customizations, and avoid carrying old overlay patches forward unless they still solve a confirmed problem.
 
+For an approved upstream asset, replacement-first means letting upstream Gentle AI materialize its finished runtime artifact. Keep the source snapshot for audit only, preserve the installed artifact, and apply only an explicit surgical customization documented in this file.
+
 ## Current baseline
 
 - Last maintained boundary before this strategy shift: `v1.44.3`.
@@ -49,6 +51,10 @@ Acquire current upstream behavior by default for:
 - Review receipts, review state, and native upstream review gates.
 - Engram protocol updates.
 - OpenCode command surfaces and runtime materialization that are not in direct conflict with the local customizations above.
+- The rendered orchestrator, phase prompts, native review contracts/status, and review plugin are upstream-owned runtime artifacts. Raw upstream source templates are never custom install sources.
+- Custom apply must not inspect or certify the semantics of upstream-owned prompts, contracts, plugins, or review workflows. Upstream owns that validation.
+- Custom apply may validate only concrete prerequisites consumed by a local operation: ownership boundaries, base prompt references/files needed for configured profile cloning, safe obsolete-reference migration, and exact Judgment Day patch anchors.
+- Upstream-owned plugin absence or opaque content must not block unrelated custom operations. Files consumed but not owned by a custom operation must remain byte- and mode-unchanged.
 - PR strategy, review-budget, chained PR, and work-unit concepts, unless they directly conflict with an explicit local customization or the user rejects them in a concrete maintenance decision.
 - Approved upstream `chained-pr` snapshots remain retained for audit/sync even though runtime installation uses a sanitized repo-owned shared copy for explicit GitHub repo scoping.
 - Upstream `issue-creation` is outside the default repo-owned runtime/install surface. Keep it pruned from OpenCode runtime unless the user later asks to restore an issue workflow explicitly.
@@ -98,12 +104,13 @@ Rules:
 
 The retrospective handoff is local behavior and should be preserved.
 
-The base `judgment-day` protocol should track upstream unless the hook requires a minimal owned runtime wrapper.
+The base `judgment-day` protocol remains upstream-owned. The local handoff is an exact-anchor, idempotent runtime patch, not a full owned skill fork.
 
 When updating against upstream:
 
 - Start from upstream `judgment-day` behavior.
 - Add only the retrospective handoff needed to invoke `judgment-retrospective`.
+- Fail before runtime writes when the installed skill is absent or its anchors are incompatible.
 - Do not keep older custom Judgment Day protocol differences unless the user explicitly approves them after review.
 
 ## Agent-readable Markdown boundary
@@ -133,6 +140,8 @@ These live outside the repo in `~/.config/gentle-ai-custom/opencode-local-config
 - explicit built-in agent overrides
 
 The versioned repo owns portable runtime intent and installer behavior only.
+
+Profile reconciliation may change `model` and `variant`, but it must preserve upstream base prompt values and cloned agent fields without interpreting their semantics. New named agents clone the corresponding installed base agent before assignments are changed.
 
 ## Managed asset boundary
 

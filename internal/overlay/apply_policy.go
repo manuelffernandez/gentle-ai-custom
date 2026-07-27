@@ -31,6 +31,9 @@ type applyPolicyState struct {
 	originalAgentKeys       map[string]bool
 	sddPhasesSet            map[string]bool
 	expectedPromptRefs      map[string]string
+	runtimePatches          []preparedRuntimePatch
+	obsoletePromptPaths     []string
+	preservedUpstreamFiles  []runtimeFileSnapshot
 }
 
 type applyPolicyOptions struct {
@@ -65,18 +68,22 @@ func runApplyPolicyWithOptions(repoRoot string, options applyPolicyOptions) int 
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		return 1
 	}
+	if err := validateRuntimeOwnershipBoundary(managedTarget); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		return 1
+	}
 
 	state := &applyPolicyState{
-		policy:               policy,
-		managedTarget:        managedTarget,
-		verbose:              options.verbose,
-		recorder:             options.recorder,
-		configPath:           expandUser(policy.OpenCode.ConfigPath),
-		skillTargets:         append([]string(nil), options.skillTargets...),
-		managedProfiles:      map[string]bool{},
-		originalAgentKeys:    map[string]bool{},
-		sddPhasesSet:         map[string]bool{},
-		expectedPromptRefs:   map[string]string{},
+		policy:             policy,
+		managedTarget:      managedTarget,
+		verbose:            options.verbose,
+		recorder:           options.recorder,
+		configPath:         expandUser(policy.OpenCode.ConfigPath),
+		skillTargets:       append([]string(nil), options.skillTargets...),
+		managedProfiles:    map[string]bool{},
+		originalAgentKeys:  map[string]bool{},
+		sddPhasesSet:       map[string]bool{},
+		expectedPromptRefs: map[string]string{},
 	}
 	// options.recorder must be initialized by the caller before invoking this
 	// function. Both RunApplyPolicy and OpenCodeAgent.ApplyOverlay guarantee
@@ -99,6 +106,15 @@ func runApplyPolicyWithOptions(repoRoot string, options applyPolicyOptions) int 
 	if err := state.loadLocalRuntimeConfig(); err != nil {
 		return fail(err)
 	}
+	if !pathExists(state.configPath) {
+		return fail(fmt.Errorf("required upstream OpenCode config missing at %s; run `gentle-ai sync` or reinstall, then re-apply the overlay", state.configPath))
+	}
+	if err := state.loadOpenCodeConfig(); err != nil {
+		return fail(err)
+	}
+	if err := state.preflightCustomRuntimePrerequisites(repoRoot); err != nil {
+		return fail(err)
+	}
 
 	fmt.Println("Applying Gentle AI overlay policy...")
 	if err := state.pruneSkills(); err != nil {
@@ -107,17 +123,10 @@ func runApplyPolicyWithOptions(repoRoot string, options applyPolicyOptions) int 
 	if err := state.installOwnedAssets(repoRoot); err != nil {
 		return fail(err)
 	}
-	if err := state.verifyOwnedAssetTargets(); err != nil {
+	if err := state.applyRuntimePatches(); err != nil {
 		return fail(err)
 	}
-
-	if !pathExists(state.configPath) {
-		fmt.Printf("- skip missing OpenCode config: %s\n", state.configPath)
-		state.printMissingOpenCodeSummary()
-		return 0
-	}
-
-	if err := state.loadOpenCodeConfig(); err != nil {
+	if err := state.verifyOwnedAssetTargets(); err != nil {
 		return fail(err)
 	}
 
@@ -126,10 +135,10 @@ func runApplyPolicyWithOptions(repoRoot string, options applyPolicyOptions) int 
 		return fail(err)
 	}
 	state.detectTopologyDrift()
-	if err := state.rewriteManagedPromptReferences(); err != nil {
+	if err := state.persistConfig(); err != nil {
 		return fail(err)
 	}
-	if err := state.persistConfig(); err != nil {
+	if err := state.removeObsoleteManagedPrompts(); err != nil {
 		return fail(err)
 	}
 	if err := state.verifyPersistedState(); err != nil {
@@ -364,6 +373,12 @@ func (s *applyPolicyState) persistConfig() error {
 }
 
 func (s *applyPolicyState) verifyPersistedState() error {
+	if err := s.verifyRuntimePatches(); err != nil {
+		return err
+	}
+	if err := s.verifyPreservedUpstreamFiles(); err != nil {
+		return err
+	}
 	verifyData, err := readJSONAny(s.configPath)
 	if err != nil {
 		return err
@@ -410,9 +425,8 @@ func (s *applyPolicyState) verifyPersistedState() error {
 		if jsonString(actual["prompt"]) != expectedRef {
 			return fmt.Errorf("post-write verification failed: agent %q prompt is %q after write, expected %q", key, jsonString(actual["prompt"]), expectedRef)
 		}
-		promptPath := strings.TrimSuffix(strings.TrimPrefix(expectedRef, "{file:"), "}")
-		if !pathExists(promptPath) {
-			return fmt.Errorf("post-write verification failed: prompt file missing for %q at %s", key, promptPath)
+		if _, err := s.resolveRuntimePrompt(expectedRef); err != nil {
+			return fmt.Errorf("post-write verification failed: prompt for %q is unavailable: %w", key, err)
 		}
 	}
 

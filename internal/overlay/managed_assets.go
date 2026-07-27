@@ -20,10 +20,16 @@ type ManagedAssetsTarget struct {
 	UpstreamPathInterpretation string                 `json:"upstream_path_interpretation"`
 	StructuralInvariantSources []string               `json:"structural_invariant_sources"`
 	OwnedOverlayAssets         []OwnedOverlayAsset    `json:"owned_overlay_assets"`
+	RuntimePatches             []RuntimePatchRef      `json:"runtime_patches"`
 	RetainedUpstreamSkills     []UpstreamSkillRef     `json:"retained_upstream_skills"`
 	PrunedUpstreamSkills       []UpstreamSkillRef     `json:"pruned_upstream_skills"`
 	RepoOwnedSharedSkills      RepoOwnedSharedSkills  `json:"repo_owned_shared_skills"`
 	RepoOwnedCommandBodies     RepoOwnedCommandBodies `json:"repo_owned_command_bodies"`
+}
+
+type RuntimePatchRef struct {
+	Key       string `json:"key"`
+	PatchPath string `json:"patch_path"`
 }
 
 type OwnedOverlayAsset struct {
@@ -98,6 +104,21 @@ func loadManagedAssetsTarget(repoRoot, targetName string) (ManagedAssetsTarget, 
 	return target, manifestPath, nil
 }
 
+func validateRuntimeOwnershipBoundary(target ManagedAssetsTarget) error {
+	for _, asset := range target.OwnedOverlayAssets {
+		if asset.Class == "repo_owned_runtime" {
+			if asset.RepoOwnedPath == "" {
+				return fmt.Errorf("repo-owned runtime asset %q does not declare repo_owned_path", asset.Key)
+			}
+			continue
+		}
+		if asset.RepoOwnedPath != "" {
+			return fmt.Errorf("managed asset %q is class %q but declares repo_owned_path; upstream-owned assets cannot be custom runtime sources", asset.Key, asset.Class)
+		}
+	}
+	return nil
+}
+
 func findOwnedOverlayAsset(assets []OwnedOverlayAsset, key string) (OwnedOverlayAsset, bool) {
 	for _, asset := range assets {
 		if asset.Key == key {
@@ -128,17 +149,6 @@ func ownedAssetUpstreamPaths(asset OwnedOverlayAsset) []string {
 		}
 	}
 	return paths
-}
-
-func runtimePromptTarget(asset OwnedOverlayAsset) (string, bool) {
-	for _, target := range asset.RuntimeTargets {
-		expanded := expandUser(target)
-		clean := filepath.ToSlash(expanded)
-		if strings.Contains(clean, "/prompts/") {
-			return expanded, true
-		}
-	}
-	return "", false
 }
 
 func copyDirectoryContentsWithStatus(srcRoot, dstRoot string, prune bool, recorder *verboseRecorder, counters *writeCounters) error {

@@ -2,7 +2,9 @@
 
 Human guide to the Gentle AI overlay.
 
-This file describes the current operating model: `apply-gentle-ai-custom` reinstalls repo-owned assets from `overlay/gentle-ai/assets/owned/...`; `audit-gentle-ai-upstream` and `sync-gentle-ai-upstream-assets` maintain the relationship with upstream and the approved baseline.
+This file describes the current operating model: upstream Gentle AI materializes native SDD/review runtime assets; `apply-gentle-ai-custom` preserves them and installs only true local assets or surgical deltas.
+
+Approved upstream runtime assets are adopted replacement-first: let upstream materialize the finished artifact, keep raw source snapshots for audit, and apply only a documented compatible delta from `policy/maintenance-intent.md`.
 
 ## What this file does not define
 
@@ -45,7 +47,8 @@ This file describes the current operating model: `apply-gentle-ai-custom` reinst
 | `policy/gentle-ai-policy.json` | Runtime policy consumed by the Go CLI and wrappers |
 | `policy/managed-assets.json` | Canonical map of approved upstream assets and installable owned assets |
 | `assets/upstream/` | Approved upstream copies for review/diff, including the OpenCode snapshot inputs and retained assets: `persona-gentleman.md`, `engram-protocol.md` (mirrors `internal/assets/engram/protocol.md`), the orchestrator prompt, overlay JSONs/plugins, retained `commands/` snapshots, and selected skill snapshots |
-| `assets/owned/` | Repo-owned assets that `apply` installs into runtime, including `~/.config/opencode/AGENTS.md` with local overlay semantics, the owned `judgment-day` runtime hook, and the upstream-first SDD v2 prompt/skill/reference copies used by OpenCode |
+| `assets/owned/` | True repo-owned runtime assets installed by `apply`, currently the local OpenCode `AGENTS.md` surface |
+| `patches/` | Exact-anchor local deltas applied only to compatible upstream runtime files |
 | `shared/skills/` | Portable repo-owned skills installed globally by `apply`, including the sanitized `branch-pr` and `chained-pr`, the temporary `pr-finalizer` compatibility skill, and the Judgment Day retrospective companion skill that is activated by the `judgment-day` terminal hook |
 | `shared/commands/` | Source bodies for custom wrappers rendered by `apply` |
 | `state/upstream-state.json` | Last maintained upstream boundary |
@@ -95,17 +98,22 @@ No repo mutation happens before that handoff is approved.
 
 ### `apply-gentle-ai-custom`
 
-- installs repo-owned SDD/runtime assets from `assets/owned/...`
-- rewrites `opencode.json` so the base and SDD profiles use those prompt files
+- validates only custom-operation prerequisites before any write: ownership boundaries, profile source prompts, safe obsolete-reference migration, and Judgment Day anchors
+- does not inspect or certify upstream prompt, contract, plugin, or review semantics; a missing or opaque plugin does not block unrelated custom operations
+- preserves upstream-owned prompt, contract, and plugin bytes and file modes
+- migrates managed obsolete `.overlay.md` references only when an upstream base prompt is available
 - prunes only explicitly rejected upstream skills in the selected registered targets
 - applies `agent_overrides`
 - reconciles `default_profile` and `profiles`
 - installs repo-owned skills from `shared/skills/`
 - installs the sanitized repo-owned `chained-pr` copy while keeping its upstream snapshot retained for audit/sync, and keeps `issue-creation` pruned from the default OpenCode runtime surface
-- installs managed SDD support references such as `sdd-design/references/threat-matrix.md` and `sdd-verify/references/report-format.md` when they are declared in `policy/managed-assets.json`
+- creates named profiles by cloning installed upstream base agents, then reconciles local `model` / `variant`
+- patches only the declared Judgment Day retrospective handoff and rejects incompatible anchors
+- records every custom-installed runtime output, including single-file assets without a sync mode
+- preserves stale-state paths returned to upstream, retained upstream skill trees, and surgical patch targets without recording those files as wholly custom-owned
 - renders custom wrappers from `shared/commands/`
 
-`apply` no longer depends on sanitization, inline prompt capture, local operational snapshots, snapshot-based recovery, or post-apply `AGENTS.md` mutation.
+`apply` never copies raw upstream source snapshots into runtime. A missing or incompatible prerequisite for a requested custom operation fails closed before pruning, config changes, patch writes, or owned asset installation.
 
 ## Update types and impact
 
@@ -132,11 +140,13 @@ After `apply`, confirm this:
 
 - explicitly pruned skills no longer exist in each selected registered target
 - each effective `agent_override` resolves to the expected `model` / `variant`
-- `agent.gentle-orchestrator.prompt` points to `~/.config/opencode/prompts/sdd/orchestrators/gentle-orchestrator.overlay.md`
+- `agent.gentle-orchestrator.prompt` remains the upstream-owned prompt or reference
 - `~/.config/opencode/AGENTS.md` matches the repo-owned asset from `assets/owned/opencode/AGENTS.md`
 - the upstream OpenCode snapshot inputs under `assets/upstream/opencode/` include `persona-gentleman.md`, `engram-protocol.md` (mirroring `internal/assets/engram/protocol.md`), the orchestrator prompt, overlay JSONs, plugins, and selected skill snapshots used to materialize that runtime file
-- each managed `sdd-orchestrator-<name>` points to that same owned prompt file
-- each `sdd-<phase>` and each managed `sdd-<phase>-<name>` points to its owned prompt file under `~/.config/opencode/prompts/sdd/`
+- each managed `sdd-orchestrator-<name>` reuses the upstream base orchestrator prompt
+- each managed `sdd-<phase>-<name>` reuses the corresponding upstream base phase prompt/reference
+- representative upstream-owned prompt, plugin, and contract files are byte- and mode-unchanged after apply
+- no managed agent references `.overlay.md`
 - runtime files/directories declared in `policy/managed-assets.json` exist on disk
 - if `default_profile` exists, the base family keeps the correct `model` and `variant`
 - if `profiles` exists, each declared profile keeps the correct `model` and `variant`
@@ -160,7 +170,7 @@ Operational rules:
 - [ ] `maintenance-intent.md` still reflects what to keep and depure
 - [ ] `managed-assets.json` still aligns with `assets/upstream/` and `assets/owned/`
 - [ ] `upstream-state.json` still points to the last upstream boundary that was actually maintained
-- [ ] `apply-gentle-ai-custom` still reinstalls prompt refs from owned assets
+- [ ] `apply-gentle-ai-custom` still preserves upstream prompt refs and fails closed when a requested custom operation lacks its prerequisite
 - [ ] the public shell and PowerShell entrypoints remain equivalent
 - [ ] SDD profile assignments remain local and did not leak back into versioned policy
 - [ ] upstream resolution still respects: local config -> env -> fallback `../gentle-ai`

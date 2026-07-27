@@ -12,7 +12,8 @@ Esta carpeta agrupa los assets operativos del overlay de Gentle AI.
 
 - `maintenance.md` — guía humana centralizada para mantenimiento
 - `assets/upstream/` — copias upstream aprobadas para review/diff
-- `assets/owned/` — assets repo-owned que `apply-gentle-ai-custom` instala en runtime
+- `assets/owned/` — pocos assets realmente propios que `apply-gentle-ai-custom` instala, como `AGENTS.md`
+- `patches/` — deltas locales puntuales aplicados sobre un runtime upstream compatible
 - `policy/` — intención y policy machine-readable del overlay
 - `state/` — frontera upstream mantenida
 - `logs/` — historial de decisiones cerradas del overlay
@@ -22,8 +23,10 @@ Esta carpeta agrupa los assets operativos del overlay de Gentle AI.
 - `policy/managed-assets.json` es el mapa canónico entre upstream aprobado y runtime owned.
 - `audit-gentle-ai-upstream` cubre audit + recomendación antes de cualquier mutación.
 - `sync-gentle-ai-upstream-assets` hace el repo sync de `assets/upstream/...` más la frontera aprobada; no refresca el runtime.
-- `apply-gentle-ai-custom` usa `assets/owned/...` como source of truth para los prompts/skills/commands SDD del runtime.
-- Esos assets owned de SDD/orchestrator deben seguir la base upstream v2 por defecto; la sanitización local se limita a conflictos confirmados como `branch-pr`, `issue-creation` y la copia runtime segura de `chained-pr`.
+- `apply-gentle-ai-custom` conserva los prompts, contratos, comandos y plugins SDD materializados por Gentle AI; los snapshots de `assets/upstream/...` no son fuentes de instalación.
+- Antes de escribir, `apply` valida solo lo que sus propias operaciones necesitan: límites de ownership, prompts base para perfiles configurados, migraciones seguras de referencias viejas y anchors de Judgment Day.
+- `apply` no interpreta ni certifica la semántica de prompts, contratos o plugins de Gentle AI. Un plugin ausente u opaco no bloquea operaciones custom que no lo usan.
+- El estado de ownership registra todos los outputs instalados por esta capa. La limpieza protege árboles devueltos a upstream y targets de parches puntuales, pero no los vuelve a declarar como archivos propios.
 - El runtime refresh (`gentle-ai sync` o reinstalación completa) es un paso separado y depende de si el cambio adoptado afecta el runtime target/materialized state que este repo mantiene.
 - La estrategia vigente es upstream-first: SDD, orchestrator y workflows de PR/chained/work-unit se adquieren desde upstream por defecto, salvo conflicto concreto con una customización local explícita.
 - `chained-pr` y `work-unit-commits` siguen retenidas como parte de esa estrategia.
@@ -34,8 +37,8 @@ Esta carpeta agrupa los assets operativos del overlay de Gentle AI.
 - `shared/skills/` sigue siendo la fuente canónica de las skills repo-owned portables, incluida `judgment-retrospective`.
 - `shared/skills/commit-planner/SKILL.md` sigue siendo la capa operativa local para `/commit-plan`, `/commit-apply` y `/commit-fast`; cuando `work-unit-commits` está disponible, usa ese criterio para agrupar commits.
 - `shared/skills/branch-pr/SKILL.md` pasa a ser la capa operativa local preferida para `/pr-create` y `/pr-regenerate`; `pr-finalizer` queda como compatibilidad temporal.
-- El hook runtime de `judgment-day` vive en `assets/owned/opencode/skills/judgment-day/` y es el que activa automáticamente la retrospectiva terminal.
-- Las referencias `assets/owned/opencode/skills/sdd-design/references/threat-matrix.md` y `assets/owned/opencode/skills/sdd-verify/references/report-format.md` forman parte del runtime SDD mantenido y deben mapearse también en `policy/managed-assets.json`.
+- El handoff de `judgment-day` vive en `patches/opencode/judgment-retrospective.json`; se aplica solo si el skill upstream instalado tiene los anchors exactos esperados.
+- Las referencias SDD siguen en `assets/upstream/` para auditoría, pero Gentle AI las instala y materializa en runtime.
 
 ## Contrato del informe del maintainer
 

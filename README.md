@@ -1,5 +1,7 @@
 # gentle-ai-custom
 
+Los assets aprobados de Gentle AI se guardan como copias de auditoría. Gentle AI instala y prepara los archivos reales del runtime; esta capa los conserva y aplica solamente los ajustes locales explícitos definidos en `maintenance-intent.md`.
+
 Una capa de customización mantenida con IA para [Gentle AI](https://github.com/Gentleman-Programming/gentle-ai): extiende la experiencia base con skills, prompts, wrappers y política operativa propios, y hace más mantenible el trabajo de reaplicar y auditar lo que `gentle-ai sync` vuelve a materializar.
 
 ## Qué es Gentle AI
@@ -149,8 +151,11 @@ Los scripts `audit-gentle-ai-upstream` y `sync-gentle-ai-upstream-assets` se pue
 - vuelve a instalar nuestras skills y comandos personalizados.
 - borra las skills que no queremos usar, pero solo para los agentes donde estamos trabajando.
 - aplica nuestras preferencias de modelos de IA si las configuramos.
-- instala los archivos fundamentales para el flujo de trabajo SDD que mantenemos nosotros.
-- modifica la configuración `opencode.json` para que el sistema apunte a nuestros archivos.
+- comprueba solo los archivos y referencias que necesita para aplicar perfiles o el handoff de Judgment Day.
+- conserva los prompts y plugins preparados por Gentle AI; no los reemplaza con plantillas fuente.
+- ajusta modelos y perfiles reutilizando los prompts base ya instalados.
+- agrega de forma puntual el handoff de `judgment-retrospective` al skill `judgment-day` compatible.
+- registra todos los archivos que instala como propios. Al limpiar registros viejos, conserva los archivos devueltos a Gentle AI y los targets de parches puntuales sin declararlos como propios.
 
 Ejecutarlo apuntando a `opencode` reinstala todo para OpenCode. Si usás `all` hace lo mismo, porque hoy es el único entorno soportado.
 
@@ -158,12 +163,14 @@ La configuración para elegir qué modelos de IA vas a usar o dónde está clona
 
 ### Chequeo previo de versiones
 
-Antes de modificar nada, el comando `apply-gentle-ai-custom` revisa que la versión de `gentle-ai` que tenés instalada coincida con la que estamos manteniendo.
+Antes de modificar nada, el comando `apply-gentle-ai-custom` revisa la versión mantenida y también valida el runtime instalado.
 
 - si son idénticas -> sigue adelante.
 - si son distintas o no se sabe -> te avisa primero.
 - si lo estás corriendo a mano, podés confirmar y seguir.
 - si se ejecuta de forma automática y hay diferencias -> frena todo por seguridad.
+- si faltan los prompts base necesarios para los perfiles configurados, una referencia vieja no se puede migrar con seguridad o no coinciden los anchors de Judgment Day -> frena sin escribir y pide ejecutar primero `gentle-ai sync` o reinstalar.
+- el plugin de review puede faltar o tener cualquier contenido: `apply` no lo interpreta ni lo certifica porque pertenece a Gentle AI.
 
 Dónde busca el proyecto original:
 
@@ -184,7 +191,7 @@ Si falta algo en tu configuración:
 | --- | --- |
 | `overlay/gentle-ai/policy/maintenance-intent.md` | Es el documento donde explicamos claramente nuestra intención: qué cosas queremos conservar, cuáles quitar y cómo queremos que funcione todo. |
 | `overlay/gentle-ai/policy/gentle-ai-policy.json` | Son las reglas exactas que leen los scripts cuando se ejecutan. |
-| `overlay/gentle-ai/policy/managed-assets.json` | Es el mapa oficial que dice qué archivos estamos controlando y adaptando, incluyendo los overlay JSON, los comandos retenidos de OpenCode, los plugins y la copia aprobada de `engram-protocol.md` que seguimos materializando desde Claude. |
+| `overlay/gentle-ai/policy/managed-assets.json` | Es el mapa oficial que separa snapshots de auditoría, assets propios instalables y parches locales puntuales. |
 | `overlay/gentle-ai/state/upstream-state.json` | Guarda cuál fue la última versión del proyecto original que revisamos. |
 | `overlay/gentle-ai/logs/update-log.md` | Es un registro donde anotamos las decisiones importantes sobre qué cosas nuevas aceptamos o rechazamos. |
 
@@ -194,7 +201,8 @@ Para ver el código exacto que cambió, siempre podés mirar el historial de Git
 
 | Ruta | Para qué sirve |
 | --- | --- |
-| `overlay/gentle-ai/assets/` | Carpeta principal con las copias aprobadas del proyecto original y nuestros propios archivos, como los overlay JSON, los comandos retenidos de OpenCode, los plugins y la copia aprobada de `engram-protocol.md` que mantenemos desde Claude. |
+| `overlay/gentle-ai/assets/` | Contiene las copias aprobadas del proyecto original para auditoría y los pocos archivos que este repo realmente posee, como `AGENTS.md`. |
+| `overlay/gentle-ai/patches/` | Define ajustes locales pequeños y verificables que se aplican sobre un runtime upstream compatible. |
 | `~/.config/gentle-ai-custom/opencode-local-config.json` | Tu configuración personal: dónde está el código original, qué modelos preferís usar, etc. |
 | `overlay/gentle-ai/maintenance.md` | Guía y notas técnicas pensadas para que las lea una persona que esté manteniendo esto. |
 | `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md` | Instrucciones para que el agente entienda cómo hacer la auditoría y guiarnos en el mantenimiento. |
@@ -248,16 +256,16 @@ La idea general ahora es **upstream-first**: esta capa arranca desde el comporta
 | `package-security`     | Se agrega   | Revisa riesgos al instalar o actualizar paquetes.                              | Agrega una capa práctica de seguridad de supply chain.                                                                                       |
 | `pr-finalizer`         | Compat temporal | Sigue instalada de forma transitoria para referencias viejas mientras migra la capa final de PR a `branch-pr`. | Ya no es la skill preferida: queda como compatibilidad/deprecada hasta terminar la migración de comandos y referencias. |
 
-### Comportamiento del orchestrator repo-owned
+### Comportamiento del orchestrator upstream
 
-El runtime owned ya quedó reacoplado a la base upstream de SDD/orchestrator de Gentle AI v2+ por defecto. La idea ya no es mantener un fork grande con reglas locales viejas, sino conservar solo una capa chica y explícita. La frontera mantenida exacta se fija recién cuando se cierre la auditoría/adopción en `upstream-state.json`.
+Gentle AI instala el orchestrator SDD ya preparado con su contrato nativo de review. Esta capa no mantiene una copia ejecutable del template fuente ni certifica su semántica: lo conserva y solo reutiliza sus valores cuando configura perfiles.
 
 Se mantiene localmente:
 
 - el hook `judgment-day` -> `judgment-retrospective`
 - las skills repo-owned `code-design`, `package-security`, `commit-planner` y la `branch-pr` sanitizada, con `pr-finalizer` como compatibilidad temporal
 - la copia repo-owned sanitizada de `chained-pr` para runtime, mientras su snapshot upstream sigue retenido para auditoría
-- los assets de soporte locales estrictamente necesarios para SDD v2, como `sdd-design/references/threat-matrix.md` y `sdd-verify/references/report-format.md`
+- el parche puntual que conecta `judgment-day` con `judgment-retrospective`
 - las reglas `no-auto-commit`, Agent-Readable Markdown Standard y Gemini anti-sycophancy
 
 Se adquiere desde upstream por defecto:

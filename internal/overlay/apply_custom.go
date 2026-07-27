@@ -44,6 +44,11 @@ func RunApplyCustom(repoRoot string, args []string) int {
 		options.recorder.print()
 		return 1
 	}
+	if err := validateRuntimeOwnershipBoundary(target); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		options.recorder.print()
+		return 1
+	}
 	if err := runVersionPreflight(repoRoot, policy, os.Stdin, os.Stderr); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		options.recorder.print()
@@ -176,9 +181,14 @@ func validateCustomSources(sharedSkillsRoot string, skillNames []string, command
 
 func validateOwnedAssetSources(repoRoot string, assets []OwnedOverlayAsset) error {
 	for _, asset := range assets {
-		if asset.RepoOwnedPath == "" {
-			// Upstream-source-only asset: no owned file; nothing to validate here.
+		if asset.Class != "repo_owned_runtime" {
+			if asset.RepoOwnedPath != "" {
+				return fmt.Errorf("managed asset %q is class %q but declares repo_owned_path; upstream snapshots cannot be runtime install sources", asset.Key, asset.Class)
+			}
 			continue
+		}
+		if asset.RepoOwnedPath == "" {
+			return fmt.Errorf("repo-owned runtime asset %q does not declare repo_owned_path", asset.Key)
 		}
 		src := ownedAssetSourcePath(repoRoot, asset)
 		if _, err := os.Stat(src); err != nil {

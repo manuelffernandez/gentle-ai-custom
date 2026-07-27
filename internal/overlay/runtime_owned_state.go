@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 type ownedRuntimeState struct {
@@ -30,8 +31,15 @@ func reconcileOwnedRuntimeOutputs(agent Agent, repoRoot string, target ManagedAs
 	for _, path := range current {
 		currentSet[path] = true
 	}
+	upstreamProtected, err := collectUpstreamRuntimeProtectionPaths(basePath, repoRoot, target)
+	if err != nil {
+		return err
+	}
 	for _, path := range previous.Paths {
 		if currentSet[path] {
+			continue
+		}
+		if isProtectedUpstreamRuntimePath(basePath, path, upstreamProtected) {
 			continue
 		}
 		if err := removeOwnedRuntimePath(basePath, path, recorder); err != nil {
@@ -43,6 +51,65 @@ func reconcileOwnedRuntimeOutputs(agent Agent, repoRoot string, target ManagedAs
 		return err
 	}
 	return nil
+}
+
+func collectUpstreamRuntimeProtectionPaths(basePath, repoRoot string, target ManagedAssetsTarget) ([]string, error) {
+	protected := map[string]struct{}{}
+	add := func(path string) error {
+		cleanPath, err := cleanRuntimePathWithinBase(basePath, path)
+		if err != nil {
+			return err
+		}
+		protected[cleanPath] = struct{}{}
+		return nil
+	}
+	for _, asset := range target.OwnedOverlayAssets {
+		if asset.RepoOwnedPath != "" {
+			continue
+		}
+		for _, runtimeTarget := range asset.RuntimeTargets {
+			if err := add(expandUser(runtimeTarget)); err != nil {
+				return nil, fmt.Errorf("unsafe upstream runtime target for %q: %w", asset.Key, err)
+			}
+		}
+	}
+	for _, skill := range target.RetainedUpstreamSkills {
+		if err := add(filepath.Join(basePath, "skills", skill.Key)); err != nil {
+			return nil, fmt.Errorf("unsafe retained upstream skill path for %q: %w", skill.Key, err)
+		}
+	}
+	for _, patch := range target.RuntimePatches {
+		definitionPath := filepath.Join(repoRoot, filepath.FromSlash(patch.PatchPath))
+		var definition runtimePatchDefinition
+		if err := readJSONFile(definitionPath, &definition); err != nil {
+			return nil, fmt.Errorf("runtime patch %q is invalid at %s: %w", patch.Key, definitionPath, err)
+		}
+		for _, patchTarget := range definition.Targets {
+			if err := add(filepath.Join(basePath, filepath.FromSlash(patchTarget.Path))); err != nil {
+				return nil, fmt.Errorf("unsafe runtime patch target for %q: %w", patch.Key, err)
+			}
+		}
+	}
+	result := make([]string, 0, len(protected))
+	for path := range protected {
+		result = append(result, path)
+	}
+	sort.Strings(result)
+	return result, nil
+}
+
+func isProtectedUpstreamRuntimePath(basePath, path string, protectedRoots []string) bool {
+	cleanPath, err := cleanRuntimePathWithinBase(basePath, path)
+	if err != nil {
+		return false
+	}
+	for _, root := range protectedRoots {
+		rel, err := filepath.Rel(root, cleanPath)
+		if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
 }
 
 func loadOwnedRuntimeState(path string) (ownedRuntimeState, error) {
@@ -58,14 +125,16 @@ func loadOwnedRuntimeState(path string) (ownedRuntimeState, error) {
 
 func collectOwnedRuntimePaths(basePath, repoRoot string, target ManagedAssetsTarget, sharedSkillsRoot string) ([]string, error) {
 	paths := map[string]struct{}{}
-	for _, asset := range target.OwnedOverlayAssets {
-		if asset.RepoOwnedPath == "" {
-			// Upstream-source-only asset: no owned file; skipped by apply.
-			continue
+	add := func(path string) error {
+		cleanPath, err := cleanRuntimePathWithinBase(basePath, path)
+		if err != nil {
+			return err
 		}
-		if asset.RuntimeSyncMode != "merge" && asset.RuntimeSyncMode != "prune" {
-			// Assets without an explicit sync mode (e.g. AGENTS.md, SDD prompts) are
-			// installed but never stale-deleted; exclude them from the deletion surface.
+		paths[cleanPath] = struct{}{}
+		return nil
+	}
+	for _, asset := range target.OwnedOverlayAssets {
+		if asset.Class != "repo_owned_runtime" {
 			continue
 		}
 		source := ownedAssetSourcePath(repoRoot, asset)
@@ -75,7 +144,9 @@ func collectOwnedRuntimePaths(basePath, repoRoot string, target ManagedAssetsTar
 				return nil, err
 			}
 			for _, path := range targetPaths {
-				paths[path] = struct{}{}
+				if err := add(path); err != nil {
+					return nil, fmt.Errorf("unsafe repo-owned runtime target for %q: %w", asset.Key, err)
+				}
 			}
 		}
 	}
@@ -86,11 +157,15 @@ func collectOwnedRuntimePaths(basePath, repoRoot string, target ManagedAssetsTar
 			return nil, err
 		}
 		for _, path := range targetPaths {
-			paths[path] = struct{}{}
+			if err := add(path); err != nil {
+				return nil, fmt.Errorf("unsafe repo-owned skill target for %q: %w", skillName, err)
+			}
 		}
 	}
 	for _, entry := range target.RepoOwnedCommandBodies.Entries {
-		paths[filepath.Join(basePath, "commands", entry.Key+".md")] = struct{}{}
+		if err := add(filepath.Join(basePath, "commands", entry.Key+".md")); err != nil {
+			return nil, fmt.Errorf("unsafe repo-owned command target for %q: %w", entry.Key, err)
+		}
 	}
 	result := make([]string, 0, len(paths))
 	for path := range paths {
@@ -98,6 +173,22 @@ func collectOwnedRuntimePaths(basePath, repoRoot string, target ManagedAssetsTar
 	}
 	sort.Strings(result)
 	return result, nil
+}
+
+func cleanRuntimePathWithinBase(basePath, path string) (string, error) {
+	cleanBase, err := filepath.Abs(filepath.Clean(basePath))
+	if err != nil {
+		return "", err
+	}
+	cleanPath, err := filepath.Abs(filepath.Clean(path))
+	if err != nil {
+		return "", err
+	}
+	rel, err := filepath.Rel(cleanBase, cleanPath)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("runtime path %s is outside or equal to base path %s", path, basePath)
+	}
+	return cleanPath, nil
 }
 
 func mapSourceFilesToRuntimeTargets(srcRoot, dstRoot string) ([]string, error) {

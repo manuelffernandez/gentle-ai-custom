@@ -32,9 +32,14 @@ func trackWriteStatus(status string, counters *writeCounters) {
 
 func (s *applyPolicyState) installOwnedAssets(repoRoot string) error {
 	for _, asset := range s.managedTarget.OwnedOverlayAssets {
-		if asset.RepoOwnedPath == "" {
-			// Upstream-source-only asset: no owned file to install; skipped by apply.
+		if asset.Class != "repo_owned_runtime" {
+			if asset.RepoOwnedPath != "" {
+				return fmt.Errorf("managed asset %q is class %q but declares repo_owned_path; upstream snapshots cannot be runtime install sources", asset.Key, asset.Class)
+			}
 			continue
+		}
+		if asset.RepoOwnedPath == "" {
+			return fmt.Errorf("repo-owned runtime asset %q does not declare repo_owned_path", asset.Key)
 		}
 		source := ownedAssetSourcePath(repoRoot, asset)
 		if strings.HasSuffix(asset.Kind, "_directory") {
@@ -78,63 +83,10 @@ func (s *applyPolicyState) installOwnedFileAsset(asset OwnedOverlayAsset, source
 	return nil
 }
 
-func (s *applyPolicyState) rewriteManagedPromptReferences() error {
-	for _, asset := range s.managedTarget.OwnedOverlayAssets {
-		promptPath, ok := runtimePromptTarget(asset)
-		if !ok {
-			continue
-		}
-		ref := "{file:" + promptPath + "}"
-		switch asset.Kind {
-		case "orchestrator_prompt":
-			if err := s.ensurePromptReference(s.policy.OpenCode.BaseOrchestratorKey, ref); err != nil {
-				return err
-			}
-			for name := range s.managedProfiles {
-				if err := s.ensurePromptReference(s.policy.OpenCode.ProfileOrchestratorPrefix+name, ref); err != nil {
-					return err
-				}
-			}
-		case "phase_skill_prompt":
-			if err := s.ensurePromptReference(asset.Key, ref); err != nil {
-				return err
-			}
-			for name := range s.managedProfiles {
-				if err := s.ensurePromptReference(asset.Key+"-"+name, ref); err != nil {
-					return err
-				}
-			}
-		}
-	}
-	return nil
-}
-
-func (s *applyPolicyState) ensurePromptReference(agentKey, ref string) error {
-	agent, ok := jsonObject(s.agents[agentKey])
-	if !ok {
-		return fmt.Errorf("required SDD agent %q missing from opencode.json; run `gentle-ai sync` or reinstall before re-applying the overlay", agentKey)
-	}
-	oldPrompt := jsonString(agent["prompt"])
-	if oldPrompt != ref {
-		agent["prompt"] = ref
-		s.configChanged = true
-		s.metrics.promptRefsUpdated++
-		s.recordVerbose(s.configPath, fmt.Sprintf("agent.%s.prompt: %s -> %s", agentKey, summarizePromptValue(oldPrompt), ref))
-	} else {
-		s.metrics.promptRefsUnchanged++
-	}
-	if s.expectedPromptRefs == nil {
-		s.expectedPromptRefs = map[string]string{}
-	}
-	s.expectedPromptRefs[agentKey] = ref
-	return nil
-}
-
 func (s *applyPolicyState) verifyOwnedAssetTargets() error {
 	verified := 0
 	for _, asset := range s.managedTarget.OwnedOverlayAssets {
-		if asset.RepoOwnedPath == "" {
-			// Upstream-source-only asset: never installed to runtime; nothing to verify.
+		if asset.Class != "repo_owned_runtime" {
 			continue
 		}
 		for _, runtimeTarget := range asset.RuntimeTargets {

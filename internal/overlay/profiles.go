@@ -1,7 +1,9 @@
 package overlay
 
 import (
+	"encoding/json"
 	"fmt"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -216,13 +218,35 @@ func (s *applyPolicyState) reconcileBaseProfile(profile validatedProfile) error 
 }
 
 func (s *applyPolicyState) reconcileProfileAgent(profileName, key string, assignment profileAssignment, orchestrator bool) error {
+	sourceKey := key
+	if profileName != "default" {
+		if orchestrator {
+			sourceKey = s.policy.OpenCode.BaseOrchestratorKey
+		} else {
+			sourceKey = strings.TrimSuffix(key, "-"+profileName)
+		}
+	}
+	source, ok := jsonObject(s.agents[sourceKey])
+	if !ok {
+		return fmt.Errorf("required upstream base agent %q is missing; run `gentle-ai sync` or reinstall before re-applying the overlay", sourceKey)
+	}
 	existing, ok := jsonObject(s.agents[key])
 	if !ok {
-		agentObj := map[string]any{"model": assignment.Model}
+		agentObj, err := cloneAgentObject(source)
+		if err != nil {
+			return fmt.Errorf("clone upstream base agent %q for profile %q: %w", sourceKey, profileName, err)
+		}
+		agentObj["model"] = assignment.Model
 		if assignment.Variant != "" {
 			agentObj["variant"] = assignment.Variant
 		}
+		if orchestrator && profileName != "default" {
+			if _, err := s.reconcileNamedOrchestratorTaskPermissions(agentObj, source, profileName); err != nil {
+				return err
+			}
+		}
 		s.agents[key] = agentObj
+		s.expectedPromptRefs[key] = jsonString(source["prompt"])
 		s.metrics.profileAgentsCreated++
 		s.configChanged = true
 		detail := fmt.Sprintf("profile %s: created %s with model %s", profileName, key, quotedValue(assignment.Model))
@@ -242,6 +266,22 @@ func (s *applyPolicyState) reconcileProfileAgent(profileName, key string, assign
 		return nil
 	}
 	changed := false
+	if profileName != "default" {
+		sourcePrompt := jsonString(source["prompt"])
+		if jsonString(existing["prompt"]) != sourcePrompt {
+			existing["prompt"] = sourcePrompt
+			changed = true
+			s.recordVerbose(s.configPath, fmt.Sprintf("profile %s: %s.prompt reset to verified upstream base agent %s", profileName, key, sourceKey))
+		}
+		s.expectedPromptRefs[key] = sourcePrompt
+	}
+	if orchestrator && profileName != "default" {
+		permissionChanged, err := s.reconcileNamedOrchestratorTaskPermissions(existing, source, profileName)
+		if err != nil {
+			return err
+		}
+		changed = changed || permissionChanged
+	}
 	oldModel := jsonString(existing["model"])
 	if oldModel != assignment.Model {
 		existing["model"] = assignment.Model
@@ -277,4 +317,75 @@ func (s *applyPolicyState) reconcileProfileAgent(profileName, key string, assign
 		s.metrics.profileAgentsSame++
 	}
 	return nil
+}
+
+func (s *applyPolicyState) reconcileNamedOrchestratorTaskPermissions(agent, base map[string]any, profileName string) (bool, error) {
+	basePermission, baseTask, err := namedOrchestratorPermissionContract(base)
+	if err != nil {
+		return false, err
+	}
+
+	taskPermissions := map[string]any{"*": "deny"}
+	for _, key := range []string{"general", "explore"} {
+		if jsonString(baseTask[key]) == "allow" {
+			taskPermissions[key] = "allow"
+		}
+	}
+	for key, value := range baseTask {
+		if jsonString(value) != "allow" || !strings.HasPrefix(key, "jd-") && !strings.HasPrefix(key, "review-") {
+			continue
+		}
+		if _, installed := s.agents[key]; installed {
+			taskPermissions[key] = "allow"
+		}
+	}
+	for _, phase := range s.policy.OpenCode.SDDPhases {
+		taskPermissions[phase+"-"+profileName] = "allow"
+	}
+
+	permission, ok := jsonObject(agent["permission"])
+	if !ok {
+		cloned, err := cloneAgentObject(basePermission)
+		if err != nil {
+			return false, err
+		}
+		permission = cloned
+		agent["permission"] = permission
+	}
+	wantTask := taskPermissions
+	if reflect.DeepEqual(permission["task"], wantTask) {
+		return false, nil
+	}
+	permission["task"] = wantTask
+	return true, nil
+}
+
+func namedOrchestratorPermissionContract(base map[string]any) (map[string]any, map[string]any, error) {
+	basePermission, ok := jsonObject(base["permission"])
+	if !ok {
+		return nil, nil, fmt.Errorf("required upstream base orchestrator permission object is missing")
+	}
+	baseTask, ok := jsonObject(basePermission["task"])
+	if !ok {
+		return nil, nil, fmt.Errorf("required upstream base orchestrator permission.task object is missing")
+	}
+	if replacement, wrapped := jsonObject(baseTask["__replace__"]); wrapped {
+		baseTask = replacement
+	}
+	if jsonString(baseTask["*"]) != "deny" {
+		return nil, nil, fmt.Errorf("required upstream base orchestrator permission.task must be deny-by-default")
+	}
+	return basePermission, baseTask, nil
+}
+
+func cloneAgentObject(source map[string]any) (map[string]any, error) {
+	raw, err := json.Marshal(source)
+	if err != nil {
+		return nil, err
+	}
+	var clone map[string]any
+	if err := json.Unmarshal(raw, &clone); err != nil {
+		return nil, err
+	}
+	return clone, nil
 }

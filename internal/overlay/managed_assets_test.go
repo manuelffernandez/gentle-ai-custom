@@ -3,14 +3,10 @@ package overlay
 import (
 	"encoding/json"
 	"os"
-	"path"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 )
-
-var skillReferenceLinkPattern = regexp.MustCompile(`\[[^\]]+\]\((references/[^)#]+\.md)\)`)
 
 func TestCategorizeGitDiffTreatsOnlyOpenCodeAndEngramSourcesAsManaged(t *testing.T) {
 	target := testOpenCodeAgentsTarget()
@@ -341,51 +337,68 @@ func TestOpenCodeAgentsOwnedSourceExtendsMaterializedBaseline(t *testing.T) {
 	}
 }
 
-func TestRequiredSDDSkillReferenceLinksAreManagedAndMaterialized(t *testing.T) {
+func TestUpstreamRuntimeSnapshotsAreNeverOwnedInstallSources(t *testing.T) {
 	repoRoot := repoRootForTest(t)
 	target, _, err := loadManagedAssetsTarget(repoRoot, "opencode")
 	if err != nil {
 		t.Fatalf("loadManagedAssetsTarget() error = %v", err)
 	}
-
-	checkedLinks := 0
+	foundSnapshots := 0
 	for _, asset := range target.OwnedOverlayAssets {
-		if asset.Class != "required_sdd" || asset.Kind != "phase_skill_prompt" {
+		if asset.RepoOwnedPath != "" && asset.Class != "repo_owned_runtime" {
+			t.Fatalf("non-owned asset %q declares repo_owned_path", asset.Key)
+		}
+		if asset.Class != "upstream_runtime_snapshot" {
 			continue
 		}
-
-		seenLinks := map[string]bool{}
-		for _, skillPath := range []string{asset.RepoUpstreamPath, asset.RepoOwnedPath} {
-			for _, link := range markdownReferenceLinks(mustReadFile(t, filepath.Join(repoRoot, filepath.FromSlash(skillPath)))) {
-				if seenLinks[link] {
-					continue
-				}
-				seenLinks[link] = true
-				checkedLinks++
-
-				repoUpstreamPath := path.Join(path.Dir(asset.RepoUpstreamPath), link)
-				repoOwnedPath := path.Join(path.Dir(asset.RepoOwnedPath), link)
-				assertFileExists(t, filepath.Join(repoRoot, filepath.FromSlash(repoUpstreamPath)))
-				assertFileExists(t, filepath.Join(repoRoot, filepath.FromSlash(repoOwnedPath)))
-
-				referenceAsset, ok := findOwnedOverlayAssetByRepoPaths(target.OwnedOverlayAssets, repoUpstreamPath, repoOwnedPath)
-				if !ok {
-					t.Fatalf("missing managed-assets mapping for %s and %s", repoUpstreamPath, repoOwnedPath)
-				}
-				if referenceAsset.Class != "required_sdd" || referenceAsset.Kind != "shared_sdd_file" {
-					t.Fatalf("reference asset %q must be required_sdd/shared_sdd_file, got class=%q kind=%q", referenceAsset.Key, referenceAsset.Class, referenceAsset.Kind)
-				}
-
-				wantRuntimeTarget := repoOwnedPathToRuntimeTarget(repoOwnedPath)
-				if !stringSliceContains(referenceAsset.RuntimeTargets, wantRuntimeTarget) {
-					t.Fatalf("reference asset %q runtime targets = %v, want %q", referenceAsset.Key, referenceAsset.RuntimeTargets, wantRuntimeTarget)
-				}
-			}
+		foundSnapshots++
+		if asset.RepoOwnedPath != "" {
+			t.Fatalf("upstream runtime snapshot %q must not declare repo_owned_path", asset.Key)
+		}
+		if asset.RepoUpstreamPath == "" {
+			t.Fatalf("upstream runtime snapshot %q must retain an audit snapshot", asset.Key)
 		}
 	}
+	if foundSnapshots == 0 {
+		t.Fatal("managed-assets does not declare upstream runtime snapshots")
+	}
+	if len(target.RuntimePatches) != 1 || target.RuntimePatches[0].Key != "judgment-retrospective-handoff" {
+		t.Fatalf("runtime patches = %#v, want only judgment-retrospective-handoff", target.RuntimePatches)
+	}
+	ownedRoot := filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "owned", "opencode")
+	var ownedFiles []string
+	if err := filepath.Walk(ownedRoot, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			ownedFiles = append(ownedFiles, filepath.Base(path))
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("walk owned runtime tree: %v", err)
+	}
+	if len(ownedFiles) != 1 || ownedFiles[0] != "AGENTS.md" {
+		t.Fatalf("owned OpenCode runtime files = %v, want only AGENTS.md", ownedFiles)
+	}
+}
 
-	if checkedLinks == 0 {
-		t.Fatal("no required_sdd phase skill reference links were discovered; link coverage test is not exercising any managed references")
+func TestValidateRuntimeOwnershipBoundaryRejectsUpstreamInstallSource(t *testing.T) {
+	target := ManagedAssetsTarget{OwnedOverlayAssets: []OwnedOverlayAsset{
+		{Key: "audit-only", Class: "upstream_runtime_snapshot", RepoOwnedPath: "overlay/gentle-ai/assets/owned/opencode/forbidden.md"},
+	}}
+	if err := validateRuntimeOwnershipBoundary(target); err == nil {
+		t.Fatal("validateRuntimeOwnershipBoundary() error = nil, want upstream/custom ownership overlap rejection")
+	}
+}
+
+func TestValidateRuntimeOwnershipBoundaryAcceptsCurrentManifest(t *testing.T) {
+	target, _, err := loadManagedAssetsTarget(repoRootForTest(t), "opencode")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validateRuntimeOwnershipBoundary(target); err != nil {
+		t.Fatalf("validateRuntimeOwnershipBoundary() error = %v", err)
 	}
 }
 
@@ -459,54 +472,6 @@ func repoRootForTest(t *testing.T) string {
 		}
 		dir = parent
 	}
-}
-
-func markdownReferenceLinks(markdown string) []string {
-	matches := skillReferenceLinkPattern.FindAllStringSubmatch(markdown, -1)
-	seen := map[string]bool{}
-	links := make([]string, 0, len(matches))
-	for _, match := range matches {
-		if len(match) < 2 {
-			continue
-		}
-		link := match[1]
-		if seen[link] {
-			continue
-		}
-		seen[link] = true
-		links = append(links, link)
-	}
-	return links
-}
-
-func findOwnedOverlayAssetByRepoPaths(assets []OwnedOverlayAsset, repoUpstreamPath, repoOwnedPath string) (OwnedOverlayAsset, bool) {
-	for _, asset := range assets {
-		if asset.RepoUpstreamPath == repoUpstreamPath && asset.RepoOwnedPath == repoOwnedPath {
-			return asset, true
-		}
-	}
-	return OwnedOverlayAsset{}, false
-}
-
-func repoOwnedPathToRuntimeTarget(repoOwnedPath string) string {
-	const ownedRuntimePrefix = "overlay/gentle-ai/assets/owned/opencode/"
-	return "~/.config/opencode/" + strings.TrimPrefix(repoOwnedPath, ownedRuntimePrefix)
-}
-
-func assertFileExists(t *testing.T, path string) {
-	t.Helper()
-	if _, err := os.Stat(path); err != nil {
-		t.Fatalf("expected file %s to exist: %v", path, err)
-	}
-}
-
-func stringSliceContains(values []string, want string) bool {
-	for _, value := range values {
-		if value == want {
-			return true
-		}
-	}
-	return false
 }
 
 func mustReadFile(t *testing.T, path string) string {

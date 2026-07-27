@@ -114,7 +114,7 @@ Eligible events:
 - **Maintenance-contract changes**
   - `maintenance-intent.md` changed semantically
   - keep/prune policy changed
-  - repo-owned orchestrator/runtime behavior changed
+  - upstream/runtime ownership or local patch behavior changed
   - maintainer workflow requirements changed
   - the criteria for audit/apply/recovery/verification changed
 - **Tooling/runtime changes with upstream-maintenance impact**
@@ -235,9 +235,10 @@ Files that `apply-gentle-ai-custom.sh` installs into the global OpenCode runtime
 
 - `shared/skills/` — canonical repo-owned skills that the apply script installs globally.
 - `shared/commands/` — reusable prompt bodies for commit/PR wrapper commands rendered by the apply script.
-- `overlay/gentle-ai/assets/` — canonical owned-assets tree: approved upstream snapshots plus repo-owned SDD/runtime assets.
+- `overlay/gentle-ai/assets/` — approved upstream audit snapshots plus true repo-owned runtime assets.
 - `overlay/gentle-ai/assets/upstream/opencode/` — approved upstream-equivalent OpenCode snapshot set: `persona-gentleman.md`, `engram-protocol.md` (mirrors `internal/assets/engram/protocol.md` for the owned AGENTS build), the orchestrator prompt, overlay JSONs, plugins, retained `commands/` snapshots, and selected skill snapshots.
 - `overlay/gentle-ai/assets/owned/opencode/AGENTS.md` — repo-owned runtime copy installed to `~/.config/opencode/AGENTS.md` with local overlay semantics.
+- `overlay/gentle-ai/patches/opencode/judgment-retrospective.json` — exact local delta applied to a compatible upstream-installed Judgment Day skill.
 - `overlay/gentle-ai/policy/gentle-ai-policy.json` — keep/prune policy, OpenCode paths, and runtime overrides.
 - `overlay/gentle-ai/policy/managed-assets.json` — canonical manifest for managed upstream/owned assets and repo-owned skill install intent.
 - `overlay/gentle-ai/policy/maintenance-intent.md` — semantic source of truth for the upstream-first baseline, the small local customization layer to preserve, and the old local patches that must not be carried forward by default.
@@ -275,22 +276,25 @@ It does two classes of work:
    - keep the upstream `branch-pr` copy pruned because its mandatory issue-first rule conflicts with the local PR workflow, then reinstall the repo-owned sanitized `branch-pr`
    - set runtime model overrides for built-in OpenCode agents
 	- refresh approved upstream asset snapshots for diff/review
-	- maintain a repo-owned SDD/orchestrator runtime layer that defaults to the upstream v2 baseline, plus only the minimal confirmed local customizations
+	- preserve the upstream-materialized SDD/review runtime layer and apply only explicit compatible local deltas
 
 The repo now uses a **repo-owned managed-assets** model:
 
 - `overlay/gentle-ai/assets/upstream/` will hold approved upstream behavior assets for diff/audit review, including the OpenCode overlay JSONs/plugins and only the approved `internal/assets/engram/protocol.md` snapshot tracked by the managed-assets manifest
-- `overlay/gentle-ai/assets/owned/` will hold repo-owned SDD/runtime behavior assets applied to the local runtime
+- `overlay/gentle-ai/assets/owned/` holds only true repo-owned runtime assets; raw upstream snapshots never become install sources
+- `overlay/gentle-ai/patches/` holds exact surgical deltas for compatible installed upstream assets
 - `shared/skills/` remains the canonical source for portable repo-owned skills and is NOT folded into the overlay asset tree
 
 This repo does **not** mirror the upstream codebase. Upstream is treated as input only and is resolved in this order: `~/.config/gentle-ai-custom/opencode-local-config.json` (`upstream_repo_path`) -> `$GENTLE_AI_CUSTOM_UPSTREAM_REPO` -> `../gentle-ai` fallback relative to this repo.
 
 The maintenance model is intentionally split into:
 
-- `maintenance-intent.md` → semantic intent and repo-owned orchestrator behavior goals
+- `maintenance-intent.md` → semantic intent and upstream/runtime ownership boundaries
 - `gentle-ai-policy.json` → runtime policy
 - `upstream-state.json` → last maintained upstream boundary
 - `update-log.md` → closed maintenance-event record
+
+Approved upstream runtime assets use replacement-first adoption: upstream Gentle AI materializes the finished artifact, custom apply preserves it, and only explicit compatible deltas from `maintenance-intent.md` are applied.
 
 ---
 
@@ -310,8 +314,8 @@ The maintenance model is intentionally split into:
 - `shared/skills/package-security/SKILL.md`
 - `shared/skills/pr-finalizer/SKILL.md`
 
-**Overlay-owned runtime hooks installed via apply script:**
-- `overlay/gentle-ai/assets/owned/opencode/skills/judgment-day/SKILL.md` — runtime Judgment Day hook that auto-runs the retrospective skill
+**Overlay-owned runtime hook:**
+- `overlay/gentle-ai/patches/opencode/judgment-retrospective.json` — exact-anchor patch that adds the terminal retrospective handoff to a compatible upstream-installed Judgment Day skill
 
 ---
 
@@ -376,7 +380,7 @@ Repo-level rules:
 - If `profiles` is omitted, the helper applies no named SDD profiles.
 - Managed profiles create or update `sdd-orchestrator-<name>` plus the 10 `sdd-<phase>-<name>` agents in `opencode.json`.
 - Profiles present in `opencode.json` but not declared in the active config source are left untouched and surfaced as `WARNING - unmanaged SDD profiles left untouched`. Nothing is deleted automatically.
-- This local config governs upstream path selection, optional OpenCode config path selection, agent model assignments, and named profile assignments. Runtime prompt materialization comes from repo-owned assets installed by `apply-gentle-ai-custom`.
+- This local config governs upstream path selection, optional OpenCode config path selection, agent model assignments, and named profile assignments. Upstream Gentle AI owns runtime prompt materialization; custom apply reuses available base prompts.
 
 Detailed schema, validation behavior, and recovery guidance belong in `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md` and `overlay/gentle-ai/maintenance.md`.
 
@@ -384,10 +388,12 @@ Detailed schema, validation behavior, and recovery guidance belong in `.agents/s
 
 ## Orchestrator invariants
 
-- `overlay/gentle-ai/assets/owned/opencode/prompts/orchestrators/gentle-orchestrator.md` is the canonical runtime source for the base orchestrator behavior.
-- `gentle-ai sync` or reinstall can overwrite runtime prompt refs, so re-applying the overlay remains mandatory after upstream runtime refreshes.
+- The installed `agent.gentle-orchestrator.prompt` is upstream-owned. Custom apply may reuse it for configured profiles, but must not inspect or certify its review semantics.
+- Upstream-owned plugins and contracts may be absent or opaque to custom apply unless a concrete local patch or profile operation consumes them. They must never become custom install sources.
+- Owned-state reconciliation tracks every custom-installed output, including single-file assets without a sync mode. Stale paths returned to upstream or used as surgical patch targets are protected but never recorded as wholly custom-owned.
+- `gentle-ai sync` or reinstall restores the upstream runtime surface; re-applying the overlay remains mandatory for local skills, pruning, assignments, and the retrospective patch.
 - `overlay/gentle-ai/assets/upstream/opencode/prompts/orchestrators/gentle-orchestrator.md` is the approved upstream audit baseline.
-- Generated or installed files under `~/.config/opencode/prompts/sdd/orchestrators/` are deployment targets, not the source of truth.
+- Custom apply must not redirect base or named agents to raw `.overlay.md` prompt copies.
 
 Detailed audit, recovery, and apply procedure belongs in `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md` and `overlay/gentle-ai/maintenance.md`.
 

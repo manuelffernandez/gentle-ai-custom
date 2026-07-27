@@ -1,7 +1,7 @@
 {
   "version": 1,
   "status": "active_runtime_canonical",
-  "description": "Canonical managed-assets manifest for the OpenCode overlay: audit/sync map approved upstream snapshots here, and apply installs the owned runtime assets declared here.",
+  "description": "Approved upstream assets are audit/sync snapshots. Apply preserves the installed upstream runtime and writes only repo-owned assets or declared surgical patches.",
   "targets": {
     "opencode": {
       "watch_roots": [
@@ -9,400 +9,73 @@
         "internal/assets/engram/protocol.md",
         "internal/assets/skills"
       ],
-      "upstream_path_interpretation": "Paths in this manifest refer to files inside the upstream gentle-ai repository. `watch_roots` lists the upstream directory roots or file paths watched for untracked drift. `repo_upstream_path` stores the approved upstream copy used for drift review, and `repo_owned_path` stores the repo-owned runtime asset that apply installs.",
+      "upstream_path_interpretation": "upstream_path identifies source input in Gentle AI; repo_upstream_path stores the approved audit snapshot. Only class=repo_owned_runtime is copied by custom apply. Upstream_runtime_snapshot entries are installed and rendered by upstream Gentle AI.",
       "structural_invariant_sources": [
         "internal/components/sdd/profiles.go",
-        "internal/components/sdd/inject.go"
+        "internal/components/sdd/inject.go",
+        "internal/components/sdd/boundedreview.go"
       ],
       "owned_overlay_assets": [
-        {
-          "key": "opencode-persona-source",
-          "class": "upstream_source",
-          "kind": "upstream_source_file",
-          "upstream_path": "internal/assets/opencode/persona-gentleman.md",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/persona-gentleman.md"
-        },
-        {
-          "key": "opencode-engram-source",
-          "class": "upstream_source",
-          "kind": "upstream_source_file",
-          "upstream_path": "internal/assets/engram/protocol.md",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/engram-protocol.md"
-        },
-        {
-          "key": "opencode-overlay-single",
-          "class": "upstream_source",
-          "kind": "upstream_source_file",
-          "upstream_path": "internal/assets/opencode/sdd-overlay-single.json",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/sdd-overlay-single.json"
-        },
-        {
-          "key": "opencode-overlay-multi",
-          "class": "upstream_source",
-          "kind": "upstream_source_file",
-          "upstream_path": "internal/assets/opencode/sdd-overlay-multi.json",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/sdd-overlay-multi.json"
-        },
-        {
-          "key": "opencode-plugins",
-          "class": "upstream_source",
-          "kind": "upstream_source_directory",
-          "upstream_path": "internal/assets/opencode/plugins",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/plugins"
-        },
-        {
-          "key": "opencode-agents",
-          "class": "repo_owned_runtime",
-          "kind": "agent_instruction_file",
-          "repo_owned_path": "overlay/gentle-ai/assets/owned/opencode/AGENTS.md",
-          "runtime_targets": [
-            "~/.config/opencode/AGENTS.md"
-          ]
-        },
-        {
-          "key": "judgment-day-runtime",
-          "class": "repo_owned_runtime",
-          "kind": "skill_directory",
-          "repo_owned_path": "overlay/gentle-ai/assets/owned/opencode/skills/judgment-day",
-          "runtime_sync_mode": "prune",
-          "runtime_targets": [
-            "~/.config/opencode/skills/judgment-day"
-          ]
-        },
-        {
-          "key": "gentle-orchestrator",
-          "class": "required_sdd",
-          "kind": "orchestrator_prompt",
-          "upstream_path": "internal/assets/opencode/sdd-orchestrator.md",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/prompts/orchestrators/gentle-orchestrator.md",
-          "repo_owned_path": "overlay/gentle-ai/assets/owned/opencode/prompts/orchestrators/gentle-orchestrator.md",
-          "runtime_targets": [
-            "~/.config/opencode/prompts/sdd/orchestrators/gentle-orchestrator.overlay.md"
-          ]
-        },
-        {
-          "key": "sdd-init",
-          "class": "required_sdd",
-          "kind": "phase_skill_prompt",
-          "upstream_path": "internal/assets/skills/sdd-init/SKILL.md",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/sdd-init/SKILL.md",
-          "repo_owned_path": "overlay/gentle-ai/assets/owned/opencode/skills/sdd-init/SKILL.md",
-          "runtime_targets": [
-            "~/.config/opencode/skills/sdd-init/SKILL.md",
-            "~/.config/opencode/prompts/sdd/sdd-init.md"
-          ]
-        },
-        {
-          "key": "sdd-init-init-details",
-          "class": "required_sdd",
-          "kind": "shared_sdd_file",
-          "upstream_path": "internal/assets/skills/sdd-init/references/init-details.md",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/sdd-init/references/init-details.md",
-          "repo_owned_path": "overlay/gentle-ai/assets/owned/opencode/skills/sdd-init/references/init-details.md",
-          "runtime_targets": [
-            "~/.config/opencode/skills/sdd-init/references/init-details.md"
-          ]
-        },
-        {
-          "key": "sdd-explore",
-          "class": "required_sdd",
-          "kind": "phase_skill_prompt",
-          "upstream_path": "internal/assets/skills/sdd-explore/SKILL.md",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/sdd-explore/SKILL.md",
-          "repo_owned_path": "overlay/gentle-ai/assets/owned/opencode/skills/sdd-explore/SKILL.md",
-          "runtime_targets": [
-            "~/.config/opencode/skills/sdd-explore/SKILL.md",
-            "~/.config/opencode/prompts/sdd/sdd-explore.md"
-          ]
-        },
-        {
-          "key": "sdd-propose",
-          "class": "required_sdd",
-          "kind": "phase_skill_prompt",
-          "upstream_path": "internal/assets/skills/sdd-propose/SKILL.md",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/sdd-propose/SKILL.md",
-          "repo_owned_path": "overlay/gentle-ai/assets/owned/opencode/skills/sdd-propose/SKILL.md",
-          "runtime_targets": [
-            "~/.config/opencode/skills/sdd-propose/SKILL.md",
-            "~/.config/opencode/prompts/sdd/sdd-propose.md"
-          ]
-        },
-        {
-          "key": "sdd-spec",
-          "class": "required_sdd",
-          "kind": "phase_skill_prompt",
-          "upstream_path": "internal/assets/skills/sdd-spec/SKILL.md",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/sdd-spec/SKILL.md",
-          "repo_owned_path": "overlay/gentle-ai/assets/owned/opencode/skills/sdd-spec/SKILL.md",
-          "runtime_targets": [
-            "~/.config/opencode/skills/sdd-spec/SKILL.md",
-            "~/.config/opencode/prompts/sdd/sdd-spec.md"
-          ]
-        },
-        {
-          "key": "sdd-design",
-          "class": "required_sdd",
-          "kind": "phase_skill_prompt",
-          "upstream_path": "internal/assets/skills/sdd-design/SKILL.md",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/sdd-design/SKILL.md",
-          "repo_owned_path": "overlay/gentle-ai/assets/owned/opencode/skills/sdd-design/SKILL.md",
-          "runtime_targets": [
-            "~/.config/opencode/skills/sdd-design/SKILL.md",
-            "~/.config/opencode/prompts/sdd/sdd-design.md"
-          ]
-        },
-        {
-          "key": "sdd-design-threat-matrix",
-          "class": "required_sdd",
-          "kind": "shared_sdd_file",
-          "upstream_path": "internal/assets/skills/sdd-design/references/threat-matrix.md",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/sdd-design/references/threat-matrix.md",
-          "repo_owned_path": "overlay/gentle-ai/assets/owned/opencode/skills/sdd-design/references/threat-matrix.md",
-          "runtime_targets": [
-            "~/.config/opencode/skills/sdd-design/references/threat-matrix.md"
-          ]
-        },
-        {
-          "key": "sdd-tasks",
-          "class": "required_sdd",
-          "kind": "phase_skill_prompt",
-          "upstream_path": "internal/assets/skills/sdd-tasks/SKILL.md",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/sdd-tasks/SKILL.md",
-          "repo_owned_path": "overlay/gentle-ai/assets/owned/opencode/skills/sdd-tasks/SKILL.md",
-          "runtime_targets": [
-            "~/.config/opencode/skills/sdd-tasks/SKILL.md",
-            "~/.config/opencode/prompts/sdd/sdd-tasks.md"
-          ]
-        },
-        {
-          "key": "sdd-apply",
-          "class": "required_sdd",
-          "kind": "phase_skill_prompt",
-          "upstream_path": "internal/assets/skills/sdd-apply/SKILL.md",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/sdd-apply/SKILL.md",
-          "repo_owned_path": "overlay/gentle-ai/assets/owned/opencode/skills/sdd-apply/SKILL.md",
-          "runtime_targets": [
-            "~/.config/opencode/skills/sdd-apply/SKILL.md",
-            "~/.config/opencode/prompts/sdd/sdd-apply.md"
-          ]
-        },
-        {
-          "key": "sdd-verify",
-          "class": "required_sdd",
-          "kind": "phase_skill_prompt",
-          "upstream_path": "internal/assets/skills/sdd-verify/SKILL.md",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/sdd-verify/SKILL.md",
-          "repo_owned_path": "overlay/gentle-ai/assets/owned/opencode/skills/sdd-verify/SKILL.md",
-          "runtime_targets": [
-            "~/.config/opencode/skills/sdd-verify/SKILL.md",
-            "~/.config/opencode/prompts/sdd/sdd-verify.md"
-          ]
-        },
-        {
-          "key": "sdd-verify-report-format",
-          "class": "required_sdd",
-          "kind": "shared_sdd_file",
-          "upstream_path": "internal/assets/skills/sdd-verify/references/report-format.md",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/sdd-verify/references/report-format.md",
-          "repo_owned_path": "overlay/gentle-ai/assets/owned/opencode/skills/sdd-verify/references/report-format.md",
-          "runtime_targets": [
-            "~/.config/opencode/skills/sdd-verify/references/report-format.md"
-          ]
-        },
-        {
-          "key": "sdd-archive",
-          "class": "required_sdd",
-          "kind": "phase_skill_prompt",
-          "upstream_path": "internal/assets/skills/sdd-archive/SKILL.md",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/sdd-archive/SKILL.md",
-          "repo_owned_path": "overlay/gentle-ai/assets/owned/opencode/skills/sdd-archive/SKILL.md",
-          "runtime_targets": [
-            "~/.config/opencode/skills/sdd-archive/SKILL.md",
-            "~/.config/opencode/prompts/sdd/sdd-archive.md"
-          ]
-        },
-        {
-          "key": "sdd-onboard",
-          "class": "required_sdd",
-          "kind": "phase_skill_prompt",
-          "upstream_path": "internal/assets/skills/sdd-onboard/SKILL.md",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/sdd-onboard/SKILL.md",
-          "repo_owned_path": "overlay/gentle-ai/assets/owned/opencode/skills/sdd-onboard/SKILL.md",
-          "runtime_targets": [
-            "~/.config/opencode/skills/sdd-onboard/SKILL.md",
-            "~/.config/opencode/prompts/sdd/sdd-onboard.md"
-          ]
-        },
-        {
-          "key": "_shared",
-          "class": "required_sdd",
-          "kind": "shared_skill_directory",
-          "upstream_path": "internal/assets/skills/_shared",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/_shared",
-          "repo_owned_path": "overlay/gentle-ai/assets/owned/opencode/skills/_shared",
-          "runtime_sync_mode": "prune",
-          "runtime_targets": [
-            "~/.config/opencode/skills/_shared"
-          ]
-        },
-        {
-          "key": "strict-tdd",
-          "class": "required_sdd",
-          "kind": "shared_sdd_file",
-          "upstream_path": "internal/assets/skills/sdd-apply/strict-tdd.md",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/sdd-apply/strict-tdd.md",
-          "repo_owned_path": "overlay/gentle-ai/assets/owned/opencode/skills/sdd-apply/strict-tdd.md",
-          "runtime_targets": [
-            "~/.config/opencode/skills/sdd-apply/strict-tdd.md"
-          ]
-        },
-        {
-          "key": "strict-tdd-verify",
-          "class": "required_sdd",
-          "kind": "shared_sdd_file",
-          "upstream_path": "internal/assets/skills/sdd-verify/strict-tdd-verify.md",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/sdd-verify/strict-tdd-verify.md",
-          "repo_owned_path": "overlay/gentle-ai/assets/owned/opencode/skills/sdd-verify/strict-tdd-verify.md",
-          "runtime_targets": [
-            "~/.config/opencode/skills/sdd-verify/strict-tdd-verify.md"
-          ]
-        },
-        {
-          "key": "sdd-commands",
-          "class": "required_sdd",
-          "kind": "command_directory",
-          "upstream_path": "internal/assets/opencode/commands",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/commands",
-          "repo_owned_path": "overlay/gentle-ai/assets/owned/opencode/commands",
-          "runtime_sync_mode": "merge",
-          "runtime_targets": [
-            "~/.config/opencode/commands"
-          ]
-        }
+        {"key":"opencode-persona-source","class":"upstream_source","kind":"upstream_source_file","upstream_path":"internal/assets/opencode/persona-gentleman.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/persona-gentleman.md"},
+        {"key":"opencode-engram-source","class":"upstream_source","kind":"upstream_source_file","upstream_path":"internal/assets/engram/protocol.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/engram-protocol.md"},
+        {"key":"opencode-overlay-single","class":"upstream_source","kind":"upstream_source_file","upstream_path":"internal/assets/opencode/sdd-overlay-single.json","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/sdd-overlay-single.json"},
+        {"key":"opencode-overlay-multi","class":"upstream_source","kind":"upstream_source_file","upstream_path":"internal/assets/opencode/sdd-overlay-multi.json","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/sdd-overlay-multi.json"},
+        {"key":"opencode-plugins","class":"upstream_runtime_snapshot","kind":"upstream_source_directory","upstream_path":"internal/assets/opencode/plugins","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/plugins","runtime_targets":["~/.config/opencode/plugins"]},
+        {"key":"opencode-agents","class":"repo_owned_runtime","kind":"agent_instruction_file","repo_owned_path":"overlay/gentle-ai/assets/owned/opencode/AGENTS.md","runtime_targets":["~/.config/opencode/AGENTS.md"]},
+        {"key":"gentle-orchestrator","class":"upstream_runtime_snapshot","kind":"orchestrator_prompt","upstream_path":"internal/assets/opencode/sdd-orchestrator.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/prompts/orchestrators/gentle-orchestrator.md"},
+        {"key":"sdd-init","class":"upstream_runtime_snapshot","kind":"phase_skill_prompt","upstream_path":"internal/assets/skills/sdd-init/SKILL.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/sdd-init/SKILL.md","runtime_targets":["~/.config/opencode/skills/sdd-init","~/.config/opencode/prompts/sdd/sdd-init.md"]},
+        {"key":"sdd-init-init-details","class":"upstream_runtime_snapshot","kind":"shared_sdd_file","upstream_path":"internal/assets/skills/sdd-init/references/init-details.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/sdd-init/references/init-details.md","runtime_targets":["~/.config/opencode/skills/sdd-init/references/init-details.md"]},
+        {"key":"sdd-explore","class":"upstream_runtime_snapshot","kind":"phase_skill_prompt","upstream_path":"internal/assets/skills/sdd-explore/SKILL.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/sdd-explore/SKILL.md","runtime_targets":["~/.config/opencode/skills/sdd-explore","~/.config/opencode/prompts/sdd/sdd-explore.md"]},
+        {"key":"sdd-propose","class":"upstream_runtime_snapshot","kind":"phase_skill_prompt","upstream_path":"internal/assets/skills/sdd-propose/SKILL.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/sdd-propose/SKILL.md","runtime_targets":["~/.config/opencode/skills/sdd-propose","~/.config/opencode/prompts/sdd/sdd-propose.md"]},
+        {"key":"sdd-spec","class":"upstream_runtime_snapshot","kind":"phase_skill_prompt","upstream_path":"internal/assets/skills/sdd-spec/SKILL.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/sdd-spec/SKILL.md","runtime_targets":["~/.config/opencode/skills/sdd-spec","~/.config/opencode/prompts/sdd/sdd-spec.md"]},
+        {"key":"sdd-design","class":"upstream_runtime_snapshot","kind":"phase_skill_prompt","upstream_path":"internal/assets/skills/sdd-design/SKILL.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/sdd-design/SKILL.md","runtime_targets":["~/.config/opencode/skills/sdd-design","~/.config/opencode/prompts/sdd/sdd-design.md"]},
+        {"key":"sdd-design-threat-matrix","class":"upstream_runtime_snapshot","kind":"shared_sdd_file","upstream_path":"internal/assets/skills/sdd-design/references/threat-matrix.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/sdd-design/references/threat-matrix.md","runtime_targets":["~/.config/opencode/skills/sdd-design/references/threat-matrix.md"]},
+        {"key":"sdd-tasks","class":"upstream_runtime_snapshot","kind":"phase_skill_prompt","upstream_path":"internal/assets/skills/sdd-tasks/SKILL.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/sdd-tasks/SKILL.md","runtime_targets":["~/.config/opencode/skills/sdd-tasks","~/.config/opencode/prompts/sdd/sdd-tasks.md"]},
+        {"key":"sdd-apply","class":"upstream_runtime_snapshot","kind":"phase_skill_prompt","upstream_path":"internal/assets/skills/sdd-apply/SKILL.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/sdd-apply/SKILL.md","runtime_targets":["~/.config/opencode/skills/sdd-apply","~/.config/opencode/prompts/sdd/sdd-apply.md"]},
+        {"key":"sdd-verify","class":"upstream_runtime_snapshot","kind":"phase_skill_prompt","upstream_path":"internal/assets/skills/sdd-verify/SKILL.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/sdd-verify/SKILL.md","runtime_targets":["~/.config/opencode/skills/sdd-verify","~/.config/opencode/prompts/sdd/sdd-verify.md"]},
+        {"key":"sdd-verify-report-format","class":"upstream_runtime_snapshot","kind":"shared_sdd_file","upstream_path":"internal/assets/skills/sdd-verify/references/report-format.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/sdd-verify/references/report-format.md","runtime_targets":["~/.config/opencode/skills/sdd-verify/references/report-format.md"]},
+        {"key":"sdd-archive","class":"upstream_runtime_snapshot","kind":"phase_skill_prompt","upstream_path":"internal/assets/skills/sdd-archive/SKILL.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/sdd-archive/SKILL.md","runtime_targets":["~/.config/opencode/skills/sdd-archive","~/.config/opencode/prompts/sdd/sdd-archive.md"]},
+        {"key":"sdd-onboard","class":"upstream_runtime_snapshot","kind":"phase_skill_prompt","upstream_path":"internal/assets/skills/sdd-onboard/SKILL.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/sdd-onboard/SKILL.md","runtime_targets":["~/.config/opencode/skills/sdd-onboard","~/.config/opencode/prompts/sdd/sdd-onboard.md"]},
+        {"key":"_shared","class":"upstream_runtime_snapshot","kind":"shared_skill_directory","upstream_path":"internal/assets/skills/_shared","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/_shared","runtime_targets":["~/.config/opencode/skills/_shared"]},
+        {"key":"strict-tdd","class":"upstream_runtime_snapshot","kind":"shared_sdd_file","upstream_path":"internal/assets/skills/sdd-apply/strict-tdd.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/sdd-apply/strict-tdd.md","runtime_targets":["~/.config/opencode/skills/sdd-apply/strict-tdd.md"]},
+        {"key":"strict-tdd-verify","class":"upstream_runtime_snapshot","kind":"shared_sdd_file","upstream_path":"internal/assets/skills/sdd-verify/strict-tdd-verify.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/sdd-verify/strict-tdd-verify.md","runtime_targets":["~/.config/opencode/skills/sdd-verify/strict-tdd-verify.md"]},
+        {"key":"sdd-commands","class":"upstream_runtime_snapshot","kind":"command_directory","upstream_path":"internal/assets/opencode/commands","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/commands","runtime_targets":["~/.config/opencode/commands"]}
+      ],
+      "runtime_patches": [
+        {"key":"judgment-retrospective-handoff","patch_path":"overlay/gentle-ai/patches/opencode/judgment-retrospective.json"}
       ],
       "retained_upstream_skills": [
-        {
-          "key": "chained-pr",
-          "upstream_path": "internal/assets/skills/chained-pr",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/chained-pr"
-        },
-        {
-          "key": "cognitive-doc-design",
-          "upstream_path": "internal/assets/skills/cognitive-doc-design",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/cognitive-doc-design"
-        },
-        {
-          "key": "comment-writer",
-          "upstream_path": "internal/assets/skills/comment-writer",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/comment-writer"
-        },
-        {
-          "key": "go-testing",
-          "upstream_path": "internal/assets/skills/go-testing",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/go-testing"
-        },
-        {
-          "key": "judgment-day",
-          "upstream_path": "internal/assets/skills/judgment-day",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/judgment-day"
-        },
-        {
-          "key": "skill-creator",
-          "upstream_path": "internal/assets/skills/skill-creator",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/skill-creator"
-        },
-        {
-          "key": "skill-improver",
-          "upstream_path": "internal/assets/skills/skill-improver",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/skill-improver"
-        },
-        {
-          "key": "skill-registry",
-          "upstream_path": "internal/assets/skills/skill-registry",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/skill-registry"
-        },
-        {
-          "key": "work-unit-commits",
-          "upstream_path": "internal/assets/skills/work-unit-commits",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/work-unit-commits"
-        }
+        {"key":"chained-pr","upstream_path":"internal/assets/skills/chained-pr","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/chained-pr"},
+        {"key":"cognitive-doc-design","upstream_path":"internal/assets/skills/cognitive-doc-design","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/cognitive-doc-design"},
+        {"key":"comment-writer","upstream_path":"internal/assets/skills/comment-writer","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/comment-writer"},
+        {"key":"go-testing","upstream_path":"internal/assets/skills/go-testing","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/go-testing"},
+        {"key":"judgment-day","upstream_path":"internal/assets/skills/judgment-day","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/judgment-day"},
+        {"key":"skill-creator","upstream_path":"internal/assets/skills/skill-creator","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/skill-creator"},
+        {"key":"skill-improver","upstream_path":"internal/assets/skills/skill-improver","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/skill-improver"},
+        {"key":"skill-registry","upstream_path":"internal/assets/skills/skill-registry","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/skill-registry"},
+        {"key":"work-unit-commits","upstream_path":"internal/assets/skills/work-unit-commits","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/work-unit-commits"}
       ],
       "pruned_upstream_skills": [
-        {
-          "key": "branch-pr",
-          "upstream_path": "internal/assets/skills/branch-pr",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/branch-pr"
-        },
-        {
-          "key": "issue-creation",
-          "upstream_path": "internal/assets/skills/issue-creation",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/issue-creation"
-        },
-        {
-          "key": "hermes-ephemeral-delegation",
-          "upstream_path": "internal/assets/skills/hermes-ephemeral-delegation",
-          "repo_upstream_path": "overlay/gentle-ai/assets/upstream/opencode/skills/hermes-ephemeral-delegation"
-        }
+        {"key":"branch-pr","upstream_path":"internal/assets/skills/branch-pr","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/branch-pr"},
+        {"key":"issue-creation","upstream_path":"internal/assets/skills/issue-creation","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/issue-creation"},
+        {"key":"hermes-ephemeral-delegation","upstream_path":"internal/assets/skills/hermes-ephemeral-delegation","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/hermes-ephemeral-delegation"}
       ],
       "repo_owned_shared_skills": {
         "root": "shared/skills",
         "runtime_root": "~/.config/opencode/skills",
         "install_mode": "copy_skill_directory",
-        "allowlist": [
-          "branch-pr",
-          "chained-pr",
-          "code-design",
-          "commit-planner",
-          "judgment-retrospective",
-          "package-security",
-          "pr-finalizer"
-        ]
+        "allowlist": ["branch-pr","chained-pr","code-design","commit-planner","judgment-retrospective","package-security","pr-finalizer"]
       },
       "repo_owned_command_bodies": {
         "root": "shared/commands",
         "runtime_root": "~/.config/opencode/commands",
         "render_mode": "agent_specific_wrapper_generation",
         "entries": [
-          {
-            "key": "commit-plan",
-            "body_path": "shared/commands/commit-plan-body.md",
-	            "owner_skill": "commit-planner",
-	            "mode": "plan",
-	            "command_type": "read-only",
-	            "description": "Propose a post-SDD commit plan without changing git state"
-          },
-          {
-            "key": "commit-apply",
-            "body_path": "shared/commands/commit-apply-body.md",
-	            "owner_skill": "commit-planner",
-	            "mode": "apply",
-	            "command_type": "state-changing",
-	            "description": "Execute an approved post-SDD commit plan, or generate one first if missing"
-          },
-          {
-            "key": "commit-fast",
-            "body_path": "shared/commands/commit-fast-body.md",
-	            "owner_skill": "commit-planner",
-	            "mode": "auto",
-	            "command_type": "state-changing",
-	            "description": "Generate and execute a commit plan in one shot without approval pause"
-          },
-          {
-            "key": "pr-create",
-            "body_path": "shared/commands/pr-create-body.md",
-	            "owner_skill": "branch-pr",
-	            "mode": "create",
-	            "command_type": "state-changing",
-	            "description": "Draft a PR from committed changes and optionally create it after approval"
-          },
-          {
-            "key": "pr-regenerate",
-            "body_path": "shared/commands/pr-regenerate-body.md",
-	            "owner_skill": "branch-pr",
-	            "mode": "regenerate",
-	            "command_type": "state-changing",
-	            "description": "Regenerate or update an existing PR from the current committed diff after approval"
-          }
+          {"key":"commit-plan","body_path":"shared/commands/commit-plan-body.md","owner_skill":"commit-planner","mode":"plan","command_type":"read-only","description":"Propose a post-SDD commit plan without changing git state"},
+          {"key":"commit-apply","body_path":"shared/commands/commit-apply-body.md","owner_skill":"commit-planner","mode":"apply","command_type":"state-changing","description":"Execute an approved post-SDD commit plan, or generate one first if missing"},
+          {"key":"commit-fast","body_path":"shared/commands/commit-fast-body.md","owner_skill":"commit-planner","mode":"auto","command_type":"state-changing","description":"Generate and execute a commit plan in one shot without approval pause"},
+          {"key":"pr-create","body_path":"shared/commands/pr-create-body.md","owner_skill":"branch-pr","mode":"create","command_type":"state-changing","description":"Draft a PR from committed changes and optionally create it after approval"},
+          {"key":"pr-regenerate","body_path":"shared/commands/pr-regenerate-body.md","owner_skill":"branch-pr","mode":"regenerate","command_type":"state-changing","description":"Regenerate or update an existing PR from the current committed diff after approval"}
         ]
       }
     }
