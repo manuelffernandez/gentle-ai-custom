@@ -728,6 +728,9 @@ func isRenderSDDOrchestratorAssetCall(call *ast.CallExpr) bool {
 	if !ok || ident.Name != "renderSDDOrchestratorAsset" || len(call.Args) != 1 {
 		return false
 	}
+	if agent, ok := call.Args[0].(*ast.Ident); ok && agent.Name == "agent" {
+		return true
+	}
 	return isModelAgentOpenCodeSelector(call.Args[0])
 }
 

@@ -202,7 +202,7 @@ func inject() {
 	orchestratorRaw, ok := agentsMap["gentle-orchestrator"]
 	_ = orchestratorRaw
 	_ = ok
-	orchestratorMap["prompt"] = renderSDDOrchestratorAsset(model.AgentOpenCode)
+	orchestratorMap["prompt"] = renderSDDOrchestratorAsset(agent)
 	taskRaw, ok := permissionRaw["task"].(map[string]any)
 	_ = taskRaw
 	_ = ok
@@ -771,14 +771,26 @@ func inject() {
 	}
 }
 
-func TestBaseAssetInjectionInvariantOKAcceptsRenderPath(t *testing.T) {
-	text := `
+func TestBaseAssetInjectionInvariantOKAcceptsCanonicalRenderArguments(t *testing.T) {
+	tests := []struct {
+		name     string
+		argument string
+	}{
+		{name: "current adapter-local agent", argument: "agent"},
+		{name: "historical OpenCode selector", argument: "model.AgentOpenCode"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			text := `
 orchestratorRaw, ok := agentsMap["gentle-orchestrator"]
-orchestratorMap["prompt"] = renderSDDOrchestratorAsset(model.AgentOpenCode)
+orchestratorMap["prompt"] = renderSDDOrchestratorAsset(` + tt.argument + `)
 taskRaw, ok := permissionRaw["task"].(map[string]any)
 `
-	if !baseAssetInjectionInvariantOK(text) {
-		t.Fatal("baseAssetInjectionInvariantOK() = false, want true for renderSDDOrchestratorAsset binding")
+			if !baseAssetInjectionInvariantOK(text) {
+				t.Fatalf("baseAssetInjectionInvariantOK() = false, want true for argument %q", tt.argument)
+			}
+		})
 	}
 }
 
@@ -815,6 +827,17 @@ taskRaw, ok := permissionRaw["task"].(map[string]any)
 	}
 }
 
+func TestBaseAssetInjectionInvariantOKRejectsArbitraryRenderArgument(t *testing.T) {
+	text := `
+orchestratorRaw, ok := agentsMap["gentle-orchestrator"]
+orchestratorMap["prompt"] = renderSDDOrchestratorAsset(candidate)
+taskRaw, ok := permissionRaw["task"].(map[string]any)
+`
+	if baseAssetInjectionInvariantOK(text) {
+		t.Fatal("baseAssetInjectionInvariantOK() = true, want false for arbitrary render argument")
+	}
+}
+
 func TestBaseAssetInjectionInvariantOKRejectsMissingPromptAssignment(t *testing.T) {
 	text := `
 orchestratorRaw, ok := agentsMap["gentle-orchestrator"]
@@ -838,7 +861,7 @@ _ = message
 	}
 }
 
-func TestEvaluateStructuralInvariantsAcceptsEquivalentTaskScopingWiring(t *testing.T) {
+func TestEvaluateStructuralInvariantsAcceptsUpstreamV220Shape(t *testing.T) {
 	upstreamRepo := t.TempDir()
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "profiles.go"), []byte(`package opencode
 
@@ -891,7 +914,7 @@ func inject() {
 	orchestratorRaw, ok := agentsMap["gentle-orchestrator"]
 	_ = orchestratorRaw
 	_ = ok
-	orchestratorMap["prompt"] = renderSDDOrchestratorAsset(model.AgentOpenCode)
+	orchestratorMap["prompt"] = renderSDDOrchestratorAsset(agent)
 	taskRaw, ok := permissionRaw["task"].(map[string]any)
 	_ = taskRaw
 	_ = ok
@@ -905,7 +928,7 @@ func inject() {
 
 	result, failures := evaluateStructuralInvariants(upstreamRepo, target, policy)
 	if len(failures) != 0 {
-		t.Fatalf("evaluateStructuralInvariants() failures = %v, want none", failures)
+		t.Fatalf("evaluateStructuralInvariants() failures = %v, want none for upstream v2.2.0 shape", failures)
 	}
 	if !result.TaskScopingOK {
 		t.Fatal("evaluateStructuralInvariants() TaskScopingOK = false, want true for equivalent wiring")
