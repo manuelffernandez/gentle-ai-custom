@@ -4,6 +4,16 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-07-27 | Adopted Gentle AI v2.2.0 after full OpenCode reinstall
+
+- **Type**: `adoption`
+- **Upstream scope/range**: `4907129ec9dc0887c6a48548e9b3ef206f25bbed` (`v2.1.11-94-g4907129e`) -> `ee83e83d56f0d149c52f93fd13b3296858f5147f` (`v2.2.0`)
+- **Decision**: acquired the v2.2.0 OpenCode runtime and approved snapshots after adapting the structural auditor to accept the canonical adapter-local `agent` render argument without weakening its exact assignment checks. Advanced the maintained boundary, completed a full TUI reinstall, and reapplied the local overlay with the existing keep/prune, ownership, profile, Judgment Day, and plan-only chained-PR boundaries unchanged.
+- **Why it mattered**: v2.2.0 changed maintained OpenCode materialization and the canonical SDD orchestrator render call. The old audit predicate rejected the valid v2.2.0 source shape, while a sync-only refresh could not prove the newly installed topology and runtime files matched the accepted release.
+- **Affected artifacts**: `internal/overlay/audit_upstream.go`; `internal/overlay/managed_assets_test.go`; 11 approved snapshots under `overlay/gentle-ai/assets/upstream/opencode/`; `overlay/gentle-ai/state/upstream-state.json`; installed OpenCode config and custom runtime under `~/.config/opencode/`; `overlay/gentle-ai/logs/update-log.md`.
+- **Verification**: upstream and binary resolved to exact clean v2.2.0 at `ee83e83d56f0d149c52f93fd13b3296858f5147f`. Pre-apply topology inspection found all base agents, all three declared named profiles, all 30 suffixed phase agents, exact v2.2.0 Judgment Day patch anchors, and no unmanaged profile or obsolete managed prompt reference. The canonical apply reported config updated, 2 skills pruned, 1 owned asset changed, 1 owned runtime target verified, 4 profiles managed, 34 profile agents updated, 10 unchanged, 0 created, 0 topology warnings, and 0 unmanaged profiles. Post-state checks confirmed local assignments and prompt reuse, scoped pruning, owned target presence, unchanged representative upstream prompt/plugin/contract bytes and modes, the exact declared retrospective-only Judgment Day delta, and the canonical plan-only `chained-pr` runtime. A convergence apply left config and all 44 profile agents unchanged with 0 topology warnings. `bash audit-gentle-ai-upstream.sh`, `go test ./...`, `opencode debug config --pure`, and `git diff --check` passed.
+- **Follow-up**: restart OpenCode so the active process loads the updated global configuration; the parent fresh-context final review remains separate.
+
 ## 2026-07-22 | Closed raw-source runtime overwrite incident
 
 - **Type**: `incident`
