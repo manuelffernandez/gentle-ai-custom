@@ -138,10 +138,16 @@ These live outside the repo in `~/.config/gentle-ai-custom/opencode-local-config
 - optional `upstream_repo_path`
 - optional `opencode_config_path`
 - explicit built-in agent overrides
+- optional global Judgment Day and review actor assignments, including explicit dynamic inheritance
+- optional named-profile Judgment Day assignments
 
 The versioned repo owns portable runtime intent and installer behavior only.
 
 Profile reconciliation may change `model` and `variant`, but it must preserve upstream base prompt values and cloned agent fields without interpreting their semantics. New named agents clone the corresponding installed base agent before assignments are changed.
+
+The three Judgment Day actors may be assigned globally or cloned with a profile suffix when that named profile explicitly configures them. Omitted named JD slots delegate to the global actor. The five native review actors remain global and shared; suffixed review actors are never created.
+
+For global JD/review slots, omission preserves upstream/runtime assignment. Explicit `{"inherit": true}` removes both `model` and `variant` so OpenCode Task inherits the invoking primary actor's concrete assignment. A referenced missing upstream actor must fail before any write.
 
 ## Managed asset boundary
 

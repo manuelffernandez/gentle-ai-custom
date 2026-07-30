@@ -25,6 +25,8 @@ Esta carpeta agrupa los assets operativos del overlay de Gentle AI.
 - `sync-gentle-ai-upstream-assets` hace el repo sync de `assets/upstream/...` más la frontera aprobada; no refresca el runtime.
 - `apply-gentle-ai-custom` conserva los prompts, contratos, comandos y plugins SDD materializados por Gentle AI; los snapshots de `assets/upstream/...` no son fuentes de instalación.
 - Antes de escribir, `apply` valida solo lo que sus propias operaciones necesitan: límites de ownership, prompts base para perfiles configurados, migraciones seguras de referencias viejas y anchors de Judgment Day.
+- La configuración local puede asignar o heredar explícitamente los tres actores globales de Judgment Day y los cinco actores globales de review. Los perfiles nombrados solo pueden crear actores JD con sufijo; review siempre queda global.
+- Los actores JD con sufijo se clonan desde el actor upstream global correspondiente. `apply` conserva su estructura y cambia solo la asignación y el permiso del orchestrator nombrado.
 - `apply` no interpreta ni certifica la semántica de prompts, contratos o plugins de Gentle AI. Un plugin ausente u opaco no bloquea operaciones custom que no lo usan.
 - El estado de ownership registra todos los outputs instalados por esta capa. La limpieza protege árboles devueltos a upstream y targets de parches puntuales, pero no los vuelve a declarar como archivos propios.
 - El runtime refresh (`gentle-ai sync` o reinstalación completa) es un paso separado y depende de si el cambio adoptado afecta el runtime target/materialized state que este repo mantiene.

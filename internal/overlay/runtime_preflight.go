@@ -50,8 +50,39 @@ func (s *applyPolicyState) preflightCustomRuntimePrerequisites(repoRoot string) 
 			return upstreamRuntimeError("profile reconciliation requires valid base orchestrator permissions: %v", err)
 		}
 	}
+	if err := s.requireConfiguredActorBases(); err != nil {
+		return err
+	}
 	if err := s.prepareRuntimePatches(repoRoot); err != nil {
 		return err
+	}
+	return nil
+}
+
+func (s *applyPolicyState) requireConfiguredActorBases() error {
+	required := map[string]string{}
+	if s.resolvedDefaultProfile != nil {
+		for key := range s.resolvedDefaultProfile.JudgmentDay {
+			required[key] = "default_profile.judgment_day"
+		}
+		for key := range s.resolvedDefaultProfile.Review {
+			required[key] = "default_profile.review"
+		}
+	}
+	for _, profile := range s.resolvedProfiles {
+		for _, key := range judgmentDayActorKeys {
+			required[key] = fmt.Sprintf("profiles[%q].judgment_day", profile.Name)
+		}
+	}
+	keys := make([]string, 0, len(required))
+	for key := range required {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		if _, ok := jsonObject(s.agents[key]); !ok {
+			return upstreamRuntimeError("%s references missing upstream base actor %q", required[key], key)
+		}
 	}
 	return nil
 }

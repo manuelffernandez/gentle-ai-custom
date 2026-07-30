@@ -184,6 +184,7 @@ Si falta algo en tu configuración:
 - si no ponés `profiles`, no agrega perfiles especiales.
 - si no ponés `agent_overrides`, no cambia los modelos que vienen por defecto.
 - si no ponés `default_profile`, no altera la familia base de perfiles SDD.
+- si omitís un actor dentro de `judgment_day` o `review`, conserva la asignación que ya tenga el runtime. Para heredar dinámicamente el modelo y variant del orchestrator que delega, usá `{"inherit": true}`.
 
 ### Archivos clave del mantenimiento
 
@@ -289,8 +290,8 @@ Tabla operativa:
 | Caso                            | Qué agentes intervienen                                                                                                                                         | Cómo se resuelve el modelo                                                                                                                   | Dónde se cambia                                         |
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
 | Delegación built-in de OpenCode | `general`, `explore`                                                                                                                                            | Este overlay les fija modelo/variant explícitos mediante `agent_overrides`, en vez de dejar que hereden el modelo del agente que los invoca. | `~/.config/gentle-ai-custom/opencode-local-config.json` |
-| Familia base SDD                | `gentle-orchestrator`, `sdd-init`, `sdd-explore`, `sdd-propose`, `sdd-spec`, `sdd-design`, `sdd-tasks`, `sdd-apply`, `sdd-verify`, `sdd-archive`, `sdd-onboard` | Se resuelve por `default_profile`, no por `agent_overrides`.                                                                                 | `~/.config/gentle-ai-custom/opencode-local-config.json` |
-| Perfiles SDD nombrados          | `sdd-orchestrator-<name>` + `sdd-<phase>-<name>`                                                                                                                | Se resuelve por `profiles`, no por `agent_overrides`.                                                                                        | `~/.config/gentle-ai-custom/opencode-local-config.json` |
+| Familia base SDD                | `gentle-orchestrator`, fases SDD, tres actores de Judgment Day y cinco actores de review globales                                                                | Se resuelve por `default_profile`, no por `agent_overrides`. Los actores pueden fijar modelo o usar herencia explícita.                      | `~/.config/gentle-ai-custom/opencode-local-config.json` |
+| Perfiles SDD nombrados          | `sdd-orchestrator-<name>` + `sdd-<phase>-<name>` y, solo si se configuran, actores JD con sufijo                                                                 | Se resuelve por `profiles`. Los cinco actores de review siempre son globales y no reciben sufijo.                                            | `~/.config/gentle-ai-custom/opencode-local-config.json` |
 
 En otras palabras: estos overrides no duplican la configuración SDD. Cubren una capa distinta: los agentes built-in de OpenCode que el orchestrator puede usar al delegar fuera del sistema de perfiles SDD.
 
@@ -326,6 +327,18 @@ Si necesitás ir más allá de los overrides básicos y querés configurar famil
       "sdd-verify": { "model": "openai/gpt-5.4", "variant": "xhigh" },
       "sdd-archive": { "model": "openai/gpt-5.4-mini", "variant": "medium" },
       "sdd-onboard": { "model": "openai/gpt-5.4", "variant": "medium" }
+    },
+    "judgment_day": {
+      "jd-judge-a": { "model": "openai/gpt-5.4", "variant": "medium" },
+      "jd-judge-b": { "inherit": true },
+      "jd-fix-agent": { "model": "openai/gpt-5.4-mini" }
+    },
+    "review": {
+      "review-risk": { "inherit": true },
+      "review-readability": { "inherit": true },
+      "review-reliability": { "inherit": true },
+      "review-resilience": { "inherit": true },
+      "review-refuter": { "inherit": true }
     }
   },
   "profiles": [
@@ -343,6 +356,9 @@ Si necesitás ir más allá de los overrides básicos y querés configurar famil
         "sdd-verify": { "model": "openai/gpt-5.4-mini", "variant": "low" },
         "sdd-archive": { "model": "openai/gpt-5.4-mini", "variant": "low" },
         "sdd-onboard": { "model": "openai/gpt-5.4-mini", "variant": "low" }
+      },
+      "judgment_day": {
+        "jd-judge-a": { "model": "openai/gpt-5.4-mini", "variant": "low" }
       }
     }
   ]
@@ -351,7 +367,9 @@ Si necesitás ir más allá de los overrides básicos y querés configurar famil
 
 - **`agent_overrides`:** Fija modelos para agentes específicos fuera de SDD (como `general` o `explore`).
 - **`default_profile`:** Fija los modelos base para toda la familia de SDD por defecto.
-- **`profiles`:** Te permite crear perfiles SDD con nombres personalizados (ej: un perfil "cheap" que use modelos más baratos).
+- **`default_profile.judgment_day`:** Acepta solo `jd-judge-a`, `jd-judge-b` y `jd-fix-agent`.
+- **`default_profile.review`:** Acepta solo los cinco actores globales de review. `{"inherit": true}` elimina su modelo y variant para que OpenCode herede ambos al delegar.
+- **`profiles`:** Crea perfiles SDD con nombres personalizados. `judgment_day` es opcional y solo crea los actores JD declarados con sufijo; los omitidos usan el actor JD global. `review` no está permitido acá.
 
 ## Comandos custom disponibles
 

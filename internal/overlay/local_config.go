@@ -226,8 +226,8 @@ func validateDefaultProfileValue(value any, label string, sddPhases []string, sd
 		return nil, fmt.Errorf("%s: must be an object with \"orchestrator\" and \"phases\"", label)
 	}
 	for key := range profile {
-		if key != "orchestrator" && key != "phases" {
-			return nil, fmt.Errorf("%s: unexpected fields [%s]; only \"orchestrator\" and \"phases\" are allowed", label, strings.Join(sortedStringKeys(profile, "orchestrator", "phases"), ", "))
+		if key != "orchestrator" && key != "phases" && key != "judgment_day" && key != "review" {
+			return nil, fmt.Errorf("%s: unexpected fields [%s]; only \"orchestrator\", \"phases\", \"judgment_day\", and \"review\" are allowed", label, strings.Join(sortedStringKeys(profile, "orchestrator", "phases", "judgment_day", "review"), ", "))
 		}
 	}
 	orchestrator, err := validateAssignment(profile["orchestrator"], label+".orchestrator")
@@ -269,6 +269,14 @@ func validateDefaultProfileValue(value any, label string, sddPhases []string, sd
 		}
 		validatedPhases[phaseName] = assignment
 	}
-	profileValue := &validatedProfile{Name: "default", Orchestrator: orchestrator, Phases: validatedPhases}
+	judgmentDay, err := validateOptionalActorMap(profile, "judgment_day", label, judgmentDayActorKeys, true)
+	if err != nil {
+		return nil, err
+	}
+	review, err := validateOptionalActorMap(profile, "review", label, reviewActorKeys, true)
+	if err != nil {
+		return nil, err
+	}
+	profileValue := &validatedProfile{Name: "default", Orchestrator: orchestrator, Phases: validatedPhases, JudgmentDay: judgmentDay, Review: review}
 	return profileValue, nil
 }

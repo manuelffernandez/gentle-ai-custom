@@ -104,10 +104,12 @@ No repo mutation happens before that handoff is approved.
 - migrates managed obsolete `.overlay.md` references only when an upstream base prompt is available
 - prunes only explicitly rejected upstream skills in the selected registered targets
 - applies `agent_overrides`
-- reconciles `default_profile` and `profiles`
+- reconciles `default_profile`, including optional global Judgment Day/review assignments, and named `profiles`
 - installs repo-owned skills from `shared/skills/`
 - installs the sanitized repo-owned `chained-pr` copy while keeping its upstream snapshot retained for audit/sync, and keeps `issue-creation` pruned from the default OpenCode runtime surface
-- creates named profiles by cloning installed upstream base agents, then reconciles local `model` / `variant`
+- creates named SDD phases and optional named Judgment Day actors by cloning installed upstream base agents, then reconciles local `model` / `variant`
+- keeps all five review actors global; named profiles never create suffixed review actors
+- treats omission as preserve/delegate and `{"inherit": true}` as an explicit request to remove both `model` and `variant`
 - patches only the declared Judgment Day retrospective handoff and rejects incompatible anchors
 - records every custom-installed runtime output, including single-file assets without a sync mode
 - preserves stale-state paths returned to upstream, retained upstream skill trees, and surgical patch targets without recording those files as wholly custom-owned
@@ -129,6 +131,7 @@ No repo mutation happens before that handoff is approved.
 | --- | --- | --- |
 | `base prompt drift: yes` | Upstream `gentle-orchestrator` changed relative to the approved upstream asset | Read `Drift summary:` first |
 | `profile ... mismatch` / `base asset injection invariant: mismatch` | Upstream SDD profile mechanics changed | Stop and audit before recommending `sync` |
+| `JD/review actor topology invariant: mismatch` | Upstream changed the exact JD or global review actor set | Stop and align schema/topology before applying |
 | `topology: unknown orchestrator matched by prefix only` | A new upstream orchestrator appeared | Audit it and decide whether policy must include it |
 | `topology: expected orchestrator missing from opencode.json` | A known orchestrator disappeared or was renamed | Audit upstream and update policy/intent if needed |
 | `WARNING - unmanaged SDD profiles left untouched` | `opencode.json` contains profiles absent from the active `profiles` source | Decide whether to manage them in local config or remove them manually |
@@ -150,6 +153,8 @@ After `apply`, confirm this:
 - runtime files/directories declared in `policy/managed-assets.json` exist on disk
 - if `default_profile` exists, the base family keeps the correct `model` and `variant`
 - if `profiles` exists, each declared profile keeps the correct `model` and `variant`
+- configured global JD actors match explicit assignments; configured inherited review actors have neither `model` nor `variant`
+- named profiles have only explicitly configured suffixed JD actors, delegate omitted JD slots globally, and never gain suffixed review actors
 - one fresh-context reviewer/subagent pass checked the changed maintainer artifacts and final summary for workflow consistency
 
 ## Local overlay config
@@ -161,8 +166,10 @@ Operational rules:
 - `upstream_repo_path` takes precedence over `GENTLE_AI_CUSTOM_UPSTREAM_REPO`, and both take precedence over `../gentle-ai`
 - `opencode_config_path` is optional; when omitted, the default remains `~/.config/opencode/opencode.json`
 - `agent_overrides` manages only explicit built-in agent assignments such as `general` or `explore`
-- `default_profile` manages only the base `gentle-orchestrator` family plus unsuffixed SDD phases
-- `profiles` manages only named SDD families (`sdd-orchestrator-<name>` plus phases)
+- `default_profile` manages the base orchestrator/phases plus optional `judgment_day` and global `review` maps
+- global JD/review values are either `{ "model": "<provider/model>", "variant": "<optional>" }` or `{ "inherit": true }`; omission preserves runtime state
+- `profiles` manages named SDD families plus optional explicit `judgment_day` assignments; `review` is rejected in named profiles
+- removing a named JD assignment deletes only that suffix in the explicitly managed profile and restores global delegation
 - existing undeclared profiles remain untouched and are reported as unmanaged
 
 ## Maintenance checklist

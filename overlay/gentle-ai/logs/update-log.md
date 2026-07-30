@@ -4,6 +4,16 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-07-28 | Added local Judgment Day and review assignment reconciliation
+
+- **Type**: `tooling-change`
+- **Upstream scope/range**: maintained Gentle AI `v2.2.0` runtime topology at `ee83e83d56f0d149c52f93fd13b3296858f5147f`; no upstream boundary advance
+- **Decision**: extended schema version 1 so `default_profile` can explicitly assign or inherit the three global Judgment Day actors and five global review actors. Named profiles may explicitly clone only Judgment Day actors with profile suffixes; omitted JD slots delegate globally and review actors always remain unsuffixed. Added fail-closed source-actor checks and an audit invariant for the exact upstream actor key sets.
+- **Why it mattered**: omission already means preserve upstream/runtime assignment, so dynamic inheritance needed an unambiguous `{"inherit": true}` value. The overlay also needed to follow upstream's optional named-JD topology without fabricating review actors or copying prompt/tool semantics into custom sources.
+- **Affected artifacts**: local config parsing, profile reconciliation, runtime preflight, verification, and tests under `internal/overlay/`; `overlay/gentle-ai/policy/managed-assets.json`; maintainer policy/docs/skill; `~/.config/gentle-ai-custom/opencode-local-config.json`; `~/.config/opencode/opencode.json`; `overlay/gentle-ai/logs/update-log.md`.
+- **Verification**: focused table-driven actor/schema/reconciliation tests passed; `go test ./internal/overlay -count=1` and `go test ./... -count=1` passed; `bash audit-gentle-ai-upstream.sh` reported no drift and all structural invariants `ok`, including JD/review topology. The first `bash apply-gentle-ai-custom.sh opencode` reported config updated, 1 skill pruned, 1 owned asset unchanged, 1 owned target verified, 4 profiles managed, 13 profile agents updated, 39 unchanged, 0 created, 0 topology warnings, and 0 unmanaged profiles. Readback confirmed exact global JD assignments, all five review actors without `model` or `variant`, three intact named profiles, no suffixed JD/review actors, global JD/review delegation permissions, and unchanged `build`/`plan` sentinels. A convergence apply reported config unchanged, 0 profile agents updated, 52 unchanged, 0 topology warnings, and 0 unmanaged profiles. `gentle-ai skill-registry refresh --force` regenerated `.atl/skill-registry.md` with 23 skills; `git diff --check` passed.
+- **Follow-up**: restart OpenCode so the active process loads the updated global configuration.
+
 ## 2026-07-27 | Adopted Gentle AI v2.2.0 after full OpenCode reinstall
 
 - **Type**: `adoption`

@@ -13,7 +13,8 @@
       "structural_invariant_sources": [
         "internal/components/sdd/profiles.go",
         "internal/components/sdd/inject.go",
-        "internal/components/sdd/boundedreview.go"
+        "internal/components/sdd/boundedreview.go",
+        "internal/opencode/models.go"
       ],
       "owned_overlay_assets": [
         {"key":"opencode-persona-source","class":"upstream_source","kind":"upstream_source_file","upstream_path":"internal/assets/opencode/persona-gentleman.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/persona-gentleman.md"},

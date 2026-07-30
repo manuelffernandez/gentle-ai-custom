@@ -103,8 +103,9 @@ func RunAuditUpstream(repoRoot string, args []string) int {
 	profileNamingOK := structuralResult.ProfileNamingOK
 	taskScopingOK := structuralResult.TaskScopingOK
 	baseAssetInjectionOK := structuralResult.BaseAssetInjectionOK
+	roleTopologyOK := structuralResult.RoleTopologyOK
 	phaseOrderOK := structuralResult.PhaseOrderOK
-	driftSummary = append(driftSummary, buildAuditDriftSummary(basePromptDrift, phaseOrderOK, profileNamingOK, taskScopingOK, baseAssetInjectionOK)...)
+	driftSummary = append(driftSummary, buildAuditDriftSummary(basePromptDrift, phaseOrderOK, profileNamingOK, taskScopingOK, baseAssetInjectionOK, roleTopologyOK)...)
 
 	fmt.Println("Auditing Gentle AI upstream baseline...")
 	fmt.Printf("- Repo root: %s\n", repoRoot)
@@ -128,6 +129,7 @@ func RunAuditUpstream(repoRoot string, args []string) int {
 	fmt.Printf("  profile orchestrator naming: %s\n", statusWord(profileNamingOK))
 	fmt.Printf("  profile task scoping invariant: %s\n", statusWord(taskScopingOK))
 	fmt.Printf("  base asset injection invariant: %s\n", statusWord(baseAssetInjectionOK))
+	fmt.Printf("  JD/review actor topology invariant: %s\n", statusWord(roleTopologyOK))
 	if len(driftSummary) > 0 {
 		fmt.Println()
 		fmt.Println("Drift summary:")
@@ -189,6 +191,7 @@ type structuralInvariantResult struct {
 	ProfileNamingOK      bool
 	TaskScopingOK        bool
 	BaseAssetInjectionOK bool
+	RoleTopologyOK       bool
 }
 
 type managedAssetRecord struct {
@@ -442,6 +445,10 @@ func evaluateStructuralInvariants(upstreamRepo string, target ManagedAssetsTarge
 	if err != nil {
 		failures = append(failures, err.Error())
 	}
+	upstreamModelsText, err := readStructuralSource(upstreamRepo, target.StructuralInvariantSources, "models.go")
+	if err != nil {
+		failures = append(failures, err.Error())
+	}
 	phaseOrder, phaseErr := extractProfilePhaseOrder(upstreamProfilesText)
 	if phaseErr != nil {
 		failures = append(failures, phaseErr.Error())
@@ -475,11 +482,54 @@ func evaluateStructuralInvariants(upstreamRepo string, target ManagedAssetsTarge
 	if !baseAssetInjectionInvariantOK(upstreamInjectText) {
 		failures = append(failures, "upstream inject.go no longer binds the OpenCode orchestrator prompt from the canonical SDD asset render path")
 	}
+	jdActors, jdErr := extractReturnedStringSlice(upstreamModelsText, "JDPhases")
+	if jdErr != nil {
+		failures = append(failures, jdErr.Error())
+	}
+	reviewActors, reviewErr := extractReturnedStringSlice(upstreamModelsText, "ReviewLensPhases")
+	if reviewErr != nil {
+		failures = append(failures, reviewErr.Error())
+	}
+	refuter, refuterErr := extractStringConstant(upstreamModelsText, "ReviewRefuterAgent")
+	if refuterErr != nil {
+		failures = append(failures, refuterErr.Error())
+	} else {
+		reviewActors = append(reviewActors, refuter)
+	}
+	roleTopologyOK := sameStrings(jdActors, judgmentDayActorKeys) && sameStrings(reviewActors, reviewActorKeys)
+	if !roleTopologyOK && jdErr == nil && reviewErr == nil && refuterErr == nil {
+		failures = append(failures, fmt.Sprintf("upstream JD/review actor topology is JD=%#v review=%#v, expected JD=%#v review=%#v", jdActors, reviewActors, judgmentDayActorKeys, reviewActorKeys))
+	}
 	result.ProfileNamingOK = strings.Contains(upstreamProfilesText, profilePrefixSnippet) && strings.Contains(upstreamProfilesText, profileKeyBuilderSnippet)
 	result.TaskScopingOK = profileTaskToolInvariantOK(upstreamProfilesText) && profileTaskScopingInvariantOK(upstreamProfilesText)
 	result.BaseAssetInjectionOK = containsAll(upstreamInjectText, requiredInjectSnippets) && baseAssetInjectionInvariantOK(upstreamInjectText)
 	result.PhaseOrderOK = len(phaseOrder) > 0 && sameStrings(phaseOrder, policy.OpenCode.SDDPhases)
+	result.RoleTopologyOK = roleTopologyOK
 	return result, failures
+}
+
+func extractReturnedStringSlice(text, functionName string) ([]string, error) {
+	pattern := fmt.Sprintf(`(?s)func\s+%s\(\)\s+\[\]string\s*\{\s*return\s+\[\]string\s*\{(.*?)\}\s*\}`, regexp.QuoteMeta(functionName))
+	match := regexp.MustCompile(pattern).FindStringSubmatch(text)
+	if match == nil {
+		return nil, fmt.Errorf("could not locate upstream %s string slice", functionName)
+	}
+	valueRE := regexp.MustCompile(`"([^"]+)"`)
+	values := valueRE.FindAllStringSubmatch(match[1], -1)
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		result = append(result, value[1])
+	}
+	return result, nil
+}
+
+func extractStringConstant(text, constantName string) (string, error) {
+	pattern := fmt.Sprintf(`const\s+%s\s*=\s*"([^"]+)"`, regexp.QuoteMeta(constantName))
+	match := regexp.MustCompile(pattern).FindStringSubmatch(text)
+	if match == nil {
+		return "", fmt.Errorf("could not locate upstream %s string constant", constantName)
+	}
+	return match[1], nil
 }
 
 func profileTaskScopingInvariantOK(text string) bool {
@@ -871,10 +921,10 @@ func statusWord(ok bool) string {
 	return "mismatch"
 }
 
-func buildAuditDriftSummary(basePromptDrift, phaseOrderOK, profileNamingOK, taskScopingOK, baseAssetInjectionOK bool) []string {
+func buildAuditDriftSummary(basePromptDrift, phaseOrderOK, profileNamingOK, taskScopingOK, baseAssetInjectionOK, roleTopologyOK bool) []string {
 	var summary []string
 	if basePromptDrift {
-		if phaseOrderOK && profileNamingOK && taskScopingOK && baseAssetInjectionOK {
+		if phaseOrderOK && profileNamingOK && taskScopingOK && baseAssetInjectionOK && roleTopologyOK {
 			summary = append(summary, "No profile-generation or base-asset binding drift was detected alongside this prompt change, so this looks like prompt-content guidance rather than topology or materialization drift.")
 		}
 	}
@@ -890,6 +940,9 @@ func buildAuditDriftSummary(basePromptDrift, phaseOrderOK, profileNamingOK, task
 	}
 	if !baseAssetInjectionOK {
 		summary = append(summary, "The upstream base orchestrator asset binding changed. Verify the overlay is still reading the intended upstream source prompt before sync/apply.")
+	}
+	if !roleTopologyOK {
+		summary = append(summary, "The upstream Judgment Day or review actor key set changed. Review global versus profile-scoped topology before adopting the new baseline.")
 	}
 
 	return summary

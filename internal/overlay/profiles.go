@@ -14,11 +14,23 @@ type profileAssignment struct {
 	Variant string
 }
 
+type actorAssignment struct {
+	Model   string
+	Variant string
+	Inherit bool
+}
+
 type validatedProfile struct {
 	Name         string
 	Orchestrator profileAssignment
 	Phases       map[string]profileAssignment
+	JudgmentDay  map[string]actorAssignment
+	Review       map[string]actorAssignment
 }
+
+var judgmentDayActorKeys = []string{"jd-judge-a", "jd-judge-b", "jd-fix-agent"}
+
+var reviewActorKeys = []string{"review-risk", "review-readability", "review-reliability", "review-resilience", "review-refuter"}
 
 func validateProfilesValue(value any, label string, sddPhases []string, sddPhasesSet map[string]bool) ([]validatedProfile, error) {
 	profilesRaw, ok := value.([]any)
@@ -37,8 +49,8 @@ func validateProfilesValue(value any, label string, sddPhases []string, sddPhase
 			return nil, fmt.Errorf("%s: must be an object", prefix)
 		}
 		for key := range profile {
-			if key != "name" && key != "orchestrator" && key != "phases" {
-				return nil, fmt.Errorf("%s: unexpected fields [%s]; only \"name\", \"orchestrator\", \"phases\" are allowed", prefix, strings.Join(sortedStringKeys(profile, "name", "orchestrator", "phases"), ", "))
+			if key != "name" && key != "orchestrator" && key != "phases" && key != "judgment_day" {
+				return nil, fmt.Errorf("%s: unexpected fields [%s]; only \"name\", \"orchestrator\", \"phases\", and \"judgment_day\" are allowed", prefix, strings.Join(sortedStringKeys(profile, "name", "orchestrator", "phases", "judgment_day"), ", "))
 			}
 		}
 		name, ok := profile["name"].(string)
@@ -92,7 +104,11 @@ func validateProfilesValue(value any, label string, sddPhases []string, sddPhase
 			}
 			validatedPhases[phaseName] = assignment
 		}
-		validated = append(validated, validatedProfile{Name: name, Orchestrator: orchestrator, Phases: validatedPhases})
+		judgmentDay, err := validateOptionalActorMap(profile, "judgment_day", prefix, judgmentDayActorKeys, false)
+		if err != nil {
+			return nil, err
+		}
+		validated = append(validated, validatedProfile{Name: name, Orchestrator: orchestrator, Phases: validatedPhases, JudgmentDay: judgmentDay})
 	}
 
 	return validated, nil
@@ -121,6 +137,85 @@ func validateAssignment(value any, label string) (profileAssignment, error) {
 		variant = v
 	}
 	return profileAssignment{Model: model, Variant: variant}, nil
+}
+
+func validateOptionalActorMap(container map[string]any, field, label string, allowed []string, allowInherit bool) (map[string]actorAssignment, error) {
+	value, exists := container[field]
+	if !exists {
+		return nil, nil
+	}
+	actors, ok := value.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("%s.%s: must be an object keyed by supported actor name", label, field)
+	}
+	allowedSet := make(map[string]bool, len(allowed))
+	for _, key := range allowed {
+		allowedSet[key] = true
+	}
+	var unknown []string
+	for key := range actors {
+		if !allowedSet[key] {
+			unknown = append(unknown, key)
+		}
+	}
+	sort.Strings(unknown)
+	if len(unknown) > 0 {
+		return nil, fmt.Errorf("%s.%s: unknown actors %v; allowed: %v", label, field, unknown, allowed)
+	}
+	validated := make(map[string]actorAssignment, len(actors))
+	for _, key := range allowed {
+		value, exists := actors[key]
+		if !exists {
+			continue
+		}
+		assignment, err := validateActorAssignment(value, label+"."+field+"."+key, allowInherit)
+		if err != nil {
+			return nil, err
+		}
+		validated[key] = assignment
+	}
+	return validated, nil
+}
+
+func validateActorAssignment(value any, label string, allowInherit bool) (actorAssignment, error) {
+	assignment, ok := value.(map[string]any)
+	if !ok {
+		return actorAssignment{}, fmt.Errorf("%s: must be an object with either \"model\" and optional \"variant\", or explicit \"inherit\": true", label)
+	}
+	for key := range assignment {
+		if key != "model" && key != "variant" && key != "inherit" {
+			return actorAssignment{}, fmt.Errorf("%s: unexpected fields [%s]; only \"model\", \"variant\", and \"inherit\" are allowed", label, strings.Join(sortedStringKeys(assignment, "model", "variant", "inherit"), ", "))
+		}
+	}
+	if rawInherit, exists := assignment["inherit"]; exists {
+		inherit, ok := rawInherit.(bool)
+		if !ok || !inherit {
+			return actorAssignment{}, fmt.Errorf("%s: field \"inherit\" must be exactly true", label)
+		}
+		if !allowInherit {
+			return actorAssignment{}, fmt.Errorf("%s: named profile Judgment Day actors require an explicit model; omit the actor to delegate to the global actor", label)
+		}
+		if _, hasModel := assignment["model"]; hasModel {
+			return actorAssignment{}, fmt.Errorf("%s: \"inherit\" cannot be combined with \"model\"", label)
+		}
+		if _, hasVariant := assignment["variant"]; hasVariant {
+			return actorAssignment{}, fmt.Errorf("%s: \"inherit\" cannot be combined with \"variant\"", label)
+		}
+		return actorAssignment{Inherit: true}, nil
+	}
+	model, ok := assignment["model"].(string)
+	if !ok || strings.TrimSpace(model) == "" {
+		return actorAssignment{}, fmt.Errorf("%s: field \"model\" must be a non-empty string", label)
+	}
+	var variant string
+	if rawVariant, exists := assignment["variant"]; exists {
+		value, ok := rawVariant.(string)
+		if !ok {
+			return actorAssignment{}, fmt.Errorf("%s: field \"variant\" must be a string (use \"\" for no variant)", label)
+		}
+		variant = value
+	}
+	return actorAssignment{Model: strings.TrimSpace(model), Variant: variant}, nil
 }
 
 // sortedStringKeys returns the keys in values that are not in the allowed set,
@@ -161,13 +256,16 @@ func (s *applyPolicyState) reconcileProfiles() error {
 		s.managedProfiles[profile.Name] = true
 		s.metrics.profilesManagedCount++
 
+		if err := s.reconcileNamedJudgmentDayActors(profile); err != nil {
+			return err
+		}
 		orchKey := s.policy.OpenCode.ProfileOrchestratorPrefix + profile.Name
-		if err := s.reconcileProfileAgent(profile.Name, orchKey, profile.Orchestrator, true); err != nil {
+		if err := s.reconcileProfileAgent(profile, orchKey, profile.Orchestrator, true); err != nil {
 			return err
 		}
 		for _, phase := range s.policy.OpenCode.SDDPhases {
 			phaseKey := phase + "-" + profile.Name
-			if err := s.reconcileProfileAgent(profile.Name, phaseKey, profile.Phases[phase], false); err != nil {
+			if err := s.reconcileProfileAgent(profile, phaseKey, profile.Phases[phase], false); err != nil {
 				return err
 			}
 		}
@@ -206,18 +304,28 @@ func (s *applyPolicyState) reconcileProfiles() error {
 //   - verifyPersistedState verifies the base separately via s.resolvedDefaultProfile
 func (s *applyPolicyState) reconcileBaseProfile(profile validatedProfile) error {
 	s.metrics.profilesManagedCount++
-	if err := s.reconcileProfileAgent("default", s.policy.OpenCode.BaseOrchestratorKey, profile.Orchestrator, true); err != nil {
+	if err := s.reconcileProfileAgent(profile, s.policy.OpenCode.BaseOrchestratorKey, profile.Orchestrator, true); err != nil {
 		return err
 	}
 	for _, phase := range s.policy.OpenCode.SDDPhases {
-		if err := s.reconcileProfileAgent("default", phase, profile.Phases[phase], false); err != nil {
+		if err := s.reconcileProfileAgent(profile, phase, profile.Phases[phase], false); err != nil {
 			return err
+		}
+	}
+	for _, family := range []map[string]actorAssignment{profile.JudgmentDay, profile.Review} {
+		for key, assignment := range family {
+			if s.reconcileGlobalActor(key, assignment) {
+				s.metrics.profileAgentsUpdated++
+			} else {
+				s.metrics.profileAgentsSame++
+			}
 		}
 	}
 	return nil
 }
 
-func (s *applyPolicyState) reconcileProfileAgent(profileName, key string, assignment profileAssignment, orchestrator bool) error {
+func (s *applyPolicyState) reconcileProfileAgent(profile validatedProfile, key string, assignment profileAssignment, orchestrator bool) error {
+	profileName := profile.Name
 	sourceKey := key
 	if profileName != "default" {
 		if orchestrator {
@@ -241,7 +349,7 @@ func (s *applyPolicyState) reconcileProfileAgent(profileName, key string, assign
 			agentObj["variant"] = assignment.Variant
 		}
 		if orchestrator && profileName != "default" {
-			if _, err := s.reconcileNamedOrchestratorTaskPermissions(agentObj, source, profileName); err != nil {
+			if _, err := s.reconcileNamedOrchestratorTaskPermissions(agentObj, source, profile); err != nil {
 				return err
 			}
 		}
@@ -276,7 +384,7 @@ func (s *applyPolicyState) reconcileProfileAgent(profileName, key string, assign
 		s.expectedPromptRefs[key] = sourcePrompt
 	}
 	if orchestrator && profileName != "default" {
-		permissionChanged, err := s.reconcileNamedOrchestratorTaskPermissions(existing, source, profileName)
+		permissionChanged, err := s.reconcileNamedOrchestratorTaskPermissions(existing, source, profile)
 		if err != nil {
 			return err
 		}
@@ -319,7 +427,81 @@ func (s *applyPolicyState) reconcileProfileAgent(profileName, key string, assign
 	return nil
 }
 
-func (s *applyPolicyState) reconcileNamedOrchestratorTaskPermissions(agent, base map[string]any, profileName string) (bool, error) {
+func (s *applyPolicyState) reconcileGlobalActor(key string, assignment actorAssignment) bool {
+	agent, _ := jsonObject(s.agents[key])
+	changed := false
+	if assignment.Inherit {
+		for _, field := range []string{"model", "variant"} {
+			if _, exists := agent[field]; exists {
+				delete(agent, field)
+				changed = true
+				s.recordVerbose(s.configPath, fmt.Sprintf("agent.%s.%s removed for dynamic inheritance", key, field))
+			}
+		}
+	} else {
+		if jsonString(agent["model"]) != assignment.Model {
+			agent["model"] = assignment.Model
+			changed = true
+		}
+		if assignment.Variant != "" {
+			if jsonString(agent["variant"]) != assignment.Variant {
+				agent["variant"] = assignment.Variant
+				changed = true
+			}
+		} else if _, exists := agent["variant"]; exists {
+			delete(agent, "variant")
+			changed = true
+		}
+	}
+	if changed {
+		s.configChanged = true
+	}
+	return changed
+}
+
+func (s *applyPolicyState) reconcileNamedJudgmentDayActors(profile validatedProfile) error {
+	for _, baseKey := range judgmentDayActorKeys {
+		key := baseKey + "-" + profile.Name
+		assignment, configured := profile.JudgmentDay[baseKey]
+		if !configured {
+			if _, exists := s.agents[key]; exists {
+				delete(s.agents, key)
+				s.configChanged = true
+				s.metrics.profileAgentsUpdated++
+				s.recordVerbose(s.configPath, fmt.Sprintf("profile %s: removed stale Judgment Day actor %s", profile.Name, key))
+			}
+			continue
+		}
+		base, _ := jsonObject(s.agents[baseKey])
+		want, err := cloneAgentObject(base)
+		if err != nil {
+			return fmt.Errorf("clone upstream base actor %q for profile %q: %w", baseKey, profile.Name, err)
+		}
+		want["model"] = assignment.Model
+		if assignment.Variant != "" {
+			want["variant"] = assignment.Variant
+		} else {
+			delete(want, "variant")
+		}
+		if existing, ok := jsonObject(s.agents[key]); ok && reflect.DeepEqual(existing, want) {
+			s.metrics.profileAgentsSame++
+			continue
+		}
+		_, existed := s.agents[key]
+		s.agents[key] = want
+		s.expectedPromptRefs[key] = jsonString(base["prompt"])
+		s.configChanged = true
+		if existed {
+			s.metrics.profileAgentsUpdated++
+		} else {
+			s.metrics.profileAgentsCreated++
+		}
+		s.recordVerbose(s.configPath, fmt.Sprintf("profile %s: reconciled Judgment Day actor %s from upstream base %s", profile.Name, key, baseKey))
+	}
+	return nil
+}
+
+func (s *applyPolicyState) reconcileNamedOrchestratorTaskPermissions(agent, base map[string]any, profile validatedProfile) (bool, error) {
 	basePermission, baseTask, err := namedOrchestratorPermissionContract(base)
 	if err != nil {
 		return false, err
@@ -331,16 +513,26 @@ func (s *applyPolicyState) reconcileNamedOrchestratorTaskPermissions(agent, base
 			taskPermissions[key] = "allow"
 		}
 	}
-	for key, value := range baseTask {
-		if jsonString(value) != "allow" || !strings.HasPrefix(key, "jd-") && !strings.HasPrefix(key, "review-") {
-			continue
+	for _, key := range judgmentDayActorKeys {
+		permissionKey := key
+		if _, configured := profile.JudgmentDay[key]; configured {
+			permissionKey = key + "-" + profile.Name
 		}
-		if _, installed := s.agents[key]; installed {
-			taskPermissions[key] = "allow"
+		if jsonString(baseTask[key]) == "allow" {
+			if _, installed := s.agents[permissionKey]; installed {
+				taskPermissions[permissionKey] = "allow"
+			}
+		}
+	}
+	for _, key := range reviewActorKeys {
+		if jsonString(baseTask[key]) == "allow" {
+			if _, installed := s.agents[key]; installed {
+				taskPermissions[key] = "allow"
+			}
 		}
 	}
 	for _, phase := range s.policy.OpenCode.SDDPhases {
-		taskPermissions[phase+"-"+profileName] = "allow"
+		taskPermissions[phase+"-"+profile.Name] = "allow"
 	}
 
 	permission, ok := jsonObject(agent["permission"])

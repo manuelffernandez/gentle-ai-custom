@@ -127,6 +127,201 @@ func TestReconcileNamedProfileCreatesUpstreamTaskPermissionContract(t *testing.T
 	}
 }
 
+func TestApplyReconcilesGlobalActorAssignments(t *testing.T) {
+	repoRoot := repoRootForTest(t)
+	home, configPath := writeCompatibleRuntimeFixture(t, repoRoot)
+	localConfigPath := filepath.Join(home, ".config", "gentle-ai-custom", "opencode-local-config.json")
+	localConfig, err := readJSONAny(localConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defaultProfile := localConfig["default_profile"].(map[string]any)
+	defaultProfile["judgment_day"] = map[string]any{
+		"jd-judge-a": map[string]any{"model": "custom/judge"},
+	}
+	defaultProfile["review"] = map[string]any{
+		"review-risk":        map[string]any{"inherit": true},
+		"review-readability": map[string]any{"inherit": true},
+	}
+	writeJSONFixture(t, localConfigPath, localConfig)
+	runtimeConfig, err := readJSONAny(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	agents := runtimeConfig["agent"].(map[string]any)
+	mustAgent(t, agents, "jd-judge-a")["model"] = "stale/model"
+	mustAgent(t, agents, "jd-judge-a")["variant"] = "stale"
+	for _, key := range []string{"review-risk", "review-readability"} {
+		mustAgent(t, agents, key)["model"] = "stale/model"
+		mustAgent(t, agents, key)["variant"] = "stale"
+	}
+	writeJSONFixture(t, configPath, runtimeConfig)
+
+	options := applyPolicyOptions{recorder: newVerboseRecorder(false), skillTargets: []string{filepath.Join(home, ".config", "opencode", "skills")}}
+	if code := runApplyPolicyWithOptions(repoRoot, options); code != 0 {
+		t.Fatalf("runApplyPolicyWithOptions() code = %d, want 0", code)
+	}
+	agents = readFixtureAgents(t, configPath)
+	judge := mustAgent(t, agents, "jd-judge-a")
+	if jsonString(judge["model"]) != "custom/judge" {
+		t.Fatalf("explicit model = %q, want custom/judge", jsonString(judge["model"]))
+	}
+	if _, exists := judge["variant"]; exists {
+		t.Fatal("explicit model with omitted variant left a stale variant")
+	}
+	for _, key := range []string{"review-risk", "review-readability"} {
+		actor := mustAgent(t, agents, key)
+		if _, exists := actor["model"]; exists {
+			t.Fatalf("inherited actor %s retained model", key)
+		}
+		if _, exists := actor["variant"]; exists {
+			t.Fatalf("inherited actor %s retained variant", key)
+		}
+	}
+}
+
+func TestApplyReconcilesNamedJudgmentDayActorsAndPreservesUnmanagedAgents(t *testing.T) {
+	repoRoot := repoRootForTest(t)
+	home, configPath := writeCompatibleRuntimeFixture(t, repoRoot)
+	localConfigPath := filepath.Join(home, ".config", "gentle-ai-custom", "opencode-local-config.json")
+	localConfig, err := readJSONAny(localConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile := localConfig["profiles"].([]any)[0].(map[string]any)
+	profile["judgment_day"] = map[string]any{
+		"jd-judge-a": map[string]any{"model": "profile/judge"},
+	}
+	writeJSONFixture(t, localConfigPath, localConfig)
+	runtimeConfig, err := readJSONAny(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	agents := runtimeConfig["agent"].(map[string]any)
+	baseJudge := mustAgent(t, agents, "jd-judge-a")
+	baseJudge["hidden"] = true
+	baseJudge["tools"] = map[string]any{"read": true, "task": false}
+	agents["jd-judge-b-cheap"] = map[string]any{"stale": true}
+	agents["custom-agent"] = map[string]any{"sentinel": "preserve"}
+	agents["sdd-orchestrator-unmanaged"] = map[string]any{"sentinel": "profile-preserve"}
+	agents["jd-judge-a-unmanaged"] = map[string]any{"sentinel": "jd-preserve"}
+	writeJSONFixture(t, configPath, runtimeConfig)
+
+	options := applyPolicyOptions{recorder: newVerboseRecorder(false), skillTargets: []string{filepath.Join(home, ".config", "opencode", "skills")}}
+	if code := runApplyPolicyWithOptions(repoRoot, options); code != 0 {
+		t.Fatalf("runApplyPolicyWithOptions() code = %d, want 0", code)
+	}
+	agents = readFixtureAgents(t, configPath)
+	namedJudge := mustAgent(t, agents, "jd-judge-a-cheap")
+	if jsonString(namedJudge["model"]) != "profile/judge" {
+		t.Fatalf("named judge model = %q, want profile/judge", jsonString(namedJudge["model"]))
+	}
+	if jsonString(namedJudge["prompt"]) != jsonString(baseJudge["prompt"]) || !reflect.DeepEqual(namedJudge["tools"], baseJudge["tools"]) || namedJudge["hidden"] != true {
+		t.Fatal("named judge did not preserve upstream prompt/tools/hidden structure")
+	}
+	if _, exists := namedJudge["variant"]; exists {
+		t.Fatal("named explicit model with omitted variant retained a variant")
+	}
+	if _, exists := agents["jd-judge-b-cheap"]; exists {
+		t.Fatal("stale managed named JD suffix was not removed")
+	}
+	assertNamedProfileTaskPermissionsWithJD(t, agents, mustLoadPolicyPhases(t, repoRoot), "cheap", map[string]bool{"jd-judge-a": true})
+	for key, field := range map[string]string{"custom-agent": "sentinel", "sdd-orchestrator-unmanaged": "sentinel", "jd-judge-a-unmanaged": "sentinel"} {
+		if jsonString(mustAgent(t, agents, key)[field]) == "" {
+			t.Fatalf("unmanaged agent %s was not preserved", key)
+		}
+	}
+	first := mustReadFile(t, configPath)
+	if code := runApplyPolicyWithOptions(repoRoot, options); code != 0 {
+		t.Fatalf("idempotent run code = %d, want 0", code)
+	}
+	if got := mustReadFile(t, configPath); got != first {
+		t.Fatal("named Judgment Day reconciliation is not byte-idempotent")
+	}
+}
+
+func TestApplyNamedJudgmentDayOmissionDelegatesToGlobal(t *testing.T) {
+	repoRoot := repoRootForTest(t)
+	home, configPath := writeCompatibleRuntimeFixture(t, repoRoot)
+	options := applyPolicyOptions{recorder: newVerboseRecorder(false), skillTargets: []string{filepath.Join(home, ".config", "opencode", "skills")}}
+	if code := runApplyPolicyWithOptions(repoRoot, options); code != 0 {
+		t.Fatalf("runApplyPolicyWithOptions() code = %d, want 0", code)
+	}
+	agents := readFixtureAgents(t, configPath)
+	assertNamedProfileTaskPermissionsWithJD(t, agents, mustLoadPolicyPhases(t, repoRoot), "cheap", nil)
+	for _, key := range judgmentDayActorKeys {
+		if _, exists := agents[key+"-cheap"]; exists {
+			t.Fatalf("omitted named JD actor %s unexpectedly exists", key+"-cheap")
+		}
+	}
+}
+
+func TestApplyMissingOmissionDelegatedJudgmentDayActorFailsBeforeWrites(t *testing.T) {
+	repoRoot := repoRootForTest(t)
+	home, configPath := writeCompatibleRuntimeFixture(t, repoRoot)
+	runtimeConfig, err := readJSONAny(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	delete(runtimeConfig["agent"].(map[string]any), "jd-judge-b")
+	writeJSONFixture(t, configPath, runtimeConfig)
+	before := snapshotTree(t, home)
+	options := applyPolicyOptions{recorder: newVerboseRecorder(false), skillTargets: []string{filepath.Join(home, ".config", "opencode", "skills")}}
+	if code := runApplyPolicyWithOptions(repoRoot, options); code == 0 {
+		t.Fatal("runApplyPolicyWithOptions() code = 0, want missing omission-delegated Judgment Day actor failure")
+	}
+	after := snapshotTree(t, home)
+	if !reflect.DeepEqual(after, before) {
+		t.Fatal("runtime changed after missing omission-delegated Judgment Day actor preflight failure")
+	}
+}
+
+func TestApplyMissingReferencedActorFailsBeforeWrites(t *testing.T) {
+	repoRoot := repoRootForTest(t)
+	home, configPath := writeCompatibleRuntimeFixture(t, repoRoot)
+	localConfigPath := filepath.Join(home, ".config", "gentle-ai-custom", "opencode-local-config.json")
+	localConfig, err := readJSONAny(localConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defaultProfile := localConfig["default_profile"].(map[string]any)
+	defaultProfile["review"] = map[string]any{"review-risk": map[string]any{"inherit": true}}
+	writeJSONFixture(t, localConfigPath, localConfig)
+	runtimeConfig, err := readJSONAny(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	delete(runtimeConfig["agent"].(map[string]any), "review-risk")
+	writeJSONFixture(t, configPath, runtimeConfig)
+	before := snapshotTree(t, home)
+	options := applyPolicyOptions{recorder: newVerboseRecorder(false), skillTargets: []string{filepath.Join(home, ".config", "opencode", "skills")}}
+	if code := runApplyPolicyWithOptions(repoRoot, options); code == 0 {
+		t.Fatal("runApplyPolicyWithOptions() code = 0, want missing referenced actor failure")
+	}
+	after := snapshotTree(t, home)
+	if !reflect.DeepEqual(after, before) {
+		t.Fatal("runtime changed after missing referenced actor preflight failure")
+	}
+}
+
+func TestApplyPreservesAbsentUnreferencedActor(t *testing.T) {
+	repoRoot := repoRootForTest(t)
+	home, configPath := writeCompatibleRuntimeFixture(t, repoRoot)
+	runtimeConfig, err := readJSONAny(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	delete(runtimeConfig["agent"].(map[string]any), "review-risk")
+	writeJSONFixture(t, configPath, runtimeConfig)
+	options := applyPolicyOptions{recorder: newVerboseRecorder(false), skillTargets: []string{filepath.Join(home, ".config", "opencode", "skills")}}
+	if code := runApplyPolicyWithOptions(repoRoot, options); code != 0 {
+		t.Fatalf("runApplyPolicyWithOptions() code = %d, want 0 for absent unreferenced actor", code)
+	}
+	if _, exists := readFixtureAgents(t, configPath)["review-risk"]; exists {
+		t.Fatal("custom apply fabricated an absent unreferenced review actor")
+	}
+}
+
 func TestApplyDoesNotRequireUpstreamPlugin(t *testing.T) {
 	repoRoot := repoRootForTest(t)
 	home, _ := writeCompatibleRuntimeFixture(t, repoRoot)
@@ -371,7 +566,7 @@ func writeCompatibleRuntimeFixture(t *testing.T, repoRoot string) (string, strin
 		"review-risk", "review-readability", "review-reliability", "review-resilience", "review-refuter",
 	} {
 		baseTaskPermissions[key] = "allow"
-		agents[key] = map[string]any{"mode": "subagent", "prompt": "upstream " + key}
+		agents[key] = map[string]any{"mode": "subagent", "hidden": true, "prompt": "upstream " + key, "tools": map[string]any{"read": true}}
 	}
 	mustAgent(t, agents, "gentle-orchestrator")["permission"] = map[string]any{
 		"question": "allow",
@@ -413,6 +608,11 @@ func writeCompatibleRuntimeFixture(t *testing.T, repoRoot string) (string, strin
 
 func assertNamedProfileTaskPermissions(t *testing.T, agents map[string]any, phases []string, profileName string) {
 	t.Helper()
+	assertNamedProfileTaskPermissionsWithJD(t, agents, phases, profileName, nil)
+}
+
+func assertNamedProfileTaskPermissionsWithJD(t *testing.T, agents map[string]any, phases []string, profileName string, suffixedJD map[string]bool) {
+	t.Helper()
 	orchestrator := mustAgent(t, agents, "sdd-orchestrator-"+profileName)
 	permission, ok := jsonObject(orchestrator["permission"])
 	if !ok {
@@ -428,9 +628,21 @@ func assertNamedProfileTaskPermissions(t *testing.T, agents map[string]any, phas
 	if got := jsonString(tasks["*"]); got != "deny" {
 		t.Fatalf("wildcard permission = %q, want deny", got)
 	}
-	for _, key := range []string{"general", "explore", "jd-judge-a", "jd-judge-b", "jd-fix-agent", "review-risk", "review-readability", "review-reliability", "review-resilience", "review-refuter"} {
+	for _, key := range []string{"general", "explore", "review-risk", "review-readability", "review-reliability", "review-resilience", "review-refuter"} {
 		if got := jsonString(tasks[key]); got != "allow" {
 			t.Errorf("task permission %q = %q, want allow", key, got)
+		}
+	}
+	for _, key := range judgmentDayActorKeys {
+		wantKey := key
+		if suffixedJD[key] {
+			wantKey = key + "-" + profileName
+			if _, exists := tasks[key]; exists {
+				t.Errorf("named orchestrator still authorizes global JD actor %q", key)
+			}
+		}
+		if got := jsonString(tasks[wantKey]); got != "allow" {
+			t.Errorf("task permission %q = %q, want allow", wantKey, got)
 		}
 	}
 	for _, phase := range phases {

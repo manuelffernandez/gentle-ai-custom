@@ -41,6 +41,8 @@ Use this skill when:
 - After approved maintenance work, return a closing summary of what was actually `Adquirir`, `Sanitizar`, or `Ignorar`, and why.
 - After maintenance edits, run one fresh-context reviewer/subagent consistency pass over the changed maintainer artifacts before closing.
 - The versioned policy MUST NOT carry per-profile orchestrator/phase model+variant choices. Those live in the per-machine local config at `~/.config/gentle-ai-custom/opencode-local-config.json` under `default_profile` and `profiles`.
+- The same local config may manage the three global Judgment Day actors, all five global review actors, and optional named-profile JD actors. Review actors are always global; never invent suffixed review topology.
+- Omitted JD/review slots preserve runtime assignment. Only explicit `{"inherit": true}` removes both `model` and `variant` for OpenCode Task inheritance.
 
 ## Audit report contract
 
@@ -133,6 +135,8 @@ Re-apply is mandatory after `gentle-ai sync` or reinstall because upstream rewri
    - pruned skills are absent only in the selected registered runtime targets
    - owned runtime targets declared in `managed-assets.json` exist on disk
    - `agent_overrides` resolve to the configured `model` / `variant`
+   - configured global JD assignments resolve exactly; inherited review actors have neither `model` nor `variant`
+   - named profiles create only explicitly configured suffixed JD actors, delegate omitted JD slots globally, and have no suffixed review actors
    - `agent.gentle-orchestrator.prompt` remains the upstream-owned prompt or reference
    - each managed named profile orchestrator reuses the upstream base orchestrator prompt
    - each unsuffixed and managed suffixed SDD phase agent reuses its upstream base phase prompt/reference

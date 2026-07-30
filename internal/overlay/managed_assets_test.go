@@ -208,6 +208,7 @@ func inject() {
 	_ = ok
 }
 `))
+	writeStructuralRoleFixture(t, upstreamRepo)
 	mustInitGitRepo(t, upstreamRepo)
 
 	previousCommit, err := runGit(upstreamRepo, false, "rev-parse", "HEAD")
@@ -256,7 +257,7 @@ func inject() {
 		Targets: map[string]ManagedAssetsTarget{
 			"opencode": {
 				WatchRoots:                 testOpenCodeAgentsTarget().WatchRoots,
-				StructuralInvariantSources: []string{"internal/components/sdd/profiles.go", "internal/components/sdd/inject.go"},
+				StructuralInvariantSources: []string{"internal/components/sdd/profiles.go", "internal/components/sdd/inject.go", "internal/models.go"},
 				OwnedOverlayAssets:         testOpenCodeAgentsTarget().OwnedOverlayAssets,
 			},
 		},
@@ -681,9 +682,10 @@ func inject() {
 	_ = ok
 }
 `))
+	writeStructuralRoleFixture(t, upstreamRepo)
 	mustInitGitRepo(t, upstreamRepo)
 
-	target := ManagedAssetsTarget{StructuralInvariantSources: []string{"internal/profiles.go", "internal/inject.go"}}
+	target := ManagedAssetsTarget{StructuralInvariantSources: []string{"internal/profiles.go", "internal/inject.go", "internal/models.go"}}
 	policy := Policy{}
 	policy.OpenCode.SDDPhases = []string{"sdd-init", "sdd-apply"}
 
@@ -753,9 +755,10 @@ func inject() {
 	_ = ok
 }
 `))
+	writeStructuralRoleFixture(t, upstreamRepo)
 	mustInitGitRepo(t, upstreamRepo)
 
-	target := ManagedAssetsTarget{StructuralInvariantSources: []string{"internal/profiles.go", "internal/inject.go"}}
+	target := ManagedAssetsTarget{StructuralInvariantSources: []string{"internal/profiles.go", "internal/inject.go", "internal/models.go"}}
 	policy := Policy{}
 	policy.OpenCode.SDDPhases = []string{"sdd-init", "sdd-apply"}
 
@@ -920,9 +923,10 @@ func inject() {
 	_ = ok
 }
 `))
+	writeStructuralRoleFixture(t, upstreamRepo)
 	mustInitGitRepo(t, upstreamRepo)
 
-	target := ManagedAssetsTarget{StructuralInvariantSources: []string{"internal/profiles.go", "internal/inject.go"}}
+	target := ManagedAssetsTarget{StructuralInvariantSources: []string{"internal/profiles.go", "internal/inject.go", "internal/models.go"}}
 	policy := Policy{}
 	policy.OpenCode.SDDPhases = []string{"sdd-init", "sdd-apply"}
 
@@ -994,9 +998,10 @@ func inject() {
 	_ = ok
 }
 `))
+	writeStructuralRoleFixture(t, upstreamRepo)
 	mustInitGitRepo(t, upstreamRepo)
 
-	target := ManagedAssetsTarget{StructuralInvariantSources: []string{"internal/profiles.go", "internal/inject.go"}}
+	target := ManagedAssetsTarget{StructuralInvariantSources: []string{"internal/profiles.go", "internal/inject.go", "internal/models.go"}}
 	policy := Policy{}
 	policy.OpenCode.SDDPhases = []string{"sdd-init", "sdd-apply"}
 
@@ -1028,5 +1033,52 @@ func mustInitGitRepo(t *testing.T, repo string) {
 	}
 	if _, err := runGit(repo, false, "commit", "-m", "test fixture"); err != nil {
 		t.Fatalf("git commit %s: %v", repo, err)
+	}
+}
+
+func writeStructuralRoleFixture(t *testing.T, repo string) {
+	t.Helper()
+	mustWriteFile(t, filepath.Join(repo, "internal", "models.go"), []byte(`package opencode
+
+func JDPhases() []string {
+	return []string{"jd-judge-a", "jd-judge-b", "jd-fix-agent"}
+}
+
+const ReviewRefuterAgent = "review-refuter"
+
+func ReviewLensPhases() []string {
+	return []string{"review-risk", "review-readability", "review-reliability", "review-resilience"}
+}
+`))
+}
+
+func TestStructuralRoleTopologyRejectsChangedActorSet(t *testing.T) {
+	models := `package opencode
+
+func JDPhases() []string {
+	return []string{"jd-judge-a", "jd-judge-b", "jd-fix-agent", "jd-extra"}
+}
+
+const ReviewRefuterAgent = "review-refuter"
+
+func ReviewLensPhases() []string {
+	return []string{"review-risk", "review-readability", "review-reliability", "review-resilience"}
+}
+`
+	jdActors, err := extractReturnedStringSlice(models, "JDPhases")
+	if err != nil {
+		t.Fatal(err)
+	}
+	reviewActors, err := extractReturnedStringSlice(models, "ReviewLensPhases")
+	if err != nil {
+		t.Fatal(err)
+	}
+	refuter, err := extractStringConstant(models, "ReviewRefuterAgent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	reviewActors = append(reviewActors, refuter)
+	if sameStrings(jdActors, judgmentDayActorKeys) || !sameStrings(reviewActors, reviewActorKeys) {
+		t.Fatalf("unexpected topology comparison: JD=%v review=%v", jdActors, reviewActors)
 	}
 }

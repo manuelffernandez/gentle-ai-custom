@@ -412,6 +412,13 @@ func (s *applyPolicyState) verifyPersistedState() error {
 				return fmt.Errorf("post-write verification failed for default profile phase %q: %w", phase, err)
 			}
 		}
+		for _, family := range []map[string]actorAssignment{s.resolvedDefaultProfile.JudgmentDay, s.resolvedDefaultProfile.Review} {
+			for key, assignment := range family {
+				if err := verifyActorAssignment(verifyAgents, key, assignment); err != nil {
+					return fmt.Errorf("post-write verification failed for global actor %q: %w", key, err)
+				}
+			}
+		}
 	}
 
 	keys := make([]string, 0, len(s.expectedPromptRefs))
@@ -450,9 +457,37 @@ func (s *applyPolicyState) verifyPersistedState() error {
 				return fmt.Errorf("post-write verification failed for profile %q phase agent %q: %w", name, phaseKey, err)
 			}
 		}
+		for _, key := range judgmentDayActorKeys {
+			suffixedKey := key + "-" + name
+			assignment, configured := profile.JudgmentDay[key]
+			if configured {
+				if err := verifyActorAssignment(verifyAgents, suffixedKey, assignment); err != nil {
+					return fmt.Errorf("post-write verification failed for profile %q Judgment Day actor %q: %w", name, suffixedKey, err)
+				}
+			} else if _, exists := verifyAgents[suffixedKey]; exists {
+				return fmt.Errorf("post-write verification failed: stale profile Judgment Day actor %q remains", suffixedKey)
+			}
+		}
 	}
 
 	return nil
+}
+
+func verifyActorAssignment(agents map[string]any, key string, assignment actorAssignment) error {
+	actual, ok := jsonObject(agents[key])
+	if !ok {
+		return fmt.Errorf("agent missing from OpenCode config after write")
+	}
+	if assignment.Inherit {
+		if _, exists := actual["model"]; exists {
+			return fmt.Errorf("model remains after inheritance reconciliation")
+		}
+		if _, exists := actual["variant"]; exists {
+			return fmt.Errorf("variant remains after inheritance reconciliation")
+		}
+		return nil
+	}
+	return verifyProfileAssignment(agents, key, profileAssignment{Model: assignment.Model, Variant: assignment.Variant})
 }
 
 func verifyProfileAssignment(agents map[string]any, key string, assignment profileAssignment) error {

@@ -3,6 +3,7 @@ package overlay
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -118,6 +119,112 @@ func TestResolveLocalRuntimeConfigReadsDefaultProfileFromCanonicalConfig(t *test
 	}
 }
 
+func TestValidateActorAssignment(t *testing.T) {
+	tests := []struct {
+		name         string
+		value        any
+		allowInherit bool
+		want         actorAssignment
+		wantError    string
+	}{
+		{name: "explicit model and variant", value: map[string]any{"model": "openai/model", "variant": "high"}, allowInherit: true, want: actorAssignment{Model: "openai/model", Variant: "high"}},
+		{name: "explicit model without variant", value: map[string]any{"model": "openai/model"}, allowInherit: true, want: actorAssignment{Model: "openai/model"}},
+		{name: "explicit inheritance", value: map[string]any{"inherit": true}, allowInherit: true, want: actorAssignment{Inherit: true}},
+		{name: "false inheritance", value: map[string]any{"inherit": false}, allowInherit: true, wantError: "must be exactly true"},
+		{name: "string inheritance", value: map[string]any{"inherit": "true"}, allowInherit: true, wantError: "must be exactly true"},
+		{name: "inherit and model", value: map[string]any{"inherit": true, "model": "openai/model"}, allowInherit: true, wantError: "cannot be combined"},
+		{name: "inherit and variant", value: map[string]any{"inherit": true, "variant": "high"}, allowInherit: true, wantError: "cannot be combined"},
+		{name: "variant only", value: map[string]any{"variant": "high"}, allowInherit: true, wantError: "model"},
+		{name: "empty object", value: map[string]any{}, allowInherit: true, wantError: "model"},
+		{name: "unknown field", value: map[string]any{"model": "openai/model", "other": true}, allowInherit: true, wantError: "unexpected fields"},
+		{name: "named inheritance rejected", value: map[string]any{"inherit": true}, allowInherit: false, wantError: "require an explicit model"},
+		{name: "malformed value", value: "openai/model", allowInherit: true, wantError: "must be an object"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := validateActorAssignment(tt.value, "actor", tt.allowInherit)
+			if tt.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantError) {
+					t.Fatalf("validateActorAssignment() error = %v, want containing %q", err, tt.wantError)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("validateActorAssignment() error = %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("validateActorAssignment() = %#v, want %#v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoadLocalConfigValidatesActorFamilies(t *testing.T) {
+	phases := []string{"sdd-init", "sdd-apply"}
+	phaseSet := testPhasesSet()
+	validBase := func() map[string]any {
+		return map[string]any{
+			"version": 1,
+			"default_profile": map[string]any{
+				"orchestrator": map[string]any{"model": "openai/orchestrator"},
+				"phases": map[string]any{
+					"sdd-init":  map[string]any{"model": "openai/init"},
+					"sdd-apply": map[string]any{"model": "openai/apply"},
+				},
+				"judgment_day": map[string]any{"jd-judge-a": map[string]any{"model": "openai/judge"}},
+				"review":       map[string]any{"review-risk": map[string]any{"inherit": true}},
+			},
+			"profiles": []any{map[string]any{
+				"name": "named", "orchestrator": map[string]any{"model": "openai/orchestrator"},
+				"phases": map[string]any{
+					"sdd-init":  map[string]any{"model": "openai/init"},
+					"sdd-apply": map[string]any{"model": "openai/apply"},
+				},
+				"judgment_day": map[string]any{"jd-fix-agent": map[string]any{"model": "openai/fix"}},
+			}},
+		}
+	}
+	tests := []struct {
+		name      string
+		mutate    func(map[string]any)
+		wantError string
+	}{
+		{name: "valid explicit and inherit"},
+		{name: "unknown Judgment Day actor", mutate: func(config map[string]any) {
+			config["default_profile"].(map[string]any)["judgment_day"] = map[string]any{"jd-other": map[string]any{"model": "openai/model"}}
+		}, wantError: "unknown actors"},
+		{name: "unknown review actor", mutate: func(config map[string]any) {
+			config["default_profile"].(map[string]any)["review"] = map[string]any{"review-other": map[string]any{"inherit": true}}
+		}, wantError: "unknown actors"},
+		{name: "named review rejected", mutate: func(config map[string]any) {
+			config["profiles"].([]any)[0].(map[string]any)["review"] = map[string]any{"review-risk": map[string]any{"inherit": true}}
+		}, wantError: "unexpected fields"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := validBase()
+			if tt.mutate != nil {
+				tt.mutate(config)
+			}
+			path := filepath.Join(t.TempDir(), "local.json")
+			writeJSONFixture(t, path, config)
+			got, err := loadLocalConfigFile(path, phases, phaseSet)
+			if tt.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantError) {
+					t.Fatalf("loadLocalConfigFile() error = %v, want containing %q", err, tt.wantError)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("loadLocalConfigFile() error = %v", err)
+			}
+			if !got.DefaultProfile.Review["review-risk"].Inherit || got.Profiles[0].JudgmentDay["jd-fix-agent"].Model != "openai/fix" {
+				t.Fatalf("actor families were not parsed: %#v %#v", got.DefaultProfile.Review, got.Profiles[0].JudgmentDay)
+			}
+		})
+	}
+}
+
 func testPolicy() Policy {
 	policy := Policy{}
 	policy.Upstream.RepoName = "gentle-ai"
@@ -133,5 +240,3 @@ func testPhasesSet() map[string]bool {
 		"sdd-apply": true,
 	}
 }
-
-

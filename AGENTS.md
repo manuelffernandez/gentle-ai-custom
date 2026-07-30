@@ -61,6 +61,8 @@ If one side changes, the paired script must be updated in the same commit.
 - keep/prune skill policy
 - skill prune scope derived from the selected registered CLI targets only
 - `agent_overrides` application
+- global Judgment Day/review assignment and explicit inheritance reconciliation
+- optional named-profile Judgment Day cloning and permission rewiring
 - owned runtime asset installation rules
 - generated prompt output path and naming
 - fail-closed behavior when owned asset/runtime verification breaks
@@ -366,19 +368,21 @@ Supported top-level fields:
 - `opencode_config_path` — optional override for the OpenCode config file; default remains `~/.config/opencode/opencode.json`
 - `agent_overrides` — optional array of explicit agent-key `model` / `variant` assignments (for example `general`, `explore`)
 - `default_profile` — optional base SDD family assignment for `gentle-orchestrator` plus the unsuffixed 10 `sdd-<phase>` agents
-- `profiles` — optional array of named SDD profile families (`sdd-orchestrator-<name>` plus the 10 suffixed SDD phases)
+- `profiles` — optional array of named SDD profile families (`sdd-orchestrator-<name>`, the 10 suffixed SDD phases, and optional suffixed Judgment Day actors)
 
 Repo-level rules:
 
 - This file is local-only and is never versioned in this repo.
 - The versioned policy must not carry per-profile orchestrator or phase `model` / `variant` assignments.
 - `agent_overrides` means ONLY explicit agent-key assignments; it does not manage SDD profile families.
-- `default_profile` means the base `gentle-orchestrator` family only; it does not replace explicit built-in agent overrides.
+- `default_profile` means the base `gentle-orchestrator` family, unsuffixed SDD phases, and optional global Judgment Day/review assignments; it does not replace explicit built-in agent overrides.
 - `profiles` means ONLY named grouped SDD profile families; it does not replace explicit built-in agent overrides.
 - If `agent_overrides` is omitted, the helper applies no explicit built-in agent model overrides.
 - If `default_profile` is omitted, the helper leaves the base `gentle-orchestrator` family untouched.
 - If `profiles` is omitted, the helper applies no named SDD profiles.
 - Managed profiles create or update `sdd-orchestrator-<name>` plus the 10 `sdd-<phase>-<name>` agents in `opencode.json`.
+- Named profiles create suffixed Judgment Day actors only for explicit `judgment_day` assignments. Omitted JD slots delegate to the global actor; review actors always remain global.
+- Global JD/review slots accept an explicit model assignment or `{"inherit": true}`. Omission preserves runtime assignment; inheritance removes both `model` and `variant` so OpenCode Task propagates the invoking primary assignment.
 - Profiles present in `opencode.json` but not declared in the active config source are left untouched and surfaced as `WARNING - unmanaged SDD profiles left untouched`. Nothing is deleted automatically.
 - This local config governs upstream path selection, optional OpenCode config path selection, agent model assignments, and named profile assignments. Upstream Gentle AI owns runtime prompt materialization; custom apply reuses available base prompts.
 
