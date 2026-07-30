@@ -4,6 +4,16 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-07-30 | Adopted stable Gentle AI v2.2.2 review lifecycle
+
+- **Type**: `adoption`
+- **Upstream scope/range**: `ee83e83d56f0d149c52f93fd13b3296858f5147f` (`v2.2.0`) -> `09c2d8b6369860058aa44704df76b1b33c745675` (`v2.2.2`)
+- **Decision**: `Adquirir` the stable negotiated review and frozen-context lifecycle plus the archive disabled-review fix. The initially approved prerelease `d260cdbc8c4be083333cb8b0517ed125a450a411` was replaced by the exact Brew stable boundary for repo, binary, and runtime reproducibility. `Ignorar` for now the post-v2.2.2 prerelease-only attempt/retry, Key Learnings, and issue-workflow changes. Keep/prune, runtime ownership, and local patch behavior remain unchanged.
+- **Why it mattered**: the stable boundary preserves the accepted review improvements and fixes archive deadlock when review is disabled, while excluding unpublished behavior and keeping the maintained snapshots, installed binary, and runtime exactly aligned.
+- **Affected artifacts**: approved snapshots `overlay/gentle-ai/assets/upstream/opencode/commands/sdd-apply.md`, `overlay/gentle-ai/assets/upstream/opencode/plugins/review-result-artifacts.ts`, `overlay/gentle-ai/assets/upstream/opencode/skills/_shared/review-ledger-contract.md`, and `overlay/gentle-ai/assets/upstream/opencode/skills/sdd-archive/SKILL.md`; `overlay/gentle-ai/state/upstream-state.json`; installed OpenCode runtime under `~/.config/opencode/`.
+- **Verification**: post-sync audit, `go test ./internal/overlay`, `go test ./... -count=1`, `git diff --check`, and `opencode debug config --pure` passed. Runtime ownership, hashes, modes, prompt/profile invariants, pruned skills, and the Judgment Day retrospective-only delta matched expectations. `gentle-ai sync` updated 23 runtime files; overlay apply pruned 2 skills, changed 1 owned asset, updated 0 prompt refs, verified 1 owned target, managed 4 profiles, updated 6 agents, left 46 unchanged, and reported 0 topology warnings and 0 unmanaged profiles.
+- **Follow-up**: restart OpenCode because `opencode.json` changed.
+
 ## 2026-07-28 | Added local Judgment Day and review assignment reconciliation
 
 - **Type**: `tooling-change`
