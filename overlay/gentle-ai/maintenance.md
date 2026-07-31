@@ -19,7 +19,7 @@ Approved upstream runtime assets are adopted replacement-first: let upstream mat
 ## Quick path
 
 1. Update the `gentle-ai` binary.
-2. Run `git pull` in the resolved upstream `gentle-ai` clone.
+2. Update tags in the resolved upstream clone and manually check out the exact `v<V>` release matching `gentle-ai --version`.
 3. From `gentle-ai-custom`, run `bash audit-gentle-ai-upstream.sh`.
 4. Convert the audit into a concise decision summary before any mutation:
    - what changed upstream and why it matters
@@ -39,6 +39,79 @@ Approved upstream runtime assets are adopted replacement-first: let upstream mat
 9. Read `Summary:`, verify the final on-disk state, run one fresh-context consistency review, and return a closing summary of what was actually `Adquirir`, `Sanitizar`, or `Ignorar`, and why.
 10. If `~/.config/opencode/opencode.json` changed, restart OpenCode.
 
+No `gentle-ai sync` or reinstall yet is the normal state before step 3. Asking what was updated helps diagnosis but proves nothing; the audit always runs the exact release parity preflight.
+
+## Release parity preflight
+
+Both canonical audit and sync entrypoints stop before drift analysis, snapshot copy, or state writes unless all conditions pass:
+
+- `gentle-ai --version` yields version `V`.
+- The upstream checkout has no staged, unstaged, untracked, or submodule changes.
+- Exact `refs/tags/v<V>` exists and peels to a commit.
+- Upstream `HEAD` equals that peeled commit.
+
+This accepts a prerelease only at its exact tag. It does not use `git describe`, nearest tags, version ordering, or branch ancestry. It never fetches tags or changes the checkout automatically.
+
+If the tag is missing or stale, run `git -C <upstream-repo> fetch --tags`, verify `v<V>`, and check it out manually. If a pulled branch is ahead of the release, check out the exact tag before retrying. If either only the binary or only the clone changed, the same preflight blocks until both match. If neither changed, it still verifies the existing pair.
+
+## Receipt-Driven Development mode and reactivation blocker
+
+Keep Receipt-Driven Development (RDD) disabled temporarily. Before changing that recommendation, verify the correction handoff against an adopted upstream release by following the checklist below.
+
+Check the effective setting before work. The setting is machine-specific and is not version-controlled state in this repository:
+
+```bash
+gentle-ai review mode status --cwd .
+gentle-ai review mode disable --cwd .
+gentle-ai review mode enable --cwd .
+```
+
+`status` is read-only. `disable` and `enable` use global scope by default. Add `--scope clone --cwd <clone>` to disable RDD only in one clone or to clear that clone-local disable. Any `off` source wins: clone scope can opt one clone out, but it cannot require RDD while global scope is off, and no other clone inherits that override.
+
+Enabling RDD is operationally simple, but it governs new candidates from that point forward. It does not automatically approve, repair, or resume an old invalid or pending authority. Content created while RDD was off is not stranded: after re-enabling, the current content can become a new candidate and undergo a new review. When RDD is disabled, new review work and reviewers must not start. Delivery without an exact governing receipt reports `disabled/unmanaged`, follows ordinary repository policy, and must not fabricate a receipt. An existing receipt that exactly governs unchanged content remains authoritative.
+
+### How RDD complements SDD
+
+- Spec-Driven Development (SDD) is the planning and implementation lifecycle: explore, propose, specify, design, task, apply, verify, and archive.
+- Receipt-Driven Development (RDD) is a cross-cutting candidate-review and delivery-receipt lifecycle. When enabled, it can review the immutable post-apply candidate and reuse that receipt at delivery gates.
+- RDD does not mean Test-Driven Development (TDD). Tests remain part of implementation and verification regardless of the RDD switch.
+- Disabling RDD does not disable SDD. SDD phases, tests, and verification continue; archive and delivery use the documented `disabled/unmanaged` path instead of launching reviewers or requiring a receipt that cannot be produced.
+
+### Known correction-handoff bug
+
+The official stable v2.2.2 binary at commit `09c2d8b6369860058aa44704df76b1b33c745675` is affected. The bug remained unfixed at upstream commit `d260cdbc8c4be083333cb8b0517ed125a450a411`.
+
+Confirmed lifecycle:
+
+1. All selected reviewers are admitted.
+2. Finalization enters `correction_required`.
+3. A positive correction forecast is recorded while the candidate is unchanged.
+4. Negotiated STATUS stops with `corrected_candidate_unavailable` but exposes no confirmed finding details or authoritative correction scope.
+
+The native authority has the missing information: it stores the full findings and `FixFindingIDs`. The OpenCode result-capture plugin replaces each successful reviewer output in the session with an opaque capture manifest. Before candidate mutation, negotiated STATUS does not return the corroborated findings or another authoritative correction handoff. A `TargetedValidationRequest` containing the finding IDs is built only after the candidate changes. The consumer is therefore told to correct the candidate without first receiving a trustworthy statement of what to correct.
+
+Source evidence:
+
+- `internal/reviewtransaction/compact.go` stores canonical `Findings` and `FixFindingIDs`.
+- `internal/reviewtransaction/targeted_validation_request.go` requires a changed correction candidate before it emits `FixFindingIDs` in `TargetedValidationRequest`.
+- `internal/cli/review_status_contract.go` defines the negotiated STATUS surface but exposes no pre-mutation correction scope.
+- `internal/cli/review_next_transition.go` emits `corrected_candidate_unavailable` after a forecast when no corrected candidate exists.
+- `internal/assets/opencode/plugins/review-result-artifacts.ts` replaces successful reviewer output with the native capture manifest.
+
+A temporary overlay patch was assessed and deferred. No correction-handoff patch is implemented by this repository.
+
+### Future release checklist
+
+For every upstream release audit that could lead to RDD reactivation:
+
+- [ ] Compare the five source paths above with this failure model; do not infer a fix from release notes alone.
+- [ ] Confirm tests require authoritative corroborated correction scope before candidate mutation.
+- [ ] Confirm provider-returned `next_transition.collect`, or an equivalent admitted post-capture handoff, contains enough authoritative finding detail and scope to perform the correction safely.
+- [ ] Run a canary lifecycle that admits all required reviewers, enters `correction_required`, records a positive forecast, obtains the correction scope before editing, mutates the candidate, completes targeted validation, and produces a valid receipt.
+- [ ] Record the audit result before recommending `gentle-ai review mode enable` at global scope.
+
+RDD may be recommended for reactivation only after an adopted release exposes authoritative corroborated correction scope before candidate mutation, either in provider-returned `next_transition.collect` or an equivalent admitted post-capture handoff, and both source/tests and the canary lifecycle verify it. Until then, keep RDD disabled and confirm the effective state with `gentle-ai review mode status --cwd .`.
+
 ## Operating model
 
 | Artifact | Role |
@@ -57,8 +130,9 @@ Approved upstream runtime assets are adopted replacement-first: let upstream mat
 
 ### `audit-gentle-ai-upstream`
 
+- verifies and reports the installed binary version, exact canonical tag, and release commit before analysis
 - uses `last_maintained_commit` from `state/upstream-state.json`
-- discovers drift with `git diff --name-status --find-renames <last_maintained_commit>..HEAD`
+- discovers drift with `git diff --name-status --find-renames <last_maintained_commit>..<verified-release-commit>`
 - filters that drift through `policy/managed-assets.json`
 - keeps verifying upstream structural invariants (`profiles.go`, `inject.go`, etc.)
 
@@ -91,13 +165,15 @@ No repo mutation happens before that handoff is approved.
 
 ### `sync-gentle-ai-upstream-assets`
 
+- repeats the same exact release parity preflight before copy or write
 - copies approved upstream assets into `assets/upstream/...`
-- advances `state/upstream-state.json` when the new upstream was accepted
+- stores the verified binary version, exact tag, and release commit in `state/upstream-state.json` when the new upstream was accepted
 - does not touch local runtime under `~/.config/opencode/`
 - always runs after approval of a newly accepted upstream boundary; it is the repo sync step, not the runtime refresh step
 
 ### `apply-gentle-ai-custom`
 
+- keeps its existing installed-binary versus maintained-overlay-baseline preflight and does not require an upstream clone
 - validates only custom-operation prerequisites before any write: ownership boundaries, profile source prompts, safe obsolete-reference migration, and Judgment Day anchors
 - does not inspect or certify upstream prompt, contract, plugin, or review semantics; a missing or opaque plugin does not block unrelated custom operations
 - preserves upstream-owned prompt, contract, and plugin bytes and file modes

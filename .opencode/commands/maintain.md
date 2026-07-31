@@ -9,4 +9,4 @@ CONTEXT:
 - Current project: !`basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"`
 
 TASK:
-Enter maintainer mode. Follow the full workflow defined in the skill — starting with determining what the user did (brew upgrade, git pull, gentle-ai sync, or TUI reinstall) before taking any action.
+Enter maintainer mode. Follow the full workflow defined in the skill. Ask what the user updated only as diagnostic context; never trust that answer as parity proof. Before drift analysis, run the canonical audit so its preflight verifies a clean upstream checkout at the exact `v<V>` tag and commit for installed `gentle-ai --version`. Treat no `gentle-ai sync` or reinstall yet as the normal pre-audit state.
