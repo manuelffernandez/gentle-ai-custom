@@ -1,0 +1,192 @@
+package overlay
+
+import (
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestVerifyUpstreamReleaseParity(t *testing.T) {
+	tests := []struct {
+		name          string
+		binaryVersion string
+		tag           string
+		ahead         bool
+		wantVersion   string
+		wantErr       string
+	}{
+		{name: "stable exact clean match", binaryVersion: "2.2.2", tag: "v2.2.2", wantVersion: "2.2.2"},
+		{name: "HEAD ahead of release", binaryVersion: "2.2.2", tag: "v2.2.2", ahead: true, wantErr: "does not equal exact release"},
+		{name: "exact tag missing", binaryVersion: "2.2.2", wantErr: "refs/tags/v2.2.2"},
+		{name: "prerelease exact clean match", binaryVersion: "2.3.0-rc.1", tag: "v2.3.0-rc.1", wantVersion: "2.3.0-rc.1"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := newReleaseGuardRepo(t, tt.tag, tt.ahead)
+			installFakeGentleAI(t, "#!/bin/sh\necho 'gentle-ai "+tt.binaryVersion+"'\n")
+
+			got, err := verifyUpstreamReleaseParity(repo)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("verifyUpstreamReleaseParity() error = %v, want containing %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("verifyUpstreamReleaseParity() error = %v", err)
+			}
+			if got.Version != tt.wantVersion || got.Tag != "v"+tt.wantVersion {
+				t.Fatalf("release identity = %#v, want version %q and exact tag", got, tt.wantVersion)
+			}
+			head, gitErr := runGit(repo, false, "rev-parse", "HEAD")
+			if gitErr != nil || got.Commit != head {
+				t.Fatalf("release commit = %q, HEAD = %q, error = %v", got.Commit, head, gitErr)
+			}
+		})
+	}
+}
+
+func TestVerifyUpstreamReleaseParityRejectsBinaryCheckoutVersionMismatch(t *testing.T) {
+	tests := []struct {
+		name          string
+		binaryVersion string
+		checkout      string
+	}{
+		{name: "binary newer", binaryVersion: "2.2.3", checkout: "v2.2.2"},
+		{name: "binary older", binaryVersion: "2.2.2", checkout: "v2.2.3"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := newReleaseGuardRepo(t, "v2.2.2", true)
+			if _, err := runGit(repo, false, "tag", "v2.2.3"); err != nil {
+				t.Fatalf("tag second release: %v", err)
+			}
+			if _, err := runGit(repo, false, "checkout", "--detach", tt.checkout); err != nil {
+				t.Fatalf("check out %s: %v", tt.checkout, err)
+			}
+			installFakeGentleAI(t, "#!/bin/sh\necho 'gentle-ai "+tt.binaryVersion+"'\n")
+
+			if _, err := verifyUpstreamReleaseParity(repo); err == nil || !strings.Contains(err.Error(), "does not equal exact release") {
+				t.Fatalf("verifyUpstreamReleaseParity() error = %v, want exact release mismatch", err)
+			}
+		})
+	}
+}
+
+func TestVerifyUpstreamReleaseParityRejectsSameNamedBranchWithoutTag(t *testing.T) {
+	repo := newReleaseGuardRepo(t, "", false)
+	if _, err := runGit(repo, false, "branch", "v2.2.2"); err != nil {
+		t.Fatalf("create same-named branch: %v", err)
+	}
+	installFakeGentleAI(t, "#!/bin/sh\necho 'gentle-ai 2.2.2'\n")
+
+	if _, err := verifyUpstreamReleaseParity(repo); err == nil || !strings.Contains(err.Error(), "exact release tag refs/tags/v2.2.2") {
+		t.Fatalf("verifyUpstreamReleaseParity() error = %v, want missing exact tag failure", err)
+	}
+}
+
+func TestVerifyUpstreamReleaseParityRejectsDirtyCheckout(t *testing.T) {
+	tests := []struct {
+		name  string
+		dirty func(*testing.T, string)
+	}{
+		{name: "staged", dirty: func(t *testing.T, repo string) {
+			mustWriteFile(t, filepath.Join(repo, "staged.txt"), []byte("staged\n"))
+			if _, err := runGit(repo, false, "add", "staged.txt"); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "unstaged", dirty: func(t *testing.T, repo string) {
+			mustWriteFile(t, filepath.Join(repo, "tracked.txt"), []byte("changed\n"))
+		}},
+		{name: "untracked", dirty: func(t *testing.T, repo string) {
+			mustWriteFile(t, filepath.Join(repo, "untracked.txt"), []byte("untracked\n"))
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := newReleaseGuardRepo(t, "v2.2.2", false)
+			installFakeGentleAI(t, "#!/bin/sh\necho 'gentle-ai 2.2.2'\n")
+			tt.dirty(t, repo)
+			if _, err := verifyUpstreamReleaseParity(repo); err == nil || !strings.Contains(err.Error(), "checkout is dirty") {
+				t.Fatalf("verifyUpstreamReleaseParity() error = %v, want dirty checkout failure", err)
+			}
+		})
+	}
+}
+
+func TestVerifyUpstreamReleaseParityRejectsDirtySubmodule(t *testing.T) {
+	submodule := newReleaseGuardRepo(t, "", false)
+	repo := newReleaseGuardRepo(t, "", false)
+	if _, err := runGit(repo, false, "-c", "protocol.file.allow=always", "submodule", "add", submodule, "deps/example"); err != nil {
+		t.Fatalf("add submodule: %v", err)
+	}
+	if _, err := runGit(repo, false, "commit", "-am", "add submodule"); err != nil {
+		t.Fatalf("commit submodule: %v", err)
+	}
+	if _, err := runGit(repo, false, "tag", "v2.2.2"); err != nil {
+		t.Fatalf("tag release: %v", err)
+	}
+	installFakeGentleAI(t, "#!/bin/sh\necho 'gentle-ai 2.2.2'\n")
+	mustWriteFile(t, filepath.Join(repo, "deps", "example", "tracked.txt"), []byte("dirty submodule\n"))
+
+	if _, err := verifyUpstreamReleaseParity(repo); err == nil || !strings.Contains(err.Error(), "checkout is dirty") {
+		t.Fatalf("verifyUpstreamReleaseParity() error = %v, want dirty submodule failure", err)
+	}
+}
+
+func TestRunSyncUpstreamAssetsReleaseRefusalDoesNotMutateRepo(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	upstreamRepo := newReleaseGuardRepo(t, "v2.2.2", true)
+	t.Setenv(upstreamRepoEnvVar, upstreamRepo)
+	installFakeGentleAI(t, "#!/bin/sh\necho 'gentle-ai 2.2.2'\n")
+
+	repoRoot := t.TempDir()
+	policy := Policy{}
+	policy.Version = 1
+	policy.Maintenance.StateFile = "overlay/gentle-ai/state/upstream-state.json"
+	writeJSONFixture(t, filepath.Join(repoRoot, "overlay", "gentle-ai", "policy", "gentle-ai-policy.json"), policy)
+	writeJSONFixture(t, filepath.Join(repoRoot, "overlay", "gentle-ai", "policy", "managed-assets.json"), ManagedAssetsManifest{
+		Version: 1,
+		Targets: map[string]ManagedAssetsTarget{"opencode": {}},
+	})
+	statePath := filepath.Join(repoRoot, "overlay", "gentle-ai", "state", "upstream-state.json")
+	snapshotPath := filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "upstream", "sentinel.txt")
+	stateBefore := []byte("{\n  \"last_maintained_version\": \"2.2.1\"\n}\n")
+	snapshotBefore := []byte("approved snapshot\n")
+	mustWriteFile(t, statePath, stateBefore)
+	mustWriteFile(t, snapshotPath, snapshotBefore)
+
+	if exitCode := RunSyncUpstreamAssets(repoRoot, nil); exitCode == 0 {
+		t.Fatal("RunSyncUpstreamAssets() exit code = 0, want release parity refusal")
+	}
+	if got := mustReadFile(t, statePath); got != string(stateBefore) {
+		t.Fatalf("state changed on refused sync: %q", got)
+	}
+	if got := mustReadFile(t, snapshotPath); got != string(snapshotBefore) {
+		t.Fatalf("snapshot changed on refused sync: %q", got)
+	}
+}
+
+func newReleaseGuardRepo(t *testing.T, tag string, ahead bool) string {
+	t.Helper()
+	repo := t.TempDir()
+	mustWriteFile(t, filepath.Join(repo, "tracked.txt"), []byte("release\n"))
+	mustInitGitRepo(t, repo)
+	if tag != "" {
+		if _, err := runGit(repo, false, "tag", tag); err != nil {
+			t.Fatalf("tag %s: %v", tag, err)
+		}
+	}
+	if ahead {
+		mustWriteFile(t, filepath.Join(repo, "tracked.txt"), []byte("ahead\n"))
+		if _, err := runGit(repo, false, "commit", "-am", "ahead of release"); err != nil {
+			t.Fatalf("commit ahead of release: %v", err)
+		}
+	}
+	return repo
+}

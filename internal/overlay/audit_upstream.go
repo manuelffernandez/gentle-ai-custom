@@ -35,6 +35,11 @@ func RunAuditUpstream(repoRoot string, args []string) int {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		return 1
 	}
+	release, err := verifyUpstreamReleaseParity(upstreamRepo)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: upstream release parity preflight failed: %v\n", err)
+		return 1
+	}
 	target, ok := manifest.Targets["opencode"]
 	if !ok {
 		fmt.Fprintf(os.Stderr, "ERROR: managed-assets manifest at %s does not define target %q\n", manifestPath, "opencode")
@@ -55,21 +60,13 @@ func RunAuditUpstream(repoRoot string, args []string) int {
 		fmt.Fprintf(os.Stderr, "ERROR: last_maintained_commit is empty in %s\n", statePath)
 		return 1
 	}
-	upstreamHead, gitErr := runGit(upstreamRepo, false, "rev-parse", "HEAD")
-	if gitErr != nil {
-		failures = append(failures, fmt.Sprintf("cannot inspect upstream git state: %v", gitErr))
-	}
-	upstreamDescribe, _ := runGit(upstreamRepo, true, "describe", "--tags", "--always")
-	if upstreamDescribe == "" {
-		notes = append(notes, "upstream git describe returned nothing; repo may have no tags (HEAD hash still captured via rev-parse)")
-	}
-	upstreamExactTag, _ := runGit(upstreamRepo, true, "describe", "--tags", "--exact-match")
+	upstreamHead := release.Commit
 
 	if upstreamHead != "" && state.LastMaintainedCommit != "" && upstreamHead != state.LastMaintainedCommit {
 		notes = append(notes, fmt.Sprintf("upstream HEAD %s differs from last maintained commit %s; prompt/invariant drift checks below show whether the baseline still holds", upstreamHead, state.LastMaintainedCommit))
 	}
-	if upstreamExactTag != "" && state.LastMaintainedTag != "" && upstreamExactTag != state.LastMaintainedTag {
-		notes = append(notes, fmt.Sprintf("upstream exact tag %s differs from last maintained tag %s; review state/log if you are closing a new upstream audit", upstreamExactTag, state.LastMaintainedTag))
+	if state.LastMaintainedTag != "" && release.Tag != state.LastMaintainedTag {
+		notes = append(notes, fmt.Sprintf("verified release tag %s differs from last maintained tag %s; review state/log if you are closing a new upstream audit", release.Tag, state.LastMaintainedTag))
 	}
 	diffEntries, err := runGitDiff(upstreamRepo, state.LastMaintainedCommit)
 	if err != nil {
@@ -111,9 +108,9 @@ func RunAuditUpstream(repoRoot string, args []string) int {
 	fmt.Printf("- Repo root: %s\n", repoRoot)
 	fmt.Printf("- Upstream repo: %s\n", upstreamRepo)
 	fmt.Printf("- Upstream source: %s\n", upstreamRepoSource)
-	if upstreamDescribe != "" {
-		fmt.Printf("- Upstream HEAD: %s (%s)\n", upstreamDescribe, upstreamHead)
-	}
+	fmt.Printf("- Verified binary version: %s\n", release.Version)
+	fmt.Printf("- Verified exact tag: %s\n", release.Tag)
+	fmt.Printf("- Verified release commit: %s\n", release.Commit)
 	fmt.Printf("- Upstream baseline limit: %s\n", state.LastMaintainedCommit)
 	fmt.Printf("- Managed assets manifest: %s\n", manifestPath)
 	fmt.Println()

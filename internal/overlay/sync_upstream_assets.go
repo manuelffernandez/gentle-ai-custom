@@ -45,6 +45,11 @@ func RunSyncUpstreamAssets(repoRoot string, args []string) int {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		return 1
 	}
+	release, err := verifyUpstreamReleaseParity(upstreamRepo)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: upstream release parity preflight failed: %v\n", err)
+		return 1
+	}
 	statePath := filepath.Join(repoRoot, policy.Maintenance.StateFile)
 	var state UpstreamState
 	if err := readJSONFile(statePath, &state); err != nil {
@@ -58,13 +63,7 @@ func RunSyncUpstreamAssets(repoRoot string, args []string) int {
 		return 1
 	}
 
-	upstreamHead, err := runGit(upstreamRepo, false, "rev-parse", "HEAD")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: cannot inspect upstream git state: %v\n", err)
-		return 1
-	}
-	upstreamDescribe, _ := runGit(upstreamRepo, true, "describe", "--tags", "--always")
-	upstreamExactTag, _ := runGit(upstreamRepo, true, "describe", "--tags", "--exact-match")
+	upstreamHead := release.Commit
 	diffEntries, err := runGitDiff(upstreamRepo, state.LastMaintainedCommit)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: cannot diff upstream git state from %s: %v\n", state.LastMaintainedCommit, err)
@@ -99,12 +98,12 @@ func RunSyncUpstreamAssets(repoRoot string, args []string) int {
 	}
 
 	updatedState := state
-	boundaryChanged := state.LastMaintainedCommit != upstreamHead || state.LastMaintainedVersion != firstNonEmpty(upstreamExactTag, upstreamDescribe, upstreamHead) || state.LastMaintainedTag != firstNonEmpty(upstreamExactTag, upstreamDescribe)
+	boundaryChanged := state.LastMaintainedCommit != release.Commit || state.LastMaintainedVersion != release.Version || state.LastMaintainedTag != release.Tag
 	if boundaryChanged {
 		previousCommit := state.LastMaintainedCommit
-		updatedState.LastMaintainedCommit = upstreamHead
-		updatedState.LastMaintainedVersion = firstNonEmpty(upstreamExactTag, upstreamDescribe, upstreamHead)
-		updatedState.LastMaintainedTag = firstNonEmpty(upstreamExactTag, upstreamDescribe)
+		updatedState.LastMaintainedCommit = release.Commit
+		updatedState.LastMaintainedVersion = release.Version
+		updatedState.LastMaintainedTag = release.Tag
 		updatedState.LastReviewedAt = time.Now().UTC().Format(time.RFC3339)
 		updatedState.Notes = formatUpstreamAssetSyncNote(previousCommit, upstreamHead)
 	}
@@ -122,7 +121,9 @@ func RunSyncUpstreamAssets(repoRoot string, args []string) int {
 	fmt.Printf("- Upstream repo: %s\n", upstreamRepo)
 	fmt.Printf("- Upstream source: %s\n", upstreamRepoSource)
 	fmt.Printf("- Managed assets manifest: %s\n", manifestPath)
-	fmt.Printf("- Upstream HEAD: %s\n", upstreamHead)
+	fmt.Printf("- Verified binary version: %s\n", release.Version)
+	fmt.Printf("- Verified exact tag: %s\n", release.Tag)
+	fmt.Printf("- Verified release commit: %s\n", release.Commit)
 	fmt.Println()
 	fmt.Println("Summary:")
 	fmt.Printf("  managed files changed in range: %d\n", len(managedEntries))
@@ -310,15 +311,6 @@ func trackSyncFileStatus(status string, stats *syncUpstreamAssetsStats) {
 	case "unchanged":
 		stats.FilesUnchanged++
 	}
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return value
-		}
-	}
-	return ""
 }
 
 func formatUpstreamAssetSyncNote(previousCommit, newCommit string) string {
