@@ -4,6 +4,15 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-07-30 | Enforced exact release parity before upstream audit and sync
+
+- **Type**: `tooling-change`
+- **Upstream scope/range**: maintenance tooling contract; installed `gentle-ai 2.2.2`, exact `v2.2.2` commit `09c2d8b6369860058aa44704df76b1b33c745675`, and local upstream HEAD `d260cdbc8c4be083333cb8b0517ed125a450a411`; no upstream boundary advance
+- **Decision**: made audit and snapshot sync fail before analysis, copy, or writes unless the resolved upstream checkout is fully clean and its `HEAD` equals the commit peeled from exact `refs/tags/v<V>` for installed `gentle-ai --version`. Prereleases require their exact tag. The tools never use `git describe`, nearest tags, version ordering, or ancestry as parity proof and never fetch or check out automatically. Apply keeps its separate maintained-baseline version guard and does not require an upstream clone.
+- **Why it mattered**: the previous audit inspected live upstream `HEAD`, and sync copied the live worktree while persisting describe-derived identity. A branch ahead of a published release could therefore audit or sync unreleased commits even though the installed binary represented the stable release.
+- **Affected artifacts**: shared release guard, audit/sync orchestration, and focused tests under `internal/overlay/`; `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`; `.opencode/commands/maintain.md`; `overlay/gentle-ai/policy/maintenance-intent.md`; `overlay/gentle-ai/maintenance.md`; `overlay/gentle-ai/owned-assets-refactor.md`; `README.md`; `AGENTS.md`; `overlay/gentle-ai/README.md`; `overlay/gentle-ai/logs/update-log.md`
+- **Verification**: `gofmt` on changed Go files; `go test ./internal/overlay -count=1`; `go test ./... -count=1`; `git diff --check`. Focused tests cover stable and prerelease exact matches, ahead/newer/older/missing-tag refusal, staged/unstaged/untracked/submodule dirt, no sync mutation on refusal, exact release identity persistence on successful sync, and apply's clone-independent maintained-baseline guard. A read-only real audit canary stopped before drift analysis because upstream HEAD `d260cdbc8c4be083333cb8b0517ed125a450a411` did not equal exact `v2.2.2` commit `09c2d8b6369860058aa44704df76b1b33c745675`.
+
 ## 2026-07-30 | Adopted stable Gentle AI v2.2.2 review lifecycle
 
 - **Type**: `adoption`

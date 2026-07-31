@@ -22,7 +22,9 @@ Esta carpeta agrupa los assets operativos del overlay de Gentle AI.
 
 - `policy/managed-assets.json` es el mapa canónico entre upstream aprobado y runtime owned.
 - `audit-gentle-ai-upstream` cubre audit + recomendación antes de cualquier mutación.
-- `sync-gentle-ai-upstream-assets` hace el repo sync de `assets/upstream/...` más la frontera aprobada; no refresca el runtime.
+- Antes de analizar o copiar, `audit` y `sync` exigen que el clon upstream esté totalmente limpio y que `HEAD` coincida con el commit del tag exacto `v<V>` para la versión instalada. No usan tags cercanos ni cambian el checkout automáticamente.
+- `sync-gentle-ai-upstream-assets` hace el repo sync de `assets/upstream/...` más la frontera aprobada y guarda la versión, el tag y el commit exactos verificados; no refresca el runtime.
+- No haber ejecutado todavía `gentle-ai sync` o una reinstalación es el estado normal antes de auditar. `apply` no necesita el clon upstream y conserva su chequeo separado contra la frontera mantenida.
 - `apply-gentle-ai-custom` conserva los prompts, contratos, comandos y plugins SDD materializados por Gentle AI; los snapshots de `assets/upstream/...` no son fuentes de instalación.
 - Antes de escribir, `apply` valida solo lo que sus propias operaciones necesitan: límites de ownership, prompts base para perfiles configurados, migraciones seguras de referencias viejas y anchors de Judgment Day.
 - La configuración local puede asignar o heredar explícitamente los tres actores globales de Judgment Day y los cinco actores globales de review. Los perfiles nombrados solo pueden crear actores JD con sufijo; review siempre queda global.

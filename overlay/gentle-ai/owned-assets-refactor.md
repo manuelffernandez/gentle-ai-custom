@@ -27,17 +27,19 @@ The owned-assets cutover is complete.
 
 ### `audit-gentle-ai-upstream`
 
+- requires a clean upstream checkout at the exact release tag and commit for installed `gentle-ai --version`
 - reads `last_maintained_commit` from `upstream-state.json`
-- diffs upstream with `git diff --name-status --find-renames <last_maintained_commit>..HEAD`
+- diffs upstream with `git diff --name-status --find-renames <last_maintained_commit>..<verified-release-commit>`
 - filters changes through `managed-assets.json`
 - reports managed drift plus structural invariant drift
 - validates the audited `gentle-orchestrator` baseline/metadata against upstream and state
 
 ### `sync-gentle-ai-upstream-assets`
 
+- repeats the exact release parity check before copy or write
 - copies approved upstream assets into `overlay/gentle-ai/assets/upstream/...`
 - updates the audited `gentle-orchestrator` baseline + metadata
-- advances `upstream-state.json` when the new upstream state is accepted
+- advances `upstream-state.json` with the verified version, exact tag, and release commit when the new upstream state is accepted
 - does not touch runtime files under `~/.config/opencode/`
 
 ### `apply-gentle-ai-custom`

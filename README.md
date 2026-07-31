@@ -87,7 +87,7 @@ El mantenimiento en este repositorio sigue siempre los mismos pasos. Lo único q
 ### Pasos recomendados
 
 1. Actualizá el ejecutable de `gentle-ai`.
-2. Ejecutá `git pull` en tu carpeta local de `gentle-ai`.
+2. Actualizá los tags en tu carpeta local de `gentle-ai` y dejala en el tag exacto que corresponde a la versión instalada.
 3. Desde la carpeta de `gentle-ai-custom`, pedile al agente de mantenimiento que revise qué cambió en el proyecto original (auditoría).
 4. Antes de cambiar cualquier archivo acá, el agente te tiene que dar un resumen claro: qué hay de nuevo, qué sugiere `Adquirir`, `Sanitizar` o `Ignorar`, por qué, y qué comando recomienda para actualizar.
 5. Confirmá que estás de acuerdo antes de que el agente modifique cosas en este repositorio o actualice el sistema.
@@ -97,10 +97,17 @@ El mantenimiento en este repositorio sigue siempre los mismos pasos. Lo único q
 9. Terminá con una revisión general para asegurar que todo quedó bien y dejá un resumen final de lo que se adquirió, sanitizó o ignoró.
 10. Reiniciá OpenCode si el archivo `~/.config/opencode/opencode.json` tuvo algún cambio.
 
+Es normal no haber ejecutado todavía `gentle-ai sync` ni una reinstalación: esos pasos vienen después de la auditoría y de tu aprobación.
+
+Antes de analizar cambios, la auditoría comprueba cuatro cosas: la versión instalada, que la carpeta original esté totalmente limpia, que exista el tag exacto `v<versión>` y que `HEAD` apunte al commit de ese tag. También revisa cambios dentro de submódulos. Si algo no coincide, se detiene y explica cómo actualizar tags o cambiar al tag correcto de forma manual. Nunca descarga tags ni cambia de versión por su cuenta.
+
+Esto también vale para versiones preliminares: solo se aceptan si existe su tag exacto. No alcanza con estar cerca de un tag, en una rama que lo contiene o en un commit posterior. El mismo control se repite antes de copiar snapshots con `sync-gentle-ai-upstream-assets`.
+
 ```bash
 brew upgrade gentle-ai
 git -C /path/to/gentle-ai pull
 
+# dejá el upstream en el tag exacto de `gentle-ai --version`
 # desde gentle-ai-custom, el agente de mantenimiento debería ejecutar esto
 bash ~/Documentos/gentle-ai-custom/audit-gentle-ai-upstream.sh
 
@@ -139,6 +146,8 @@ Hoy en día, la auditoría busca diferencias usando comandos como `git diff` y l
 
 Los scripts `audit-gentle-ai-upstream` y `sync-gentle-ai-upstream-assets` se pueden usar a mano, pero es mejor pedirle al agente de mantenimiento que los use. Así te puede explicar qué cambió y pedirte permiso antes de tocar nada. El comando `sync-gentle-ai-upstream-assets` solo copia cosas aprobadas a este repositorio; no actualiza la configuración de tu computadora.
 
+El comando `apply-gentle-ai-custom` sigue siendo independiente de la carpeta original: compara la versión instalada con la versión mantenida por este overlay y no necesita encontrar el clon de upstream.
+
 ### Cuándo usar `gentle-ai sync` y cuándo reinstalar
 
 - Es preferible usar `gentle-ai sync` si los cambios que adoptamos sirven, pero no rompen de forma profunda cómo están configurados los agentes y perfiles.
@@ -160,6 +169,28 @@ Los scripts `audit-gentle-ai-upstream` y `sync-gentle-ai-upstream-assets` se pue
 Ejecutarlo apuntando a `opencode` reinstala todo para OpenCode. Si usás `all` hace lo mismo, porque hoy es el único entorno soportado.
 
 La configuración para elegir qué modelos de IA vas a usar o dónde está clonado el proyecto original se guarda en un archivo solo tuyo en tu computadora: `~/.config/gentle-ai-custom/opencode-local-config.json`. Más abajo se explica cómo armarlo.
+
+### RDD: revisión y recibos de entrega
+
+Receipt-Driven Development (RDD) revisa un candidato ya terminado y genera un recibo ligado a ese contenido. Los controles de entrega pueden reutilizar el mismo recibo. No significa Test-Driven Development (TDD): los tests siguen siendo parte de la implementación y la verificación.
+
+Para ver o cambiar el modo nativo:
+
+```bash
+gentle-ai review mode status --cwd .
+gentle-ai review mode disable --cwd .
+gentle-ai review mode enable --cwd .
+```
+
+- `status` solo informa; no cambia nada.
+- `disable` y `enable` actúan de forma global por defecto.
+- Con `--scope clone --cwd <ruta>` podés desactivar RDD solo en un clon o quitar esa desactivación local.
+- Si el valor global o el del clon está en `off`, RDD queda apagado. Un clon no puede encenderlo por encima de un `off` global y su ajuste no pasa a otros clones.
+- Volver a habilitarlo se aplica a candidatos nuevos desde ese momento. No aprueba, repara ni reanuda automáticamente una autoridad vieja inválida o pendiente. El contenido creado mientras RDD estaba apagado no queda varado: después de habilitarlo, el contenido actual puede convertirse en un candidato nuevo y pasar por una revisión nueva.
+
+SDD y RDD cumplen funciones distintas. SDD organiza la planificación, implementación, tests y verificación. RDD cruza ese flujo al final: cuando está activo, puede revisar el candidato inmutable después de `apply` y aportar el recibo usado en la entrega. Si RDD está apagado, no debe lanzar revisores; SDD sigue funcionando, incluidos tests y verificación, y el cierre usa la ruta `disabled/unmanaged` bajo la política normal del repositorio sin inventar un recibo.
+
+Por ahora conviene mantener RDD desactivado. Gentle AI v2.2.2 tiene un bug confirmado: cuando una revisión pide una corrección, el flujo puede frenarse sin mostrar de forma confiable qué hallazgo hay que corregir. Este estado pertenece a cada máquina, no al repositorio, así que comprobalo siempre con `gentle-ai review mode status --cwd .`. El análisis técnico y la lista que debe pasar una versión futura antes de reactivarlo están en `overlay/gentle-ai/maintenance.md`, sección **Receipt-Driven Development mode and reactivation blocker**.
 
 ### Chequeo previo de versiones
 
