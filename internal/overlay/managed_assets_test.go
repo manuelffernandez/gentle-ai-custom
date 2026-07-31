@@ -228,6 +228,10 @@ func inject() {
 	if err != nil {
 		t.Fatalf("git rev-parse upstream HEAD: %v", err)
 	}
+	if _, err := runGit(upstreamRepo, false, "tag", "v2.0.0"); err != nil {
+		t.Fatalf("git tag upstream release: %v", err)
+	}
+	installFakeGentleAI(t, "#!/bin/sh\necho 'gentle-ai 2.0.0'\n")
 
 	repoRoot := t.TempDir()
 	t.Setenv(upstreamRepoEnvVar, upstreamRepo)
@@ -266,7 +270,8 @@ func inject() {
 
 	statePath := filepath.Join(repoRoot, "overlay", "gentle-ai", "state", "upstream-state.json")
 	writeJSONFixture(t, statePath, UpstreamState{
-		LastMaintainedVersion: previousCommit,
+		LastMaintainedVersion: "1.0.0",
+		LastMaintainedTag:     "v1.0.0",
 		LastMaintainedCommit:  previousCommit,
 		Notes:                 "before sync",
 	})
@@ -282,6 +287,9 @@ func inject() {
 
 	if updatedState.LastMaintainedCommit != upstreamHead {
 		t.Fatalf("updated last_maintained_commit = %q, want %q", updatedState.LastMaintainedCommit, upstreamHead)
+	}
+	if updatedState.LastMaintainedVersion != "2.0.0" || updatedState.LastMaintainedTag != "v2.0.0" {
+		t.Fatalf("updated release identity = version %q tag %q, want 2.0.0 and v2.0.0", updatedState.LastMaintainedVersion, updatedState.LastMaintainedTag)
 	}
 
 	wantNote := formatUpstreamAssetSyncNote(previousCommit, upstreamHead)

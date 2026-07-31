@@ -137,6 +137,24 @@ func TestDetectGentleAIVersionRejectsFailedCommand(t *testing.T) {
 	}
 }
 
+func TestRunVersionPreflightDoesNotRequireUpstreamClone(t *testing.T) {
+	repoRoot := t.TempDir()
+	statePath := filepath.Join(repoRoot, "overlay", "gentle-ai", "state")
+	if err := os.MkdirAll(statePath, 0o755); err != nil {
+		t.Fatalf("mkdir state path: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(statePath, "upstream-state.json"), []byte(`{"last_maintained_version":"2.2.2"}`), 0o644); err != nil {
+		t.Fatalf("write state file: %v", err)
+	}
+	installFakeGentleAI(t, "#!/bin/sh\necho 'gentle-ai 2.2.2'\n")
+
+	policy := Policy{}
+	policy.Maintenance.StateFile = "overlay/gentle-ai/state/upstream-state.json"
+	if err := runVersionPreflight(repoRoot, policy, nil, &bytes.Buffer{}); err != nil {
+		t.Fatalf("runVersionPreflight() error = %v, want success without upstream clone", err)
+	}
+}
+
 func installFakeGentleAI(t *testing.T, script string) {
 	t.Helper()
 	dir := t.TempDir()
