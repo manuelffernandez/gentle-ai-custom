@@ -88,18 +88,18 @@ El mantenimiento en este repositorio sigue siempre los mismos pasos. Lo único q
 
 1. Actualizá el ejecutable de `gentle-ai`.
 2. Actualizá los tags en tu carpeta local de `gentle-ai` y dejala en el tag exacto que corresponde a la versión instalada.
-3. Desde la carpeta de `gentle-ai-custom`, pedile al agente de mantenimiento que revise qué cambió en el proyecto original (auditoría).
+3. Desde `gentle-ai-custom`, pedile al agente de mantenimiento que revise qué cambió. Apenas carga sus instrucciones, debe ejecutar la auditoría antes de explorar muchos archivos o delegar lecturas. Si falla la coincidencia de versión, tag y commit, se detiene sin delegar nada.
 4. Antes de cambiar cualquier archivo acá, el agente te tiene que dar un resumen claro: qué hay de nuevo, qué sugiere `Adquirir`, `Sanitizar` o `Ignorar`, por qué, y qué comando recomienda para actualizar.
-5. Confirmá que estás de acuerdo antes de que el agente modifique cosas en este repositorio o actualice el sistema.
-6. Si aceptaste los cambios del proyecto original, ejecutá `sync-gentle-ai-upstream-assets.sh` para copiar esos cambios aprobados a este repositorio.
-7. Después de eso, ejecutá el comando recomendado para aplicar todo al sistema: `gentle-ai sync` o bien una reinstalación completa.
-8. Volvé a aplicar nuestra capa customizada usando `apply-gentle-ai-custom.sh`.
+5. Confirmá por separado qué autorizás: cambios en este repo, copia de snapshots, actualización del runtime y reaplicación del overlay no son el mismo permiso.
+6. Si aceptaste una nueva versión upstream y autorizaste la copia al repo, el agente puede ejecutar `sync-gentle-ai-upstream-assets.sh`.
+7. El agente te recomienda `gentle-ai sync` o una reinstalación y te muestra los comandos exactos. Por defecto los ejecutás vos; el agente solo puede hacerlo si le pedís de forma explícita esa acción concreta.
+8. Volvé a aplicar nuestra capa con `apply-gentle-ai-custom.sh`. El agente también necesita una autorización explícita separada para ejecutarlo.
 9. Terminá con una revisión general para asegurar que todo quedó bien y dejá un resumen final de lo que se adquirió, sanitizó o ignoró.
 10. Reiniciá OpenCode si el archivo `~/.config/opencode/opencode.json` tuvo algún cambio.
 
 Es normal no haber ejecutado todavía `gentle-ai sync` ni una reinstalación: esos pasos vienen después de la auditoría y de tu aprobación.
 
-Antes de analizar cambios, la auditoría comprueba cuatro cosas: la versión instalada, que la carpeta original esté totalmente limpia, que exista el tag exacto `v<versión>` y que `HEAD` apunte al commit de ese tag. También revisa cambios dentro de submódulos. Si algo no coincide, se detiene y explica cómo actualizar tags o cambiar al tag correcto de forma manual. Nunca descarga tags ni cambia de versión por su cuenta.
+Antes de explorar el repo o delegar el análisis, la auditoría comprueba cuatro cosas: la versión instalada, que la carpeta original esté totalmente limpia, que exista el tag exacto `v<versión>` y que `HEAD` apunte al commit de ese tag. También revisa cambios dentro de submódulos. Si algo no coincide, se detiene sin delegar nada y explica cómo actualizar tags o cambiar al tag correcto de forma manual. Nunca descarga tags ni cambia de versión por su cuenta. `last_maintained_commit` sirve para elegir desde dónde comparar cambios; no demuestra esta coincidencia.
 
 Esto también vale para versiones preliminares: solo se aceptan si existe su tag exacto. No alcanza con estar cerca de un tag, en una rama que lo contiene o en un commit posterior. El mismo control se repite antes de copiar snapshots con `sync-gentle-ai-upstream-assets`.
 
@@ -114,8 +114,10 @@ bash ~/Documentos/gentle-ai-custom/audit-gentle-ai-upstream.sh
 # solo después de aprobar los cambios
 bash ~/Documentos/gentle-ai-custom/sync-gentle-ai-upstream-assets.sh
 
-# solo después de revisar y actualizar este repositorio si hace falta
+# acción del runtime: la ejecuta la persona, salvo pedido explícito al agente
 gentle-ai sync
+
+# autorización separada: actualizar el runtime no autoriza este paso
 bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh opencode
 
 # o el equivalente para todo (hoy opencode es el único agente soportado)
@@ -145,6 +147,8 @@ Antes de tocar cualquier archivo, la auditoría tiene que responder esto de form
 Hoy en día, la auditoría busca diferencias usando comandos como `git diff` y las filtra para separar lo que sí importa de lo que no, pero sin dejar de revisar cosas importantes de estructura.
 
 Los scripts `audit-gentle-ai-upstream` y `sync-gentle-ai-upstream-assets` se pueden usar a mano, pero es mejor pedirle al agente de mantenimiento que los use. Así te puede explicar qué cambió y pedirte permiso antes de tocar nada. El comando `sync-gentle-ai-upstream-assets` solo copia cosas aprobadas a este repositorio; no actualiza la configuración de tu computadora.
+
+La actualización del runtime sigue siendo tuya por defecto. Aprobar la auditoría, aceptar cambios upstream, copiar snapshots al repo o permitir ediciones del overlay NO autoriza al agente a ejecutar `gentle-ai sync` ni una reinstalación. También tenés que autorizar por separado cualquier ejecución de `apply-gentle-ai-custom`.
 
 El comando `apply-gentle-ai-custom` sigue siendo independiente de la carpeta original: compara la versión instalada con la versión mantenida por este overlay y no necesita encontrar el clon de upstream.
 

@@ -20,7 +20,7 @@ Approved upstream runtime assets are adopted replacement-first: let upstream mat
 
 1. Update the `gentle-ai` binary.
 2. Update tags in the resolved upstream clone and manually check out the exact `v<V>` release matching `gentle-ai --version`.
-3. From `gentle-ai-custom`, run `bash audit-gentle-ai-upstream.sh`.
+3. From `gentle-ai-custom`, load the maintainer skill/minimal invocation context and immediately run `bash audit-gentle-ai-upstream.sh` synchronously. Do not broadly explore the repo or delegate repository reading/drift analysis first. If parity fails, STOP and delegate nothing.
 4. Convert the audit into a concise decision summary before any mutation:
    - what changed upstream and why it matters
    - `Scope`: `Managed` / `Unmanaged`
@@ -30,16 +30,17 @@ Approved upstream runtime assets are adopted replacement-first: let upstream mat
    - `Follow-up` (optional)
    - repo sync requirement: whether approval of a new boundary requires `bash sync-gentle-ai-upstream-assets.sh`
    - recommended runtime path: `gentle-ai sync` vs full reinstall
-5. STOP for explicit approval before updating this repo, advancing `state/upstream-state.json`, running `bash sync-gentle-ai-upstream-assets.sh`, or refreshing runtime.
-6. If a new upstream boundary was approved, run `bash sync-gentle-ai-upstream-assets.sh` as the repo sync step to refresh `overlay/gentle-ai/assets/upstream/...`.
-7. Execute the recommended upstream refresh path:
+5. STOP for explicit approval before updating this repo, advancing `state/upstream-state.json`, or running `bash sync-gentle-ai-upstream-assets.sh`.
+6. If a new upstream boundary and repo sync were separately approved, run `bash sync-gentle-ai-upstream-assets.sh` to refresh `overlay/gentle-ai/assets/upstream/...`.
+7. Recommend the upstream refresh path and print exact instructions:
    - `gentle-ai sync` if the maintained runtime target stays effectively compatible
    - full reinstall if adopted changes affect topology, presets, or materialization for the maintained runtime target, or if sync no longer materializes the right state
-8. Re-apply the overlay with `bash apply-gentle-ai-custom.sh opencode`.
+   Runtime refresh is human-owned by default. Do not execute either path unless the human explicitly requests that specific runtime action.
+8. Recommend re-applying the overlay with `bash apply-gentle-ai-custom.sh opencode`. Execute it only with separate explicit authorization; runtime-refresh approval is not apply approval.
 9. Read `Summary:`, verify the final on-disk state, run one fresh-context consistency review, and return a closing summary of what was actually `Adquirir`, `Sanitizar`, or `Ignorar`, and why.
 10. If `~/.config/opencode/opencode.json` changed, restart OpenCode.
 
-No `gentle-ai sync` or reinstall yet is the normal state before step 3. Asking what was updated helps diagnosis but proves nothing; the audit always runs the exact release parity preflight.
+No `gentle-ai sync` or reinstall yet is the normal state before step 3. Asking what was updated helps diagnosis but proves nothing; the audit activation gate always runs first.
 
 ## Release parity preflight
 
@@ -51,6 +52,8 @@ Both canonical audit and sync entrypoints stop before drift analysis, snapshot c
 - Upstream `HEAD` equals that peeled commit.
 
 This accepts a prerelease only at its exact tag. It does not use `git describe`, nearest tags, version ordering, or branch ancestry. It never fetches tags or changes the checkout automatically.
+
+For the maintainer flow, this is an activation hard gate. Run it immediately after the minimal skill context and before broad repository exploration or repository-reading/drift-analysis delegation. On failure, stop immediately and delegate nothing. `last_maintained_commit` defines the later drift range; it is not parity proof.
 
 If the tag is missing or stale, run `git -C <upstream-repo> fetch --tags`, verify `v<V>`, and check it out manually. If a pulled branch is ahead of the release, check out the exact tag before retrying. If either only the binary or only the clone changed, the same preflight blocks until both match. If neither changed, it still verifies the existing pair.
 
@@ -158,6 +161,10 @@ No repo mutation happens before that handoff is approved.
 - Do not recommend reinstall only because upstream added support for some other agent or platform outside the maintained runtime target/materialized state.
 - Recommend a full reinstall when the adopted change affects topology, presets, or materialization for the maintained runtime target, or when `gentle-ai sync` cannot materialize the required state.
 - If upstream changes commit/PR governance, compare it against the explicit local customizations first; only sanitize when there is a concrete conflict.
+
+The maintainer may audit, classify, recommend, and print exact runtime-refresh instructions. It must not run `gentle-ai sync` or a reinstall unless the human explicitly requests that specific action. Approval of findings, adoption, repo snapshot sync, or overlay edits is not authorization for runtime refresh.
+
+Runtime refresh, repo snapshot sync, and overlay apply are separate actions. Approval for one never implies approval for another.
 
 `Runtime` includes changes to the maintained target's wiring, install path, config, or materialized files even when the agent behavior itself does not change.
 

@@ -21,9 +21,10 @@ Esta carpeta agrupa los assets operativos del overlay de Gentle AI.
 ## Modelo vigente
 
 - `policy/managed-assets.json` es el mapa canónico entre upstream aprobado y runtime owned.
-- `audit-gentle-ai-upstream` cubre audit + recomendación antes de cualquier mutación.
+- `audit-gentle-ai-upstream` es un gate de activación: se ejecuta de forma sincrónica apenas se carga el contexto mínimo del maintainer, antes de explorar ampliamente el repo o delegar lecturas/análisis. Si falla la paridad, el flujo se detiene y no delega nada.
 - Antes de analizar o copiar, `audit` y `sync` exigen que el clon upstream esté totalmente limpio y que `HEAD` coincida con el commit del tag exacto `v<V>` para la versión instalada. No usan tags cercanos ni cambian el checkout automáticamente.
 - `sync-gentle-ai-upstream-assets` hace el repo sync de `assets/upstream/...` más la frontera aprobada y guarda la versión, el tag y el commit exactos verificados; no refresca el runtime.
+- `last_maintained_commit` define el rango de auditoría después de validar la paridad; no demuestra que binario, tag y `HEAD` coincidan.
 - No haber ejecutado todavía `gentle-ai sync` o una reinstalación es el estado normal antes de auditar. `apply` no necesita el clon upstream y conserva su chequeo separado contra la frontera mantenida.
 - `apply-gentle-ai-custom` conserva los prompts, contratos, comandos y plugins SDD materializados por Gentle AI; los snapshots de `assets/upstream/...` no son fuentes de instalación.
 - Antes de escribir, `apply` valida solo lo que sus propias operaciones necesitan: límites de ownership, prompts base para perfiles configurados, migraciones seguras de referencias viejas y anchors de Judgment Day.
@@ -31,7 +32,8 @@ Esta carpeta agrupa los assets operativos del overlay de Gentle AI.
 - Los actores JD con sufijo se clonan desde el actor upstream global correspondiente. `apply` conserva su estructura y cambia solo la asignación y el permiso del orchestrator nombrado.
 - `apply` no interpreta ni certifica la semántica de prompts, contratos o plugins de Gentle AI. Un plugin ausente u opaco no bloquea operaciones custom que no lo usan.
 - El estado de ownership registra todos los outputs instalados por esta capa. La limpieza protege árboles devueltos a upstream y targets de parches puntuales, pero no los vuelve a declarar como archivos propios.
-- El runtime refresh (`gentle-ai sync` o reinstalación completa) es un paso separado y depende de si el cambio adoptado afecta el runtime target/materialized state que este repo mantiene.
+- El runtime refresh (`gentle-ai sync` o reinstalación completa) es humano por defecto. El maintainer puede recomendarlo y mostrar instrucciones exactas, pero solo puede ejecutarlo si la persona pide explícitamente esa acción concreta.
+- Aprobar findings, adopción, repo sync o ediciones del overlay no autoriza runtime refresh. Aplicar el overlay también necesita autorización separada; aprobar runtime refresh no autoriza `apply`.
 - La estrategia vigente es upstream-first: SDD, orchestrator y workflows de PR/chained/work-unit se adquieren desde upstream por defecto, salvo conflicto concreto con una customización local explícita.
 - `chained-pr` y `work-unit-commits` siguen retenidas como parte de esa estrategia.
 - `issue-creation` queda fuera del runtime OpenCode por defecto: se poda del runtime y no tiene copia repo-owned instalada.

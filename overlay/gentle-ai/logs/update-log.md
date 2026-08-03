@@ -4,6 +4,25 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-08-03 | Restored the Gentle AI v2.2.4 snapshot adoption
+
+- **Type**: `adoption`
+- **Upstream scope/range**: `09c2d8b6369860058aa44704df76b1b33c745675` (`v2.2.2`) -> `fdecaf570a20b042da36d0b0b6e0a21ee5fed182` (`v2.2.4`)
+- **Decision**: `Adquirir` provider-defect handoff and attempt routing, passive SDD learning closure, safe reviewer recapture, provider-owned accepted correction findings, and native reviewer inspection changes. `Sanitizar` the updated `issue-creation` audit snapshot while preserving the local prune policy. `Ignorar` unmanaged binary, model, MCP, CI, and documentation changes outside the maintained scope. Refreshed six managed snapshots and advanced `overlay/gentle-ai/state/upstream-state.json`; keep/prune, runtime ownership, topology, and local Judgment Day patch behavior remain unchanged. This closes the repo-only adoption; runtime reinstall and overlay apply remain separately authorized human actions.
+- **Why it mattered**: the maintained audit baseline now captures the accepted v2.2.4 review and SDD behavior without expanding the local runtime surface or implying that the installed runtime was refreshed.
+- **Affected artifacts**: `overlay/gentle-ai/assets/upstream/opencode/plugins/review-result-artifacts.ts`; `overlay/gentle-ai/assets/upstream/opencode/prompts/orchestrators/gentle-orchestrator.md`; `overlay/gentle-ai/assets/upstream/opencode/skills/_shared/review-ledger-contract.md`; `overlay/gentle-ai/assets/upstream/opencode/skills/_shared/sdd-phase-common.md`; `overlay/gentle-ai/assets/upstream/opencode/skills/_shared/sdd-status-contract.md`; `overlay/gentle-ai/assets/upstream/opencode/skills/issue-creation/SKILL.md`; `overlay/gentle-ai/state/upstream-state.json`; `overlay/gentle-ai/logs/update-log.md`
+- **Verification**: exact binary/tag/HEAD parity at `v2.2.4`; all six snapshots matched upstream byte-for-byte with aligned modes; the canonical audit reported no drift and all structural invariants `ok`; `git diff --check` passed; fresh-context review found the combined repo state consistent. These were repo-only checks; no runtime reinstall or overlay apply was performed.
+- **Follow-up**: runtime reinstall and overlay apply remain pending and require separate human authorization. Receipt-Driven Development remains disabled until the required correction canary passes.
+
+## 2026-08-03 | Made release parity immediate and runtime refresh human-owned
+
+- **Type**: `policy-change`
+- **Upstream scope/range**: maintenance workflow contract at verified installed `gentle-ai 2.2.4`, exact tag `v2.2.4`, and release commit `fdecaf570a20b042da36d0b0b6e0a21ee5fed182`; no upstream boundary advance
+- **Decision**: made the canonical audit a synchronous activation hard gate immediately after minimal maintainer skill/context load and before broad repository exploration or repository-reading/drift-analysis delegation. A parity failure now requires an immediate stop with no delegation; `last_maintained_commit` remains only the drift-range boundary. Reserved `gentle-ai sync` and reinstall execution for a specific human request, while keeping audit/adoption approval, repo snapshot sync, runtime refresh, overlay edits, and overlay apply as separately authorized actions.
+- **Why it mattered**: the guard algorithm already rejected binary/tag/HEAD mismatch before drift analysis, but the maintainer orchestration delayed invoking it until after broad reads and could execute runtime refresh after general adoption approval. The workflow now fails closed at activation and does not treat repo approval as permission to mutate the installed runtime.
+- **Affected artifacts**: `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`; `.opencode/commands/maintain.md`; `overlay/gentle-ai/policy/maintenance-intent.md`; `AGENTS.md`; `README.md`; `overlay/gentle-ai/maintenance.md`; `overlay/gentle-ai/README.md`; `overlay/gentle-ai/logs/update-log.md`
+- **Verification**: canonical read-only audit passed exact `v2.2.4` parity and reported no managed drift or structural mismatch; final contradiction search and `git diff --check` passed. No install, runtime refresh, repo snapshot sync, overlay apply, commit, push, or PR was performed.
+
 ## 2026-07-30 | Enforced exact release parity before upstream audit and sync
 
 - **Type**: `tooling-change`

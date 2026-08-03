@@ -52,6 +52,7 @@ If one side changes, the paired script must be updated in the same commit.
 **Maintainer audit parity items:**
 - invocation of the shared upstream audit logic
 - invocation of the shared upstream snapshot-sync logic
+- synchronous release-parity activation gate before broad repository exploration or repository-reading/drift-analysis delegation
 - upstream prompt + metadata alignment checks
 - profile-generation invariant checks
 - brief human-readable drift summary output when drift is detected (especially for base prompt drift)
@@ -412,17 +413,18 @@ Canonical order:
 
 1. update the `gentle-ai` binary
 2. update tags in the resolved upstream `gentle-ai` repo and manually check out exact `v<V>` for installed `gentle-ai --version`
-3. open `gentle-ai-custom` and run the maintainer audit; no runtime sync/reinstall yet is normal
+3. open `gentle-ai-custom`; immediately after loading the maintainer skill/minimal context, run the canonical audit synchronously before broad repository exploration or repository-reading/drift-analysis delegation
 4. read `Summary:` and, if present, `Drift summary:`; convert the audit into a concise decision summary that states what is new upstream, the `Scope` / `Impact` classification, the `Decision` (`Adquirir`, `Sanitizar`, or `Ignorar`), whether repo sync is required, why, and the runtime refresh recommendation
-5. STOP for explicit user approval before any repo mutation, upstream-boundary advance, upstream-asset sync, or runtime refresh
-6. if a new upstream boundary was accepted, run `bash sync-gentle-ai-upstream-assets.sh` as the repo sync step
-7. run the correct upstream refresh path (`gentle-ai sync` or full reinstall) as a separate later runtime step
-8. re-apply the overlay with `apply-gentle-ai-custom.sh opencode` or `apply-gentle-ai-custom.sh all`
+5. STOP for explicit user approval before any repo mutation, upstream-boundary advance, or upstream-asset sync
+6. if a new upstream boundary was accepted and repo sync was separately approved, run `bash sync-gentle-ai-upstream-assets.sh` as the repo sync step
+7. recommend and print exact instructions for `gentle-ai sync` or a full reinstall; do not execute either unless the human explicitly requests that specific runtime action
+8. recommend overlay apply when needed; run `apply-gentle-ai-custom.sh opencode` or `all` only with separate explicit authorization
 9. run one fresh-context consistency review over the maintainer changes, then return a closing summary of what was `Adquirir`, `Sanitizar`, or `Ignorar`, and why
 
 Current audit discovery model:
 
 - audit and sync first require a fully clean upstream checkout whose `HEAD` equals the peeled commit of exact `refs/tags/v<V>` for installed `gentle-ai --version`
+- the audit is an activation hard gate: if parity fails, stop immediately and delegate nothing; `last_maintained_commit` is only the later audit-range boundary
 - missing/stale tags, any staged/unstaged/untracked/submodule dirt, or a branch ahead of the release block before analysis/copy/write; the tools never fetch or check out automatically
 - the user's description of what was updated is diagnostic only; exact parity is always verified and never inferred from `git describe`, nearest tags, version ordering, or ancestry
 - `audit-gentle-ai-upstream` uses `last_maintained_commit` from `overlay/gentle-ai/state/upstream-state.json`
@@ -441,7 +443,7 @@ bash apply-gentle-ai-custom.sh all
 
 Adoption rule:
 
-- If the upstream delta is overlay-relevant and the maintained runtime target stays effectively compatible, use `gentle-ai sync` and then re-apply the overlay.
+- If the upstream delta is overlay-relevant and the maintained runtime target stays effectively compatible, recommend `gentle-ai sync` and a later separately authorized overlay apply.
 - Do NOT recommend a full reinstall only because upstream added support for a new agent or platform that does not affect the runtime target/materialized state this repo actually maintains.
 - Recommend a full reinstall when adopted upstream changes affect topology, presets, or materialization for the maintained runtime target, or when `gentle-ai sync` cannot materialize the required state.
 - Compare upstream commit/PR workflow changes against the explicit local customizations in `maintenance-intent.md`; sanitize only when they conflict with that smaller local layer.
@@ -451,6 +453,8 @@ Operational reminders:
 - successful audit metadata reports the verified binary version, exact tag, and release commit; successful sync stores that exact identity in `upstream-state.json`
 - apply keeps its separate advisory installed-binary versus maintained-baseline check and does not require an upstream clone
 - `gentle-ai sync` rewrites runtime prompt refs and restores pruned skills, so re-apply is mandatory afterward.
+- approval of audit findings, adoption, repo snapshot sync, or overlay edits never authorizes runtime refresh; only an explicit request for that specific runtime action does
+- runtime-refresh authorization never authorizes overlay apply; apply requires its own explicit approval
 - `apply-gentle-ai-custom.sh opencode` is the minimum OpenCode refresh; `all` is equivalent — `opencode` is the only registered agent.
 - The maintainer workflow is approval-gated: audit first, decision summary second, mutations only after explicit user approval.
 

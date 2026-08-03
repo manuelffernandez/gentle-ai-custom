@@ -161,7 +161,7 @@ If the manifest conflicts with this file, this file wins semantically and the ma
 
 Before mutating repo or runtime state for upstream alignment:
 
-1. Run the canonical audit release parity preflight. The user's update description is diagnostic only.
+1. Immediately after loading the minimal maintainer skill/context, run the canonical audit release parity preflight synchronously, before broad repository exploration or repository-reading/drift-analysis delegation.
 2. Require the resolved upstream checkout to be clean, including staged, unstaged, untracked, and submodule state.
 3. Require exact `refs/tags/v<V>` for installed `gentle-ai --version` to exist, peel to a commit, and equal upstream `HEAD`.
 4. Audit drift against the last maintained boundary only after parity succeeds.
@@ -169,9 +169,11 @@ Before mutating repo or runtime state for upstream alignment:
 6. Produce a concise pre-mutation decision summary.
 7. Stop for explicit user approval.
 
-Do not use `git describe`, nearest tags, semantic version ordering, or branch ancestry as release parity proof. Prereleases are allowed only through their exact matching tag. Missing or stale tags, dirty state, and a branch ahead of the release block audit and sync with manual fetch/checkout guidance; automation must not fetch or check out revisions.
+If release parity fails, stop immediately and delegate nothing. Do not use `last_maintained_commit`, `git describe`, nearest tags, semantic version ordering, or branch ancestry as release parity proof. `last_maintained_commit` defines only the audit range after parity succeeds. Prereleases are allowed only through their exact matching tag. Missing or stale tags, dirty state, and a branch ahead of the release block audit and sync with manual fetch/checkout guidance; automation must not fetch or check out revisions.
 
-Not having run `gentle-ai sync` or a reinstall yet is the normal pre-audit state. Apply remains separate: it compares the installed binary with the maintained overlay baseline and does not require an upstream clone.
+Not having run `gentle-ai sync` or a reinstall yet is the normal pre-audit state. Runtime refresh is human-owned by default: the maintainer may audit, classify, recommend, and print exact instructions, but must not run `gentle-ai sync` or a reinstall unless the human explicitly requests that specific action. Audit/adoption approval, repo snapshot sync, and overlay-edit approval do not authorize runtime refresh.
+
+Repo snapshot sync via `sync-gentle-ai-upstream-assets` remains a distinct, separately approved repository action. Apply also remains separately authorized: runtime-refresh approval does not authorize `apply-gentle-ai-custom`, and apply continues to use its own installed-binary versus maintained-overlay preflight without requiring an upstream clone.
 
 After approval:
 
