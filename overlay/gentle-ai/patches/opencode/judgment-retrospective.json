@@ -5,12 +5,12 @@
       "path": "skills/judgment-day/SKILL.md",
       "replacements": [
         {
-          "before": "- Terminal transaction states are only `approved | escalated`; never reset or extend an exhausted lineage.\n",
-          "after": "- Terminal transaction states are only `approved | escalated`; never reset or extend an exhausted lineage.\n- At terminal completion, invoke the repo-owned `judgment-retrospective` skill before the closing response and persist only its compact semantic output.\n"
+          "before": "- The only terminal verdicts are `APPROVED | ESCALATED`; never reset or extend an exhausted round budget.\n",
+          "after": "- The only terminal verdicts are `APPROVED | ESCALATED`; never reset or extend an exhausted round budget.\n- At terminal completion, invoke the repo-owned `judgment-retrospective` skill before the closing response and persist only its compact semantic output.\n"
         },
         {
-          "before": "6. Repeat once at most, then run independent final verification and emit the terminal receipt.\n",
-          "after": "6. Repeat once at most, then run independent final verification and emit the terminal receipt.\n7. Invoke `judgment-retrospective` with the compact terminal package before the closing response.\n"
+          "before": "6. Repeat once at most, then run independent final verification and return the terminal verdict.\n",
+          "after": "6. Repeat once at most, then run independent final verification and return the terminal verdict.\n7. Invoke `judgment-retrospective` with the compact terminal package before the closing response.\n"
         },
         {
           "before": "artifact references, skill resolution, and exactly one final",
