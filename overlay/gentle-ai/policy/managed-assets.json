@@ -49,11 +49,14 @@
         {"key":"chained-pr","upstream_path":"internal/assets/skills/chained-pr","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/chained-pr"},
         {"key":"cognitive-doc-design","upstream_path":"internal/assets/skills/cognitive-doc-design","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/cognitive-doc-design"},
         {"key":"comment-writer","upstream_path":"internal/assets/skills/comment-writer","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/comment-writer"},
+        {"key":"gentle-ai-bench","upstream_path":"internal/assets/skills/gentle-ai-bench","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/gentle-ai-bench"},
         {"key":"go-testing","upstream_path":"internal/assets/skills/go-testing","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/go-testing"},
         {"key":"judgment-day","upstream_path":"internal/assets/skills/judgment-day","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/judgment-day"},
+        {"key":"rdd-defect-workflow","upstream_path":"internal/assets/skills/rdd-defect-workflow","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/rdd-defect-workflow"},
         {"key":"skill-creator","upstream_path":"internal/assets/skills/skill-creator","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/skill-creator"},
         {"key":"skill-improver","upstream_path":"internal/assets/skills/skill-improver","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/skill-improver"},
         {"key":"skill-registry","upstream_path":"internal/assets/skills/skill-registry","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/skill-registry"},
+        {"key":"systemic-issue-triage","upstream_path":"internal/assets/skills/systemic-issue-triage","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/systemic-issue-triage"},
         {"key":"work-unit-commits","upstream_path":"internal/assets/skills/work-unit-commits","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/work-unit-commits"}
       ],
       "pruned_upstream_skills": [

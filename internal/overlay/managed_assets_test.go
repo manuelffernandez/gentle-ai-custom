@@ -352,6 +352,29 @@ func TestUpstreamRuntimeSnapshotsAreNeverOwnedInstallSources(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadManagedAssetsTarget() error = %v", err)
 	}
+	for key, wantPath := range map[string]string{
+		"gentle-ai-bench":       "overlay/gentle-ai/assets/upstream/opencode/skills/gentle-ai-bench",
+		"rdd-defect-workflow":   "overlay/gentle-ai/assets/upstream/opencode/skills/rdd-defect-workflow",
+		"systemic-issue-triage": "overlay/gentle-ai/assets/upstream/opencode/skills/systemic-issue-triage",
+	} {
+		found := false
+		for _, skill := range target.RetainedUpstreamSkills {
+			if skill.Key == key {
+				found = true
+				if skill.RepoUpstreamPath != wantPath {
+					t.Fatalf("retained skill %q snapshot path = %q, want %q", key, skill.RepoUpstreamPath, wantPath)
+				}
+			}
+		}
+		if !found {
+			t.Fatalf("retained upstream skills missing %q", key)
+		}
+		for _, ownedSkill := range target.RepoOwnedSharedSkills.Allowlist {
+			if ownedSkill == key {
+				t.Fatalf("retained upstream skill %q must not be a repo-owned install source", key)
+			}
+		}
+	}
 	foundSnapshots := 0
 	for _, asset := range target.OwnedOverlayAssets {
 		if asset.RepoOwnedPath != "" && asset.Class != "repo_owned_runtime" {
