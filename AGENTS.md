@@ -274,7 +274,7 @@ It does two classes of work:
 2. **Maintenance/depuration of upstream Gentle AI behavior**
    - audit the upstream `gentle-orchestrator` asset before sync/reinstall work
    - prune only explicitly rejected upstream skills that stay outside the maintained runtime target
-   - keep approved upstream `work-unit-commits` and `chained-pr` snapshots for audit/sync when they do not conflict with the local layer
+   - keep approved upstream `work-unit-commits`, `chained-pr`, `gentle-ai-bench`, `rdd-defect-workflow`, and `systemic-issue-triage` snapshots for audit/sync when they do not conflict with the local layer; the last three are not repo-owned install sources or forced runtime selections
    - keep `issue-creation` pruned from the default OpenCode runtime/install surface
    - keep the upstream `branch-pr` copy pruned because its mandatory issue-first rule conflicts with the local PR workflow, then reinstall the repo-owned sanitized `branch-pr`
    - set runtime model overrides for built-in OpenCode agents
@@ -333,10 +333,13 @@ Keep:
 - `chained-pr`
 - `cognitive-doc-design`
 - `comment-writer`
+- `gentle-ai-bench`
 - `go-testing`
 - `judgment-day`
+- `rdd-defect-workflow`
 - `sdd-init`, `sdd-explore`, `sdd-propose`, `sdd-spec`, `sdd-design`, `sdd-tasks`, `sdd-apply`, `sdd-verify`, `sdd-archive`, `sdd-onboard`
 - `skill-registry`, `skill-creator`, `skill-improver`
+- `systemic-issue-triage`
 - `work-unit-commits`
 
 Prune:

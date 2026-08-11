@@ -36,6 +36,7 @@ Esta carpeta agrupa los assets operativos del overlay de Gentle AI.
 - Aprobar findings, adopción, repo sync o ediciones del overlay no autoriza runtime refresh. Aplicar el overlay también necesita autorización separada; aprobar runtime refresh no autoriza `apply`.
 - La estrategia vigente es upstream-first: SDD, orchestrator y workflows de PR/chained/work-unit se adquieren desde upstream por defecto, salvo conflicto concreto con una customización local explícita.
 - `chained-pr` y `work-unit-commits` siguen retenidas como parte de esa estrategia.
+- `gentle-ai-bench`, `rdd-defect-workflow` y `systemic-issue-triage` son snapshots upstream retenidos para audit/sync; no son fuentes repo-owned ni selecciones forzadas del runtime.
 - `issue-creation` queda fuera del runtime OpenCode por defecto: se poda del runtime y no tiene copia repo-owned instalada.
 - `shared/skills/chained-pr/` instala una copia repo-owned sanitizada para runtime: preserva la semántica upstream, pero fuerza resolver `owner/repo`, usar `--repo <owner/repo>`, ejecutar `gh` con argumentos seguros, y no crear branches/PRs desde activación automática sin pedido explícito.
 - la copia upstream de `branch-pr` sigue podada porque su regla obligatoria de issue-first choca con el flujo local, pero `shared/skills/branch-pr/` la reemplaza con una versión repo-owned sanitizada.
@@ -43,7 +44,7 @@ Esta carpeta agrupa los assets operativos del overlay de Gentle AI.
 - `shared/skills/` sigue siendo la fuente canónica de las skills repo-owned portables, incluida `judgment-retrospective`.
 - `shared/skills/commit-planner/SKILL.md` sigue siendo la capa operativa local para `/commit-plan`, `/commit-apply` y `/commit-fast`; cuando `work-unit-commits` está disponible, usa ese criterio para agrupar commits.
 - `shared/skills/branch-pr/SKILL.md` pasa a ser la capa operativa local preferida para `/pr-create` y `/pr-regenerate`; `pr-finalizer` queda como compatibilidad temporal.
-- El handoff de `judgment-day` vive en `patches/opencode/judgment-retrospective.json`; se aplica solo si el skill upstream instalado tiene los anchors exactos esperados.
+- El handoff de `judgment-day` vive en `patches/opencode/judgment-retrospective.json`; parte del protocolo standalone upstream y agrega solo la retrospectiva cuando coinciden sus anchors exactos.
 - Las referencias SDD siguen en `assets/upstream/` para auditoría, pero Gentle AI las instala y materializa en runtime.
 
 ## Contrato del informe del maintainer

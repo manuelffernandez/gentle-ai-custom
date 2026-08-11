@@ -4,6 +4,18 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-08-11 | Adopted the Gentle AI v2.3.0 repository boundary
+
+- **Date**: `2026-08-11`
+- **Title**: Adopted the Gentle AI v2.3.0 repository boundary
+- **Type**: `adoption`
+- **Upstream scope/range**: `fdecaf570a20b042da36d0b0b6e0a21ee5fed182` (`v2.2.4`) -> `d299eb8a4009f770a605174410b0cbacc5c7524f` (`v2.3.0`)
+- **Decision**: `Adquirir` the v2.3.0 SDD orchestration and phase behavior, edit-authority consent, delegation visibility, review contracts/plugin transport, post-verify review routing, typed phase failures, and mechanical archive copy/verification. `Sanitizar` only Judgment Day by retaining its standalone receipt-independent upstream protocol and updating the exact-anchor patch to add the existing terminal `judgment-retrospective` handoff. Retain `gentle-ai-bench`, `rdd-defect-workflow`, and `systemic-issue-triage` as upstream audit/sync snapshots only; they are not repo-owned install sources or forced runtime selections. Keep/prune policy, runtime ownership, profile prompt inheritance, commit/PR approval boundaries, and no-auto-commit behavior remain unchanged.
+- **Why it mattered**: the repository baseline now captures the accepted v2.3.0 SDD/review behavior without forking upstream protocols, changing maintained topology, enabling RDD, or implying a runtime refresh.
+- **Affected artifacts**: `overlay/gentle-ai/policy/managed-assets.json`; `overlay/gentle-ai/patches/opencode/judgment-retrospective.json`; refreshed v2.3.0 snapshots under `overlay/gentle-ai/assets/upstream/opencode/{commands,plugins,prompts,skills}`; `overlay/gentle-ai/state/upstream-state.json`; `internal/overlay/managed_assets_test.go`; `AGENTS.md`; `README.md`; `overlay/gentle-ai/README.md`; `overlay/gentle-ai/maintenance.md`; `overlay/gentle-ai/logs/update-log.md`
+- **Verification**: the authorized one-time `bash sync-gentle-ai-upstream-assets.sh` reported 21 managed files changed, 3 new snapshots, 18 changed snapshots, 43 unchanged files, no deletions, and advanced the exact boundary to `v2.3.0` / `d299eb8a4009f770a605174410b0cbacc5c7524f`. The post-sync canonical audit reported no managed or unmapped drift, no base prompt drift, and all profile/topology invariants `ok`. Focused runtime-patch/ownership tests and `go test ./internal/overlay -count=1` passed; the temporary-runtime verifier proved Judgment Day differs from the adopted snapshot only by declared replacements.
+- **Follow-up**: the recommended future runtime refresh is `gentle-ai sync`, followed by separately authorized overlay apply. Runtime sync, reinstall, overlay apply, global configuration mutation, commit, push, and PR creation were not executed. RDD remains disabled until source/tests and the correction-required canary pass.
+
 ## 2026-08-03 | Restored the Gentle AI v2.2.4 snapshot adoption
 
 - **Type**: `adoption`

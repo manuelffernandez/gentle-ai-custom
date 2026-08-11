@@ -84,6 +84,8 @@ Enabling RDD is operationally simple, but it governs new candidates from that po
 
 The official stable v2.2.2 binary at commit `09c2d8b6369860058aa44704df76b1b33c745675` is affected. The bug remained unfixed at upstream commit `d260cdbc8c4be083333cb8b0517ed125a450a411`.
 
+The repo-side v2.3.0 adoption does not close this blocker. Its source/tests and the mandatory correction-required canary have not established safe reactivation, so RDD remains disabled.
+
 Confirmed lifecycle:
 
 1. All selected reviewers are admitted.
@@ -128,6 +130,8 @@ RDD may be recommended for reactivation only after an adopted release exposes au
 | `shared/skills/` | Portable repo-owned skills installed globally by `apply`, including the sanitized `branch-pr` and `chained-pr`, the temporary `pr-finalizer` compatibility skill, and the Judgment Day retrospective companion skill that is activated by the `judgment-day` terminal hook |
 | `shared/commands/` | Source bodies for custom wrappers rendered by `apply` |
 | `state/upstream-state.json` | Last maintained upstream boundary |
+
+The retained v2.3.0 skill snapshots `gentle-ai-bench`, `rdd-defect-workflow`, and `systemic-issue-triage` are audit/sync inputs only. They are not repo-owned install sources and do not force runtime selection or RDD activation.
 
 ## What each command does
 
@@ -193,7 +197,7 @@ Runtime refresh, repo snapshot sync, and overlay apply are separate actions. App
 - creates named SDD phases and optional named Judgment Day actors by cloning installed upstream base agents, then reconciles local `model` / `variant`
 - keeps all five review actors global; named profiles never create suffixed review actors
 - treats omission as preserve/delegate and `{"inherit": true}` as an explicit request to remove both `model` and `variant`
-- patches only the declared Judgment Day retrospective handoff and rejects incompatible anchors
+- starts from the upstream standalone Judgment Day protocol, patches only the declared retrospective handoff, and rejects incompatible anchors
 - records every custom-installed runtime output, including single-file assets without a sync mode
 - preserves stale-state paths returned to upstream, retained upstream skill trees, and surgical patch targets without recording those files as wholly custom-owned
 - renders custom wrappers from `shared/commands/`
