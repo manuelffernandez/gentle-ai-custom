@@ -165,7 +165,7 @@ El comando `apply-gentle-ai-custom` sigue siendo independiente de la carpeta ori
 - borra las skills que no queremos usar, pero solo para los agentes donde estamos trabajando.
 - aplica nuestras preferencias de modelos de IA si las configuramos.
 - comprueba solo los archivos y referencias que necesita para aplicar perfiles o el handoff de Judgment Day.
-- conserva los prompts y plugins preparados por Gentle AI; no los reemplaza con plantillas fuente.
+- conserva los prompts y plugins preparados por Gentle AI; no los reemplaza con plantillas fuente. El snapshot del prompt opcional `background-subagents.md`, el runtime administrado de OpenCode y el overlay custom ya están sincronizados y verificados para v2.4.0. Falta reiniciar OpenCode una vez para cargar el `opencode.json` final. RDD sigue bloqueado hasta que pase su canary.
 - ajusta modelos y perfiles reutilizando los prompts base ya instalados.
 - agrega de forma puntual el handoff de `judgment-retrospective` al skill `judgment-day` compatible.
 - registra todos los archivos que instala como propios. Al limpiar registros viejos, conserva los archivos devueltos a Gentle AI y los targets de parches puntuales sin declararlos como propios.
@@ -194,7 +194,9 @@ gentle-ai review mode enable --cwd .
 
 SDD y RDD cumplen funciones distintas. SDD organiza la planificación, implementación, tests y verificación. RDD cruza ese flujo al final: cuando está activo, puede revisar el candidato inmutable después de `apply` y aportar el recibo usado en la entrega. Si RDD está apagado, no debe lanzar revisores; SDD sigue funcionando, incluidos tests y verificación, y el cierre usa la ruta `disabled/unmanaged` bajo la política normal del repositorio sin inventar un recibo.
 
-Por ahora hay que mantener RDD desactivado. Gentle AI v2.2.2 tuvo un bug confirmado: cuando una revisión pedía una corrección, el flujo podía frenarse sin mostrar de forma confiable qué hallazgo había que corregir. La adopción de v2.3.0 en este repositorio no habilita RDD: todavía hay que verificar el código y los tests de esa versión y completar el canary obligatorio con una corrección real. Este estado pertenece a cada máquina, no al repositorio, así que comprobalo siempre con `gentle-ai review mode status --cwd .`. El análisis técnico y la lista completa están en `overlay/gentle-ai/maintenance.md`, sección **Receipt-Driven Development mode and reactivation blocker**.
+Por ahora hay que mantener RDD desactivado. Gentle AI v2.2.2 tuvo un bug confirmado: cuando una revisión pedía una corrección, el flujo podía frenarse sin mostrar de forma confiable qué hallazgo había que corregir. La adaptación aceptada para v2.4.0 no habilita RDD: todavía falta completar el canary obligatorio con una corrección real. Este estado pertenece a cada máquina, no al repositorio, así que comprobalo siempre con `gentle-ai review mode status --cwd .`. El análisis técnico y la lista completa están en `overlay/gentle-ai/maintenance.md`, sección **Receipt-Driven Development mode and reactivation blocker**.
+
+La actualización autorizada del runtime de v2.4.0 se ejecutó con `gentle-ai sync --agent opencode --opencode-background-subagents=auto` y después se ejecutó el `bash apply-gentle-ai-custom.sh opencode` autorizado por separado. La verificación final pasó: las skills rechazadas no están, las siete skills propias y los cinco wrappers coinciden con sus fuentes, `AGENTS.md`, los overrides y los cuatro perfiles administrados quedaron correctos, y los prompts, plugins y contratos upstream se conservaron. La intención de background quedó en `auto`, la política efectiva en `off`, no hay launcher y no hace falta reiniciar por background. Falta reiniciar OpenCode una vez porque cambió `opencode.json`. RDD sigue apagado y bloqueado hasta que pase el canary obligatorio con una corrección real. Un futuro `gentle-ai sync` o una reinstalación volverá a requerir un `apply` autorizado por separado.
 
 ### Chequeo previo de versiones
 
@@ -328,8 +330,8 @@ Tabla operativa:
 | Caso                            | Qué agentes intervienen                                                                                                                                         | Cómo se resuelve el modelo                                                                                                                   | Dónde se cambia                                         |
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
 | Delegación built-in de OpenCode | `general`, `explore`                                                                                                                                            | Este overlay les fija modelo/variant explícitos mediante `agent_overrides`, en vez de dejar que hereden el modelo del agente que los invoca. | `~/.config/gentle-ai-custom/opencode-local-config.json` |
-| Familia base SDD                | `gentle-orchestrator`, fases SDD, tres actores de Judgment Day y cinco actores de review globales                                                                | Se resuelve por `default_profile`, no por `agent_overrides`. Los actores pueden fijar modelo o usar herencia explícita.                      | `~/.config/gentle-ai-custom/opencode-local-config.json` |
-| Perfiles SDD nombrados          | `sdd-orchestrator-<name>` + `sdd-<phase>-<name>` y, solo si se configuran, actores JD con sufijo                                                                 | Se resuelve por `profiles`. Los cinco actores de review siempre son globales y no reciben sufijo.                                            | `~/.config/gentle-ai-custom/opencode-local-config.json` |
+| Familia base SDD                | `gentle-orchestrator`, fases SDD, tres actores de Judgment Day y seis actores de review globales                                                                 | Se resuelve por `default_profile`, no por `agent_overrides`. Los actores pueden fijar modelo o usar herencia explícita.                      | `~/.config/gentle-ai-custom/opencode-local-config.json` |
+| Perfiles SDD nombrados          | `sdd-orchestrator-<name>` + `sdd-<phase>-<name>` y, solo si se configuran, actores JD con sufijo                                                                 | Se resuelve por `profiles`. Los seis actores de review siempre son globales y no reciben sufijo.                                             | `~/.config/gentle-ai-custom/opencode-local-config.json` |
 
 En otras palabras: estos overrides no duplican la configuración SDD. Cubren una capa distinta: los agentes built-in de OpenCode que el orchestrator puede usar al delegar fuera del sistema de perfiles SDD.
 
@@ -376,7 +378,8 @@ Si necesitás ir más allá de los overrides básicos y querés configurar famil
       "review-readability": { "inherit": true },
       "review-reliability": { "inherit": true },
       "review-resilience": { "inherit": true },
-      "review-refuter": { "inherit": true }
+      "review-refuter": { "inherit": true },
+      "review-validator": { "inherit": true }
     }
   },
   "profiles": [
@@ -406,7 +409,7 @@ Si necesitás ir más allá de los overrides básicos y querés configurar famil
 - **`agent_overrides`:** Fija modelos para agentes específicos fuera de SDD (como `general` o `explore`).
 - **`default_profile`:** Fija los modelos base para toda la familia de SDD por defecto.
 - **`default_profile.judgment_day`:** Acepta solo `jd-judge-a`, `jd-judge-b` y `jd-fix-agent`.
-- **`default_profile.review`:** Acepta solo los cinco actores globales de review. `{"inherit": true}` elimina su modelo y variant para que OpenCode herede ambos al delegar.
+- **`default_profile.review`:** Acepta solo los seis actores globales de review, incluido `review-validator`. `{"inherit": true}` elimina su modelo y variant para que OpenCode herede ambos al delegar.
 - **`profiles`:** Crea perfiles SDD con nombres personalizados. `judgment_day` es opcional y solo crea los actores JD declarados con sufijo; los omitidos usan el actor JD global. `review` no está permitido acá.
 
 ## Comandos custom disponibles

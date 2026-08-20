@@ -12,6 +12,7 @@ func TestCategorizeGitDiffTreatsOnlyOpenCodeAndEngramSourcesAsManaged(t *testing
 	target := testOpenCodeAgentsTarget()
 	managed, unmanaged := categorizeGitDiff([]GitDiffEntry{
 		{Status: "M", Path: "internal/assets/opencode/persona-gentleman.md"},
+		{Status: "A", Path: "internal/assets/opencode/background-subagents.md"},
 		{Status: "M", Path: "internal/assets/engram/protocol.md"},
 		{Status: "M", Path: "internal/assets/opencode/sdd-overlay-single.json"},
 		{Status: "M", Path: "internal/assets/opencode/sdd-overlay-multi.json"},
@@ -21,8 +22,8 @@ func TestCategorizeGitDiffTreatsOnlyOpenCodeAndEngramSourcesAsManaged(t *testing
 		{Status: "A", Path: "internal/assets/claude/output-style-neutral.md"},
 	}, buildManagedAssetCatalog(target))
 
-	if len(managed) != 5 {
-		t.Fatalf("managed entries = %d, want 5", len(managed))
+	if len(managed) != 6 {
+		t.Fatalf("managed entries = %d, want 6", len(managed))
 	}
 	if len(unmanaged) != 0 {
 		t.Fatalf("unmanaged entries = %d, want 0", len(unmanaged))
@@ -31,7 +32,7 @@ func TestCategorizeGitDiffTreatsOnlyOpenCodeAndEngramSourcesAsManaged(t *testing
 	for _, entry := range managed {
 		keys[entry.Record.Key] = true
 	}
-	for _, key := range []string{"opencode-persona-source", "opencode-engram-source", "opencode-overlay-single", "opencode-overlay-multi", "opencode-plugins"} {
+	for _, key := range []string{"opencode-persona-source", "opencode-background-subagents-source", "opencode-engram-source", "opencode-overlay-single", "opencode-overlay-multi", "opencode-plugins"} {
 		if !keys[key] {
 			t.Fatalf("managed record keys missing %q", key)
 		}
@@ -46,10 +47,12 @@ func TestCategorizeGitDiffTreatsOnlyOpenCodeAndEngramSourcesAsManaged(t *testing
 func TestSyncManagedTargetCopiesOpenCodeAgentsSourceFilesFromUpstream(t *testing.T) {
 	upstreamRepo := t.TempDir()
 	personaContent := []byte("## Rules\n\n- Upstream persona.\n")
+	backgroundPolicyContent := []byte("<!-- gentle-ai:opencode-background-subagents -->\nbackground policy\n<!-- /gentle-ai:opencode-background-subagents -->\n")
 	engramContent := []byte("## Engram Persistent Memory — Protocol\n\n- mem_save\n")
 	overlaySingleContent := []byte("{\n  \"name\": \"single\"\n}\n")
 	overlayMultiContent := []byte("{\n  \"name\": \"multi\"\n}\n")
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "persona-gentleman.md"), personaContent)
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "background-subagents.md"), backgroundPolicyContent)
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "engram", "protocol.md"), engramContent)
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "sdd-overlay-single.json"), overlaySingleContent)
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "sdd-overlay-multi.json"), overlayMultiContent)
@@ -64,8 +67,8 @@ func TestSyncManagedTargetCopiesOpenCodeAgentsSourceFilesFromUpstream(t *testing
 	}
 
 	// Fix #4: verify stats
-	if stats.FilesNew != 7 {
-		t.Fatalf("stats.FilesNew = %d, want 7", stats.FilesNew)
+	if stats.FilesNew != 8 {
+		t.Fatalf("stats.FilesNew = %d, want 8", stats.FilesNew)
 	}
 	if stats.DirsSynced != 1 {
 		t.Fatalf("stats.DirsSynced = %d, want 1", stats.DirsSynced)
@@ -78,6 +81,13 @@ func TestSyncManagedTargetCopiesOpenCodeAgentsSourceFilesFromUpstream(t *testing
 	}
 	if string(gotPersona) != string(personaContent) {
 		t.Fatalf("persona mirror content mismatch\nwant: %q\ngot:  %q", personaContent, gotPersona)
+	}
+	gotBackgroundPolicy, err := os.ReadFile(filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "upstream", "opencode", "background-subagents.md"))
+	if err != nil {
+		t.Fatalf("read background policy mirror: %v", err)
+	}
+	if string(gotBackgroundPolicy) != string(backgroundPolicyContent) {
+		t.Fatalf("background policy mirror content mismatch\nwant: %q\ngot:  %q", backgroundPolicyContent, gotBackgroundPolicy)
 	}
 
 	// Verify engram-protocol.md was copied verbatim
@@ -145,6 +155,7 @@ func TestRunSyncUpstreamAssetsRecordsPreviousMaintainedCommitInStateNote(t *test
 
 	upstreamRepo := t.TempDir()
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "persona-gentleman.md"), []byte("## Rules\n\n- Persona v1.\n"))
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "background-subagents.md"), []byte("background policy\n"))
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "engram", "protocol.md"), []byte("## Engram Persistent Memory — Protocol\n\n- v1\n"))
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "sdd-overlay-single.json"), []byte("{\n  \"name\": \"single\"\n}\n"))
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "sdd-overlay-multi.json"), []byte("{\n  \"name\": \"multi\"\n}\n"))
@@ -434,6 +445,26 @@ func TestValidateRuntimeOwnershipBoundaryAcceptsCurrentManifest(t *testing.T) {
 	}
 }
 
+func TestBackgroundSubagentsPromptIsAuditOnlyUpstreamSource(t *testing.T) {
+	target, _, err := loadManagedAssetsTarget(repoRootForTest(t), "opencode")
+	if err != nil {
+		t.Fatal(err)
+	}
+	asset, found := findOwnedOverlayAsset(target.OwnedOverlayAssets, "opencode-background-subagents-source")
+	if !found {
+		t.Fatal("managed-assets is missing the background-subagents prompt source")
+	}
+	if asset.Class != "upstream_source" || asset.Kind != "upstream_source_file" {
+		t.Fatalf("background-subagents classification = %s/%s, want upstream_source/upstream_source_file", asset.Class, asset.Kind)
+	}
+	if asset.UpstreamPath != "internal/assets/opencode/background-subagents.md" || asset.RepoUpstreamPath != "overlay/gentle-ai/assets/upstream/opencode/background-subagents.md" {
+		t.Fatalf("background-subagents paths = %q -> %q", asset.UpstreamPath, asset.RepoUpstreamPath)
+	}
+	if asset.RepoOwnedPath != "" || len(asset.RuntimeTargets) != 0 {
+		t.Fatalf("background-subagents must remain audit-only, got repo_owned_path=%q runtime_targets=%v", asset.RepoOwnedPath, asset.RuntimeTargets)
+	}
+}
+
 func testOpenCodeAgentsTarget() ManagedAssetsTarget {
 	return ManagedAssetsTarget{
 		WatchRoots: []string{
@@ -448,6 +479,13 @@ func testOpenCodeAgentsTarget() ManagedAssetsTarget {
 				Kind:             "upstream_source_file",
 				UpstreamPath:     "internal/assets/opencode/persona-gentleman.md",
 				RepoUpstreamPath: "overlay/gentle-ai/assets/upstream/opencode/persona-gentleman.md",
+			},
+			{
+				Key:              "opencode-background-subagents-source",
+				Class:            "upstream_source",
+				Kind:             "upstream_source_file",
+				UpstreamPath:     "internal/assets/opencode/background-subagents.md",
+				RepoUpstreamPath: "overlay/gentle-ai/assets/upstream/opencode/background-subagents.md",
 			},
 			{
 				Key:              "opencode-engram-source",
@@ -805,24 +843,31 @@ func inject() {
 	}
 }
 
-func TestBaseAssetInjectionInvariantOKAcceptsCanonicalRenderArguments(t *testing.T) {
+func TestBaseAssetInjectionInvariantOKValidatesCanonicalRenderArguments(t *testing.T) {
 	tests := []struct {
-		name     string
-		argument string
+		name      string
+		composer  string
+		arguments string
+		want      bool
 	}{
-		{name: "current adapter-local agent", argument: "agent"},
-		{name: "historical OpenCode selector", argument: "model.AgentOpenCode"},
+		{name: "real centralized composer shape", composer: "composeOrchestratorPrompt", arguments: "agent, renderOptions", want: true},
+		{name: "centralized composer missing resolved options", composer: "composeOrchestratorPrompt", arguments: "agent", want: false},
+		{name: "centralized composer with arbitrary agent", composer: "composeOrchestratorPrompt", arguments: "candidate, renderOptions", want: false},
+		{name: "centralized composer with arbitrary options", composer: "composeOrchestratorPrompt", arguments: "agent, candidateOptions", want: false},
+		{name: "current renderer with resolved options", composer: "renderSDDOrchestratorAsset", arguments: "agent, renderOptions", want: true},
+		{name: "historical renderer with adapter-local agent", composer: "renderSDDOrchestratorAsset", arguments: "agent", want: true},
+		{name: "historical renderer with OpenCode selector", composer: "renderSDDOrchestratorAsset", arguments: "model.AgentOpenCode", want: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			text := `
 orchestratorRaw, ok := agentsMap["gentle-orchestrator"]
-orchestratorMap["prompt"] = renderSDDOrchestratorAsset(` + tt.argument + `)
+orchestratorMap["prompt"] = ` + tt.composer + `(` + tt.arguments + `)
 taskRaw, ok := permissionRaw["task"].(map[string]any)
 `
-			if !baseAssetInjectionInvariantOK(text) {
-				t.Fatalf("baseAssetInjectionInvariantOK() = false, want true for argument %q", tt.argument)
+			if got := baseAssetInjectionInvariantOK(text); got != tt.want {
+				t.Fatalf("baseAssetInjectionInvariantOK() = %v, want %v for %s(%s)", got, tt.want, tt.composer, tt.arguments)
 			}
 		})
 	}
@@ -869,6 +914,17 @@ taskRaw, ok := permissionRaw["task"].(map[string]any)
 `
 	if baseAssetInjectionInvariantOK(text) {
 		t.Fatal("baseAssetInjectionInvariantOK() = true, want false for arbitrary render argument")
+	}
+}
+
+func TestBaseAssetInjectionInvariantOKRejectsArbitraryRenderOptions(t *testing.T) {
+	text := `
+orchestratorRaw, ok := agentsMap["gentle-orchestrator"]
+orchestratorMap["prompt"] = composeOrchestratorPrompt(agent, candidateOptions)
+taskRaw, ok := permissionRaw["task"].(map[string]any)
+`
+	if baseAssetInjectionInvariantOK(text) {
+		t.Fatal("baseAssetInjectionInvariantOK() = true, want false for unverified composition options")
 	}
 }
 
@@ -1075,12 +1131,43 @@ func JDPhases() []string {
 	return []string{"jd-judge-a", "jd-judge-b", "jd-fix-agent"}
 }
 
-const ReviewRefuterAgent = "review-refuter"
+const (
+	ReviewRefuterAgent = "review-refuter"
+	ReviewValidatorAgent = "review-validator"
+)
 
 func ReviewLensPhases() []string {
 	return []string{"review-risk", "review-readability", "review-reliability", "review-resilience"}
 }
 `))
+}
+
+func TestExtractStringConstantAcceptsGroupedDeclarations(t *testing.T) {
+	tests := []struct {
+		name string
+		text string
+	}{
+		{name: "file declaration", text: `package opencode
+const (
+	ReviewRefuterAgent = "review-refuter"
+	ReviewValidatorAgent = "review-validator"
+)`},
+		{name: "standalone snippet", text: `const (
+	ReviewRefuterAgent = "review-refuter"
+	ReviewValidatorAgent = "review-validator"
+)`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := extractStringConstant(tt.text, "ReviewValidatorAgent")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != "review-validator" {
+				t.Fatalf("extractStringConstant() = %q, want review-validator", got)
+			}
+		})
+	}
 }
 
 func TestStructuralRoleTopologyRejectsChangedActorSet(t *testing.T) {
@@ -1090,7 +1177,10 @@ func JDPhases() []string {
 	return []string{"jd-judge-a", "jd-judge-b", "jd-fix-agent", "jd-extra"}
 }
 
-const ReviewRefuterAgent = "review-refuter"
+const (
+	ReviewRefuterAgent = "review-refuter"
+	ReviewValidatorAgent = "review-validator"
+)
 
 func ReviewLensPhases() []string {
 	return []string{"review-risk", "review-readability", "review-reliability", "review-resilience"}
@@ -1109,6 +1199,11 @@ func ReviewLensPhases() []string {
 		t.Fatal(err)
 	}
 	reviewActors = append(reviewActors, refuter)
+	validator, err := extractStringConstant(models, "ReviewValidatorAgent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	reviewActors = append(reviewActors, validator)
 	if sameStrings(jdActors, judgmentDayActorKeys) || !sameStrings(reviewActors, reviewActorKeys) {
 		t.Fatalf("unexpected topology comparison: JD=%v review=%v", jdActors, reviewActors)
 	}

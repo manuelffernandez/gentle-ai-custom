@@ -30,7 +30,7 @@ type validatedProfile struct {
 
 var judgmentDayActorKeys = []string{"jd-judge-a", "jd-judge-b", "jd-fix-agent"}
 
-var reviewActorKeys = []string{"review-risk", "review-readability", "review-reliability", "review-resilience", "review-refuter"}
+var reviewActorKeys = []string{"review-risk", "review-readability", "review-reliability", "review-resilience", "review-refuter", "review-validator"}
 
 func validateProfilesValue(value any, label string, sddPhases []string, sddPhasesSet map[string]bool) ([]validatedProfile, error) {
 	profilesRaw, ok := value.([]any)

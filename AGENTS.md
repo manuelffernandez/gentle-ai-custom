@@ -239,7 +239,7 @@ Files that `apply-gentle-ai-custom.sh` installs into the global OpenCode runtime
 - `shared/skills/` — canonical repo-owned skills that the apply script installs globally.
 - `shared/commands/` — reusable prompt bodies for commit/PR wrapper commands rendered by the apply script.
 - `overlay/gentle-ai/assets/` — approved upstream audit snapshots plus true repo-owned runtime assets.
-- `overlay/gentle-ai/assets/upstream/opencode/` — approved upstream-equivalent OpenCode snapshot set: `persona-gentleman.md`, `engram-protocol.md` (mirrors `internal/assets/engram/protocol.md` for the owned AGENTS build), the orchestrator prompt, overlay JSONs, plugins, retained `commands/` snapshots, and selected skill snapshots.
+- `overlay/gentle-ai/assets/upstream/opencode/` — current approved upstream-equivalent OpenCode snapshots: `persona-gentleman.md`, `engram-protocol.md` (mirrors `internal/assets/engram/protocol.md` for the owned AGENTS build), `background-subagents.md`, the orchestrator prompt, overlay JSONs, plugins, retained `commands/` snapshots, and selected skill snapshots. The v2.4.0 repository snapshot, Gentle AI-managed OpenCode runtime, and separately authorized custom overlay apply are synchronized and verified. Restart OpenCode once to load the changed `opencode.json`, and keep RDD blocked until its canary passes.
 - `overlay/gentle-ai/assets/owned/opencode/AGENTS.md` — repo-owned runtime copy installed to `~/.config/opencode/AGENTS.md` with local overlay semantics.
 - `overlay/gentle-ai/patches/opencode/judgment-retrospective.json` — exact local delta applied to a compatible upstream-installed Judgment Day skill.
 - `overlay/gentle-ai/policy/gentle-ai-policy.json` — keep/prune policy, OpenCode paths, and runtime overrides.
@@ -283,7 +283,7 @@ It does two classes of work:
 
 The repo now uses a **repo-owned managed-assets** model:
 
-- `overlay/gentle-ai/assets/upstream/` will hold approved upstream behavior assets for diff/audit review, including the OpenCode overlay JSONs/plugins and only the approved `internal/assets/engram/protocol.md` snapshot tracked by the managed-assets manifest
+- `overlay/gentle-ai/assets/upstream/` will hold approved upstream behavior assets for diff/audit review, including the OpenCode overlay JSONs/plugins, the conditionally composed `background-subagents.md` prompt source, and only the approved `internal/assets/engram/protocol.md` snapshot tracked by the managed-assets manifest
 - `overlay/gentle-ai/assets/owned/` holds only true repo-owned runtime assets; raw upstream snapshots never become install sources
 - `overlay/gentle-ai/patches/` holds exact surgical deltas for compatible installed upstream assets
 - `shared/skills/` remains the canonical source for portable repo-owned skills and is NOT folded into the overlay asset tree
@@ -386,6 +386,7 @@ Repo-level rules:
 - If `profiles` is omitted, the helper applies no named SDD profiles.
 - Managed profiles create or update `sdd-orchestrator-<name>` plus the 10 `sdd-<phase>-<name>` agents in `opencode.json`.
 - Named profiles create suffixed Judgment Day actors only for explicit `judgment_day` assignments. Omitted JD slots delegate to the global actor; review actors always remain global.
+- The six global review actors include `review-validator`; managed named profiles authorize it without creating a suffixed copy.
 - Global JD/review slots accept an explicit model assignment or `{"inherit": true}`. Omission preserves runtime assignment; inheritance removes both `model` and `variant` so OpenCode Task propagates the invoking primary assignment.
 - Profiles present in `opencode.json` but not declared in the active config source are left untouched and surfaced as `WARNING - unmanaged SDD profiles left untouched`. Nothing is deleted automatically.
 - This local config governs upstream path selection, optional OpenCode config path selection, agent model assignments, and named profile assignments. Upstream Gentle AI owns runtime prompt materialization; custom apply reuses available base prompts.
@@ -401,8 +402,10 @@ Detailed schema, validation behavior, and recovery guidance belong in `.agents/s
 - Owned-state reconciliation tracks every custom-installed output, including single-file assets without a sync mode. Stale paths returned to upstream or used as surgical patch targets are protected but never recorded as wholly custom-owned.
 - `gentle-ai sync` or reinstall restores the upstream runtime surface; re-applying the overlay remains mandatory for local skills, pruning, assignments, and the retrospective patch.
 - `overlay/gentle-ai/assets/upstream/opencode/prompts/orchestrators/gentle-orchestrator.md` is the approved upstream audit baseline.
+- `internal/assets/opencode/background-subagents.md` is an upstream-owned prompt source composed conditionally into OpenCode orchestrators. The manifest tracks it as audit/snapshot input, never as a custom runtime install source.
 - Custom apply must not redirect base or named agents to raw `.overlay.md` prompt copies.
-- Receipt-Driven Development reactivation remains blocked until an adopted upstream release passes the source/test and correction-required canary checks in `overlay/gentle-ai/maintenance.md` under `Receipt-Driven Development mode and reactivation blocker`. Audit this before recommending global enable; verify machine-specific state with `gentle-ai review mode status --cwd .` rather than treating it as repo state.
+- The separately authorized `gentle-ai sync --agent opencode --opencode-background-subagents=auto` and later `bash apply-gentle-ai-custom.sh opencode` completed for v2.4.0. The final runtime passed verification: rejected skills are absent, repo-owned skills/wrappers and `AGENTS.md` match canonical outputs, overrides and four managed profiles are correct, upstream plugins/contracts/phase prompts remain preserved, and Judgment Day differs only by the retrospective patch. Background intent is `auto`, effective policy is `off`, activation is ready, no launcher is present, and no background restart is required. Because `opencode.json` changed, restart OpenCode once. Any future `gentle-ai sync` or reinstall still requires a new, separately authorized overlay apply.
+- Receipt-Driven Development reactivation remains blocked after v2.4.0 until the correction-required canary in `overlay/gentle-ai/maintenance.md` passes. Audit this before recommending global enable; verify machine-specific state with `gentle-ai review mode status --cwd .` rather than treating it as repo state.
 
 Detailed audit, recovery, and apply procedure belongs in `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md` and `overlay/gentle-ai/maintenance.md`.
 

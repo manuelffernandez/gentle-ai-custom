@@ -47,7 +47,7 @@ Use this skill when:
 - After approved maintenance work, return a closing summary of what was actually `Adquirir`, `Sanitizar`, or `Ignorar`, and why.
 - After maintenance edits, run one fresh-context reviewer/subagent consistency pass over the changed maintainer artifacts before closing.
 - The versioned policy MUST NOT carry per-profile orchestrator/phase model+variant choices. Those live in the per-machine local config at `~/.config/gentle-ai-custom/opencode-local-config.json` under `default_profile` and `profiles`.
-- The same local config may manage the three global Judgment Day actors, all five global review actors, and optional named-profile JD actors. Review actors are always global; never invent suffixed review topology.
+- The same local config may manage the three global Judgment Day actors, all six global review actors (including `review-validator`), and optional named-profile JD actors. Review actors are always global; never invent suffixed review topology.
 - Omitted JD/review slots preserve runtime assignment. Only explicit `{"inherit": true}` removes both `model` and `variant` for OpenCode Task inheritance.
 - Treat RDD reactivation as blocked until the canonical checklist in `overlay/gentle-ai/maintenance.md` under `Receipt-Driven Development mode and reactivation blocker` passes for an adopted upstream release. Never recommend global enable from release notes alone; require source/tests plus a correction-required canary.
 
@@ -109,6 +109,7 @@ Re-apply is mandatory after `gentle-ai sync` or reinstall because upstream rewri
 | `bash audit-gentle-ai-upstream.sh` reports profile/base invariant mismatch | STOP and review before recommending `sync`; the overlay assumptions may be stale even if prompt drift looks small. |
 | Audit is complete and repo/runtime state is still unchanged | Return the decision summary (`new upstream`, `Scope`, `Impact`, `Decision`, `why`, `repo sync`, refresh recommendation) and STOP for approval before any mutation. |
 | Adopted change affects topology, presets, or materialization for the maintained runtime target | STOP, summarize the impact, and explicitly recommend a full reinstall before re-applying the overlay. |
+| Accepted Gentle AI v2.4.0 adoption | After repo snapshot sync, recommend separately authorized `gentle-ai sync --agent opencode`, optionally with `--opencode-background-subagents=auto|on|off`. It refreshes Gentle AI-managed OpenCode config, plugins, and prompts; it does not reinstall OpenCode or the already-updated Gentle AI binary. Keep overlay apply separately authorized. |
 | Upstream only added a new agent/platform outside the maintained runtime target/materialized state | Note it in the audit, but do NOT recommend reinstall for that reason alone. |
 | Upstream added new skills or workflow behavior without maintained-target topology drift | STOP, summarize the impact, and recommend `gentle-ai sync` after the repo is updated. |
 | Upstream changes PR strategy, chained/stacked PR governance, review budget, or review workload behavior | Compare against explicit local customizations in `maintenance-intent.md`; recommend `Sanitizar` only for concrete conflicts, otherwise recommend `Adquirir`. |

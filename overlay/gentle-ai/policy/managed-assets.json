@@ -18,6 +18,7 @@
       ],
       "owned_overlay_assets": [
         {"key":"opencode-persona-source","class":"upstream_source","kind":"upstream_source_file","upstream_path":"internal/assets/opencode/persona-gentleman.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/persona-gentleman.md"},
+        {"key":"opencode-background-subagents-source","class":"upstream_source","kind":"upstream_source_file","upstream_path":"internal/assets/opencode/background-subagents.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/background-subagents.md"},
         {"key":"opencode-engram-source","class":"upstream_source","kind":"upstream_source_file","upstream_path":"internal/assets/engram/protocol.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/engram-protocol.md"},
         {"key":"opencode-overlay-single","class":"upstream_source","kind":"upstream_source_file","upstream_path":"internal/assets/opencode/sdd-overlay-single.json","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/sdd-overlay-single.json"},
         {"key":"opencode-overlay-multi","class":"upstream_source","kind":"upstream_source_file","upstream_path":"internal/assets/opencode/sdd-overlay-multi.json","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/sdd-overlay-multi.json"},

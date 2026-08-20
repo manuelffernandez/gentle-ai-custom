@@ -142,6 +142,7 @@ func TestApplyReconcilesGlobalActorAssignments(t *testing.T) {
 	defaultProfile["review"] = map[string]any{
 		"review-risk":        map[string]any{"inherit": true},
 		"review-readability": map[string]any{"inherit": true},
+		"review-validator":   map[string]any{"inherit": true},
 	}
 	writeJSONFixture(t, localConfigPath, localConfig)
 	runtimeConfig, err := readJSONAny(configPath)
@@ -151,7 +152,7 @@ func TestApplyReconcilesGlobalActorAssignments(t *testing.T) {
 	agents := runtimeConfig["agent"].(map[string]any)
 	mustAgent(t, agents, "jd-judge-a")["model"] = "stale/model"
 	mustAgent(t, agents, "jd-judge-a")["variant"] = "stale"
-	for _, key := range []string{"review-risk", "review-readability"} {
+	for _, key := range []string{"review-risk", "review-readability", "review-validator"} {
 		mustAgent(t, agents, key)["model"] = "stale/model"
 		mustAgent(t, agents, key)["variant"] = "stale"
 	}
@@ -169,7 +170,7 @@ func TestApplyReconcilesGlobalActorAssignments(t *testing.T) {
 	if _, exists := judge["variant"]; exists {
 		t.Fatal("explicit model with omitted variant left a stale variant")
 	}
-	for _, key := range []string{"review-risk", "review-readability"} {
+	for _, key := range []string{"review-risk", "review-readability", "review-validator"} {
 		actor := mustAgent(t, agents, key)
 		if _, exists := actor["model"]; exists {
 			t.Fatalf("inherited actor %s retained model", key)
@@ -561,10 +562,8 @@ func writeCompatibleRuntimeFixture(t *testing.T, repoRoot string) (string, strin
 		defaultPhases[phase] = map[string]any{"model": "default/" + phase, "variant": "high"}
 		profilePhases[phase] = map[string]any{"model": "profile/" + phase, "variant": "low"}
 	}
-	for _, key := range []string{
-		"jd-judge-a", "jd-judge-b", "jd-fix-agent",
-		"review-risk", "review-readability", "review-reliability", "review-resilience", "review-refuter",
-	} {
+	actorKeys := append(append([]string{}, judgmentDayActorKeys...), reviewActorKeys...)
+	for _, key := range actorKeys {
 		baseTaskPermissions[key] = "allow"
 		agents[key] = map[string]any{"mode": "subagent", "hidden": true, "prompt": "upstream " + key, "tools": map[string]any{"read": true}}
 	}
@@ -628,7 +627,7 @@ func assertNamedProfileTaskPermissionsWithJD(t *testing.T, agents map[string]any
 	if got := jsonString(tasks["*"]); got != "deny" {
 		t.Fatalf("wildcard permission = %q, want deny", got)
 	}
-	for _, key := range []string{"general", "explore", "review-risk", "review-readability", "review-reliability", "review-resilience", "review-refuter"} {
+	for _, key := range append([]string{"general", "explore"}, reviewActorKeys...) {
 		if got := jsonString(tasks[key]); got != "allow" {
 			t.Errorf("task permission %q = %q, want allow", key, got)
 		}

@@ -84,7 +84,7 @@ Enabling RDD is operationally simple, but it governs new candidates from that po
 
 The official stable v2.2.2 binary at commit `09c2d8b6369860058aa44704df76b1b33c745675` is affected. The bug remained unfixed at upstream commit `d260cdbc8c4be083333cb8b0517ed125a450a411`.
 
-The repo-side v2.3.0 adoption does not close this blocker. Its source/tests and the mandatory correction-required canary have not established safe reactivation, so RDD remains disabled.
+The accepted v2.4.0 adaptation does not close this blocker. The mandatory correction-required canary has not established safe reactivation, so RDD remains disabled.
 
 Confirmed lifecycle:
 
@@ -124,14 +124,14 @@ RDD may be recommended for reactivation only after an adopted release exposes au
 | `policy/maintenance-intent.md` | Human intent: upstream-first baseline plus the small local layer to keep |
 | `policy/gentle-ai-policy.json` | Runtime policy consumed by the Go CLI and wrappers |
 | `policy/managed-assets.json` | Canonical map of approved upstream assets and installable owned assets |
-| `assets/upstream/` | Approved upstream copies for review/diff, including the OpenCode snapshot inputs and retained assets: `persona-gentleman.md`, `engram-protocol.md` (mirrors `internal/assets/engram/protocol.md`), the orchestrator prompt, overlay JSONs/plugins, retained `commands/` snapshots, and selected skill snapshots |
+| `assets/upstream/` | Approved upstream copies currently on disk for review/diff, including `persona-gentleman.md`, `engram-protocol.md` (mirrors `internal/assets/engram/protocol.md`), `background-subagents.md`, the orchestrator prompt, overlay JSONs/plugins, retained `commands/` snapshots, and selected skill snapshots. The v2.4.0 repository snapshot, Gentle AI-managed OpenCode runtime, and separately authorized custom overlay apply are synchronized and verified. Restart OpenCode once to load the changed `opencode.json`, and keep RDD blocked until its canary passes. |
 | `assets/owned/` | True repo-owned runtime assets installed by `apply`, currently the local OpenCode `AGENTS.md` surface |
 | `patches/` | Exact-anchor local deltas applied only to compatible upstream runtime files |
 | `shared/skills/` | Portable repo-owned skills installed globally by `apply`, including the sanitized `branch-pr` and `chained-pr`, the temporary `pr-finalizer` compatibility skill, and the Judgment Day retrospective companion skill that is activated by the `judgment-day` terminal hook |
 | `shared/commands/` | Source bodies for custom wrappers rendered by `apply` |
 | `state/upstream-state.json` | Last maintained upstream boundary |
 
-The retained v2.3.0 skill snapshots `gentle-ai-bench`, `rdd-defect-workflow`, and `systemic-issue-triage` are audit/sync inputs only. They are not repo-owned install sources and do not force runtime selection or RDD activation.
+The retained v2.4.0 skill snapshots `gentle-ai-bench`, `rdd-defect-workflow`, and `systemic-issue-triage` are audit/sync inputs only. They are not repo-owned install sources and do not force runtime selection or RDD activation.
 
 ## What each command does
 
@@ -164,6 +164,10 @@ No repo mutation happens before that handoff is approved.
 - Prefer `gentle-ai sync` when the adopted change matters to the runtime target this repo actually maintains, but that target's topology, presets, and materialized state remain effectively compatible.
 - Do not recommend reinstall only because upstream added support for some other agent or platform outside the maintained runtime target/materialized state.
 - Recommend a full reinstall when the adopted change affects topology, presets, or materialization for the maintained runtime target, or when `gentle-ai sync` cannot materialize the required state.
+- For the accepted v2.4.0 change, the separately authorized `gentle-ai sync --agent opencode --opencode-background-subagents=auto` completed successfully with 25 files reported changed. Background intent is `auto`, effective policy is `off`, activation is ready, no launcher is present, and no background restart is required. Independent verification passed the upstream v2.4.0 runtime, including the new transport plugins and six-actor topology; the legacy review plugin is absent as expected.
+- The later, separately authorized `bash apply-gentle-ai-custom.sh opencode` completed successfully and updated OpenCode config. This run pruned 2 skills; wrote owned assets as new 0, changed 1, unchanged 0, deleted 0; updated prompt references 0 and left 0 unchanged; verified 1 owned runtime target; reported 0 topology warnings; managed 4 profiles; and reported profile agents created 0, updated 5, unchanged 47, with 0 unmanaged profiles.
+- Final verification passed. Rejected skills are absent; sanitized repo-owned `branch-pr` and `chained-pr`, all 7 repo-owned skills, all 5 wrappers, and owned `AGENTS.md` match canonical outputs. `general`/`explore` overrides are correct. The four managed profiles reuse the current upstream base; all six review actors, including `review-validator`, remain global with no suffixed review actors. Upstream plugins, contracts, and phase prompts are preserved, and Judgment Day differs only by the retrospective patch. Restart OpenCode once because `opencode.json` changed. RDD remains off/default and blocked pending the optional, separately authorized correction-required canary.
+- Any future `gentle-ai sync` or reinstall restores upstream runtime state and therefore requires a new overlay apply with separate explicit authorization.
 - If upstream changes commit/PR governance, compare it against the explicit local customizations first; only sanitize when there is a concrete conflict.
 
 The maintainer may audit, classify, recommend, and print exact runtime-refresh instructions. It must not run `gentle-ai sync` or a reinstall unless the human explicitly requests that specific action. Approval of findings, adoption, repo snapshot sync, or overlay edits is not authorization for runtime refresh.
@@ -195,7 +199,7 @@ Runtime refresh, repo snapshot sync, and overlay apply are separate actions. App
 - installs repo-owned skills from `shared/skills/`
 - installs the sanitized repo-owned `chained-pr` copy while keeping its upstream snapshot retained for audit/sync, and keeps `issue-creation` pruned from the default OpenCode runtime surface
 - creates named SDD phases and optional named Judgment Day actors by cloning installed upstream base agents, then reconciles local `model` / `variant`
-- keeps all five review actors global; named profiles never create suffixed review actors
+- keeps all six review actors global, including `review-validator`; named profiles never create suffixed review actors
 - treats omission as preserve/delegate and `{"inherit": true}` as an explicit request to remove both `model` and `variant`
 - starts from the upstream standalone Judgment Day protocol, patches only the declared retrospective handoff, and rejects incompatible anchors
 - records every custom-installed runtime output, including single-file assets without a sync mode
@@ -232,7 +236,7 @@ After `apply`, confirm this:
 - each effective `agent_override` resolves to the expected `model` / `variant`
 - `agent.gentle-orchestrator.prompt` remains the upstream-owned prompt or reference
 - `~/.config/opencode/AGENTS.md` matches the repo-owned asset from `assets/owned/opencode/AGENTS.md`
-- the upstream OpenCode snapshot inputs under `assets/upstream/opencode/` include `persona-gentleman.md`, `engram-protocol.md` (mirroring `internal/assets/engram/protocol.md`), the orchestrator prompt, overlay JSONs, plugins, and selected skill snapshots used to materialize that runtime file
+- the upstream OpenCode snapshot inputs under `assets/upstream/opencode/`, including `background-subagents.md`, match the synchronized v2.4.0 maintained boundary
 - each managed `sdd-orchestrator-<name>` reuses the upstream base orchestrator prompt
 - each managed `sdd-<phase>-<name>` reuses the corresponding upstream base phase prompt/reference
 - representative upstream-owned prompt, plugin, and contract files are byte- and mode-unchanged after apply

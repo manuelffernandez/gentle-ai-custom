@@ -172,7 +172,10 @@ func TestLoadLocalConfigValidatesActorFamilies(t *testing.T) {
 					"sdd-apply": map[string]any{"model": "openai/apply"},
 				},
 				"judgment_day": map[string]any{"jd-judge-a": map[string]any{"model": "openai/judge"}},
-				"review":       map[string]any{"review-risk": map[string]any{"inherit": true}},
+				"review": map[string]any{
+					"review-risk":      map[string]any{"inherit": true},
+					"review-validator": map[string]any{"model": "openai/validator"},
+				},
 			},
 			"profiles": []any{map[string]any{
 				"name": "named", "orchestrator": map[string]any{"model": "openai/orchestrator"},
@@ -220,6 +223,9 @@ func TestLoadLocalConfigValidatesActorFamilies(t *testing.T) {
 			}
 			if !got.DefaultProfile.Review["review-risk"].Inherit || got.Profiles[0].JudgmentDay["jd-fix-agent"].Model != "openai/fix" {
 				t.Fatalf("actor families were not parsed: %#v %#v", got.DefaultProfile.Review, got.Profiles[0].JudgmentDay)
+			}
+			if got.DefaultProfile.Review["review-validator"].Model != "openai/validator" {
+				t.Fatalf("review-validator assignment was not parsed: %#v", got.DefaultProfile.Review)
 			}
 		})
 	}

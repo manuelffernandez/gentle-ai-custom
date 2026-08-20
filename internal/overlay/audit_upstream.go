@@ -493,8 +493,14 @@ func evaluateStructuralInvariants(upstreamRepo string, target ManagedAssetsTarge
 	} else {
 		reviewActors = append(reviewActors, refuter)
 	}
+	validator, validatorErr := extractStringConstant(upstreamModelsText, "ReviewValidatorAgent")
+	if validatorErr != nil {
+		failures = append(failures, validatorErr.Error())
+	} else {
+		reviewActors = append(reviewActors, validator)
+	}
 	roleTopologyOK := sameStrings(jdActors, judgmentDayActorKeys) && sameStrings(reviewActors, reviewActorKeys)
-	if !roleTopologyOK && jdErr == nil && reviewErr == nil && refuterErr == nil {
+	if !roleTopologyOK && jdErr == nil && reviewErr == nil && refuterErr == nil && validatorErr == nil {
 		failures = append(failures, fmt.Sprintf("upstream JD/review actor topology is JD=%#v review=%#v, expected JD=%#v review=%#v", jdActors, reviewActors, judgmentDayActorKeys, reviewActorKeys))
 	}
 	result.ProfileNamingOK = strings.Contains(upstreamProfilesText, profilePrefixSnippet) && strings.Contains(upstreamProfilesText, profileKeyBuilderSnippet)
@@ -521,12 +527,44 @@ func extractReturnedStringSlice(text, functionName string) ([]string, error) {
 }
 
 func extractStringConstant(text, constantName string) (string, error) {
-	pattern := fmt.Sprintf(`const\s+%s\s*=\s*"([^"]+)"`, regexp.QuoteMeta(constantName))
-	match := regexp.MustCompile(pattern).FindStringSubmatch(text)
-	if match == nil {
-		return "", fmt.Errorf("could not locate upstream %s string constant", constantName)
+	file, err := parseInvariantGoSource(text)
+	if err != nil {
+		return "", fmt.Errorf("could not parse upstream source for %s string constant: %w", constantName, err)
 	}
-	return match[1], nil
+	var value string
+	var valueErr error
+	ast.Inspect(file, func(node ast.Node) bool {
+		genDecl, ok := node.(*ast.GenDecl)
+		if !ok || genDecl.Tok != token.CONST {
+			return true
+		}
+		for _, spec := range genDecl.Specs {
+			valueSpec, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+			for index, name := range valueSpec.Names {
+				if name.Name != constantName || index >= len(valueSpec.Values) {
+					continue
+				}
+				literal, ok := stringLiteralValue(valueSpec.Values[index])
+				if !ok {
+					valueErr = fmt.Errorf("upstream %s constant is not a string literal", constantName)
+					return false
+				}
+				value = literal
+				return false
+			}
+		}
+		return true
+	})
+	if valueErr != nil {
+		return "", valueErr
+	}
+	if value != "" {
+		return value, nil
+	}
+	return "", fmt.Errorf("could not locate upstream %s string constant", constantName)
 }
 
 func profileTaskScopingInvariantOK(text string) bool {
@@ -764,21 +802,29 @@ func isCanonicalOrchestratorPromptSource(expr ast.Expr) bool {
 	if !ok {
 		return false
 	}
-	if isRenderSDDOrchestratorAssetCall(call) {
+	if isCanonicalOrchestratorComposerCall(call) {
 		return true
 	}
 	return isLegacyOrchestratorAssetReadCall(call)
 }
 
-func isRenderSDDOrchestratorAssetCall(call *ast.CallExpr) bool {
+func isCanonicalOrchestratorComposerCall(call *ast.CallExpr) bool {
 	ident, ok := call.Fun.(*ast.Ident)
-	if !ok || ident.Name != "renderSDDOrchestratorAsset" || len(call.Args) != 1 {
+	if !ok {
 		return false
 	}
-	if agent, ok := call.Args[0].(*ast.Ident); ok && agent.Name == "agent" {
-		return true
+	if ident.Name == "composeOrchestratorPrompt" {
+		return len(call.Args) == 2 && isCanonicalOrchestratorAgent(call.Args[0]) && isIdent(call.Args[1], "renderOptions")
 	}
-	return isModelAgentOpenCodeSelector(call.Args[0])
+	if ident.Name != "renderSDDOrchestratorAsset" || len(call.Args) < 1 || len(call.Args) > 2 {
+		return false
+	}
+	return isCanonicalOrchestratorAgent(call.Args[0]) && (len(call.Args) == 1 || isIdent(call.Args[1], "renderOptions"))
+}
+
+func isCanonicalOrchestratorAgent(expr ast.Expr) bool {
+	agent, localAgent := expr.(*ast.Ident)
+	return (localAgent && agent.Name == "agent") || isModelAgentOpenCodeSelector(expr)
 }
 
 func isLegacyOrchestratorAssetReadCall(call *ast.CallExpr) bool {
