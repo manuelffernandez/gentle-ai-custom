@@ -25,6 +25,7 @@ Use this skill when:
 - Immediately after loading this skill and the minimal context needed to invoke it, run `bash audit-gentle-ai-upstream.sh` synchronously. Run nothing that performs broad repository exploration, repository-reading delegation, or drift-analysis delegation first. If release parity fails, STOP immediately and delegate nothing.
 - Treat the user's account of what was updated as diagnostic context only. Before every audit, run the canonical audit entrypoint and trust its release parity preflight, not the answer.
 - Audit and sync must fail before drift analysis, copy, or writes unless the upstream checkout is completely clean, exact `refs/tags/v<V>` for installed `gentle-ai --version` exists and peels to a commit, and `HEAD` equals that commit. Never use nearest-tag, version ordering, branch ancestry, or `git describe` as parity proof. Never fetch or check out automatically.
+- Audit/sync upstream resolution reads only `upstream_repo_path` from the local config. Do not require machine-local profile assignments to match a newly adopted phase schema before the repository audit; apply retains full runtime-config validation before writes.
 - Treat `last_maintained_commit` only as the drift-range boundary after parity succeeds. It is never release parity proof.
 - `audit-gentle-ai-upstream` discovers drift from `git diff --name-status --find-renames <last_maintained_commit>..<verified-release-commit>`, filtered through `overlay/gentle-ai/policy/managed-assets.json`, while still checking structural invariants from upstream integration code.
 - `sync-gentle-ai-upstream-assets` refreshes `overlay/gentle-ai/assets/upstream/...` plus the maintained boundary only after the drift has been reviewed and accepted.
@@ -50,6 +51,7 @@ Use this skill when:
 - The same local config may manage the three global Judgment Day actors, all six global review actors (including `review-validator`), and optional named-profile JD actors. Review actors are always global; never invent suffixed review topology.
 - Omitted JD/review slots preserve runtime assignment. Only explicit `{"inherit": true}` removes both `model` and `variant` for OpenCode Task inheritance.
 - Treat RDD reactivation as blocked until the canonical checklist in `overlay/gentle-ai/maintenance.md` under `Receipt-Driven Development mode and reactivation blocker` passes for an adopted upstream release. Never recommend global enable from release notes alone; require source/tests plus a correction-required canary.
+- Treat `sdd-research` as the phase immediately after `sdd-explore`. Profile audits must validate all 11 phases, semantic managed-profile detection, and deny-by-default `permission.task` delegation without requiring deprecated agent-local `tools.task`.
 
 ## Audit report contract
 
@@ -109,11 +111,11 @@ Re-apply is mandatory after `gentle-ai sync` or reinstall because upstream rewri
 | `bash audit-gentle-ai-upstream.sh` reports profile/base invariant mismatch | STOP and review before recommending `sync`; the overlay assumptions may be stale even if prompt drift looks small. |
 | Audit is complete and repo/runtime state is still unchanged | Return the decision summary (`new upstream`, `Scope`, `Impact`, `Decision`, `why`, `repo sync`, refresh recommendation) and STOP for approval before any mutation. |
 | Adopted change affects topology, presets, or materialization for the maintained runtime target | STOP, summarize the impact, and explicitly recommend a full reinstall before re-applying the overlay. |
-| Accepted Gentle AI v2.4.0 adoption | After repo snapshot sync, recommend separately authorized `gentle-ai sync --agent opencode`, optionally with `--opencode-background-subagents=auto|on|off`. It refreshes Gentle AI-managed OpenCode config, plugins, and prompts; it does not reinstall OpenCode or the already-updated Gentle AI binary. Keep overlay apply separately authorized. |
+| Accepted Gentle AI v2.5.0 adoption | Because `sdd-research` changes maintained OpenCode profile topology, recommend a full SDD component reinstall after separately authorized repo snapshot sync. Keep runtime reinstall and overlay apply separately authorized. |
 | Upstream only added a new agent/platform outside the maintained runtime target/materialized state | Note it in the audit, but do NOT recommend reinstall for that reason alone. |
 | Upstream added new skills or workflow behavior without maintained-target topology drift | STOP, summarize the impact, and recommend `gentle-ai sync` after the repo is updated. |
 | Upstream changes PR strategy, chained/stacked PR governance, review budget, or review workload behavior | Compare against explicit local customizations in `maintenance-intent.md`; recommend `Sanitizar` only for concrete conflicts, otherwise recommend `Adquirir`. |
-| An upstream release may permit Receipt-Driven Development reactivation | Recheck the canonical RDD blocker in `overlay/gentle-ai/maintenance.md`. Recommend enable only if authoritative corroborated correction scope is exposed before candidate mutation and source/tests plus the correction-required canary pass. |
+| Gentle AI v2.5.0 supplies correction-handoff source/tests | Record that evidence, but keep RDD blocked. Recommend enable only after the correction-required canary proves authoritative corroborated correction scope is available before mutation and the lifecycle reaches a valid receipt. |
 | Fresh-context review finds inconsistency after maintenance edits | Fix it before closing, or STOP and surface the inconsistency if the correct resolution is unclear. |
 
 ## Execution Steps
@@ -157,13 +159,13 @@ Re-apply is mandatory after `gentle-ai sync` or reinstall because upstream rewri
    - named profiles create only explicitly configured suffixed JD actors, delegate omitted JD slots globally, and have no suffixed review actors
    - `agent.gentle-orchestrator.prompt` remains the upstream-owned prompt or reference
    - each managed named profile orchestrator reuses the upstream base orchestrator prompt
-   - each unsuffixed and managed suffixed SDD phase agent reuses its upstream base phase prompt/reference
+   - each of the 11 unsuffixed and managed suffixed SDD phase agents, including `sdd-research`, reuses its upstream base phase prompt/reference
    - representative upstream-owned prompt, plugin, and contract files remain byte- and mode-unchanged by custom apply
    - no managed agent references an obsolete `.overlay.md` prompt
    - Judgment Day differs from its compatible installed upstream baseline only by the declared retrospective handoff
    - default/named profile assignments still match the local config
    - `overlay/gentle-ai/assets/upstream/opencode/prompts/orchestrators/gentle-orchestrator.md` and related upstream metadata remain consistent with `upstream-state.json`
-19. Run one fresh-context reviewer/subagent pass against the changed maintainer artifacts and the final maintenance diff to confirm the workflow, docs, and summary outputs stay consistent.
+19. Run one fresh-context consistency pass against the changed maintainer artifacts and the final maintenance diff. Use a reviewer/subagent when delegation is authorized; otherwise perform the pass directly.
 20. Return a closing summary that states what was actually `Adquirir`, `Sanitizar`, or `Ignorar`, and why.
 21. If the work closed an eligible maintenance event, record one consolidated entry in `overlay/gentle-ai/logs/update-log.md`.
 

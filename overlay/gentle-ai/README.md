@@ -1,67 +1,61 @@
 # Gentle AI overlay assets
 
-Esta carpeta agrupa los assets operativos del overlay de Gentle AI.
+This directory contains the operational assets for the Gentle AI overlay.
 
-## Qué leer primero
+## Read first
 
-- guía principal del repo: `../../README.md`
-- guía humana de mantenimiento: `maintenance.md`
-- skill operativa del maintainer: `../../.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`
+- Main repository guide: `../../README.md`
+- Human maintenance guide: `maintenance.md`
+- Maintainer skill: `../../.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`
 
-## Qué vive acá
+## Key paths
 
-- `maintenance.md` — guía humana centralizada para mantenimiento
-- `assets/upstream/` — copias upstream aprobadas para review/diff
-- `assets/owned/` — pocos assets realmente propios que `apply-gentle-ai-custom` instala, como `AGENTS.md`
-- `patches/` — deltas locales puntuales aplicados sobre un runtime upstream compatible
-- `policy/` — intención y policy machine-readable del overlay
-- `state/` — frontera upstream mantenida
-- `logs/` — historial de decisiones cerradas del overlay
+- `maintenance.md` — centralized human maintenance guide
+- `assets/upstream/` — approved upstream copies for audit and diff review
+- `assets/owned/` — true repo-owned assets installed by `apply-gentle-ai-custom`
+- `patches/` — surgical local deltas applied to compatible upstream runtime files
+- `policy/` — semantic intent and machine-readable overlay policy
+- `state/` — last maintained upstream boundary
+- `logs/` — closed maintenance-event ledger
 
-## Modelo vigente
+## Current model
 
-- `policy/managed-assets.json` es el mapa canónico entre upstream aprobado y runtime owned.
-- `audit-gentle-ai-upstream` es un gate de activación: se ejecuta de forma sincrónica apenas se carga el contexto mínimo del maintainer, antes de explorar ampliamente el repo o delegar lecturas/análisis. Si falla la paridad, el flujo se detiene y no delega nada.
-- Antes de analizar o copiar, `audit` y `sync` exigen que el clon upstream esté totalmente limpio y que `HEAD` coincida con el commit del tag exacto `v<V>` para la versión instalada. No usan tags cercanos ni cambian el checkout automáticamente.
-- `sync-gentle-ai-upstream-assets` hace el repo sync de `assets/upstream/...` más la frontera aprobada y guarda la versión, el tag y el commit exactos verificados; no refresca el runtime.
-- `last_maintained_commit` define el rango de auditoría después de validar la paridad; no demuestra que binario, tag y `HEAD` coincidan.
-- No haber ejecutado todavía `gentle-ai sync` o una reinstalación es el estado normal antes de auditar. `apply` no necesita el clon upstream y conserva su chequeo separado contra la frontera mantenida.
-- `apply-gentle-ai-custom` conserva los prompts, contratos, comandos y plugins SDD materializados por Gentle AI; los snapshots de `assets/upstream/...` no son fuentes de instalación.
-- Antes de escribir, `apply` valida solo lo que sus propias operaciones necesitan: límites de ownership, prompts base para perfiles configurados, migraciones seguras de referencias viejas y anchors de Judgment Day.
-- La configuración local puede asignar o heredar explícitamente los tres actores globales de Judgment Day y los seis actores globales de review, incluido `review-validator`. Los perfiles nombrados solo pueden crear actores JD con sufijo; review siempre queda global.
-- `background-subagents.md` es una fuente de prompt upstream que Gentle AI puede componer en el orchestrator de OpenCode. Este repo la mapea solo como snapshot de auditoría, no como fuente runtime propia.
-- Los actores JD con sufijo se clonan desde el actor upstream global correspondiente. `apply` conserva su estructura y cambia solo la asignación y el permiso del orchestrator nombrado.
-- `apply` no interpreta ni certifica la semántica de prompts, contratos o plugins de Gentle AI. Un plugin ausente u opaco no bloquea operaciones custom que no lo usan.
-- El estado de ownership registra todos los outputs instalados por esta capa. La limpieza protege árboles devueltos a upstream y targets de parches puntuales, pero no los vuelve a declarar como archivos propios.
-- El runtime refresh (`gentle-ai sync` o reinstalación completa) es humano por defecto. El maintainer puede recomendarlo y mostrar instrucciones exactas, pero solo puede ejecutarlo si la persona pide explícitamente esa acción concreta.
-- Para la adaptación aceptada de v2.4.0, el runtime sync y el posterior `bash apply-gentle-ai-custom.sh opencode`, autorizados por separado, ya se ejecutaron. La verificación final pasó: no quedan skills rechazadas, los outputs repo-owned coinciden con sus fuentes, los overrides y cuatro perfiles administrados son correctos, y el runtime upstream quedó preservado salvo el parche retrospectivo declarado para Judgment Day. La intención de background es `auto`, la política efectiva es `off`, la activación está lista, no hay launcher y no hace falta reiniciar por background. Falta reiniciar OpenCode una vez porque cambió `opencode.json`; RDD sigue apagado y bloqueado hasta su canary. Un futuro runtime sync o reinstalación vuelve a exigir un `apply` con autorización separada.
-- Aprobar findings, adopción, repo sync o ediciones del overlay no autoriza runtime refresh. Aplicar el overlay también necesita autorización separada; aprobar runtime refresh no autoriza `apply`.
-- La estrategia vigente es upstream-first: SDD, orchestrator y workflows de PR/chained/work-unit se adquieren desde upstream por defecto, salvo conflicto concreto con una customización local explícita.
-- `chained-pr` y `work-unit-commits` siguen retenidas como parte de esa estrategia.
-- `gentle-ai-bench`, `rdd-defect-workflow` y `systemic-issue-triage` son snapshots upstream retenidos para audit/sync; no son fuentes repo-owned ni selecciones forzadas del runtime.
-- `issue-creation` queda fuera del runtime OpenCode por defecto: se poda del runtime y no tiene copia repo-owned instalada.
-- `shared/skills/chained-pr/` instala una copia repo-owned sanitizada para runtime: preserva la semántica upstream, pero fuerza resolver `owner/repo`, usar `--repo <owner/repo>`, ejecutar `gh` con argumentos seguros, y no crear branches/PRs desde activación automática sin pedido explícito.
-- la copia upstream de `branch-pr` sigue podada porque su regla obligatoria de issue-first choca con el flujo local, pero `shared/skills/branch-pr/` la reemplaza con una versión repo-owned sanitizada.
-- `hermes-ephemeral-delegation` sigue fuera del runtime OpenCode mantenido y permanece como skill upstream no retenida.
-- `shared/skills/` sigue siendo la fuente canónica de las skills repo-owned portables, incluida `judgment-retrospective`.
-- `shared/skills/commit-planner/SKILL.md` sigue siendo la capa operativa local para `/commit-plan`, `/commit-apply` y `/commit-fast`; cuando `work-unit-commits` está disponible, usa ese criterio para agrupar commits.
-- `shared/skills/branch-pr/SKILL.md` pasa a ser la capa operativa local preferida para `/pr-create` y `/pr-regenerate`; `pr-finalizer` queda como compatibilidad temporal.
-- El handoff de `judgment-day` vive en `patches/opencode/judgment-retrospective.json`; parte del protocolo standalone upstream y agrega solo la retrospectiva cuando coinciden sus anchors exactos.
-- Las referencias SDD siguen en `assets/upstream/` para auditoría, pero Gentle AI las instala y materializa en runtime.
+- `policy/managed-assets.json` is the canonical map between approved upstream inputs and repo-owned runtime outputs.
+- Audit is an activation gate. It runs synchronously after the maintainer loads minimal context and before broad exploration or delegation.
+- Audit and repo sync require a clean upstream checkout at the exact release tag matching the installed binary. They never fetch tags or change revisions automatically.
+- Upstream resolution reads only `upstream_repo_path` from the local config. This lets audit/sync inspect a new topology before per-machine profile assignments are migrated; apply still validates the complete runtime config before writing.
+- `last_maintained_commit` defines the audit range after release parity succeeds; it is not parity proof.
+- `sync-gentle-ai-upstream-assets` refreshes approved snapshots and the maintained boundary. It does not refresh runtime.
+- `apply-gentle-ai-custom` preserves Gentle AI-materialized SDD prompts, contracts, commands, and plugins. Snapshots under `assets/upstream/` are audit inputs, not custom install sources.
+- Runtime refresh, repo snapshot sync, and overlay apply are separate authorization boundaries.
 
-## Contrato del informe del maintainer
+## v2.5.0 adaptation status
 
-- `Scope`: `Managed` / `Unmanaged`
-- `Impact`: `Behavioral` / `Runtime` / `Housekeeping`
-- `Decision`: `Adquirir` / `Sanitizar` / `Ignorar`
-- Columnas: `Upstream change`, `Files`, `Scope`, `Impact`, `Decision`, `Why`, `Follow-up`
-- `Upstream change` tiene que ser un resumen humano corto del delta upstream y de por qué importa; no una lista de rutas de archivos.
-- `Follow-up` es opcional; dejalo vacío cuando no haga falta ninguna acción extra.
-- `Runtime` incluye wiring, instalación, configuración o materialización del target mantenido.
-- `Housekeeping` cubre docs irrelevantes, agentes no relacionados o fixes internos sin efecto en el target mantenido.
-- No usar `descartar` como etiqueta principal.
+- Repository policy now models 11 SDD phases, inserting `sdd-research` after `sdd-explore`.
+- Managed-assets policy covers the upstream `sdd-research` phase skill. Existing shared-skill and command-directory entries cover related shared and command files.
+- Audit invariants validate semantic managed-profile detection and deny-by-default `permission.task` delegation. Deprecated agent-local `tools.task` is not required.
+- The separately authorized repository snapshot sync, user-run full SDD component installation, and later separately authorized `bash apply-gentle-ai-custom.sh opencode` completed successfully. Approved snapshots, `state/upstream-state.json`, and installed runtime now match v2.5.0.
+- Apply updated config; pruned 2 skills; changed and verified 1 owned asset; reported 0 topology warnings; managed 4 profiles; and reported agents created 3, updated 4, unchanged 49, with 0 unmanaged profiles.
+- Final verification passed the canonical audit, `go test ./...`, `git diff --check`, and resolved `sdd-research` agent loading. The sanitized repo-owned `branch-pr`, all 7 repo-owned skills, 5 wrappers, owned `AGENTS.md`, configured overrides, and 4 managed profiles match canonical or local config. Conflicting upstream `branch-pr`, `issue-creation`, and Hermes are absent.
+- All profiles have the ordered 11-phase topology and the 3 named `sdd-research` actors. Review actors remain global with no suffixed review actors, and Judgment Day differs only by the retrospective patch. `general` is `openai/gpt-5.6-terra` / `high`; `explore` is `openai/gpt-5.6-sol` / `medium`.
+- Managed background intent and effective policy are `on`; the launcher is `~/.gentle-ai/bin/opencode`. Current Desktop/plain processes remain foreground. Restart OpenCode once for config, and use the explicit launcher for background-enabled CLI sessions. `~/.gentle-ai/state.json` was observed still reporting `installed_binary_version` as `2.4.0` despite verified v2.5.0 binary/tag/runtime; no root cause is asserted and external state was not edited.
+- RDD remains blocked. v2.5.0 supplies source and test evidence for a pre-edit correction-plan handoff, but global enable must not be recommended until the correction-required canary passes.
 
-## Regla simple
+## Preserved local boundaries
 
-- Si querés entender o usar el repo, arrancá por `README.md` en la raíz.
-- Si estás manteniendo el overlay frente a cambios del upstream, seguí `maintenance.md`.
+- `issue-creation` remains pruned from the default OpenCode runtime.
+- `shared/skills/chained-pr/` remains the sanitized runtime source. It adopts upstream anti-code-golf and bounded single-pass slicing rules while preserving explicit `owner/repo` scoping and plan-only automatic activation.
+- `branch-pr` remains pruned upstream and replaced by the repo-owned sanitized copy.
+- `gentle-ai-bench`, `rdd-defect-workflow`, and `systemic-issue-triage` remain retained snapshots, not forced runtime selections.
+- Named profiles may create suffixed Judgment Day actors only for explicit assignments. Review actors remain global.
+- The Judgment Day retrospective handoff remains the only declared surgical patch and still requires exact compatible anchors.
+
+## Maintainer report contract
+
+- `Scope`: `Managed` or `Unmanaged`
+- `Impact`: `Behavioral`, `Runtime`, or `Housekeeping`
+- `Decision`: `Adquirir`, `Sanitizar`, or `Ignorar`
+- Columns: `Upstream change`, `Files`, `Scope`, `Impact`, `Decision`, `Why`, `Follow-up`
+- `Follow-up` is optional and stays empty when no action is needed.
+
+For usage, start with the root `README.md`. For upstream maintenance, follow `maintenance.md`.

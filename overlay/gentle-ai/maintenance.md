@@ -53,6 +53,8 @@ Both canonical audit and sync entrypoints stop before drift analysis, snapshot c
 
 This accepts a prerelease only at its exact tag. It does not use `git describe`, nearest tags, version ordering, or branch ancestry. It never fetches tags or changes the checkout automatically.
 
+Audit and repo sync consume only `upstream_repo_path` while resolving the upstream clone. They intentionally do not validate runtime profile assignments at this stage, because a new phase topology must be auditable before the machine-local profile schema is migrated. Full local runtime config validation remains an apply precondition.
+
 For the maintainer flow, this is an activation hard gate. Run it immediately after the minimal skill context and before broad repository exploration or repository-reading/drift-analysis delegation. On failure, stop immediately and delegate nothing. `last_maintained_commit` defines the later drift range; it is not parity proof.
 
 If the tag is missing or stale, run `git -C <upstream-repo> fetch --tags`, verify `v<V>`, and check it out manually. If a pulled branch is ahead of the release, check out the exact tag before retrying. If either only the binary or only the clone changed, the same preflight blocks until both match. If neither changed, it still verifies the existing pair.
@@ -84,16 +86,18 @@ Enabling RDD is operationally simple, but it governs new candidates from that po
 
 The official stable v2.2.2 binary at commit `09c2d8b6369860058aa44704df76b1b33c745675` is affected. The bug remained unfixed at upstream commit `d260cdbc8c4be083333cb8b0517ed125a450a411`.
 
-The accepted v2.4.0 adaptation does not close this blocker. The mandatory correction-required canary has not established safe reactivation, so RDD remains disabled.
+The v2.5.0 source and tests appear to close the missing pre-edit handoff at the code-contract level: negotiated STATUS now issues a bound correction-plan request, and `review capture-correction-plan` records the positive bounded forecast before candidate mutation. The request is derived from admitted corroborated findings and exact `FixFindingIDs`.
 
-Confirmed lifecycle:
+This evidence does not close the operational blocker. The mandatory correction-required canary has not yet proven the full lifecycle through mutation, targeted validation, and a valid receipt, so RDD remains disabled and global enable must not be recommended.
+
+Previously confirmed affected lifecycle (v2.2.2 through the pre-v2.5 evidence boundary):
 
 1. All selected reviewers are admitted.
 2. Finalization enters `correction_required`.
 3. A positive correction forecast is recorded while the candidate is unchanged.
 4. Negotiated STATUS stops with `corrected_candidate_unavailable` but exposes no confirmed finding details or authoritative correction scope.
 
-The native authority has the missing information: it stores the full findings and `FixFindingIDs`. The OpenCode result-capture plugin replaces each successful reviewer output in the session with an opaque capture manifest. Before candidate mutation, negotiated STATUS does not return the corroborated findings or another authoritative correction handoff. A `TargetedValidationRequest` containing the finding IDs is built only after the candidate changes. The consumer is therefore told to correct the candidate without first receiving a trustworthy statement of what to correct.
+In that affected lifecycle, the native authority has the missing information: it stores the full findings and `FixFindingIDs`. The OpenCode result-capture plugin replaces each successful reviewer output in the session with an opaque capture manifest. Before candidate mutation, negotiated STATUS does not return the corroborated findings or another authoritative correction handoff. A `TargetedValidationRequest` containing the finding IDs is built only after the candidate changes. The consumer is therefore told to correct the candidate without first receiving a trustworthy statement of what to correct.
 
 Source evidence:
 
@@ -102,6 +106,12 @@ Source evidence:
 - `internal/cli/review_status_contract.go` defines the negotiated STATUS surface but exposes no pre-mutation correction scope.
 - `internal/cli/review_next_transition.go` emits `corrected_candidate_unavailable` after a forecast when no corrected candidate exists.
 - `internal/assets/opencode/plugins/review-result-artifacts.ts` replaces successful reviewer output with the native capture manifest.
+
+v2.5.0 correction evidence:
+
+- `internal/reviewtransaction/correction_plan_request.go` derives the correction request from the admitted compact review view and exact corroborated finding IDs.
+- `internal/cli/review_correction_plan_capture.go` binds and records the positive correction forecast before editing.
+- `internal/cli/review_correction_plan_request_test.go` and correction-plan capture tests exercise the pre-edit handoff and binding failures.
 
 A temporary overlay patch was assessed and deferred. No correction-handoff patch is implemented by this repository.
 
@@ -124,14 +134,14 @@ RDD may be recommended for reactivation only after an adopted release exposes au
 | `policy/maintenance-intent.md` | Human intent: upstream-first baseline plus the small local layer to keep |
 | `policy/gentle-ai-policy.json` | Runtime policy consumed by the Go CLI and wrappers |
 | `policy/managed-assets.json` | Canonical map of approved upstream assets and installable owned assets |
-| `assets/upstream/` | Approved upstream copies currently on disk for review/diff, including `persona-gentleman.md`, `engram-protocol.md` (mirrors `internal/assets/engram/protocol.md`), `background-subagents.md`, the orchestrator prompt, overlay JSONs/plugins, retained `commands/` snapshots, and selected skill snapshots. The v2.4.0 repository snapshot, Gentle AI-managed OpenCode runtime, and separately authorized custom overlay apply are synchronized and verified. Restart OpenCode once to load the changed `opencode.json`, and keep RDD blocked until its canary passes. |
+| `assets/upstream/` | Approved upstream copies currently on disk for review/diff, including `persona-gentleman.md`, `engram-protocol.md` (mirrors `internal/assets/engram/protocol.md`), `background-subagents.md`, the orchestrator prompt, overlay JSONs/plugins, retained `commands/` snapshots, and selected skill snapshots. The separately authorized v2.5.0 repository snapshot sync completed successfully, so the on-disk snapshots and maintained boundary match verified v2.5.0. The later full SDD component installation and overlay apply also completed. |
 | `assets/owned/` | True repo-owned runtime assets installed by `apply`, currently the local OpenCode `AGENTS.md` surface |
 | `patches/` | Exact-anchor local deltas applied only to compatible upstream runtime files |
 | `shared/skills/` | Portable repo-owned skills installed globally by `apply`, including the sanitized `branch-pr` and `chained-pr`, the temporary `pr-finalizer` compatibility skill, and the Judgment Day retrospective companion skill that is activated by the `judgment-day` terminal hook |
 | `shared/commands/` | Source bodies for custom wrappers rendered by `apply` |
 | `state/upstream-state.json` | Last maintained upstream boundary |
 
-The retained v2.4.0 skill snapshots `gentle-ai-bench`, `rdd-defect-workflow`, and `systemic-issue-triage` are audit/sync inputs only. They are not repo-owned install sources and do not force runtime selection or RDD activation.
+The retained skill snapshots `gentle-ai-bench`, `rdd-defect-workflow`, and `systemic-issue-triage` are audit/sync inputs only. They are not repo-owned install sources and do not force runtime selection or RDD activation.
 
 ## What each command does
 
@@ -142,6 +152,9 @@ The retained v2.4.0 skill snapshots `gentle-ai-bench`, `rdd-defect-workflow`, an
 - discovers drift with `git diff --name-status --find-renames <last_maintained_commit>..<verified-release-commit>`
 - filters that drift through `policy/managed-assets.json`
 - keeps verifying upstream structural invariants (`profiles.go`, `inject.go`, etc.)
+- validates the ordered 11-phase profile topology, including `sdd-research` after `sdd-explore`
+- validates semantic managed-profile detection rather than a removed local prefix constant
+- validates deny-by-default `permission.task` scoping and does not require deprecated agent-local `tools.task`
 
 ### Decision handoff before mutation
 
@@ -164,9 +177,12 @@ No repo mutation happens before that handoff is approved.
 - Prefer `gentle-ai sync` when the adopted change matters to the runtime target this repo actually maintains, but that target's topology, presets, and materialized state remain effectively compatible.
 - Do not recommend reinstall only because upstream added support for some other agent or platform outside the maintained runtime target/materialized state.
 - Recommend a full reinstall when the adopted change affects topology, presets, or materialization for the maintained runtime target, or when `gentle-ai sync` cannot materialize the required state.
-- For the accepted v2.4.0 change, the separately authorized `gentle-ai sync --agent opencode --opencode-background-subagents=auto` completed successfully with 25 files reported changed. Background intent is `auto`, effective policy is `off`, activation is ready, no launcher is present, and no background restart is required. Independent verification passed the upstream v2.4.0 runtime, including the new transport plugins and six-actor topology; the legacy review plugin is absent as expected.
-- The later, separately authorized `bash apply-gentle-ai-custom.sh opencode` completed successfully and updated OpenCode config. This run pruned 2 skills; wrote owned assets as new 0, changed 1, unchanged 0, deleted 0; updated prompt references 0 and left 0 unchanged; verified 1 owned runtime target; reported 0 topology warnings; managed 4 profiles; and reported profile agents created 0, updated 5, unchanged 47, with 0 unmanaged profiles.
-- Final verification passed. Rejected skills are absent; sanitized repo-owned `branch-pr` and `chained-pr`, all 7 repo-owned skills, all 5 wrappers, and owned `AGENTS.md` match canonical outputs. `general`/`explore` overrides are correct. The four managed profiles reuse the current upstream base; all six review actors, including `review-validator`, remain global with no suffixed review actors. Upstream plugins, contracts, and phase prompts are preserved, and Judgment Day differs only by the retrospective patch. Restart OpenCode once because `opencode.json` changed. RDD remains off/default and blocked pending the optional, separately authorized correction-required canary.
+- For v2.5.0, the separately authorized repository snapshot sync completed successfully. The user then manually completed the full SDD component installation. The later, separately authorized `bash apply-gentle-ai-custom.sh opencode` completed successfully and updated OpenCode config.
+- Apply reported: skills pruned 2; owned assets changed 1 and verified 1; topology warnings 0; profiles managed 4; profile agents created 3, updated 4, unchanged 49; unmanaged profiles 0.
+- Final runtime verification passed the canonical audit, `go test ./...`, `git diff --check`, and resolved `sdd-research` agent loading. Sanitized repo-owned `branch-pr` is present; conflicting upstream `branch-pr`, `issue-creation`, and Hermes are absent. All 7 repo-owned skills, 5 wrappers, owned `AGENTS.md`, overrides, and 4 managed profiles match canonical or local config. `general` is `openai/gpt-5.6-terra` / `high`; `explore` is `openai/gpt-5.6-sol` / `medium`.
+- All 4 profiles have the ordered 11-phase topology and the 3 named `sdd-research` actors. Review actors remain global with no suffixed review actors, and Judgment Day differs only by the retrospective patch. Managed background intent and effective policy are `on`; the launcher is `~/.gentle-ai/bin/opencode`. Current Desktop and plain OpenCode processes remain foreground. Restart OpenCode once for config, and use the explicit launcher path for background-enabled CLI sessions.
+- Non-blocking observed discrepancy: `~/.gentle-ai/state.json` still reports `installed_binary_version` as `2.4.0` although the binary, exact tag, and runtime are verified v2.5.0. Do not assert a root cause or edit external state without separate authorization.
+- RDD remains off and blocked pending the correction-required canary. No commit, push, or PR was authorized or performed for this closure.
 - Any future `gentle-ai sync` or reinstall restores upstream runtime state and therefore requires a new overlay apply with separate explicit authorization.
 - If upstream changes commit/PR governance, compare it against the explicit local customizations first; only sanitize when there is a concrete conflict.
 
@@ -236,9 +252,9 @@ After `apply`, confirm this:
 - each effective `agent_override` resolves to the expected `model` / `variant`
 - `agent.gentle-orchestrator.prompt` remains the upstream-owned prompt or reference
 - `~/.config/opencode/AGENTS.md` matches the repo-owned asset from `assets/owned/opencode/AGENTS.md`
-- the upstream OpenCode snapshot inputs under `assets/upstream/opencode/`, including `background-subagents.md`, match the synchronized v2.4.0 maintained boundary
+- the upstream OpenCode snapshot inputs under `assets/upstream/opencode/`, including `background-subagents.md`, match the maintained boundary recorded in `state/upstream-state.json`
 - each managed `sdd-orchestrator-<name>` reuses the upstream base orchestrator prompt
-- each managed `sdd-<phase>-<name>` reuses the corresponding upstream base phase prompt/reference
+- each of the 11 managed `sdd-<phase>-<name>` agents, including `sdd-research-<name>`, reuses the corresponding upstream base phase prompt/reference
 - representative upstream-owned prompt, plugin, and contract files are byte- and mode-unchanged after apply
 - no managed agent references `.overlay.md`
 - runtime files/directories declared in `policy/managed-assets.json` exist on disk
@@ -260,6 +276,7 @@ Operational rules:
 - `default_profile` manages the base orchestrator/phases plus optional `judgment_day` and global `review` maps
 - global JD/review values are either `{ "model": "<provider/model>", "variant": "<optional>" }` or `{ "inherit": true }`; omission preserves runtime state
 - `profiles` manages named SDD families plus optional explicit `judgment_day` assignments; `review` is rejected in named profiles
+- the base and named SDD families contain 11 ordered phases, with `sdd-research` immediately after `sdd-explore`
 - removing a named JD assignment deletes only that suffix in the explicitly managed profile and restores global delegation
 - existing undeclared profiles remain untouched and are reported as unmanaged
 

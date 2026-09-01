@@ -99,7 +99,21 @@ El mantenimiento en este repositorio sigue siempre los mismos pasos. Lo único q
 
 Es normal no haber ejecutado todavía `gentle-ai sync` ni una reinstalación: esos pasos vienen después de la auditoría y de tu aprobación.
 
+### Estado de la adaptación v2.5.0
+
+La policy y la auditoría de este repositorio ya incorporan la fase real `sdd-research`, ubicada después de `sdd-explore`, y validan perfiles con 11 fases. La sincronización de snapshots, la instalación completa del componente SDD realizada manualmente y la posterior ejecución autorizada por separado de `bash apply-gentle-ai-custom.sh opencode` terminaron correctamente. Los snapshots, `upstream-state.json` y el runtime instalado ya coinciden con v2.5.0.
+
+El `apply` actualizó la configuración, podó 2 skills, cambió y verificó 1 asset propio, no informó warnings de topología y administró 4 perfiles. En los agentes informó 3 creados, 4 actualizados y 49 sin cambios, sin perfiles no administrados. La verificación final pasó la auditoría canónica, `go test ./...`, `git diff --check` y la carga resuelta de los agentes `sdd-research`.
+
+La copia sanitizada y propia de `branch-pr` está instalada. La copia conflictiva upstream de `branch-pr`, `issue-creation` y Hermes no están. Las 7 skills propias, los 5 wrappers, el `AGENTS.md` propio, los overrides y los 4 perfiles administrados coinciden con sus fuentes o con la configuración local. `general` usa `openai/gpt-5.6-terra` / `high`; `explore` usa `openai/gpt-5.6-sol` / `medium`. Los cuatro perfiles tienen 11 fases en orden y existen los 3 actores nombrados de `sdd-research`. Los actores de review siguen siendo globales, sin copias con sufijo, y Judgment Day difiere del upstream solo por el parche de retrospectiva.
+
+La intención y la política efectiva de background están en `on`, y el launcher es `~/.gentle-ai/bin/opencode`. Los procesos actuales abiertos desde Desktop o con `opencode` normal siguen en foreground. Reiniciá OpenCode una vez para tomar la configuración y usá la ruta explícita del launcher cuando quieras una sesión CLI con background habilitado. Como discrepancia no bloqueante observada, `~/.gentle-ai/state.json` todavía informa `installed_binary_version: 2.4.0`, aunque el binario, el tag y el runtime están verificados en v2.5.0. No se conoce la causa y no se modificó ese estado externo.
+
+RDD sigue apagado y bloqueado hasta que pase el canary obligatorio con una corrección real. No se autorizó ni realizó ningún commit, push o PR para este cierre documental.
+
 Antes de explorar el repo o delegar el análisis, la auditoría comprueba cuatro cosas: la versión instalada, que la carpeta original esté totalmente limpia, que exista el tag exacto `v<versión>` y que `HEAD` apunte al commit de ese tag. También revisa cambios dentro de submódulos. Si algo no coincide, se detiene sin delegar nada y explica cómo actualizar tags o cambiar al tag correcto de forma manual. Nunca descarga tags ni cambia de versión por su cuenta. `last_maintained_commit` sirve para elegir desde dónde comparar cambios; no demuestra esta coincidencia.
+
+Para encontrar el clon upstream durante la auditoría o la copia de snapshots, solo lee `upstream_repo_path` del archivo local. Así puede auditar una nueva fase antes de que actualices las asignaciones de modelos de cada perfil. La validación completa de esos perfiles sigue siendo obligatoria antes de que `apply` escriba en el runtime.
 
 Esto también vale para versiones preliminares: solo se aceptan si existe su tag exacto. No alcanza con estar cerca de un tag, en una rama que lo contiene o en un commit posterior. El mismo control se repite antes de copiar snapshots con `sync-gentle-ai-upstream-assets`.
 
@@ -165,7 +179,7 @@ El comando `apply-gentle-ai-custom` sigue siendo independiente de la carpeta ori
 - borra las skills que no queremos usar, pero solo para los agentes donde estamos trabajando.
 - aplica nuestras preferencias de modelos de IA si las configuramos.
 - comprueba solo los archivos y referencias que necesita para aplicar perfiles o el handoff de Judgment Day.
-- conserva los prompts y plugins preparados por Gentle AI; no los reemplaza con plantillas fuente. El snapshot del prompt opcional `background-subagents.md`, el runtime administrado de OpenCode y el overlay custom ya están sincronizados y verificados para v2.4.0. Falta reiniciar OpenCode una vez para cargar el `opencode.json` final. RDD sigue bloqueado hasta que pase su canary.
+- conserva los prompts y plugins preparados por Gentle AI; no los reemplaza con plantillas fuente. Los snapshots aprobados, la frontera mantenida y el runtime instalado ya coinciden con v2.5.0 después de la instalación completa del componente SDD y la reaplicación autorizada del overlay. RDD sigue bloqueado hasta que pase su canary.
 - ajusta modelos y perfiles reutilizando los prompts base ya instalados.
 - agrega de forma puntual el handoff de `judgment-retrospective` al skill `judgment-day` compatible.
 - registra todos los archivos que instala como propios. Al limpiar registros viejos, conserva los archivos devueltos a Gentle AI y los targets de parches puntuales sin declararlos como propios.
@@ -194,9 +208,9 @@ gentle-ai review mode enable --cwd .
 
 SDD y RDD cumplen funciones distintas. SDD organiza la planificación, implementación, tests y verificación. RDD cruza ese flujo al final: cuando está activo, puede revisar el candidato inmutable después de `apply` y aportar el recibo usado en la entrega. Si RDD está apagado, no debe lanzar revisores; SDD sigue funcionando, incluidos tests y verificación, y el cierre usa la ruta `disabled/unmanaged` bajo la política normal del repositorio sin inventar un recibo.
 
-Por ahora hay que mantener RDD desactivado. Gentle AI v2.2.2 tuvo un bug confirmado: cuando una revisión pedía una corrección, el flujo podía frenarse sin mostrar de forma confiable qué hallazgo había que corregir. La adaptación aceptada para v2.4.0 no habilita RDD: todavía falta completar el canary obligatorio con una corrección real. Este estado pertenece a cada máquina, no al repositorio, así que comprobalo siempre con `gentle-ai review mode status --cwd .`. El análisis técnico y la lista completa están en `overlay/gentle-ai/maintenance.md`, sección **Receipt-Driven Development mode and reactivation blocker**.
+Por ahora hay que mantener RDD desactivado. Gentle AI v2.2.2 tuvo un bug confirmado: cuando una revisión pedía una corrección, el flujo podía frenarse sin mostrar de forma confiable qué hallazgo había que corregir. v2.5.0 parece aportar código y tests para entregar un plan de corrección antes de editar, pero eso NO alcanza para habilitar RDD: todavía falta completar el canary obligatorio con una corrección real y llegar a un recibo válido. Este estado pertenece a cada máquina, no al repositorio, así que comprobalo siempre con `gentle-ai review mode status --cwd .`. El análisis técnico y la lista completa están en `overlay/gentle-ai/maintenance.md`, sección **Receipt-Driven Development mode and reactivation blocker**.
 
-La actualización autorizada del runtime de v2.4.0 se ejecutó con `gentle-ai sync --agent opencode --opencode-background-subagents=auto` y después se ejecutó el `bash apply-gentle-ai-custom.sh opencode` autorizado por separado. La verificación final pasó: las skills rechazadas no están, las siete skills propias y los cinco wrappers coinciden con sus fuentes, `AGENTS.md`, los overrides y los cuatro perfiles administrados quedaron correctos, y los prompts, plugins y contratos upstream se conservaron. La intención de background quedó en `auto`, la política efectiva en `off`, no hay launcher y no hace falta reiniciar por background. Falta reiniciar OpenCode una vez porque cambió `opencode.json`. RDD sigue apagado y bloqueado hasta que pase el canary obligatorio con una corrección real. Un futuro `gentle-ai sync` o una reinstalación volverá a requerir un `apply` autorizado por separado.
+El runtime actual de v2.5.0 ya pasó la instalación completa del componente SDD y el `apply` autorizado por separado. La intención y la política efectiva de background están en `on`; para una sesión CLI con background usá `~/.gentle-ai/bin/opencode`. Desktop y el comando `opencode` normal siguen iniciando procesos en foreground. Reiniciá OpenCode una vez porque cambió `opencode.json`. RDD sigue apagado y bloqueado hasta que pase el canary obligatorio. Un futuro `gentle-ai sync` o una reinstalación volverá a requerir un `apply` autorizado por separado.
 
 ### Chequeo previo de versiones
 
@@ -275,6 +289,7 @@ La idea general ahora es **upstream-first**: esta capa arranca desde el comporta
 | `rdd-defect-workflow`  | Snapshot retenido | Describe el trabajo upstream sobre defectos RDD.                           | Se guarda para auditoría, no activa RDD y no se instala como skill propia.                                                                   |
 | `sdd-init`             | Se conserva | Inicializa contexto, testing y capacidades SDD.                                | Es parte del núcleo útil del flujo SDD.                                                                                                      |
 | `sdd-explore`          | Se conserva | Explora ideas antes de proponer cambios.                                       | Mejora análisis y reduce implementación impulsiva.                                                                                           |
+| `sdd-research`         | Se adquiere | Reúne evidencia externa auditable antes de la propuesta cuando el orchestrator la solicita. | Agrega una fase real y separa investigación con fuentes de las decisiones de producto.                                                       |
 | `sdd-propose`          | Se conserva | Convierte exploración en propuesta concreta.                                   | Mantiene trazabilidad y foco de cambio.                                                                                                      |
 | `sdd-spec`             | Se conserva | Escribe requisitos y escenarios.                                               | Conserva la disciplina del flujo SDD.                                                                                                        |
 | `sdd-design`           | Se conserva | Desarrolla el diseño técnico del cambio.                                       | Aporta arquitectura y decisiones explícitas.                                                                                                 |
@@ -337,6 +352,8 @@ En otras palabras: estos overrides no duplican la configuración SDD. Cubren una
 
 Si querés fijar modelos para `general` o `explore`, declaralos explícitamente en `agent_overrides` dentro del config local canónico.
 
+En la máquina verificada actualmente, `general` usa `openai/gpt-5.6-terra` / `high` y `explore` usa `openai/gpt-5.6-sol` / `medium`.
+
 ### Configuración avanzada
 
 Si necesitás ir más allá de los overrides básicos y querés configurar familias enteras de perfiles SDD, este es el esquema completo que soporta el archivo:
@@ -359,6 +376,7 @@ Si necesitás ir más allá de los overrides básicos y querés configurar famil
     "phases": {
       "sdd-init": { "model": "openai/gpt-5.4", "variant": "medium" },
       "sdd-explore": { "model": "openai/gpt-5.3-codex", "variant": "high" },
+      "sdd-research": { "model": "openai/gpt-5.4", "variant": "high" },
       "sdd-propose": { "model": "openai/gpt-5.5", "variant": "xhigh" },
       "sdd-spec": { "model": "openai/gpt-5.3-codex", "variant": "high" },
       "sdd-design": { "model": "openai/gpt-5.5", "variant": "high" },
@@ -389,6 +407,7 @@ Si necesitás ir más allá de los overrides básicos y querés configurar famil
       "phases": {
         "sdd-init": { "model": "openai/gpt-5.4-mini", "variant": "low" },
         "sdd-explore": { "model": "openai/gpt-5.4-mini", "variant": "low" },
+        "sdd-research": { "model": "openai/gpt-5.4-mini", "variant": "low" },
         "sdd-propose": { "model": "openai/gpt-5.4-mini", "variant": "low" },
         "sdd-spec": { "model": "openai/gpt-5.4-mini", "variant": "low" },
         "sdd-design": { "model": "openai/gpt-5.4-mini", "variant": "low" },
