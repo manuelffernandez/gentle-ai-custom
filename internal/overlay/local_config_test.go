@@ -43,6 +43,40 @@ func TestResolveUpstreamRepoPrecedence(t *testing.T) {
 	}
 }
 
+func TestResolveUpstreamRepoIgnoresRuntimeProfileSchemaDuringAuditResolution(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	repoRoot := filepath.Join(t.TempDir(), "gentle-ai-custom")
+	upstreamRepo := filepath.Join(homeDir, "upstream")
+	configDir := filepath.Join(homeDir, ".config", "gentle-ai-custom")
+	for _, dir := range []string{repoRoot, upstreamRepo, configDir} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", dir, err)
+		}
+	}
+	config := `{
+  "version": 1,
+  "upstream_repo_path": "` + upstreamRepo + `",
+  "default_profile": {
+    "orchestrator": {"model": "openai/model"},
+    "phases": {"sdd-init": {"model": "openai/model"}}
+  }
+}
+`
+	if err := os.WriteFile(filepath.Join(configDir, "opencode-local-config.json"), []byte(config), 0o644); err != nil {
+		t.Fatalf("write local config: %v", err)
+	}
+
+	pathValue, _, err := resolveUpstreamRepo(repoRoot, testPolicy())
+	if err != nil {
+		t.Fatalf("resolve upstream repo with stale runtime profile schema: %v", err)
+	}
+	if pathValue != upstreamRepo {
+		t.Fatalf("resolved upstream = %q, want %q", pathValue, upstreamRepo)
+	}
+}
+
 func TestResolveUpstreamRepoFallsBackToEnvAndSibling(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)

@@ -169,9 +169,13 @@ var profilePhaseOrder = []string{
 	"sdd-apply",
 }
 
-func DetectProfiles() string {
-	const orchPrefix = "sdd-orchestrator-"
-	return orchPrefix
+func managedProfileAgentPrefixes() []string {
+	return []string{"sdd-orchestrator-"}
+}
+
+func DetectProfiles(key string) (string, bool) {
+	profileName, managed := managedProfileAgentName(key)
+	return profileName, managed
 }
 
 func ProfileAgentKeys(suffix string) []string {
@@ -182,12 +186,6 @@ func ProfileAgentKeys(suffix string) []string {
 
 func wiring(suffix string) {
 	profileMap := map[string]any{}
-	orchestratorMap := map[string]any{
-		"tools": map[string]any{
-			"task": true,
-		},
-	}
-	_ = orchestratorMap
 	taskPerms := map[string]any{
 		"*":       "deny",
 		"general": "allow",
@@ -572,6 +570,54 @@ func writeJSONFixture(t *testing.T, path string, value any) {
 	mustWriteFile(t, path, append(raw, '\n'))
 }
 
+func TestProfileNamingInvariantOKAcceptsManagedProfileDetection(t *testing.T) {
+	text := `package opencode
+
+func managedProfileAgentPrefixes() []string {
+	return []string{"sdd-orchestrator-"}
+}
+
+func DetectProfiles() {
+	for key := range agentMap {
+		profileName, managed := managedProfileAgentName(key)
+		_, _ = profileName, managed
+	}
+}
+
+func ProfileAgentKeys(suffix string) []string {
+	keys := []string{}
+	keys = append(keys, "sdd-orchestrator"+suffix)
+	return keys
+}
+`
+	if !profileNamingInvariantOK(text) {
+		t.Fatal("profileNamingInvariantOK() = false, want true for managed-profile detection")
+	}
+}
+
+func TestProfileNamingInvariantOKRejectsLiteralDecoys(t *testing.T) {
+	text := `package opencode
+
+func managedProfileAgentPrefixes() []string {
+	return []string{"sdd-orchestrator-"}
+}
+
+func DetectProfiles() {
+	message := "profileName, managed := managedProfileAgentName(key)"
+	_ = message
+}
+
+func ProfileAgentKeys(suffix string) []string {
+	message := "keys = append(keys, sdd-orchestrator+suffix)"
+	_ = message
+	return nil
+}
+`
+	if profileNamingInvariantOK(text) {
+		t.Fatal("profileNamingInvariantOK() = true, want false for string decoys")
+	}
+}
+
 func TestProfileTaskScopingInvariantOKAcceptsEquivalentDenyFormatting(t *testing.T) {
 	text := `
 profileMap := map[string]any{}
@@ -633,50 +679,6 @@ _ = message
 	}
 }
 
-func TestProfileTaskToolInvariantOKAcceptsDirectProfileToolsWiring(t *testing.T) {
-	text := `
-profileMap := map[string]any{
-	"tools": map[string]any{
-		"task": true,
-	},
-}
-`
-	if !profileTaskToolInvariantOK(text) {
-		t.Fatal("profileTaskToolInvariantOK() = false, want true for direct profile tools wiring")
-	}
-}
-
-func TestProfileTaskToolInvariantOKAcceptsV2ReplacementWiring(t *testing.T) {
-	text := `
-orchEntry := map[string]any{
-	"name": "sdd-orchestrator-demo",
-	"tools": map[string]any{
-		"__replace__": map[string]any{
-			"task": true,
-			"bash": true,
-		},
-	},
-}
-`
-	if !profileTaskToolInvariantOK(text) {
-		t.Fatal("profileTaskToolInvariantOK() = false, want true for v2 __replace__ tools wiring")
-	}
-}
-
-func TestProfileTaskToolInvariantOKRejectsUnrelatedLiveTaskDecoy(t *testing.T) {
-	text := `
-decoy := map[string]any{
-	"task": true,
-}
-otherMap["metadata"] = map[string]any{
-	"task": true,
-}
-`
-	if profileTaskToolInvariantOK(text) {
-		t.Fatal("profileTaskToolInvariantOK() = true, want false for unrelated live task decoys")
-	}
-}
-
 func TestProfileTaskScopingInvariantOKAcceptsV2ReplacementWiring(t *testing.T) {
 	text := `
 taskPerms := map[string]any{
@@ -718,9 +720,13 @@ var profilePhaseOrder = []string{
 	"sdd-apply",
 }
 
-func DetectProfiles() string {
-	const orchPrefix = "sdd-orchestrator-"
-	return orchPrefix
+func managedProfileAgentPrefixes() []string {
+	return []string{"sdd-orchestrator-"}
+}
+
+func DetectProfiles(key string) (string, bool) {
+	profileName, managed := managedProfileAgentName(key)
+	return profileName, managed
 }
 
 func ProfileAgentKeys(suffix string) []string {
@@ -767,79 +773,6 @@ func inject() {
 	}
 	if !strings.Contains(strings.Join(failures, "\n"), "deny-by-default task permission map") {
 		t.Fatalf("evaluateStructuralInvariants() failures = %v, want task-scoping failure", failures)
-	}
-}
-
-func TestEvaluateStructuralInvariantsRejectsProfileTaskToolDecoy(t *testing.T) {
-	upstreamRepo := t.TempDir()
-	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "profiles.go"), []byte(`package opencode
-
-var profilePhaseOrder = []string{
-	"sdd-init",
-	"sdd-apply",
-}
-
-func DetectProfiles() string {
-	const orchPrefix = "sdd-orchestrator-"
-	return orchPrefix
-}
-
-func ProfileAgentKeys(suffix string) []string {
-	keys := []string{}
-	keys = append(keys, "sdd-orchestrator"+suffix)
-	return keys
-}
-
-func wiring(suffix string) {
-	decoy := map[string]any{
-		"task": true,
-	}
-	_ = decoy
-	taskPerms := map[string]any{"*": "deny"}
-	for _, phase := range profilePhaseOrder {
-		taskPerms[phase+suffix] = "allow"
-	}
-	for _, jd := range JDPhases() {
-		taskPerms[jd] = "allow"
-	}
-	for _, reviewAgent := range ReviewPhases() {
-		taskPerms[reviewAgent] = "allow"
-	}
-	profileMap := map[string]any{}
-	profileMap["permission"] = map[string]any{
-		"bash": true,
-		"task": taskPerms,
-	}
-}
-`))
-	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "inject.go"), []byte(`package opencode
-
-func inject() {
-	orchestratorRaw, ok := agentsMap["gentle-orchestrator"]
-	_ = orchestratorRaw
-	_ = ok
-	orchestratorMap["prompt"] = renderSDDOrchestratorAsset(model.AgentOpenCode)
-	taskRaw, ok := permissionRaw["task"].(map[string]any)
-	_ = taskRaw
-	_ = ok
-}
-`))
-	writeStructuralRoleFixture(t, upstreamRepo)
-	mustInitGitRepo(t, upstreamRepo)
-
-	target := ManagedAssetsTarget{StructuralInvariantSources: []string{"internal/profiles.go", "internal/inject.go", "internal/models.go"}}
-	policy := Policy{}
-	policy.OpenCode.SDDPhases = []string{"sdd-init", "sdd-apply"}
-
-	result, failures := evaluateStructuralInvariants(upstreamRepo, target, policy)
-	if result.TaskScopingOK {
-		t.Fatal("evaluateStructuralInvariants() TaskScopingOK = true, want false for task-tool decoy without profile tool wiring")
-	}
-	if len(failures) == 0 {
-		t.Fatal("evaluateStructuralInvariants() failures = none, want task-tool invariant failure")
-	}
-	if !strings.Contains(strings.Join(failures, "\n"), "enables the task tool") {
-		t.Fatalf("evaluateStructuralInvariants() failures = %v, want task-tool failure", failures)
 	}
 }
 
@@ -951,18 +884,40 @@ _ = message
 	}
 }
 
-func TestEvaluateStructuralInvariantsAcceptsUpstreamV220Shape(t *testing.T) {
-	upstreamRepo := t.TempDir()
-	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "profiles.go"), []byte(`package opencode
-
-var profilePhaseOrder = []string{
+var upstreamV250ProfilePhaseOrder = []string{
 	"sdd-init",
+	"sdd-explore",
+	"sdd-research",
+	"sdd-propose",
+	"sdd-spec",
+	"sdd-design",
+	"sdd-tasks",
 	"sdd-apply",
+	"sdd-verify",
+	"sdd-archive",
+	"sdd-onboard",
 }
 
-func DetectProfiles() string {
-	const orchPrefix = "sdd-orchestrator-"
-	return orchPrefix
+func writeUpstreamV250StructuralFixture(t *testing.T, upstreamRepo string, phases []string) {
+	t.Helper()
+	var phaseOrder strings.Builder
+	for _, phase := range phases {
+		phaseOrder.WriteString("\t\"")
+		phaseOrder.WriteString(phase)
+		phaseOrder.WriteString("\",\n")
+	}
+	profilesSource := `package opencode
+
+var profilePhaseOrder = []string{
+` + phaseOrder.String() + `}
+
+func managedProfileAgentPrefixes() []string {
+	return []string{"sdd-orchestrator-"}
+}
+
+func DetectProfiles(key string) (string, bool) {
+	profileName, managed := managedProfileAgentName(key)
+	return profileName, managed
 }
 
 func ProfileAgentKeys(suffix string) []string {
@@ -973,12 +928,6 @@ func ProfileAgentKeys(suffix string) []string {
 
 func wiring(suffix string) {
 	profileMap := map[string]any{}
-	orchestratorMap := map[string]any{
-		"tools": map[string]any{
-			"task": true,
-		},
-	}
-	_ = orchestratorMap
 	taskPerms := map[string]any{
 		"*":       "deny",
 		"general": "allow",
@@ -997,7 +946,8 @@ func wiring(suffix string) {
 		"task": taskPerms,
 	}
 }
-`))
+`
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "profiles.go"), []byte(profilesSource))
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "inject.go"), []byte(`package opencode
 
 func inject() {
@@ -1012,20 +962,69 @@ func inject() {
 `))
 	writeStructuralRoleFixture(t, upstreamRepo)
 	mustInitGitRepo(t, upstreamRepo)
+}
+
+func TestEvaluateStructuralInvariantsAcceptsUpstreamV250Shape(t *testing.T) {
+	upstreamRepo := t.TempDir()
+	writeUpstreamV250StructuralFixture(t, upstreamRepo, upstreamV250ProfilePhaseOrder)
 
 	target := ManagedAssetsTarget{StructuralInvariantSources: []string{"internal/profiles.go", "internal/inject.go", "internal/models.go"}}
 	policy := Policy{}
-	policy.OpenCode.SDDPhases = []string{"sdd-init", "sdd-apply"}
+	policy.OpenCode.SDDPhases = append([]string(nil), upstreamV250ProfilePhaseOrder...)
 
 	result, failures := evaluateStructuralInvariants(upstreamRepo, target, policy)
 	if len(failures) != 0 {
-		t.Fatalf("evaluateStructuralInvariants() failures = %v, want none for upstream v2.2.0 shape", failures)
+		t.Fatalf("evaluateStructuralInvariants() failures = %v, want none for upstream v2.5.0 shape", failures)
 	}
 	if !result.TaskScopingOK {
 		t.Fatal("evaluateStructuralInvariants() TaskScopingOK = false, want true for equivalent wiring")
 	}
 	if !result.BaseAssetInjectionOK {
 		t.Fatal("evaluateStructuralInvariants() BaseAssetInjectionOK = false, want true")
+	}
+	if !result.PhaseOrderOK {
+		t.Fatal("evaluateStructuralInvariants() PhaseOrderOK = false, want true for the full v2.5.0 phase order")
+	}
+}
+
+func TestEvaluateStructuralInvariantsRejectsV250PhaseOrderDrift(t *testing.T) {
+	tests := []struct {
+		name   string
+		phases []string
+	}{
+		{
+			name: "missing sdd-research",
+			phases: []string{
+				"sdd-init", "sdd-explore", "sdd-propose", "sdd-spec", "sdd-design", "sdd-tasks",
+				"sdd-apply", "sdd-verify", "sdd-archive", "sdd-onboard",
+			},
+		},
+		{
+			name: "sdd-research after sdd-propose",
+			phases: []string{
+				"sdd-init", "sdd-explore", "sdd-propose", "sdd-research", "sdd-spec", "sdd-design",
+				"sdd-tasks", "sdd-apply", "sdd-verify", "sdd-archive", "sdd-onboard",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			upstreamRepo := t.TempDir()
+			writeUpstreamV250StructuralFixture(t, upstreamRepo, tt.phases)
+
+			target := ManagedAssetsTarget{StructuralInvariantSources: []string{"internal/profiles.go", "internal/inject.go", "internal/models.go"}}
+			policy := Policy{}
+			policy.OpenCode.SDDPhases = append([]string(nil), upstreamV250ProfilePhaseOrder...)
+
+			result, failures := evaluateStructuralInvariants(upstreamRepo, target, policy)
+			if result.PhaseOrderOK {
+				t.Fatal("evaluateStructuralInvariants() PhaseOrderOK = true, want false for incompatible v2.5.0 phase order")
+			}
+			if !strings.Contains(strings.Join(failures, "\n"), "upstream profilePhaseOrder") {
+				t.Fatalf("evaluateStructuralInvariants() failures = %v, want profile phase-order failure", failures)
+			}
+		})
 	}
 }
 
@@ -1038,9 +1037,13 @@ var profilePhaseOrder = []string{
 	"sdd-apply",
 }
 
-func DetectProfiles() string {
-	const orchPrefix = "sdd-orchestrator-"
-	return orchPrefix
+func managedProfileAgentPrefixes() []string {
+	return []string{"sdd-orchestrator-"}
+}
+
+func DetectProfiles(key string) (string, bool) {
+	profileName, managed := managedProfileAgentName(key)
+	return profileName, managed
 }
 
 func ProfileAgentKeys(suffix string) []string {

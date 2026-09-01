@@ -26,6 +26,7 @@
       "sdd-init",
       "sdd-onboard",
       "sdd-propose",
+      "sdd-research",
       "sdd-spec",
       "sdd-tasks",
       "sdd-verify",
@@ -54,6 +55,7 @@
     "sdd_phases": [
       "sdd-init",
       "sdd-explore",
+      "sdd-research",
       "sdd-propose",
       "sdd-spec",
       "sdd-design",

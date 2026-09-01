@@ -453,19 +453,12 @@ func evaluateStructuralInvariants(upstreamRepo string, target ManagedAssetsTarge
 	if len(phaseOrder) > 0 && !sameStrings(phaseOrder, policy.OpenCode.SDDPhases) {
 		failures = append(failures, fmt.Sprintf("upstream profilePhaseOrder is %#v, expected %#v from policy", phaseOrder, policy.OpenCode.SDDPhases))
 	}
-	const profilePrefixSnippet = `const orchPrefix = "sdd-orchestrator-"`
-	const profileKeyBuilderSnippet = `keys = append(keys, "sdd-orchestrator"+suffix)`
-	if !strings.Contains(upstreamProfilesText, profilePrefixSnippet) {
-		failures = append(failures, "upstream profiles.go no longer declares DetectProfiles prefix 'sdd-orchestrator-'")
-	}
-	if !strings.Contains(upstreamProfilesText, profileKeyBuilderSnippet) {
-		failures = append(failures, "upstream ProfileAgentKeys no longer builds profile orchestrator keys from 'sdd-orchestrator'+suffix")
+	profileNamingOK := profileNamingInvariantOK(upstreamProfilesText)
+	if !profileNamingOK {
+		failures = append(failures, "upstream profiles.go no longer detects and builds named profiles through the canonical managed-profile mechanism")
 	}
 	if !profileTaskScopingInvariantOK(upstreamProfilesText) {
 		failures = append(failures, "upstream profiles.go no longer preserves a deny-by-default task permission map for named profile orchestrators")
-	}
-	if !profileTaskToolInvariantOK(upstreamProfilesText) {
-		failures = append(failures, `upstream profiles.go no longer enables the task tool in the profile orchestrator entry`)
 	}
 	requiredInjectSnippets := []string{
 		`orchestratorRaw, ok := agentsMap["gentle-orchestrator"]`,
@@ -503,8 +496,8 @@ func evaluateStructuralInvariants(upstreamRepo string, target ManagedAssetsTarge
 	if !roleTopologyOK && jdErr == nil && reviewErr == nil && refuterErr == nil && validatorErr == nil {
 		failures = append(failures, fmt.Sprintf("upstream JD/review actor topology is JD=%#v review=%#v, expected JD=%#v review=%#v", jdActors, reviewActors, judgmentDayActorKeys, reviewActorKeys))
 	}
-	result.ProfileNamingOK = strings.Contains(upstreamProfilesText, profilePrefixSnippet) && strings.Contains(upstreamProfilesText, profileKeyBuilderSnippet)
-	result.TaskScopingOK = profileTaskToolInvariantOK(upstreamProfilesText) && profileTaskScopingInvariantOK(upstreamProfilesText)
+	result.ProfileNamingOK = profileNamingOK
+	result.TaskScopingOK = profileTaskScopingInvariantOK(upstreamProfilesText)
 	result.BaseAssetInjectionOK = containsAll(upstreamInjectText, requiredInjectSnippets) && baseAssetInjectionInvariantOK(upstreamInjectText)
 	result.PhaseOrderOK = len(phaseOrder) > 0 && sameStrings(phaseOrder, policy.OpenCode.SDDPhases)
 	result.RoleTopologyOK = roleTopologyOK
@@ -565,6 +558,61 @@ func extractStringConstant(text, constantName string) (string, error) {
 		return value, nil
 	}
 	return "", fmt.Errorf("could not locate upstream %s string constant", constantName)
+}
+
+func profileNamingInvariantOK(text string) bool {
+	if strings.TrimSpace(text) == "" {
+		return false
+	}
+	file, err := parseInvariantGoSource(text)
+	if err != nil {
+		return false
+	}
+	state := struct {
+		managedPrefix   bool
+		managedDetect   bool
+		orchestratorKey bool
+	}{}
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Body == nil {
+			continue
+		}
+		switch fn.Name.Name {
+		case "managedProfileAgentPrefixes":
+			ast.Inspect(fn.Body, func(node ast.Node) bool {
+				if lit, ok := node.(*ast.BasicLit); ok {
+					value, valid := stringLiteralValue(lit)
+					state.managedPrefix = state.managedPrefix || valid && value == "sdd-orchestrator-"
+				}
+				return true
+			})
+		case "DetectProfiles":
+			ast.Inspect(fn.Body, func(node ast.Node) bool {
+				assign, ok := node.(*ast.AssignStmt)
+				if !ok || len(assign.Rhs) != 1 || len(assign.Lhs) < 2 {
+					return true
+				}
+				call, ok := assign.Rhs[0].(*ast.CallExpr)
+				if !ok || len(call.Args) != 1 || !isIdent(call.Fun, "managedProfileAgentName") || !isIdent(call.Args[0], "key") {
+					return true
+				}
+				state.managedDetect = isIdent(assign.Lhs[0], "profileName") && isIdent(assign.Lhs[1], "managed")
+				return true
+			})
+		case "ProfileAgentKeys":
+			ast.Inspect(fn.Body, func(node ast.Node) bool {
+				call, ok := node.(*ast.CallExpr)
+				if !ok || !isIdent(call.Fun, "append") || len(call.Args) < 2 {
+					return true
+				}
+				binary, ok := call.Args[1].(*ast.BinaryExpr)
+				state.orchestratorKey = state.orchestratorKey || ok && binary.Op == token.ADD && isStringLiteral(binary.X, "sdd-orchestrator") && isIdent(binary.Y, "suffix")
+				return true
+			})
+		}
+	}
+	return state.managedPrefix && state.managedDetect && state.orchestratorKey
 }
 
 func profileTaskScopingInvariantOK(text string) bool {
@@ -672,75 +720,6 @@ func taskPermissionValueUsesTaskPerms(expr ast.Expr) bool {
 	}
 	return compositeLitHasKeyMatching(lit, "__replace__", func(value ast.Expr) bool {
 		return isIdent(value, "taskPerms")
-	})
-}
-
-func profileTaskToolInvariantOK(text string) bool {
-	if strings.TrimSpace(text) == "" {
-		return false
-	}
-	file, err := parseInvariantGoSource(text)
-	if err != nil {
-		return false
-	}
-	state := profileTaskToolState{}
-	ast.Inspect(file, func(node ast.Node) bool {
-		assign, ok := node.(*ast.AssignStmt)
-		if !ok {
-			return true
-		}
-		inspectProfileTaskToolAssignment(assign, &state)
-		return true
-	})
-	return state.wiredToProfileTools
-}
-
-type profileTaskToolState struct {
-	wiredToProfileTools bool
-}
-
-func inspectProfileTaskToolAssignment(assign *ast.AssignStmt, state *profileTaskToolState) {
-	for i, lhs := range assign.Lhs {
-		if i >= len(assign.Rhs) {
-			continue
-		}
-		if profileToolsAssignmentUsesTaskTrue(lhs, assign.Rhs[i]) {
-			state.wiredToProfileTools = true
-		}
-	}
-}
-
-func profileToolsAssignmentUsesTaskTrue(lhs ast.Expr, rhs ast.Expr) bool {
-	if index, ok := lhs.(*ast.IndexExpr); ok && isProfileMapIdent(index.X) {
-		if key, ok := stringLiteralValue(index.Index); ok && key == "tools" {
-			return toolMapEnablesTask(rhs)
-		}
-	}
-	ident, ok := lhs.(*ast.Ident)
-	if !ok || !isProfileMapName(ident.Name) {
-		return false
-	}
-	lit, ok := rhs.(*ast.CompositeLit)
-	if !ok {
-		return false
-	}
-	return compositeLitHasKeyMatching(lit, "tools", toolMapEnablesTask)
-}
-
-func toolMapEnablesTask(expr ast.Expr) bool {
-	lit, ok := expr.(*ast.CompositeLit)
-	if !ok {
-		return false
-	}
-	if compositeLitHasKeyMatching(lit, "task", isBoolTrueLiteral) {
-		return true
-	}
-	return compositeLitHasKeyMatching(lit, "__replace__", func(value ast.Expr) bool {
-		replaceLit, ok := value.(*ast.CompositeLit)
-		if !ok {
-			return false
-		}
-		return compositeLitHasKeyMatching(replaceLit, "task", isBoolTrueLiteral)
 	})
 }
 
@@ -907,11 +886,6 @@ func isBinaryIdentPlusIdent(expr ast.Expr, left string, right string) bool {
 func isStringLiteral(expr ast.Expr, expected string) bool {
 	value, ok := stringLiteralValue(expr)
 	return ok && value == expected
-}
-
-func isBoolTrueLiteral(expr ast.Expr) bool {
-	ident, ok := expr.(*ast.Ident)
-	return ok && ident.Name == "true"
 }
 
 func unmanagedDriftStatus(count int) string {

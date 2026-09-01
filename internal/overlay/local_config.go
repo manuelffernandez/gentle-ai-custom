@@ -128,19 +128,14 @@ func resolveLocalRuntimeConfig(policy Policy, sddPhasesSet map[string]bool) (res
 }
 
 func resolveUpstreamRepo(repoRoot string, policy Policy) (string, string, error) {
-	sddPhasesSet := make(map[string]bool, len(policy.OpenCode.SDDPhases))
-	for _, phase := range policy.OpenCode.SDDPhases {
-		sddPhasesSet[phase] = true
-	}
-
 	localConfigPath := expandUser(policy.OpenCode.LocalConfigPath)
 	if pathExists(localConfigPath) {
-		config, err := loadLocalConfigFile(localConfigPath, policy.OpenCode.SDDPhases, sddPhasesSet)
+		upstreamRepoPath, err := loadLocalUpstreamRepoPath(localConfigPath)
 		if err != nil {
 			return "", "", err
 		}
-		if config.UpstreamRepoPath != "" {
-			pathValue, err := ensureExistingDir(expandUser(config.UpstreamRepoPath), fmt.Sprintf("local config %s (upstream_repo_path)", localConfigPath))
+		if upstreamRepoPath != "" {
+			pathValue, err := ensureExistingDir(expandUser(upstreamRepoPath), fmt.Sprintf("local config %s (upstream_repo_path)", localConfigPath))
 			if err != nil {
 				return "", "", err
 			}
@@ -162,6 +157,31 @@ func resolveUpstreamRepo(repoRoot string, policy Policy) (string, string, error)
 	}
 
 	return "", "", fmt.Errorf("cannot resolve upstream repo. Checked local config %s, $%s, and repo-relative fallback %s. Set \"upstream_repo_path\" in %s, export %s, or place the upstream repo at %s", localConfigPath, upstreamRepoEnvVar, fallback, localConfigPath, upstreamRepoEnvVar, fallback)
+}
+
+func loadLocalUpstreamRepoPath(path string) (string, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("cannot read local OpenCode overlay config at %s: %v", path, err)
+	}
+	var config struct {
+		Version          int `json:"version"`
+		UpstreamRepoPath any `json:"upstream_repo_path"`
+	}
+	if err := json.Unmarshal(raw, &config); err != nil {
+		return "", fmt.Errorf("local OpenCode overlay config at %s is not valid JSON: %v. Fix or remove the file before re-running this script.", path, err)
+	}
+	if config.Version != 1 {
+		return "", fmt.Errorf("local OpenCode overlay config at %s has unsupported \"version\" %v; expected 1", path, config.Version)
+	}
+	if config.UpstreamRepoPath == nil {
+		return "", nil
+	}
+	upstreamRepoPath, ok := config.UpstreamRepoPath.(string)
+	if !ok {
+		return "", fmt.Errorf("local OpenCode overlay config at %s: field \"upstream_repo_path\" must be a string", path)
+	}
+	return strings.TrimSpace(upstreamRepoPath), nil
 }
 
 func ensureExistingDir(pathValue, source string) (string, error) {
