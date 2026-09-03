@@ -1,6 +1,7 @@
 package overlay
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -34,6 +35,7 @@ type applyPolicyState struct {
 	runtimePatches          []preparedRuntimePatch
 	obsoletePromptPaths     []string
 	preservedUpstreamFiles  []runtimeFileSnapshot
+	effectiveSkillDenies    []string
 }
 
 type applyPolicyOptions struct {
@@ -132,6 +134,9 @@ func runApplyPolicyWithOptions(repoRoot string, options applyPolicyOptions) int 
 
 	state.applyAgentOverrides()
 	if err := state.reconcileProfiles(); err != nil {
+		return fail(err)
+	}
+	if err := state.reconcilePrunedSkillPermissions(); err != nil {
 		return fail(err)
 	}
 	state.detectTopologyDrift()
@@ -359,10 +364,27 @@ func (s *applyPolicyState) isProfileOrchestrator(key string) bool {
 // --- Persistence and verification ---
 
 func (s *applyPolicyState) persistConfig() error {
-	if !s.configChanged {
+	if !s.configChanged && len(s.effectiveSkillDenies) == 0 {
 		return nil
 	}
-	status, err := writeJSONIndentedWithStatus(s.configPath, s.configData)
+	raw, err := marshalOpenCodeConfig(s.configData, s.effectiveSkillDenies)
+	if err != nil {
+		return err
+	}
+	if !s.configChanged {
+		existing, err := os.ReadFile(s.configPath)
+		if err != nil {
+			return err
+		}
+		if bytes.Equal(existing, raw) {
+			return nil
+		}
+		// Parsed JSON loses property order. Persist the canonical form whenever an
+		// effective deny exists so a pre-existing exact deny cannot precede a
+		// matching wildcard allow in OpenCode's last-match evaluation.
+		s.configChanged = true
+	}
+	status, err := writeAtomicFileWithStatus(s.configPath, raw, 0o644)
 	if err != nil {
 		return err
 	}
@@ -386,6 +408,12 @@ func (s *applyPolicyState) verifyPersistedState() error {
 	verifyAgents, ok := jsonObject(verifyData["agent"])
 	if !ok {
 		return fmt.Errorf("post-write verification failed: OpenCode config does not contain an agent map after write")
+	}
+	if err := verifyPrunedSkillPermissions(verifyData, verifyAgents, s.effectiveSkillDenies); err != nil {
+		return fmt.Errorf("post-write verification failed for policy-pruned skill permissions: %w", err)
+	}
+	if err := s.verifyEffectiveSkillPermissionOrder(); err != nil {
+		return fmt.Errorf("post-write verification failed for effective skill-permission order: %w", err)
 	}
 
 	for _, override := range s.resolvedAgentOverrides {
@@ -470,6 +498,24 @@ func (s *applyPolicyState) verifyPersistedState() error {
 		}
 	}
 
+	return nil
+}
+
+func (s *applyPolicyState) verifyEffectiveSkillPermissionOrder() error {
+	if len(s.effectiveSkillDenies) == 0 {
+		return nil
+	}
+	expected, err := marshalOpenCodeConfig(s.configData, s.effectiveSkillDenies)
+	if err != nil {
+		return err
+	}
+	actual, err := os.ReadFile(s.configPath)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(actual, expected) {
+		return fmt.Errorf("persisted config is not in canonical effective-deny order")
+	}
 	return nil
 }
 

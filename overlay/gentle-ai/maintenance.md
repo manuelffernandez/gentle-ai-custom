@@ -210,6 +210,7 @@ Runtime refresh, repo snapshot sync, and overlay apply are separate actions. App
 - preserves upstream-owned prompt, contract, and plugin bytes and file modes
 - migrates managed obsolete `.overlay.md` references only when an upstream base prompt is available
 - prunes only explicitly rejected upstream skills in the selected registered targets
+- denies policy-pruned skills that lack a repo-owned same-name replacement through global and configured-agent OpenCode `permission.skill` rules. This covers native external-skill discovery from `~/.agents/skills` and `~/.claude/skills` without deleting or changing those externally owned copies; non-pruned rules and replacements such as `branch-pr` are preserved. Because OpenCode uses the last matching rule, apply canonically persists effective exact denies after matching wildcard rules even when parsed values already equal `deny`
 - applies `agent_overrides`
 - reconciles `default_profile`, including optional global Judgment Day/review assignments, and named `profiles`
 - installs repo-owned skills from `shared/skills/`
@@ -249,6 +250,8 @@ Runtime refresh, repo snapshot sync, and overlay apply are separate actions. App
 After `apply`, confirm this:
 
 - explicitly pruned skills no longer exist in each selected registered target
+- every effective external-skill deny resolves to `deny` in global OpenCode skill permissions and each configured agent; repo-owned same-name replacements such as `branch-pr` receive no overlay deny, while unrelated permissions remain unchanged
+- persisted OpenCode config matches canonical effective-deny order, so an exact deny cannot remain before a matching wildcard allow
 - each effective `agent_override` resolves to the expected `model` / `variant`
 - `agent.gentle-orchestrator.prompt` remains the upstream-owned prompt or reference
 - `~/.config/opencode/AGENTS.md` matches the repo-owned asset from `assets/owned/opencode/AGENTS.md`

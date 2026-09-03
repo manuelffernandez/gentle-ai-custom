@@ -43,7 +43,7 @@ This directory contains the operational assets for the Gentle AI overlay.
 
 ## Preserved local boundaries
 
-- `issue-creation` remains pruned from the default OpenCode runtime.
+- Policy-pruned skills without a repo-owned same-name replacement are denied through OpenCode `permission.skill` rules, globally and for configured agents. This blocks external copies without deleting or changing another runtime's files; the sanitized repo-owned `branch-pr` remains available.
 - `shared/skills/chained-pr/` remains the sanitized runtime source. It adopts upstream anti-code-golf and bounded single-pass slicing rules while preserving explicit `owner/repo` scoping and plan-only automatic activation.
 - `branch-pr` remains pruned upstream and replaced by the repo-owned sanitized copy.
 - `gentle-ai-bench`, `rdd-defect-workflow`, and `systemic-issue-triage` remain retained snapshots, not forced runtime selections.

@@ -61,6 +61,7 @@ If one side changes, the paired script must be updated in the same commit.
 **Overlay helper parity items:**
 - keep/prune skill policy
 - skill prune scope derived from the selected registered CLI targets only
+- OpenCode `permission.skill` denies derived from pruned names without a repo-owned same-name replacement, applied globally and to every configured agent without touching externally owned skill copies
 - `agent_overrides` application
 - global Judgment Day/review assignment and explicit inheritance reconciliation
 - optional named-profile Judgment Day cloning and permission rewiring
@@ -275,7 +276,7 @@ It does two classes of work:
    - audit the upstream `gentle-orchestrator` asset before sync/reinstall work
    - prune only explicitly rejected upstream skills that stay outside the maintained runtime target
    - keep approved upstream `work-unit-commits`, `chained-pr`, `gentle-ai-bench`, `rdd-defect-workflow`, and `systemic-issue-triage` snapshots for audit/sync when they do not conflict with the local layer; the last three are not repo-owned install sources or forced runtime selections
-   - keep `issue-creation` pruned from the default OpenCode runtime/install surface
+   - deny pruned skills without a repo-owned same-name replacement through OpenCode permissions so externally discovered copies stay unavailable by default without changing other runtimes' copies
    - keep the upstream `branch-pr` copy pruned because its mandatory issue-first rule conflicts with the local PR workflow, then reinstall the repo-owned sanitized `branch-pr`
    - set runtime model overrides for built-in OpenCode agents
 	- refresh approved upstream asset snapshots for diff/review

@@ -4,6 +4,18 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-09-03 | Closed the external skill-discovery prune leak
+
+- **Date**: `2026-09-03`
+- **Title**: Closed the external skill-discovery prune leak
+- **Type**: `tooling-change`
+- **Upstream scope/range**: Maintained Gentle AI v2.5.0 OpenCode runtime; no upstream boundary advance.
+- **Decision**: `Sanitizar` the OpenCode apply path by deriving global and configured-agent `permission.skill` denies from canonical pruned names minus repo-owned same-name replacements intentionally installed in OpenCode. External skill copies remain owned by their source runtimes and are not removed or rewritten.
+- **Why it mattered**: Removing a skill only from `~/.config/opencode/skills` did not prevent OpenCode from discovering a duplicate under external global roots such as `~/.agents/skills`. Filtering `.atl/skill-registry.md` alone also cannot prevent native OpenCode loading. The upstream `branch-pr` name is an explicit exception because OpenCode intentionally reinstalls the sanitized repo-owned replacement under that same name.
+- **Affected artifacts**: `internal/overlay/{apply_policy,skill_permissions,summary}.go`; focused skill-permission tests; `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`; `AGENTS.md`; `README.md`; `overlay/gentle-ai/{README.md,maintenance.md,logs/update-log.md}`.
+- **Verification**: canonical audit passed exact v2.5.0 parity with no managed drift or invariant mismatch. Focused Go tests cover agent-over-global precedence, wildcard precedence after config serialization, idempotency, preservation of unrelated permissions, and external copies: `issue-creation` remains denied while the sanitized repo-owned `branch-pr` is reinstalled without an overlay deny. They also prove that an already-denied `issue-creation` written before `issue-creation*` is rewritten into canonical last-match-safe order and remains byte-idempotent on the next apply.
+- **Follow-up**: Apply the overlay only after separate authorization; then restart OpenCode because `opencode.json` will change. No runtime refresh, reinstall, sync, apply, commit, push, or PR was performed for this repository change.
+
 ## 2026-09-01 | Adopted the Gentle AI v2.5.0 repository boundary
 
 - **Date**: `2026-09-01`

@@ -30,6 +30,7 @@ Use this skill when:
 - `audit-gentle-ai-upstream` discovers drift from `git diff --name-status --find-renames <last_maintained_commit>..<verified-release-commit>`, filtered through `overlay/gentle-ai/policy/managed-assets.json`, while still checking structural invariants from upstream integration code.
 - `sync-gentle-ai-upstream-assets` refreshes `overlay/gentle-ai/assets/upstream/...` plus the maintained boundary only after the drift has been reviewed and accepted.
 - `apply-gentle-ai-custom` installs true repo-owned assets and portable skills, renders wrappers, prunes rejected skills, applies overrides, and reconciles profiles while preserving upstream-materialized SDD/review runtime assets.
+- For OpenCode, derive external-skill denies from policy-pruned names minus repo-owned same-name skills intentionally installed by the managed target. Apply them globally and to configured agents. Always persist the canonical permission order when effective denies exist: OpenCode uses the last matching rule, and parsed JSON loses the original order needed to detect an exact deny before a matching wildcard allow.
 - Before any runtime write, apply validates only its own prerequisites: ownership boundaries, base prompts consumed by configured profiles, safe obsolete-reference migration, and compatible Judgment Day patch anchors.
 - Apply must not inspect or certify upstream plugin, contract, prompt, or review semantics. Opaque or absent upstream plugins do not block unrelated custom operations.
 - Owned-state cleanup must track every custom-installed output while protecting upstream runtime targets, retained upstream skill trees, and surgical patch targets without claiming whole-file ownership.
@@ -152,7 +153,8 @@ Re-apply is mandatory after `gentle-ai sync` or reinstall because upstream rewri
 16. Recommend the runtime refresh path and print exact instructions. Run `gentle-ai sync` or a full reinstall only when the human explicitly requests that specific runtime action.
 17. Recommend overlay apply after a runtime refresh when needed. Run `bash apply-gentle-ai-custom.sh opencode` (or `all`) only with separate explicit authorization, then capture `Summary:`.
 18. Verify post-state on disk only for actions actually authorized and executed:
-   - pruned skills are absent only in the selected registered runtime targets
+    - pruned skills are absent only in the selected registered runtime targets
+    - effective external-skill denies appear after matching wildcard rules in persisted OpenCode config; repo-owned same-name replacements receive no overlay deny
    - owned runtime targets declared in `managed-assets.json` exist on disk
    - `agent_overrides` resolve to the configured `model` / `variant`
    - configured global JD assignments resolve exactly; inherited review actors have neither `model` nor `variant`

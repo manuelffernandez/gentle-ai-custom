@@ -6,19 +6,21 @@ import "fmt"
 // to change is "reporting output changed". It is embedded inside applyPolicyState
 // as a named field so the two concerns are clearly separated.
 type applyMetrics struct {
-	prunedCount          int
-	missingKeepSummary   []string
-	createdOverrides     []string
-	ownedAssetWrites     writeCounters
-	promptRefsUpdated    int
-	promptRefsUnchanged  int
+	prunedCount                 int
+	missingKeepSummary          []string
+	createdOverrides            []string
+	ownedAssetWrites            writeCounters
+	promptRefsUpdated           int
+	promptRefsUnchanged         int
 	ownedRuntimeTargetsVerified int
-	topologyWarnings     []string
-	profilesManagedCount int
-	profileAgentsCreated int
-	profileAgentsUpdated int
-	profileAgentsSame    int
-	unmanagedProfiles    []string
+	topologyWarnings            []string
+	profilesManagedCount        int
+	prunedSkillPermissionNames  int
+	prunedSkillPermissionScopes int
+	profileAgentsCreated        int
+	profileAgentsUpdated        int
+	profileAgentsSame           int
+	unmanagedProfiles           []string
 }
 
 // printSummary prints the full apply-policy run summary, including counters,
@@ -32,6 +34,7 @@ func (s *applyPolicyState) printSummary() {
 	fmt.Println("Summary:")
 	fmt.Printf("  OpenCode config status: %s\n", configStatus)
 	fmt.Printf("  skills pruned this run: %d\n", s.metrics.prunedCount)
+	fmt.Printf("  externally discovered skill names denied: %d across %d permission scopes\n", s.metrics.prunedSkillPermissionNames, s.metrics.prunedSkillPermissionScopes)
 	fmt.Printf("  owned asset writes - new: %d, changed: %d, unchanged: %d, deleted: %d\n", s.metrics.ownedAssetWrites.New, s.metrics.ownedAssetWrites.Changed, s.metrics.ownedAssetWrites.Unchanged, s.metrics.ownedAssetWrites.Deleted)
 	fmt.Printf("  prompt references updated: %d\n", s.metrics.promptRefsUpdated)
 	fmt.Printf("  prompt references unchanged: %d\n", s.metrics.promptRefsUnchanged)
