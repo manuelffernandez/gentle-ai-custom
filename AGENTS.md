@@ -267,7 +267,7 @@ It does two classes of work:
 
 1. **Custom overlays owned by the user**
    - `commit-planner` as the explicit user-invoked operational layer for local commits
-   - sanitized repo-owned `branch-pr` as the preferred final PR workflow
+   - sanitized repo-owned `branch-pr` as the preferred final PR workflow; explicit `/pr-create` and `/pr-regenerate` invocation makes generated title/body audit-visible rather than a content-approval gate, while push authorization and unresolved required metadata, identity, or chain context remain blocking
    - sanitized repo-owned `chained-pr` runtime copy for explicit GitHub repo scoping and plan-only automatic activation until the user approves branch/PR mutation
    - `pr-finalizer` as temporary deprecated compatibility during the migration
    - generated wrappers/commands per target

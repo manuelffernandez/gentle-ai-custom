@@ -443,3 +443,5 @@ Si necesitás ir más allá de los overrides básicos y querés configurar famil
 Todos se instalan desde `shared/` y generan wrappers específicos por agente en tiempo de aplicación.
 
 `/pr-create` y `/pr-regenerate` mantienen el mismo nombre, pero ahora pasan a estar gobernados por `branch-pr`.
+
+Cuando se invocan de forma explícita, muestran el título y el cuerpo para poder auditarlos, pero no esperan una aprobación extra de ese contenido: crean o actualizan la PR en seguida. Siguen frenando cuando falta autorizar un push o resolver datos obligatorios de la política del repo, del remoto, de la rama base, de la PR o de una cadena de PRs.

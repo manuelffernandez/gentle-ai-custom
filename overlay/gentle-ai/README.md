@@ -45,7 +45,7 @@ This directory contains the operational assets for the Gentle AI overlay.
 
 - Policy-pruned skills without a repo-owned same-name replacement are denied through OpenCode `permission.skill` rules, globally and for configured agents. This blocks external copies without deleting or changing another runtime's files; the sanitized repo-owned `branch-pr` remains available.
 - `shared/skills/chained-pr/` remains the sanitized runtime source. It adopts upstream anti-code-golf and bounded single-pass slicing rules while preserving explicit `owner/repo` scoping and plan-only automatic activation.
-- `branch-pr` remains pruned upstream and replaced by the repo-owned sanitized copy.
+- `branch-pr` remains pruned upstream and replaced by the repo-owned sanitized copy. Explicit `/pr-create` and `/pr-regenerate` render title/body for audit visibility and then mutate through GitHub CLI without a content-approval pause; push authorization and unresolved required metadata, identity, or chain context remain blocking.
 - `gentle-ai-bench`, `rdd-defect-workflow`, and `systemic-issue-triage` remain retained snapshots, not forced runtime selections.
 - Named profiles may create suffixed Judgment Day actors only for explicit assignments. Review actors remain global.
 - The Judgment Day retrospective handoff remains the only declared surgical patch and still requires exact compatible anchors.

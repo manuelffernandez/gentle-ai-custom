@@ -46,7 +46,7 @@ Do **not** auto-run this skill after SDD, after commits, or after push. This is 
 10. **Push gate comes before content generation**. If the remote head branch is missing or stale, stop and request approval for `git push -u <remote> HEAD` before generating the PR title/body.
 11. **Duplicate PR detection is mandatory in `create` mode**. If an open PR already exists for the resolved head branch, or for the same head/base pair when the base is already known, stop and direct the user to `regenerate` mode instead.
 12. **Chained PR context is preserved when it exists**. If the user, repo docs, or retained `chained-pr` workflow provide chain context, keep or add a `Chain Context` section without replacing the repository template. If stacked/chained work is detected but the base or chain context is ambiguous, stop and ask for explicit chain context. Do **not** invent tracker-PR automation.
-13. **The only explicit approval in the happy path is the generated content**. After the user approves the proposed title/body, create or update the PR automatically. Do not add a second approval checkpoint for `gh pr create`, `gh pr edit`, temp-file writes, or repo-policy label updates.
+13. **Generated content is audit visibility, not an approval gate**. After evidence gathering and required metadata resolution, show the proposed title/body and immediately create or update the PR. Do not pause for content approval or add approval checkpoints for `gh pr create`, `gh pr edit`, temp-file writes, or repo-policy label updates.
 14. **If `gh` is unavailable or unauthenticated**, return copy-paste-ready PR content and stop without pretending the PR was created or updated.
 15. **Use unique temporary artifacts outside the repository**. Create temp files with a safe unique-name mechanism such as `mktemp` under `${TMPDIR:-/tmp}`; never use predictable fixed paths. Report the absolute path used after writing each artifact.
 16. **Never invent changes or compliance**. If the diff, repo policy, or PR metadata do not support a claim, warn or ask instead of fabricating it.
@@ -168,7 +168,7 @@ If output is truncated, read the diff file from disk and treat it as the source 
 - Treat the current committed net diff against the resolved base branch as the only source of truth.
 - Do **not** reuse the previous PR title or body as factual input.
 
-## Approval Workflow
+## Required Gates and Execution
 
 Follow this loop exactly:
 
@@ -185,14 +185,13 @@ Follow this loop exactly:
 Program: `git`; args: `push`, `-u`, `<remote>`, `HEAD`
 
 4. Only after the remote branch is current enough, generate a proposed PR title and PR body.
-5. If repo policy requires missing issue metadata, label choice, or chain context, stop and ask for that minimum input before finalizing the proposal.
-6. Return the title and body in copy-paste-ready form plus an explicit approval prompt for the content only.
-7. If the user rejects the proposal, incorporate feedback without violating diff evidence constraints and repeat.
-8. After the user approves the generated content, continue automatically to GitHub CLI actions and any explicit repo-policy label updates; do not ask for a second approval checkpoint.
+5. If repo policy requires missing issue metadata, label choice, or chain context, stop and ask for that minimum input before finalizing the content.
+6. Return the title and body in copy-paste-ready form for audit visibility. Do not ask for or wait for title/body approval.
+7. Immediately continue to GitHub CLI actions and any explicit repo-policy label updates. Do not add an approval checkpoint after content presentation.
 
 ## PR Creation via CLI (`create` mode)
 
-After the user approves the generated content:
+After presenting the generated content for audit visibility:
 
 1. Write the body to `<body-output-path>` without requesting approval.
 2. Run automatically:
@@ -205,7 +204,7 @@ Use safe argument execution with the resolved repo:
 
 ## PR Update via CLI (`regenerate` mode)
 
-After the user approves the regenerated content:
+After presenting the regenerated content for audit visibility:
 
 1. Write the body to `<body-output-path>` without requesting approval.
 2. Run automatically:
@@ -226,7 +225,7 @@ When presenting content:
 - show the PR title clearly
 - show the PR body clearly in copy-paste-ready Markdown
 - show any `Chain Context` block that was preserved or added
-- make approval boundaries explicit for push approval and content approval only
+- distinguish required gates (push authorization and unresolved policy, identity, or chain context) from title/body audit visibility
 
 ## Safety and Edge Cases
 
@@ -246,7 +245,7 @@ When presenting content:
 /pr-regenerate
 ```
 
-These wrappers may be exposed differently by each agent surface, but the workflow stays the same: explicit invocation, diff evidence, repo-policy awareness, and explicit approval before state-changing steps that are not already covered by the content approval rule.
+These wrappers may be exposed differently by each agent surface, but the workflow stays the same: explicit invocation, diff evidence, repo-policy awareness, title/body audit visibility, and required blocking decisions such as push authorization or unresolved metadata, identity, and chain context.
 
 ## Resources
 

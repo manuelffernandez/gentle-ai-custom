@@ -1,10 +1,10 @@
 TASK:
-Regenerate or update an existing pull request from the current committed diff and, if approved, sync it with GitHub CLI.
+Regenerate or update an existing pull request from the current committed diff, present its title/body for audit visibility, and sync it with GitHub CLI.
 
 Rules for this command:
 - The preferred owner skill is `branch-pr`; keep the command name stable but apply `branch-pr` behavior
-- This command is **state-changing**: the only explicit approval checkpoint is the regenerated PR content; once the user approves title/body, continue automatically unless a real blocker requires human input
-- Do not add a second approval prompt for `git fetch`, temp artifact writes, or `gh pr edit`
+- This command is **state-changing**: explicit invocation authorizes PR update after evidence gathering and required metadata resolution; present title/body for audit visibility, but do not ask for or wait for content approval
+- Preserve the explicit push-approval gate when the remote head branch is missing or stale; do not add approval prompts for `git fetch`, temp artifact writes, or `gh pr edit`
 - Resolve the target PR from explicit input first; otherwise detect it from the current branch when possible
 - Use the current committed net diff against the resolved base branch as the only factual source of truth
 - Detect and respect explicit repository PR policy first: template structure, issue linkage, labels, branch naming, chained PR context, and required checks only when the repository declares them

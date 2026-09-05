@@ -80,7 +80,7 @@ The repo keeps `commit-planner` and the sanitized repo-owned `branch-pr` as opt-
 
 `pr-finalizer` remains installable only as temporary deprecated compatibility while commands and references migrate to `branch-pr`.
 
-These tools may replace the user's day-to-day use of upstream commit/PR skills, but they do not authorize self-initiated commits, pushes, or PR creation. State-changing actions still require explicit user invocation and the approval boundaries defined by each command.
+These tools may replace the user's day-to-day use of upstream commit/PR skills, but they do not authorize self-initiated commits, pushes, or PR creation. State-changing actions still require explicit user invocation and the required gates defined by each command. For explicitly invoked `/pr-create` and `/pr-regenerate`, generated title/body content is audit-visible rather than an approval gate; push authorization for a missing or stale remote branch, unresolved identity, required repo-policy metadata, and chain context remain blocking decisions.
 
 `work-unit-commits` stays retained from upstream as the default planning criterion when commit grouping is needed.
 

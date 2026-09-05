@@ -1,10 +1,10 @@
 TASK:
-Draft a pull request from committed changes and, if approved, create it with GitHub CLI.
+Draft a pull request from committed changes, present its title/body for audit visibility, and create it with GitHub CLI.
 
 Rules for this command:
 - The preferred owner skill is `branch-pr`; keep the command name stable but apply `branch-pr` behavior
-- This command is **state-changing**: the only explicit approval checkpoint is the generated PR content; once the user approves title/body, continue automatically unless a real blocker requires human input
-- Do not add a second approval prompt for `git fetch`, temp artifact writes, or `gh pr create`
+- This command is **state-changing**: explicit invocation authorizes PR creation after evidence gathering and required metadata resolution; present title/body for audit visibility, but do not ask for or wait for content approval
+- Preserve the explicit push-approval gate when the remote head branch is missing or stale; do not add approval prompts for `git fetch`, temp artifact writes, or `gh pr create`
 - Use the committed net diff as the only factual source of truth
 - Detect and respect explicit repository PR policy first: template structure, issue linkage, labels, branch naming, chained PR context, and required checks only when the repository declares them
 - Do **not** impose a universal approved-issue rule, universal `Closes #N`, or universal `type:*` label

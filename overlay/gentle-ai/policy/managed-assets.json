@@ -80,8 +80,8 @@
           {"key":"commit-plan","body_path":"shared/commands/commit-plan-body.md","owner_skill":"commit-planner","mode":"plan","command_type":"read-only","description":"Propose a post-SDD commit plan without changing git state"},
           {"key":"commit-apply","body_path":"shared/commands/commit-apply-body.md","owner_skill":"commit-planner","mode":"apply","command_type":"state-changing","description":"Execute an approved post-SDD commit plan, or generate one first if missing"},
           {"key":"commit-fast","body_path":"shared/commands/commit-fast-body.md","owner_skill":"commit-planner","mode":"auto","command_type":"state-changing","description":"Generate and execute a commit plan in one shot without approval pause"},
-          {"key":"pr-create","body_path":"shared/commands/pr-create-body.md","owner_skill":"branch-pr","mode":"create","command_type":"state-changing","description":"Draft a PR from committed changes and optionally create it after approval"},
-          {"key":"pr-regenerate","body_path":"shared/commands/pr-regenerate-body.md","owner_skill":"branch-pr","mode":"regenerate","command_type":"state-changing","description":"Regenerate or update an existing PR from the current committed diff after approval"}
+          {"key":"pr-create","body_path":"shared/commands/pr-create-body.md","owner_skill":"branch-pr","mode":"create","command_type":"state-changing","description":"Create a PR from committed changes after evidence gathering and required metadata resolution; title/body are audit-visible, not an approval gate"},
+          {"key":"pr-regenerate","body_path":"shared/commands/pr-regenerate-body.md","owner_skill":"branch-pr","mode":"regenerate","command_type":"state-changing","description":"Regenerate an existing PR from the committed diff after evidence gathering and required metadata resolution; title/body are audit-visible, not an approval gate"}
         ]
       }
     }
