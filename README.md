@@ -324,6 +324,7 @@ Se mantiene localmente:
 - la copia repo-owned sanitizada de `chained-pr` para runtime, mientras su snapshot upstream sigue retenido para auditoría
 - el parche puntual que conecta `judgment-day` con `judgment-retrospective`
 - las reglas `no-auto-commit`, Agent-Readable Markdown Standard y Gemini anti-sycophancy
+- la regla global que evita que el agente principal, los subagentes y las herramientas accedan a archivos de credenciales; su detalle vive en `overlay/gentle-ai/assets/owned/opencode/AGENTS.md`
 
 Se adquiere desde upstream por defecto:
 

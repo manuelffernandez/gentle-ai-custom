@@ -9,6 +9,7 @@ Approved upstream runtime assets are adopted replacement-first: let upstream mat
 ## What this file does not define
 
 - agent/runtime behavior -> overlay-owned runtime assets first (especially `overlay/gentle-ai/assets/owned/opencode/AGENTS.md`), then maintainer workflow specifics in `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`
+- credential-file safety -> `overlay/gentle-ai/assets/owned/opencode/AGENTS.md`; it governs the primary agent and every delegated subagent or tool, while technical permission barriers remain outside this policy
 - Markdown style for agent-consumed docs -> overlay-owned runtime standard in `overlay/gentle-ai/assets/owned/opencode/AGENTS.md` (installed to `~/.config/opencode/AGENTS.md`); repo-local additions live in `AGENTS.md` and only supplement it
 - repo ownership and policy -> `AGENTS.md`
 - keep/prune intent, upstream-first boundaries, and explicit local customizations -> `policy/maintenance-intent.md`
@@ -255,6 +256,7 @@ After `apply`, confirm this:
 - each effective `agent_override` resolves to the expected `model` / `variant`
 - `agent.gentle-orchestrator.prompt` remains the upstream-owned prompt or reference
 - `~/.config/opencode/AGENTS.md` matches the repo-owned asset from `assets/owned/opencode/AGENTS.md`
+- the installed `AGENTS.md` contains the repo-owned credential-file safety section without replacing it with filename-only rules or technical permission claims
 - the upstream OpenCode snapshot inputs under `assets/upstream/opencode/`, including `background-subagents.md`, match the maintained boundary recorded in `state/upstream-state.json`
 - each managed `sdd-orchestrator-<name>` reuses the upstream base orchestrator prompt
 - each of the 11 managed `sdd-<phase>-<name>` agents, including `sdd-research-<name>`, reuses the corresponding upstream base phase prompt/reference

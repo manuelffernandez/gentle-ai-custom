@@ -4,6 +4,18 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-09-12 | Added global credential-file safety
+
+- **Date**: `2026-09-12`
+- **Title**: Added global credential-file safety
+- **Type**: `policy-change`
+- **Upstream scope/range**: Maintained Gentle AI v2.5.0 OpenCode runtime; no upstream boundary advance.
+- **Decision**: `Sanitizar` the repo-owned global OpenCode instructions with a semantic credential-file safety rule for the primary agent and every delegated subagent or tool. The rule forbids credential access for context gathering, prioritizes non-secret alternatives and user-operated redacted evidence, and requires a stop plus explicit user direction before any exceptional access. Technical permission barriers remain a separate future hardening task.
+- **Why it mattered**: Delegated agents can otherwise infer that external credential files are useful context even when documentation, schemas, examples, key names, or redacted user-run commands provide the required evidence without exposing secrets.
+- **Affected artifacts**: `overlay/gentle-ai/assets/owned/opencode/AGENTS.md`; `AGENTS.md`; `README.md`; `overlay/gentle-ai/{README.md,maintenance.md,logs/update-log.md}`.
+- **Verification**: `git diff --check` and `go test ./internal/overlay -count=1` passed. The canonical audit confirmed exact v2.5.0 parity with no managed drift or structural invariant mismatch. The separately authorized `bash apply-gentle-ai-custom.sh opencode` updated OpenCode config, pruned 1 skill, denied 2 externally discovered skill names across 62 permission scopes, changed and verified 1 owned asset, managed 4 profiles with all 56 profile agents unchanged, and reported 0 topology warnings and 0 unmanaged profiles. Readback confirmed `~/.config/opencode/AGENTS.md` exactly matches the repo-owned asset and contains the credential-file safety section; the sanitized repo-owned `branch-pr` remains installed.
+- **Follow-up**: Restart OpenCode because `opencode.json` changed. A separate future analysis may evaluate technical read barriers. No upstream sync, reinstall, commit, push, or PR was performed.
+
 ## 2026-09-03 | Closed the external skill-discovery prune leak
 
 - **Date**: `2026-09-03`

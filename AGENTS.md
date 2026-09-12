@@ -241,7 +241,7 @@ Files that `apply-gentle-ai-custom.sh` installs into the global OpenCode runtime
 - `shared/commands/` — reusable prompt bodies for commit/PR wrapper commands rendered by the apply script.
 - `overlay/gentle-ai/assets/` — approved upstream audit snapshots plus true repo-owned runtime assets.
 - `overlay/gentle-ai/assets/upstream/opencode/` — current approved upstream-equivalent OpenCode snapshots: `persona-gentleman.md`, `engram-protocol.md` (mirrors `internal/assets/engram/protocol.md` for the owned AGENTS build), `background-subagents.md`, the orchestrator prompt, overlay JSONs, plugins, retained `commands/` snapshots, and selected skill snapshots. The separately authorized v2.5.0 repository snapshot sync, human-run full SDD component installation, and later separately authorized overlay apply all completed successfully. The maintained boundary and installed runtime now match verified v2.5.0. Keep RDD blocked until its canary passes.
-- `overlay/gentle-ai/assets/owned/opencode/AGENTS.md` — repo-owned runtime copy installed to `~/.config/opencode/AGENTS.md` with local overlay semantics.
+- `overlay/gentle-ai/assets/owned/opencode/AGENTS.md` — source of truth for repo-owned global agent behavior installed to `~/.config/opencode/AGENTS.md`, including credential-file safety for the primary agent and every delegated subagent or tool.
 - `overlay/gentle-ai/patches/opencode/judgment-retrospective.json` — exact local delta applied to a compatible upstream-installed Judgment Day skill.
 - `overlay/gentle-ai/policy/gentle-ai-policy.json` — keep/prune policy, OpenCode paths, and runtime overrides.
 - `overlay/gentle-ai/policy/managed-assets.json` — canonical manifest for managed upstream/owned assets and repo-owned skill install intent.

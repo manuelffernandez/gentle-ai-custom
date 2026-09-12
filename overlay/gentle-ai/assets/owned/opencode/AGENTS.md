@@ -94,6 +94,17 @@ Apply this standard automatically whenever you edit or review Markdown whose pri
 - Improve existing agent-consumed Markdown toward this standard unless compatibility, traceability, or clarity requires preserving a different structure.
 - Stronger file-specific contracts win.
 
+## Credential-File Safety
+
+This policy applies to the primary agent and every delegated subagent or tool.
+
+- Do not read, search, copy, summarize, or otherwise access credential files, including for context gathering or configuration inference.
+- Treat a credential file semantically: it is any file or secret store intended to hold authentication material or secret values. Examples include secret-bearing `.env` files, cloud credential files, SSH private keys, and password or token stores.
+- Prefer documentation, schemas, example files, variable or key names without values, and user-run commands whose output is redacted.
+- If access appears absolutely necessary, STOP before access. Explain in plain language exactly why access seems necessary, why safe alternatives are insufficient, and the simple manual steps the user can take. Wait for explicit user direction.
+- Prefer asking the user to operate the file and return only the smallest redacted result needed. Never request a secret value.
+- If a secret is encountered accidentally, do not reproduce, store, summarize, delegate, or persist it.
+
 <!-- gentle-ai:engram-protocol -->
 ## Engram Persistent Memory — Protocol
 
