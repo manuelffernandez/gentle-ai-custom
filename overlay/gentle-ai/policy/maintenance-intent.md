@@ -8,8 +8,8 @@ For an approved upstream asset, replacement-first means letting upstream Gentle 
 
 ## Current baseline
 
-- Last maintained boundary before this strategy shift: `v1.44.3`.
-- New migration target: current Gentle AI v2+ upstream behavior, to be pinned in `upstream-state.json` only after the v2 audit/adoption event closes.
+- Maintained repository boundary: Gentle AI `v2.9.1` at `9ec0cf443622f20fe511815ff5a83088c7467bff`.
+- Continue acquiring compatible Gentle AI v2+ behavior upstream-first. Pin each accepted boundary in `upstream-state.json` only after its audit and adoption event closes.
 - The local overlay must be reduced while preserving the customizations listed in this file.
 - Do not treat old v1.44-era owned runtime assets as authoritative just because they exist in the repo.
 

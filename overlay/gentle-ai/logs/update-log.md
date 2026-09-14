@@ -4,6 +4,17 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-09-14 | Adopted Gentle AI v2.9.1 and verified runtime materialization
+
+- **Date**: `2026-09-14`
+- **Title**: Adopted Gentle AI v2.9.1 and verified runtime materialization
+- **Type**: `adoption`
+- **Upstream scope/range**: `be49554794917ae92a6dc9dbfa2eb3db5cf70084` (`v2.9.0`) -> `9ec0cf443622f20fe511815ff5a83088c7467bff` (`v2.9.1`)
+- **Decision**: `Adquirir` the compatible OpenCode review-consent restoration and preserved-prompt migration upstream-first. `Ignorar` Claude Code transcript-derived dispatch authority because it is outside this repository's maintained OpenCode target. No sanitization or changes to keep/prune, runtime ownership, local patches, topology, profiles, presets, or materialization were required.
+- **Why it mattered**: The repository first closed the accepted v2.9.1 boundary without implying runtime changes, then needed its live documentation corrected after the user manually completed runtime sync and overlay apply. The release preserves the maintained OpenCode structure while restoring compatible review behavior upstream.
+- **Affected artifacts**: `overlay/gentle-ai/state/upstream-state.json`; `overlay/gentle-ai/policy/maintenance-intent.md`; and live maintainer documentation in `AGENTS.md`, `README.md`, `overlay/gentle-ai/README.md`, `overlay/gentle-ai/maintenance.md`, and `overlay/gentle-ai/logs/update-log.md`.
+- **Verification**: The pre-sync canonical audit verified binary `2.9.1`, exact tag `v2.9.1`, and release commit `9ec0cf443622f20fe511815ff5a83088c7467bff`; managed assets drift was `ok`, watched-unmanaged drift was `none`, base prompt drift was `no`, and all profile, injection, remote-authorization, and JD/review topology invariants were `ok`. The authorized repository sync reported 0 new files, 0 changed files, 74 unchanged files, 0 deletions, and 18 synced directories; only the maintained state advanced. The user later reported that both `gentle-ai sync` and `bash apply-gentle-ai-custom.sh opencode` completed; their original summaries and exit output were not captured, so no apply counts are asserted. Independent read-only post-state verification passed 602 selected assertions, confirmed the compatible `gentle-ai.review-integration.consent/v3` semantics, matched all 7 repo-owned skill sources/assets, all 5 wrapper bodies, the owned `AGENTS.md`, skill pruning/replacement, and all 3 declared runtime patch deltas. Final `git diff --check` and the canonical audit passed. RDD remained globally `on`, but the user explicitly excluded this candidate from RDD. No commit, push, PR, remote operation, or native review was run.
+
 ## 2026-09-14 | Adopted the Gentle AI v2.9.0 repository boundary
 
 - **Date**: `2026-09-14`

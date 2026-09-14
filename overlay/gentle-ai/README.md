@@ -32,18 +32,21 @@ This directory contains the operational assets for the Gentle AI overlay.
 
 ## Current adoption status
 
-- Approved snapshots and `state/upstream-state.json` now match verified v2.9.0 at `be49554794917ae92a6dc9dbfa2eb3db5cf70084`.
-- The separately authorized repository sync reported 28 managed range changes, 3 new files, 25 changed files, 46 unchanged files, 0 deletions, and 18 synced directories.
-- The post-sync canonical audit passed at exact v2.9.0 / `be49554794917ae92a6dc9dbfa2eb3db5cf70084`, with no managed or watched-unmanaged drift and all structural, profile, and topology invariants `ok`.
-- The installed OpenCode runtime remains at its last verified v2.5.0 state. No v2.9 runtime refresh, reinstall, or overlay apply was authorized or run.
-- The recommended runtime refresh is `gentle-ai sync`, followed by a separately authorized overlay apply. RDD is maintainer-approved as active and functional; this machine was observed global `on` with clone-local unset, but effective mode must always be queried rather than inferred from repository policy.
+- The maintained boundary is verified v2.9.1 at `9ec0cf443622f20fe511815ff5a83088c7467bff`. Approved snapshots remain byte-unchanged from v2.9.0.
+- The separately authorized repository sync reported 0 new files, 0 changed files, 74 unchanged files, 0 deletions, and 18 synced directories; only `state/upstream-state.json` changed.
+- The post-sync canonical audit passed at exact v2.9.1 / `9ec0cf443622f20fe511815ff5a83088c7467bff`, with no managed or watched-unmanaged drift and all profile, injection, remote-authorization, and JD/review topology invariants `ok`.
+- Compatible OpenCode review consent and preserved-prompt migration are acquired upstream-first. Claude Code transcript-derived dispatch authority is outside the maintained OpenCode target. No policy, patch, topology, profile, preset, or materialization changes were required.
+- After the repository-only closure, the user reports manually running both `gentle-ai sync` and `bash apply-gentle-ai-custom.sh opencode`. Their original summaries and exit output were not captured, so no new apply counts are asserted.
+- Independent read-only post-state verification passed 602 selected assertions over runtime assignments, named profiles, prompt parity, task scoping, skill permissions, absence of suffixed review actors, and obsolete prompt references. The installed orchestrator includes the compatible `gentle-ai.review-integration.consent/v3` semantics.
+- All 7 repo-owned skill sources/assets, all 5 wrapper bodies, and the owned `AGENTS.md` matched their installed targets. `issue-creation` and `hermes-ephemeral-delegation` were absent, `branch-pr` was the repo-owned replacement, and all 3 installed runtime patch targets matched approved upstream snapshots after reversing only their declared local patches.
+- RDD remains globally `on`, but the user explicitly excluded this v2.9.1 maintenance candidate from RDD. Effective mode must always be queried rather than inferred from repository policy.
 
 ## Historical v2.5.0 runtime evidence
 
 - Repository policy now models 11 SDD phases, inserting `sdd-research` after `sdd-explore`.
 - Managed-assets policy covers the upstream `sdd-research` phase skill. Existing shared-skill and command-directory entries cover related shared and command files.
 - Audit invariants validate semantic managed-profile detection and deny-by-default `permission.task` delegation. Deprecated agent-local `tools.task` is not required.
-- The v2.5.0 repository snapshot sync, user-run full SDD component installation, and later separately authorized `bash apply-gentle-ai-custom.sh opencode` completed successfully. This remains the last verified installed-runtime state; the repository snapshots and maintained boundary have since advanced to v2.9.0.
+- The v2.5.0 repository snapshot sync, user-run full SDD component installation, and later separately authorized `bash apply-gentle-ai-custom.sh opencode` completed successfully. This evidence is historical; the maintained repository boundary and independently verified runtime have since advanced to v2.9.1.
 - Apply updated config; pruned 2 skills; changed and verified 1 owned asset; reported 0 topology warnings; managed 4 profiles; and reported agents created 3, updated 4, unchanged 49, with 0 unmanaged profiles.
 - Final verification passed the canonical audit, `go test ./...`, `git diff --check`, and resolved `sdd-research` agent loading. The sanitized repo-owned `branch-pr`, all 7 repo-owned skills, 5 wrappers, owned `AGENTS.md`, configured overrides, and 4 managed profiles match canonical or local config. Conflicting upstream `branch-pr`, `issue-creation`, and Hermes are absent.
 - All profiles have the ordered 11-phase topology and the 3 named `sdd-research` actors. Review actors remain global with no suffixed review actors, and Judgment Day differs only by the retrospective patch. `general` is `openai/gpt-5.6-terra` / `high`; `explore` is `openai/gpt-5.6-sol` / `medium`.

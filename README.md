@@ -99,29 +99,37 @@ El mantenimiento en este repositorio sigue siempre los mismos pasos. Lo único q
 
 Es normal no haber ejecutado todavía `gentle-ai sync` ni una reinstalación: esos pasos vienen después de la auditoría y de tu aprobación.
 
-### Estado actual: repo v2.9.0, runtime v2.5.0
+### Estado actual: repo y runtime v2.9.1
 
-Los snapshots aprobados y `upstream-state.json` ya están en v2.9.0, commit `be49554794917ae92a6dc9dbfa2eb3db5cf70084`. La copia autorizada informó 28 archivos administrados con cambios en el rango: 3 nuevos, 25 actualizados, 46 sin cambios, ninguno eliminado y 18 carpetas sincronizadas.
+`upstream-state.json` ya está en v2.9.1, commit `9ec0cf443622f20fe511815ff5a83088c7467bff`. La copia autorizada no cambió snapshots: informó 0 archivos nuevos, 0 actualizados, 74 sin cambios, ninguno eliminado y 18 carpetas sincronizadas.
 
-El runtime de OpenCode NO se actualizó en este paso. Sigue en su último estado verificado de v2.5.0 porque todavía no se autorizó ni ejecutó `gentle-ai sync`, una reinstalación ni un nuevo `apply`. La auditoría canónica posterior a la copia pasó en v2.9.0, commit `be49554794917ae92a6dc9dbfa2eb3db5cf70084`, sin diferencias en archivos administrados ni en archivos no administrados vigilados y con todos los controles estructurales, de perfiles y de topología en `ok`.
+Después del cierre del repositorio, el usuario ejecutó manualmente `gentle-ai sync` y `bash apply-gentle-ai-custom.sh opencode`. No se guardaron los resúmenes ni la salida original de esos comandos, así que no se informan cantidades nuevas del `apply`. Una verificación independiente y de solo lectura confirmó el estado final.
 
-La policy y la auditoría de este repositorio incorporan la fase real `sdd-research`, ubicada después de `sdd-explore`, y validan perfiles con 11 fases. La instalación completa del componente SDD v2.5.0 realizada manualmente y la posterior ejecución autorizada por separado de `bash apply-gentle-ai-custom.sh opencode` terminaron correctamente.
+La auditoría canónica pasó en v2.9.1, commit `9ec0cf443622f20fe511815ff5a83088c7467bff`, sin diferencias en archivos administrados ni en archivos no administrados vigilados y con todos los controles en `ok`. También pasaron 602 comprobaciones sobre asignaciones, perfiles, prompts, permisos, alcance de tareas, ausencia de actores de review con sufijo y referencias obsoletas.
+
+El orchestrator instalado contiene el consentimiento de revisión v3 compatible. Las 7 skills propias, los 5 wrappers y el `AGENTS.md` propio coinciden con sus fuentes. `issue-creation` y `hermes-ephemeral-delegation` no están instaladas en el destino OpenCode, y `branch-pr` es el reemplazo propio. Los 3 archivos del runtime que reciben parches locales coinciden con los snapshots aprobados al revertir solamente esos parches.
+
+#### Evidencia histórica del runtime v2.5.0
+
+La policy y la auditoría de este repositorio incorporan la fase real `sdd-research`, ubicada después de `sdd-explore`, y validan perfiles con 11 fases. Históricamente, la instalación completa del componente SDD v2.5.0 realizada manualmente y la posterior ejecución autorizada por separado de `bash apply-gentle-ai-custom.sh opencode` terminaron correctamente.
 
 El `apply` actualizó la configuración, podó 2 skills, cambió y verificó 1 asset propio, no informó warnings de topología y administró 4 perfiles. En los agentes informó 3 creados, 4 actualizados y 49 sin cambios, sin perfiles no administrados. La verificación final pasó la auditoría canónica, `go test ./...`, `git diff --check` y la carga resuelta de los agentes `sdd-research`.
 
 La copia sanitizada y propia de `branch-pr` está instalada. La copia conflictiva upstream de `branch-pr`, `issue-creation` y Hermes no están. Las 7 skills propias, los 5 wrappers, el `AGENTS.md` propio, los overrides y los 4 perfiles administrados coinciden con sus fuentes o con la configuración local. `general` usa `openai/gpt-5.6-terra` / `high`; `explore` usa `openai/gpt-5.6-sol` / `medium`. Los cuatro perfiles tienen 11 fases en orden y existen los 3 actores nombrados de `sdd-research`. Los actores de review siguen siendo globales, sin copias con sufijo, y Judgment Day difiere del upstream solo por el parche de retrospectiva.
 
-En esa verificación del runtime v2.5.0, la intención y la política efectiva de background estaban en `on`, y el launcher era `~/.gentle-ai/bin/opencode`. Los procesos abiertos desde Desktop o con `opencode` normal seguían en foreground. También se observó que `~/.gentle-ai/state.json` informaba `installed_binary_version: 2.4.0`; no se conoce la causa y no se modificó ese estado externo.
+En esa verificación histórica del runtime v2.5.0, la intención y la política efectiva de background estaban en `on`, y el launcher era `~/.gentle-ai/bin/opencode`. Los procesos abiertos desde Desktop o con `opencode` normal seguían en foreground. También se observó que `~/.gentle-ai/state.json` informaba `installed_binary_version: 2.4.0`; no se conoce la causa y no se modificó ese estado externo.
 
-La política del repositorio considera RDD activo y funcional por decisión explícita del propietario, basada en validaciones operativas realizadas en otros repositorios. Esta decisión no cambia el runtime: en esta máquina se observó el modo global en `on` y sin ajuste local para este clon. No se autorizó ni realizó ningún commit, push o PR para este cierre documental.
+La política del repositorio considera RDD activo y funcional por decisión explícita del propietario, basada en validaciones operativas realizadas en otros repositorios. Esta decisión no cambia el runtime: en esta máquina se observó el modo global en `on` y sin ajuste local para este clon. El usuario excluyó de forma explícita este mantenimiento de v2.9.1 de RDD. No se autorizó ni realizó ningún commit, push o PR para este cierre documental.
 
-### Adaptación del repositorio para v2.9.0
+### Adaptación del repositorio para v2.9
 
 La auditoría entiende la nueva composición del orchestrator sin depender del número de versión: sigue la cadena real desde la asignación del prompt hasta el asset OpenCode y rechaza asignaciones sueltas o señuelos. También vigila el contrato upstream de autorización remota y comprueba que llegue a los prompts de OpenCode que este repo mantiene.
 
 El skill upstream `sdd-research` sigue siendo la fuente del runtime. Un parche local exacto aclara únicamente la contradicción del launcher de OpenCode: el executor devuelve el estado bloqueado, pero no lo guarda; la persistencia queda a cargo del orchestrator. Si el archivo instalado no tiene el anchor esperado, `apply` frena antes de escribir.
 
-La copia de snapshots y el avance de `upstream-state.json` a v2.9.0 ya terminaron con autorización separada. La auditoría canónica posterior también pasó en el commit exacto `be49554794917ae92a6dc9dbfa2eb3db5cf70084`, sin diferencias en archivos administrados ni en archivos no administrados vigilados y con todos los controles estructurales, de perfiles y de topología en `ok`. Esto NO actualizó el runtime. Ahora se recomienda `gentle-ai sync`, pero tanto esa actualización como el `apply` posterior siguen necesitando autorizaciones separadas.
+La adopción de v2.9.1 incorpora desde upstream el consentimiento de revisión compatible y la migración de prompts preservados para OpenCode. Los cambios de autoridad de despacho derivados de transcripciones de Claude Code quedan fuera del alcance OpenCode mantenido por este repo. No fue necesario cambiar la política, los parches, los perfiles ni la topología.
+
+La copia y el avance de `upstream-state.json` a v2.9.1 terminaron con autorización separada. Después, el usuario completó manualmente `gentle-ai sync` y el `apply` del overlay. La verificación independiente de solo lectura pasó; no queda una actualización del runtime pendiente para este cierre.
 
 Antes de explorar el repo o delegar el análisis, la auditoría comprueba cuatro cosas: la versión instalada, que la carpeta original esté totalmente limpia, que exista el tag exacto `v<versión>` y que `HEAD` apunte al commit de ese tag. También revisa cambios dentro de submódulos. Si algo no coincide, se detiene sin delegar nada y explica cómo actualizar tags o cambiar al tag correcto de forma manual. Nunca descarga tags ni cambia de versión por su cuenta. `last_maintained_commit` sirve para elegir desde dónde comparar cambios; no demuestra esta coincidencia.
 
@@ -198,7 +206,7 @@ El comando `apply-gentle-ai-custom` sigue siendo independiente de la carpeta ori
 - aplica nuestras preferencias de modelos de IA si las configuramos.
 - comprueba solo los archivos, referencias y anchors que necesita para aplicar perfiles o los parches locales declarados.
 - aplica dos parches puntuales con anchors exactos: el handoff de Judgment Day y la regla output-only de `sdd-research`.
-- conserva los prompts y plugins preparados por Gentle AI; no los reemplaza con plantillas fuente. Los snapshots y la frontera mantenida ya están en v2.9.0, pero el runtime instalado sigue en su último estado verificado de v2.5.0 hasta que se autoricen por separado `gentle-ai sync` y la reaplicación del overlay. La política acepta RDD como activo y funcional, pero su estado efectivo se consulta por máquina o clon.
+- conserva los prompts y plugins preparados por Gentle AI; no los reemplaza con plantillas fuente. La frontera mantenida y el runtime verificado están en v2.9.1, y los snapshots aprobados no cambiaron frente a v2.9.0. La política acepta RDD como activo y funcional, pero su estado efectivo se consulta por máquina o clon.
 - ajusta modelos y perfiles reutilizando los prompts base ya instalados.
 - agrega de forma puntual el handoff de `judgment-retrospective` al skill `judgment-day` compatible.
 - evita que una instrucción inline contradictoria haga que `sdd-research` persista estado por su cuenta.
