@@ -4,6 +4,29 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-09-14 | Adopted the Gentle AI v2.9.0 repository boundary
+
+- **Date**: `2026-09-14`
+- **Title**: Adopted the Gentle AI v2.9.0 repository boundary
+- **Type**: `adoption`
+- **Upstream scope/range**: `f5dd1a6cf1823371374c7b2bef5b71e4790a146a` (`v2.5.0`) -> `be49554794917ae92a6dc9dbfa2eb3db5cf70084` (`v2.9.0`)
+- **Decision**: `Adquirir` the v2.9 managed SDD, status, verification, telemetry, remote-authorization, and composed-orchestrator behavior for OpenCode; the accepted upstream composer is acquired as upstream behavior and is not sanitized. `Sanitizar` only the local `sdd-research` inline persistence contradiction and the local audit tooling and managed-boundary adaptations needed to verify the adopted behavior. `Ignorar` Pi-only and unrelated unmanaged housekeeping for the maintained OpenCode target.
+- **Why it mattered**: v2.9 changes the maintained prompt-composition and projection paths, adds remote-authorization and telemetry assets, and strengthens SDD status, evidence, verification, and archive behavior. The repository needed an exact v2.9 audit baseline without claiming that the installed OpenCode runtime had already been refreshed.
+- **Affected artifacts**: v2.9 audit and regression support under `internal/overlay/`; `overlay/gentle-ai/policy/{maintenance-intent.md,managed-assets.json}`; `overlay/gentle-ai/patches/opencode/sdd-research-output-only.json`; approved snapshots under `overlay/gentle-ai/assets/upstream/opencode/`; `overlay/gentle-ai/state/upstream-state.json`; `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`; and live maintainer documentation in `AGENTS.md`, `README.md`, `overlay/gentle-ai/README.md`, `overlay/gentle-ai/maintenance.md`, and `overlay/gentle-ai/logs/update-log.md`.
+- **Verification**: before sync, fresh-context terminal validation passed the sink-reaching structural regressions, full Go test suite, build, and diff checks; the canonical audit reported all structural and topology invariants `ok` and stopped only for the 28 managed files that still differed from the v2.5.0 boundary. The separately authorized `bash sync-gentle-ai-upstream-assets.sh` then verified binary `2.9.0`, exact tag `v2.9.0`, and commit `be49554794917ae92a6dc9dbfa2eb3db5cf70084`; reported 28 managed range changes, 3 new files, 25 changed files, 46 unchanged files, 0 deletions, and 18 synced directories; and advanced `upstream-state.json` to that exact identity. The post-sync canonical audit passed with no managed or watched-unmanaged drift and every structural, profile, and JD/review topology invariant `ok`. Documentation closure passed `git diff --check`. No runtime refresh, reinstall, overlay apply, commit, push, or PR was run.
+- **Follow-up**: the recommended runtime refresh is `gentle-ai sync`, not reinstall, but it remains unexecuted and requires separate authorization. Overlay apply also remains separately authorized. Keep RDD off and blocked until the correction-required canary passes.
+
+## 2026-09-14 | Accepted RDD as active and functional
+
+- **Date**: `2026-09-14`
+- **Title**: Accepted RDD as active and functional
+- **Type**: `policy-change`
+- **Upstream scope/range**: Repository policy at the maintained v2.9.0 boundary `be49554794917ae92a6dc9dbfa2eb3db5cf70084`; no boundary or snapshot change.
+- **Decision**: The owner accepted Receipt-Driven Development as active and functional based on operational validation in other repositories and retired the correction-required canary as a mandatory activation blocker. The canary remains an optional regression diagnostic. The user-owned kill switch, exact candidate-bound receipt requirements, bounded correction lifecycle, and ordinary repository delivery policy remain unchanged.
+- **Why it mattered**: Live maintainer guidance still described RDD as disabled and blocked even though the effective state observed on this machine was global `on` with clone-local unset and the owner had explicitly accepted the workflow. Repository policy now records that acceptance without claiming a specific v2.9 canary or receipt and without treating repository policy or upstream as the controller of machine state.
+- **Affected artifacts**: `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`; `AGENTS.md`; `README.md`; `overlay/gentle-ai/{README.md,maintenance.md,logs/update-log.md}`.
+- **Verification**: The canonical audit passed exact v2.9.0 parity at `be49554794917ae92a6dc9dbfa2eb3db5cf70084`. Targeted current-policy searches and `git diff --check` passed. Older ledger entries and historical v2.2.2/v2.5.0 correction evidence remain unchanged or explicitly historical. No runtime or global configuration mutation, repo snapshot sync, overlay apply, commit, push, or PR action was performed for this policy edit.
+
 ## 2026-09-12 | Added global credential-file safety
 
 - **Date**: `2026-09-12`

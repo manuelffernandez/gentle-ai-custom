@@ -100,9 +100,10 @@ func RunAuditUpstream(repoRoot string, args []string) int {
 	profileNamingOK := structuralResult.ProfileNamingOK
 	taskScopingOK := structuralResult.TaskScopingOK
 	baseAssetInjectionOK := structuralResult.BaseAssetInjectionOK
+	remoteAuthorizationOK := structuralResult.RemoteAuthorizationOK
 	roleTopologyOK := structuralResult.RoleTopologyOK
 	phaseOrderOK := structuralResult.PhaseOrderOK
-	driftSummary = append(driftSummary, buildAuditDriftSummary(basePromptDrift, phaseOrderOK, profileNamingOK, taskScopingOK, baseAssetInjectionOK, roleTopologyOK)...)
+	driftSummary = append(driftSummary, buildAuditDriftSummary(basePromptDrift, phaseOrderOK, profileNamingOK, taskScopingOK, baseAssetInjectionOK, remoteAuthorizationOK, roleTopologyOK)...)
 
 	fmt.Println("Auditing Gentle AI upstream baseline...")
 	fmt.Printf("- Repo root: %s\n", repoRoot)
@@ -126,6 +127,7 @@ func RunAuditUpstream(repoRoot string, args []string) int {
 	fmt.Printf("  profile orchestrator naming: %s\n", statusWord(profileNamingOK))
 	fmt.Printf("  profile task scoping invariant: %s\n", statusWord(taskScopingOK))
 	fmt.Printf("  base asset injection invariant: %s\n", statusWord(baseAssetInjectionOK))
+	fmt.Printf("  remote authorization projection invariant: %s\n", statusWord(remoteAuthorizationOK))
 	fmt.Printf("  JD/review actor topology invariant: %s\n", statusWord(roleTopologyOK))
 	if len(driftSummary) > 0 {
 		fmt.Println()
@@ -184,11 +186,12 @@ func printAuditUpstreamUsage(out *os.File) {
 }
 
 type structuralInvariantResult struct {
-	PhaseOrderOK         bool
-	ProfileNamingOK      bool
-	TaskScopingOK        bool
-	BaseAssetInjectionOK bool
-	RoleTopologyOK       bool
+	PhaseOrderOK          bool
+	ProfileNamingOK       bool
+	TaskScopingOK         bool
+	BaseAssetInjectionOK  bool
+	RemoteAuthorizationOK bool
+	RoleTopologyOK        bool
 }
 
 type managedAssetRecord struct {
@@ -424,6 +427,15 @@ func readStructuralSource(upstreamRepo string, paths []string, suffix string) (s
 	return "", fmt.Errorf("structural invariant source matching %q is not declared in managed-assets.json", suffix)
 }
 
+func declaresStructuralSource(paths []string, suffix string) bool {
+	for _, path := range paths {
+		if strings.HasSuffix(path, suffix) {
+			return true
+		}
+	}
+	return false
+}
+
 func managedDriftStatus(count int) string {
 	if count == 0 {
 		return "ok"
@@ -469,8 +481,38 @@ func evaluateStructuralInvariants(upstreamRepo string, target ManagedAssetsTarge
 			failures = append(failures, fmt.Sprintf("upstream inject.go no longer contains expected base orchestrator asset binding snippet: %q", snippet))
 		}
 	}
-	if !baseAssetInjectionInvariantOK(upstreamInjectText) {
+	upstreamOrchestratorText := ""
+	if declaresStructuralSource(target.StructuralInvariantSources, "components/sdd/orchestrator.go") {
+		upstreamOrchestratorText, err = readStructuralSource(upstreamRepo, target.StructuralInvariantSources, "components/sdd/orchestrator.go")
+		if err != nil {
+			failures = append(failures, err.Error())
+		}
+	}
+	if !baseAssetInjectionInvariantOK(upstreamInjectText, upstreamOrchestratorText) {
 		failures = append(failures, "upstream inject.go no longer binds the OpenCode orchestrator prompt from the canonical SDD asset render path")
+	}
+	remoteAuthorizationOK := true
+	if declaresStructuralSource(target.StructuralInvariantSources, "components/agentguidance/remote_authorization.go") {
+		remoteSources := make(map[string]string)
+		for _, suffix := range []string{
+			"components/agentguidance/remote_authorization.go",
+			"components/agentguidance/inject.go",
+			"components/sdd/prompts.go",
+			"components/sdd/profiles.go",
+			"components/sdd/inject.go",
+		} {
+			remoteSources[suffix], err = readStructuralSource(upstreamRepo, target.StructuralInvariantSources, suffix)
+			if err != nil {
+				failures = append(failures, err.Error())
+				remoteAuthorizationOK = false
+			}
+		}
+		if remoteAuthorizationOK {
+			remoteAuthorizationOK = remoteAuthorizationProjectionInvariantOK(remoteSources)
+		}
+		if !remoteAuthorizationOK {
+			failures = append(failures, "upstream remote authorization contract no longer reaches all maintained OpenCode prompt carriers")
+		}
 	}
 	jdActors, jdErr := extractReturnedStringSlice(upstreamModelsText, "JDPhases")
 	if jdErr != nil {
@@ -498,7 +540,8 @@ func evaluateStructuralInvariants(upstreamRepo string, target ManagedAssetsTarge
 	}
 	result.ProfileNamingOK = profileNamingOK
 	result.TaskScopingOK = profileTaskScopingInvariantOK(upstreamProfilesText)
-	result.BaseAssetInjectionOK = containsAll(upstreamInjectText, requiredInjectSnippets) && baseAssetInjectionInvariantOK(upstreamInjectText)
+	result.BaseAssetInjectionOK = containsAll(upstreamInjectText, requiredInjectSnippets) && baseAssetInjectionInvariantOK(upstreamInjectText, upstreamOrchestratorText)
+	result.RemoteAuthorizationOK = remoteAuthorizationOK
 	result.PhaseOrderOK = len(phaseOrder) > 0 && sameStrings(phaseOrder, policy.OpenCode.SDDPhases)
 	result.RoleTopologyOK = roleTopologyOK
 	return result, failures
@@ -723,7 +766,7 @@ func taskPermissionValueUsesTaskPerms(expr ast.Expr) bool {
 	})
 }
 
-func baseAssetInjectionInvariantOK(text string) bool {
+func baseAssetInjectionInvariantOK(text string, compositionSources ...string) bool {
 	if strings.TrimSpace(text) == "" {
 		return false
 	}
@@ -731,24 +774,823 @@ func baseAssetInjectionInvariantOK(text string) bool {
 	if err != nil {
 		return false
 	}
-	matched := false
-	ast.Inspect(file, func(node ast.Node) bool {
-		assign, ok := node.(*ast.AssignStmt)
-		if !ok {
+	compositionRequired := false
+	compositionOK := false
+	for _, source := range compositionSources {
+		if strings.TrimSpace(source) == "" {
+			continue
+		}
+		compositionRequired = true
+		if orchestratorCompositionInvariantOK(source) {
+			compositionOK = true
+		}
+	}
+	if compositionRequired && !compositionOK {
+		return false
+	}
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Body == nil {
+			continue
+		}
+		if compositionRequired && fn.Name.Name != "inlineOpenCodeSDDPrompts" {
+			continue
+		}
+		if blockBindsOrchestratorPrompt(fn.Body, compositionOK, !compositionRequired) {
 			return true
 		}
-		for i := range assign.Lhs {
-			if i >= len(assign.Rhs) {
+	}
+	return false
+}
+
+func blockBindsOrchestratorPrompt(block *ast.BlockStmt, compositionOK, legacyAllowed bool) bool {
+	bound := map[*ast.Object]bool{}
+	promptAssignmentValid := false
+	for _, stmt := range block.List {
+		if assign, ok := stmt.(*ast.AssignStmt); ok && len(assign.Rhs) == 1 && len(assign.Lhs) > 0 {
+			for i := range assign.Lhs {
+				if i >= len(assign.Rhs) || !isOrchestratorPromptAssignment(assign.Lhs[i]) {
+					continue
+				}
+				promptAssignmentValid = false
+				if call, ok := assign.Rhs[i].(*ast.CallExpr); ok {
+					if compositionOK && isComposeOpenCodeOrchestratorCall(call) {
+						promptAssignmentValid = true
+					}
+					if legacyAllowed && isCanonicalOrchestratorPromptSource(call) {
+						promptAssignmentValid = true
+					}
+				}
+				if ident, ok := assign.Rhs[i].(*ast.Ident); ok && ident.Obj != nil && bound[ident.Obj] && compositionOK {
+					promptAssignmentValid = true
+				}
+			}
+			for _, lhsExpr := range assign.Lhs {
+				ident, ok := lhsExpr.(*ast.Ident)
+				if !ok || ident.Obj == nil {
+					continue
+				}
+				delete(bound, ident.Obj)
+			}
+			if call, ok := assign.Rhs[0].(*ast.CallExpr); ok && isComposeOpenCodeOrchestratorCall(call) {
+				if ident, ok := assign.Lhs[0].(*ast.Ident); ok && ident.Obj != nil {
+					bound[ident.Obj] = true
+				}
+			}
+		}
+		for _, child := range reachableChildBlocks(stmt) {
+			if blockAssignsOrchestratorPrompt(child) {
+				promptAssignmentValid = blockBindsOrchestratorPrompt(child, compositionOK, legacyAllowed)
+			}
+			for object := range bound {
+				if blockAssignsObject(child, object) {
+					delete(bound, object)
+				}
+			}
+		}
+		if statementTerminatesBlock(stmt) {
+			break
+		}
+	}
+	return promptAssignmentValid
+}
+
+func isComposeOpenCodeOrchestratorCall(call *ast.CallExpr) bool {
+	return isIdent(call.Fun, "composeOpenCodeOrchestratorPrompt") && len(call.Args) == 2 &&
+		isIdent(call.Args[0], "agent") && isIdent(call.Args[1], "renderOptions")
+}
+
+func orchestratorCompositionInvariantOK(text string) bool {
+	if strings.TrimSpace(text) == "" {
+		return false
+	}
+	file, err := parseInvariantGoSource(text)
+	if err != nil {
+		return false
+	}
+	composeOpenCode := findFunction(file, "composeOpenCodeOrchestratorPrompt")
+	compose := findFunction(file, "composeOrchestratorPrompt")
+	selector := findFunction(file, "sddOrchestratorAsset")
+	return composeOpenCodeHasCanonicalReturn(composeOpenCode) &&
+		composeOrchestratorReadsSelectedAsset(compose) &&
+		sddOrchestratorAssetSelectsOpenCode(selector)
+}
+
+func composeOpenCodeHasCanonicalReturn(fn *ast.FuncDecl) bool {
+	ret := finalTopLevelReturn(fn)
+	if ret == nil || len(ret.Results) != 1 {
+		return false
+	}
+	outer, ok := ret.Results[0].(*ast.CallExpr)
+	if !ok || !isIdent(outer.Fun, "projectSDDSessionPreflight") || len(outer.Args) < 1 {
+		return false
+	}
+	inner, ok := outer.Args[0].(*ast.CallExpr)
+	return ok && isIdent(inner.Fun, "composeOrchestratorPrompt") && len(inner.Args) >= 1 && isIdent(inner.Args[0], "agent")
+}
+
+func composeOrchestratorReadsSelectedAsset(fn *ast.FuncDecl) bool {
+	if fn == nil || fn.Body == nil {
+		return false
+	}
+	var pathObject, contentObject *ast.Object
+	pathTrusted := false
+	contentTrusted := false
+	assetReadIndex := -1
+	for index, stmt := range fn.Body.List {
+		if statementTerminatesBlock(stmt) && index != len(fn.Body.List)-1 {
+			return false
+		}
+		assign, ok := stmt.(*ast.AssignStmt)
+		if !ok || len(assign.Lhs) == 0 || len(assign.Rhs) != 1 {
+			continue
+		}
+		lhs, ok := assign.Lhs[0].(*ast.Ident)
+		if !ok || lhs.Obj == nil {
+			continue
+		}
+		call, callOK := assign.Rhs[0].(*ast.CallExpr)
+		if pathObject != nil && lhs.Obj == pathObject {
+			pathTrusted = false
+		}
+		if contentObject != nil && lhs.Obj == contentObject {
+			contentTrusted = contentTrusted && isCanonicalOrchestratorContentDerivation(assign.Rhs[0], contentObject)
+		}
+		if isIdent(lhs, "path") && callOK && isIdent(call.Fun, "sddOrchestratorAsset") && len(call.Args) == 1 && isIdent(call.Args[0], "agent") {
+			pathObject = lhs.Obj
+			pathTrusted = true
+			continue
+		}
+		if isIdent(lhs, "content") && pathTrusted && callOK && isSelector(call.Fun, "assets", "MustRead") && len(call.Args) == 1 && identUsesObject(call.Args[0], pathObject) {
+			contentObject = lhs.Obj
+			contentTrusted = true
+			assetReadIndex = index
+		}
+		for _, child := range reachableChildBlocks(stmt) {
+			if pathTrusted && blockAssignsObject(child, pathObject) {
+				pathTrusted = false
+			}
+			if contentTrusted && !blockPreservesOrchestratorContent(child, contentObject) {
+				contentTrusted = false
+			}
+		}
+	}
+	ret := finalTopLevelReturn(fn)
+	if contentObject == nil || !contentTrusted || ret == nil || assetReadIndex >= len(fn.Body.List)-1 || len(ret.Results) != 1 {
+		return false
+	}
+	call, ok := ret.Results[0].(*ast.CallExpr)
+	return ok && isIdent(call.Fun, "bindRuntimeAgentIdentity") && len(call.Args) == 2 && identUsesObject(call.Args[0], contentObject) && isIdent(call.Args[1], "agent")
+}
+
+func sddOrchestratorAssetSelectsOpenCode(fn *ast.FuncDecl) bool {
+	if fn == nil || fn.Body == nil {
+		return false
+	}
+	for _, stmt := range fn.Body.List {
+		if statementTerminatesBlock(stmt) {
+			break
+		}
+		switchStmt, ok := stmt.(*ast.SwitchStmt)
+		if !ok || !isIdent(switchStmt.Tag, "agent") || switchStmt.Body == nil {
+			continue
+		}
+		for _, caseStmt := range switchStmt.Body.List {
+			clause, ok := caseStmt.(*ast.CaseClause)
+			if !ok || !expressionsContainSelector(clause.List, "model", "AgentOpenCode") {
 				continue
 			}
-			if isOrchestratorPromptAssignment(assign.Lhs[i]) && isCanonicalOrchestratorPromptSource(assign.Rhs[i]) {
-				matched = true
+			for _, bodyStmt := range clause.Body {
+				if ret, ok := bodyStmt.(*ast.ReturnStmt); ok && len(ret.Results) == 1 && isStringLiteral(ret.Results[0], "opencode/sdd-orchestrator.md") {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func finalTopLevelReturn(fn *ast.FuncDecl) *ast.ReturnStmt {
+	if fn == nil || fn.Body == nil || len(fn.Body.List) == 0 {
+		return nil
+	}
+	ret, _ := fn.Body.List[len(fn.Body.List)-1].(*ast.ReturnStmt)
+	return ret
+}
+
+func remoteAuthorizationProjectionInvariantOK(sources map[string]string) bool {
+	remoteFile := parseInvariantSource(sources["components/agentguidance/remote_authorization.go"])
+	guidanceFile := parseInvariantSource(sources["components/agentguidance/inject.go"])
+	promptsFile := parseInvariantSource(sources["components/sdd/prompts.go"])
+	profilesFile := parseInvariantSource(sources["components/sdd/profiles.go"])
+	injectFile := parseInvariantSource(sources["components/sdd/inject.go"])
+	if remoteFile == nil || guidanceFile == nil || promptsFile == nil || profilesFile == nil || injectFile == nil {
+		return false
+	}
+	return remoteAuthorizationHelperIsCanonical(findFunction(remoteFile, "InjectRemoteAuthorization")) &&
+		routingProjectionReachesReturn(findFunction(guidanceFile, "InjectRoutingWithOptions")) &&
+		functionProjectsIdentToWrite(findFunction(promptsFile, "WriteSharedPromptFiles"), "content", "agentguidance", "InjectRemoteAuthorization") &&
+		functionAssignsPromptProjection(findFunction(promptsFile, "injectRemoteAuthorizationIntoSubagentPrompts")) &&
+		functionProjectionSurvivesUntilMarshal(findFunction(profilesFile, "GenerateProfileOverlay"), "injectRemoteAuthorizationIntoSubagentPrompts", "agentMap") &&
+		functionProjectsIdentToWrite(findFunction(injectFile, "Inject"), "contentStr", "agentguidance", "InjectRemoteAuthorization") &&
+		functionProjectionSurvivesUntilMarshal(findFunction(injectFile, "inlineOpenCodeSDDPrompts"), "injectRemoteAuthorizationIntoSubagentPrompts", "agentsMap")
+}
+
+func remoteAuthorizationHelperIsCanonical(fn *ast.FuncDecl) bool {
+	if fn == nil || fn.Body == nil {
+		return false
+	}
+	var contractObject *ast.Object
+	contractTrusted := false
+	for index, stmt := range fn.Body.List {
+		if statementTerminatesBlock(stmt) && index != len(fn.Body.List)-1 {
+			return false
+		}
+		assign, ok := stmt.(*ast.AssignStmt)
+		if !ok || len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
+			continue
+		}
+		contract, ok := assign.Lhs[0].(*ast.Ident)
+		call, callOK := assign.Rhs[0].(*ast.CallExpr)
+		if ok && contractObject != nil && contract.Obj == contractObject {
+			contractTrusted = false
+		}
+		if ok && contract.Obj != nil && callOK && isSelector(call.Fun, "assets", "MustRead") && len(call.Args) == 1 && isStringLiteral(call.Args[0], "generic/remote-authorization-contract.md") {
+			contractObject = contract.Obj
+			contractTrusted = true
+		}
+		for _, child := range reachableChildBlocks(stmt) {
+			if contractTrusted && blockAssignsObject(child, contractObject) {
+				contractTrusted = false
+			}
+		}
+	}
+	ret := finalTopLevelReturn(fn)
+	if contractObject == nil || !contractTrusted || ret == nil || len(ret.Results) != 1 {
+		return false
+	}
+	call, ok := ret.Results[0].(*ast.CallExpr)
+	if !ok || !isSelector(call.Fun, "filemerge", "InjectMarkdownSection") || len(call.Args) != 3 || !isIdent(call.Args[0], "prompt") || !isStringLiteral(call.Args[1], "remote-authorization") {
+		return false
+	}
+	trim, ok := call.Args[2].(*ast.CallExpr)
+	return ok && isSelector(trim.Fun, "strings", "TrimSpace") && len(trim.Args) == 1 && identUsesObject(trim.Args[0], contractObject)
+}
+
+func routingProjectionReachesReturn(fn *ast.FuncDecl) bool {
+	if fn == nil || fn.Body == nil {
+		return false
+	}
+	var renderedObject *ast.Object
+	trusted := false
+	for _, stmt := range fn.Body.List {
+		if assign, ok := stmt.(*ast.AssignStmt); ok && len(assign.Lhs) == 1 && len(assign.Rhs) == 1 {
+			lhs, lhsOK := assign.Lhs[0].(*ast.Ident)
+			if lhsOK && lhs.Name == "rendered" {
+				if renderedObject == nil {
+					renderedObject = lhs.Obj
+				}
+				trusted = false
+				if call, ok := assign.Rhs[0].(*ast.CallExpr); ok && isIdent(call.Fun, "InjectRemoteAuthorization") && len(call.Args) == 1 && sameIdentifierBinding(lhs, call.Args[0]) {
+					trusted = true
+				}
+			}
+		}
+		if trusted {
+			if ret, ok := stmt.(*ast.ReturnStmt); ok && returnUsesTrackedIdentifier(ret, "rendered", renderedObject) {
+				return true
+			}
+			if switchStmt, ok := stmt.(*ast.SwitchStmt); ok && switchReturnsUseTrackedIdentifier(switchStmt, "rendered", renderedObject) {
+				return true
+			}
+		}
+		for _, child := range reachableChildBlocks(stmt) {
+			if trusted && blockAssignsTrackedIdentifier(child, "rendered", renderedObject) {
+				trusted = false
+			}
+		}
+	}
+	return false
+}
+
+func functionProjectsIdentToWrite(fn *ast.FuncDecl, identName, packageName, functionName string) bool {
+	if fn == nil || fn.Body == nil {
+		return false
+	}
+	return blockProjectsIdentToWrite(fn.Body, identName, packageName, functionName)
+}
+
+func blockProjectsIdentToWrite(block *ast.BlockStmt, identName, packageName, functionName string) bool {
+	var object *ast.Object
+	trusted := false
+	for _, stmt := range block.List {
+		if assign, ok := stmt.(*ast.AssignStmt); ok {
+			for index, lhsExpr := range assign.Lhs {
+				lhs, ok := lhsExpr.(*ast.Ident)
+				if !ok || lhs.Name != identName {
+					continue
+				}
+				if object == nil {
+					object = lhs.Obj
+				}
+				rhs := assignmentRHS(assign, index)
+				trusted = false
+				if call, ok := rhs.(*ast.CallExpr); ok && len(call.Args) == 1 && sameIdentifierBinding(lhs, call.Args[0]) && callMatches(call, packageName, functionName) {
+					trusted = true
+				}
+			}
+		}
+		if trusted && statementCallsWithTrackedIdentifier(stmt, "filemerge", "WriteFileAtomic", identName, object) {
+			return true
+		}
+		for _, child := range reachableChildBlocks(stmt) {
+			if blockProjectsIdentToWrite(child, identName, packageName, functionName) {
+				return true
+			}
+			if blockAssignsTrackedIdentifier(child, identName, object) {
+				object, trusted = projectionStateAfterBlock(child, identName, packageName, functionName, object, trusted)
+			}
+		}
+		if statementTerminatesBlock(stmt) {
+			break
+		}
+	}
+	return false
+}
+
+func projectionStateAfterBlock(block *ast.BlockStmt, identName, packageName, functionName string, object *ast.Object, trusted bool) (*ast.Object, bool) {
+	for _, stmt := range block.List {
+		if assign, ok := stmt.(*ast.AssignStmt); ok {
+			for index, lhsExpr := range assign.Lhs {
+				lhs, ok := lhsExpr.(*ast.Ident)
+				if !ok || lhs.Name != identName {
+					continue
+				}
+				if object == nil {
+					object = lhs.Obj
+				}
+				rhs := assignmentRHS(assign, index)
+				trusted = false
+				if call, ok := rhs.(*ast.CallExpr); ok && len(call.Args) == 1 && sameIdentifierBinding(lhs, call.Args[0]) && callMatches(call, packageName, functionName) {
+					trusted = true
+				}
+			}
+		}
+		for _, child := range reachableChildBlocks(stmt) {
+			object, trusted = projectionStateAfterBlock(child, identName, packageName, functionName, object, trusted)
+		}
+		if statementTerminatesBlock(stmt) {
+			break
+		}
+	}
+	return object, trusted
+}
+
+func functionAssignsPromptProjection(fn *ast.FuncDecl) bool {
+	if fn == nil || fn.Body == nil {
+		return false
+	}
+	return blockEndsWithPromptProjection(fn.Body)
+}
+
+func blockEndsWithPromptProjection(block *ast.BlockStmt) bool {
+	touched := false
+	valid := false
+	for _, stmt := range block.List {
+		if assign, ok := stmt.(*ast.AssignStmt); ok && len(assign.Lhs) == 1 && len(assign.Rhs) == 1 && isPromptMapAssignment(assign.Lhs[0]) {
+			touched = true
+			call, callOK := assign.Rhs[0].(*ast.CallExpr)
+			valid = callOK && isSelector(call.Fun, "agentguidance", "InjectRemoteAuthorization") && len(call.Args) == 1 && isIdent(call.Args[0], "prompt")
+		}
+		for _, child := range reachableChildBlocks(stmt) {
+			if blockAssignsPromptMap(child) {
+				touched = true
+				valid = blockEndsWithPromptProjection(child)
+			}
+		}
+		if statementTerminatesBlock(stmt) {
+			break
+		}
+	}
+	return touched && valid
+}
+
+func functionProjectionSurvivesUntilMarshal(fn *ast.FuncDecl, functionName, argumentName string) bool {
+	if fn == nil || fn.Body == nil {
+		return false
+	}
+	projected := false
+	var argumentObject *ast.Object
+	var containerObject *ast.Object
+	containerTrusted := fn.Name.Name == "inlineOpenCodeSDDPrompts"
+	for _, stmt := range fn.Body.List {
+		if expr, ok := stmt.(*ast.ExprStmt); ok {
+			if call, ok := expr.X.(*ast.CallExpr); ok && isIdent(call.Fun, functionName) && len(call.Args) == 1 && isIdent(call.Args[0], argumentName) {
+				projected = true
+				argumentObject = identifierObject(call.Args[0])
+			}
+		}
+		if projected && statementAssignsTrackedIdentifier(stmt, argumentName, argumentObject) {
+			return false
+		}
+		if projected {
+			if assign, ok := stmt.(*ast.AssignStmt); ok {
+				for index, lhsExpr := range assign.Lhs {
+					lhs, ok := lhsExpr.(*ast.Ident)
+					if !ok || lhs.Name != "overlay" {
+						continue
+					}
+					containerObject = lhs.Obj
+					containerTrusted = expressionUsesTrackedIdentifier(assignmentRHS(assign, index), argumentName, argumentObject)
+				}
+			}
+		}
+		if projected && containerTrusted && statementCallsWithTrackedIdentifier(stmt, "json", "MarshalIndent", "overlay", containerObject) {
+			return true
+		}
+		for _, child := range reachableChildBlocks(stmt) {
+			if projected && blockAssignsTrackedIdentifier(child, argumentName, argumentObject) {
+				return false
+			}
+			if projected && blockAssignsTrackedIdentifier(child, "overlay", containerObject) {
 				return false
 			}
 		}
+		if statementTerminatesBlock(stmt) {
+			break
+		}
+	}
+	return false
+}
+
+func reachableChildBlocks(stmt ast.Stmt) []*ast.BlockStmt {
+	switch current := stmt.(type) {
+	case *ast.BlockStmt:
+		return []*ast.BlockStmt{current}
+	case *ast.IfStmt:
+		if isBoolLiteral(current.Cond, false) {
+			return elseBlocks(current.Else)
+		}
+		if isBoolLiteral(current.Cond, true) {
+			return []*ast.BlockStmt{current.Body}
+		}
+		return append([]*ast.BlockStmt{current.Body}, elseBlocks(current.Else)...)
+	case *ast.ForStmt:
+		if isBoolLiteral(current.Cond, false) {
+			return nil
+		}
+		return []*ast.BlockStmt{current.Body}
+	case *ast.RangeStmt:
+		return []*ast.BlockStmt{current.Body}
+	}
+	return nil
+}
+
+func elseBlocks(stmt ast.Stmt) []*ast.BlockStmt {
+	switch value := stmt.(type) {
+	case *ast.BlockStmt:
+		return []*ast.BlockStmt{value}
+	case *ast.IfStmt:
+		return reachableChildBlocks(value)
+	default:
+		return nil
+	}
+}
+
+func statementTerminatesBlock(stmt ast.Stmt) bool {
+	switch stmt.(type) {
+	case *ast.ReturnStmt, *ast.BranchStmt:
+		return true
+	default:
+		return false
+	}
+}
+
+func isBoolLiteral(expr ast.Expr, value bool) bool {
+	ident, ok := expr.(*ast.Ident)
+	return ok && ident.Name == strconv.FormatBool(value)
+}
+
+func parseInvariantSource(text string) *ast.File {
+	file, err := parseInvariantGoSource(text)
+	if err != nil {
+		return nil
+	}
+	return file
+}
+
+func findFunction(file *ast.File, name string) *ast.FuncDecl {
+	for _, decl := range file.Decls {
+		if fn, ok := decl.(*ast.FuncDecl); ok && fn.Name.Name == name {
+			return fn
+		}
+	}
+	return nil
+}
+
+func isSelector(expr ast.Expr, packageName, selectorName string) bool {
+	selector, ok := expr.(*ast.SelectorExpr)
+	return ok && selector.Sel != nil && selector.Sel.Name == selectorName && isIdent(selector.X, packageName)
+}
+
+func identUsesObject(expr ast.Expr, object *ast.Object) bool {
+	ident, ok := expr.(*ast.Ident)
+	return ok && ident.Obj != nil && ident.Obj == object
+}
+
+func sameIdentifierBinding(left *ast.Ident, right ast.Expr) bool {
+	rightIdent, ok := right.(*ast.Ident)
+	if !ok || left.Name != rightIdent.Name {
+		return false
+	}
+	if left.Obj == nil || rightIdent.Obj == nil {
+		return true
+	}
+	return left.Obj == rightIdent.Obj
+}
+
+func expressionUsesObject(expr ast.Expr, object *ast.Object) bool {
+	if expr == nil || object == nil {
+		return false
+	}
+	found := false
+	ast.Inspect(expr, func(node ast.Node) bool {
+		if _, ok := node.(*ast.FuncLit); ok {
+			return false
+		}
+		ident, ok := node.(*ast.Ident)
+		if ok && ident.Obj == object {
+			found = true
+			return false
+		}
+		return !found
+	})
+	return found
+}
+
+func isCanonicalOrchestratorContentDerivation(expr ast.Expr, object *ast.Object) bool {
+	call, ok := expr.(*ast.CallExpr)
+	if !ok || !expressionUsesObject(call, object) {
+		return false
+	}
+	ident, ok := call.Fun.(*ast.Ident)
+	if !ok {
+		return false
+	}
+	switch ident.Name {
+	case "composeFallbackSessionPreflight",
+		"substituteSharedOrchestratorSections",
+		"appendOpenCodeBackgroundPolicy",
+		"replacePiClosedSingleSelectRoute",
+		"replaceOpenCodeConsentV3QuestionRoute",
+		"renderBoundedReviewAssetBodyFromContent":
+		return true
+	default:
+		return false
+	}
+}
+
+func expressionUsesTrackedIdentifier(expr ast.Expr, name string, object *ast.Object) bool {
+	if expr == nil {
+		return false
+	}
+	found := false
+	ast.Inspect(expr, func(node ast.Node) bool {
+		if _, ok := node.(*ast.FuncLit); ok {
+			return false
+		}
+		ident, ok := node.(*ast.Ident)
+		if !ok || ident.Name != name {
+			return !found
+		}
+		if object == nil || ident.Obj == nil || ident.Obj == object {
+			found = true
+			return false
+		}
 		return true
 	})
-	return matched
+	return found
+}
+
+func blockAssignsObject(block *ast.BlockStmt, object *ast.Object) bool {
+	for _, stmt := range block.List {
+		if assign, ok := stmt.(*ast.AssignStmt); ok {
+			for _, lhs := range assign.Lhs {
+				if ident, ok := lhs.(*ast.Ident); ok && ident.Obj == object {
+					return true
+				}
+			}
+		}
+		for _, child := range reachableChildBlocks(stmt) {
+			if blockAssignsObject(child, object) {
+				return true
+			}
+		}
+		if statementTerminatesBlock(stmt) {
+			break
+		}
+	}
+	return false
+}
+
+func blockPreservesOrchestratorContent(block *ast.BlockStmt, object *ast.Object) bool {
+	if object == nil {
+		return false
+	}
+	for _, stmt := range block.List {
+		if assign, ok := stmt.(*ast.AssignStmt); ok {
+			for index, lhs := range assign.Lhs {
+				ident, ok := lhs.(*ast.Ident)
+				if !ok || ident.Obj != object {
+					continue
+				}
+				if !isCanonicalOrchestratorContentDerivation(assignmentRHS(assign, index), object) {
+					return false
+				}
+			}
+		}
+		for _, child := range reachableChildBlocks(stmt) {
+			if !blockPreservesOrchestratorContent(child, object) {
+				return false
+			}
+		}
+		if statementTerminatesBlock(stmt) {
+			break
+		}
+	}
+	return true
+}
+
+func blockAssignsTrackedIdentifier(block *ast.BlockStmt, name string, object *ast.Object) bool {
+	for _, stmt := range block.List {
+		if statementAssignsTrackedIdentifier(stmt, name, object) {
+			return true
+		}
+		for _, child := range reachableChildBlocks(stmt) {
+			if blockAssignsTrackedIdentifier(child, name, object) {
+				return true
+			}
+		}
+		if statementTerminatesBlock(stmt) {
+			break
+		}
+	}
+	return false
+}
+
+func blockAssignsPromptMap(block *ast.BlockStmt) bool {
+	for _, stmt := range block.List {
+		if assign, ok := stmt.(*ast.AssignStmt); ok {
+			for _, lhs := range assign.Lhs {
+				if isPromptMapAssignment(lhs) {
+					return true
+				}
+			}
+		}
+		for _, child := range reachableChildBlocks(stmt) {
+			if blockAssignsPromptMap(child) {
+				return true
+			}
+		}
+		if statementTerminatesBlock(stmt) {
+			break
+		}
+	}
+	return false
+}
+
+func blockAssignsOrchestratorPrompt(block *ast.BlockStmt) bool {
+	for _, stmt := range block.List {
+		if assign, ok := stmt.(*ast.AssignStmt); ok {
+			for _, lhs := range assign.Lhs {
+				if isOrchestratorPromptAssignment(lhs) {
+					return true
+				}
+			}
+		}
+		for _, child := range reachableChildBlocks(stmt) {
+			if blockAssignsOrchestratorPrompt(child) {
+				return true
+			}
+		}
+		if statementTerminatesBlock(stmt) {
+			break
+		}
+	}
+	return false
+}
+
+func assignmentRHS(assign *ast.AssignStmt, index int) ast.Expr {
+	if index < len(assign.Rhs) {
+		return assign.Rhs[index]
+	}
+	if len(assign.Rhs) == 1 {
+		return assign.Rhs[0]
+	}
+	return nil
+}
+
+func callMatches(call *ast.CallExpr, packageName, functionName string) bool {
+	if packageName == "" {
+		return isIdent(call.Fun, functionName)
+	}
+	return isSelector(call.Fun, packageName, functionName)
+}
+
+func returnUsesTrackedIdentifier(ret *ast.ReturnStmt, name string, object *ast.Object) bool {
+	for _, result := range ret.Results {
+		if expressionUsesTrackedIdentifier(result, name, object) {
+			return true
+		}
+	}
+	return false
+}
+
+func switchReturnsUseTrackedIdentifier(stmt *ast.SwitchStmt, name string, object *ast.Object) bool {
+	if stmt.Body == nil || len(stmt.Body.List) == 0 {
+		return false
+	}
+	for _, caseStmt := range stmt.Body.List {
+		clause, ok := caseStmt.(*ast.CaseClause)
+		if !ok {
+			return false
+		}
+		caseReturns := false
+		for _, bodyStmt := range clause.Body {
+			ret, ok := bodyStmt.(*ast.ReturnStmt)
+			if !ok {
+				continue
+			}
+			if !returnUsesTrackedIdentifier(ret, name, object) {
+				return false
+			}
+			caseReturns = true
+		}
+		if !caseReturns {
+			return false
+		}
+	}
+	return true
+}
+
+func statementCallsWithTrackedIdentifier(stmt ast.Stmt, packageName, functionName, identName string, object *ast.Object) bool {
+	found := false
+	ast.Inspect(stmt, func(node ast.Node) bool {
+		if _, ok := node.(*ast.FuncLit); ok {
+			return false
+		}
+		call, ok := node.(*ast.CallExpr)
+		if !ok || !callMatches(call, packageName, functionName) {
+			return !found
+		}
+		for _, arg := range call.Args {
+			if expressionUsesTrackedIdentifier(arg, identName, object) {
+				found = true
+				return false
+			}
+		}
+		return !found
+	})
+	return found
+}
+
+func isPromptMapAssignment(expr ast.Expr) bool {
+	index, ok := expr.(*ast.IndexExpr)
+	return ok && isIdent(index.X, "agent") && isStringLiteral(index.Index, "prompt")
+}
+
+func identifierObject(expr ast.Expr) *ast.Object {
+	ident, _ := expr.(*ast.Ident)
+	if ident == nil {
+		return nil
+	}
+	return ident.Obj
+}
+
+func statementAssignsTrackedIdentifier(stmt ast.Stmt, name string, object *ast.Object) bool {
+	assign, ok := stmt.(*ast.AssignStmt)
+	if !ok {
+		return false
+	}
+	for _, lhs := range assign.Lhs {
+		ident, ok := lhs.(*ast.Ident)
+		if !ok || ident.Name != name {
+			continue
+		}
+		if object == nil || ident.Obj == nil || ident.Obj == object {
+			return true
+		}
+	}
+	return false
+}
+
+func expressionsContainSelector(expressions []ast.Expr, packageName, selectorName string) bool {
+	for _, expr := range expressions {
+		if isSelector(expr, packageName, selectorName) {
+			return true
+		}
+	}
+	return false
 }
 
 func parseInvariantGoSource(text string) (*ast.File, error) {
@@ -760,7 +1602,7 @@ func parseInvariantGoSource(text string) (*ast.File, error) {
 	if !strings.HasPrefix(trimmed, "package ") {
 		source = "package invariant\nfunc _() {\n" + text + "\n}\n"
 	}
-	return parser.ParseFile(token.NewFileSet(), "invariant.go", source, parser.SkipObjectResolution)
+	return parser.ParseFile(token.NewFileSet(), "invariant.go", source, 0)
 }
 
 func isOrchestratorPromptAssignment(expr ast.Expr) bool {
@@ -938,10 +1780,10 @@ func statusWord(ok bool) string {
 	return "mismatch"
 }
 
-func buildAuditDriftSummary(basePromptDrift, phaseOrderOK, profileNamingOK, taskScopingOK, baseAssetInjectionOK, roleTopologyOK bool) []string {
+func buildAuditDriftSummary(basePromptDrift, phaseOrderOK, profileNamingOK, taskScopingOK, baseAssetInjectionOK, remoteAuthorizationOK, roleTopologyOK bool) []string {
 	var summary []string
 	if basePromptDrift {
-		if phaseOrderOK && profileNamingOK && taskScopingOK && baseAssetInjectionOK && roleTopologyOK {
+		if phaseOrderOK && profileNamingOK && taskScopingOK && baseAssetInjectionOK && remoteAuthorizationOK && roleTopologyOK {
 			summary = append(summary, "No profile-generation or base-asset binding drift was detected alongside this prompt change, so this looks like prompt-content guidance rather than topology or materialization drift.")
 		}
 	}
@@ -957,6 +1799,9 @@ func buildAuditDriftSummary(basePromptDrift, phaseOrderOK, profileNamingOK, task
 	}
 	if !baseAssetInjectionOK {
 		summary = append(summary, "The upstream base orchestrator asset binding changed. Verify the overlay is still reading the intended upstream source prompt before sync/apply.")
+	}
+	if !remoteAuthorizationOK {
+		summary = append(summary, "The upstream remote authorization contract no longer reaches every maintained OpenCode prompt carrier. Review its canonical source and projection chain before adoption.")
 	}
 	if !roleTopologyOK {
 		summary = append(summary, "The upstream Judgment Day or review actor key set changed. Review global versus profile-scoped topology before adopting the new baseline.")

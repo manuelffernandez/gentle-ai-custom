@@ -14,6 +14,7 @@ func TestCategorizeGitDiffTreatsOnlyOpenCodeAndEngramSourcesAsManaged(t *testing
 		{Status: "M", Path: "internal/assets/opencode/persona-gentleman.md"},
 		{Status: "A", Path: "internal/assets/opencode/background-subagents.md"},
 		{Status: "M", Path: "internal/assets/engram/protocol.md"},
+		{Status: "A", Path: "internal/assets/generic/remote-authorization-contract.md"},
 		{Status: "M", Path: "internal/assets/opencode/sdd-overlay-single.json"},
 		{Status: "M", Path: "internal/assets/opencode/sdd-overlay-multi.json"},
 		{Status: "M", Path: "internal/assets/opencode/plugins/model-variants.ts"},
@@ -22,8 +23,8 @@ func TestCategorizeGitDiffTreatsOnlyOpenCodeAndEngramSourcesAsManaged(t *testing
 		{Status: "A", Path: "internal/assets/claude/output-style-neutral.md"},
 	}, buildManagedAssetCatalog(target))
 
-	if len(managed) != 6 {
-		t.Fatalf("managed entries = %d, want 6", len(managed))
+	if len(managed) != 7 {
+		t.Fatalf("managed entries = %d, want 7", len(managed))
 	}
 	if len(unmanaged) != 0 {
 		t.Fatalf("unmanaged entries = %d, want 0", len(unmanaged))
@@ -32,7 +33,7 @@ func TestCategorizeGitDiffTreatsOnlyOpenCodeAndEngramSourcesAsManaged(t *testing
 	for _, entry := range managed {
 		keys[entry.Record.Key] = true
 	}
-	for _, key := range []string{"opencode-persona-source", "opencode-background-subagents-source", "opencode-engram-source", "opencode-overlay-single", "opencode-overlay-multi", "opencode-plugins"} {
+	for _, key := range []string{"opencode-persona-source", "opencode-background-subagents-source", "opencode-engram-source", "opencode-remote-authorization-source", "opencode-overlay-single", "opencode-overlay-multi", "opencode-plugins"} {
 		if !keys[key] {
 			t.Fatalf("managed record keys missing %q", key)
 		}
@@ -49,11 +50,13 @@ func TestSyncManagedTargetCopiesOpenCodeAgentsSourceFilesFromUpstream(t *testing
 	personaContent := []byte("## Rules\n\n- Upstream persona.\n")
 	backgroundPolicyContent := []byte("<!-- gentle-ai:opencode-background-subagents -->\nbackground policy\n<!-- /gentle-ai:opencode-background-subagents -->\n")
 	engramContent := []byte("## Engram Persistent Memory — Protocol\n\n- mem_save\n")
+	remoteAuthorizationContent := []byte("## Remote operation authorization\n\nRemain local without explicit authorization.\n")
 	overlaySingleContent := []byte("{\n  \"name\": \"single\"\n}\n")
 	overlayMultiContent := []byte("{\n  \"name\": \"multi\"\n}\n")
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "persona-gentleman.md"), personaContent)
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "background-subagents.md"), backgroundPolicyContent)
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "engram", "protocol.md"), engramContent)
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "generic", "remote-authorization-contract.md"), remoteAuthorizationContent)
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "sdd-overlay-single.json"), overlaySingleContent)
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "sdd-overlay-multi.json"), overlayMultiContent)
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "plugins", "model-variants.ts"), []byte("export const modelVariants = [];\n"))
@@ -67,8 +70,8 @@ func TestSyncManagedTargetCopiesOpenCodeAgentsSourceFilesFromUpstream(t *testing
 	}
 
 	// Fix #4: verify stats
-	if stats.FilesNew != 8 {
-		t.Fatalf("stats.FilesNew = %d, want 8", stats.FilesNew)
+	if stats.FilesNew != 9 {
+		t.Fatalf("stats.FilesNew = %d, want 9", stats.FilesNew)
 	}
 	if stats.DirsSynced != 1 {
 		t.Fatalf("stats.DirsSynced = %d, want 1", stats.DirsSynced)
@@ -97,6 +100,13 @@ func TestSyncManagedTargetCopiesOpenCodeAgentsSourceFilesFromUpstream(t *testing
 	}
 	if string(gotEngram) != string(engramContent) {
 		t.Fatalf("engram mirror content mismatch\nwant: %q\ngot:  %q", engramContent, gotEngram)
+	}
+	gotRemoteAuthorization, err := os.ReadFile(filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "upstream", "opencode", "remote-authorization-contract.md"))
+	if err != nil {
+		t.Fatalf("read remote authorization mirror: %v", err)
+	}
+	if string(gotRemoteAuthorization) != string(remoteAuthorizationContent) {
+		t.Fatalf("remote authorization mirror content mismatch\nwant: %q\ngot:  %q", remoteAuthorizationContent, gotRemoteAuthorization)
 	}
 
 	gotSingle, err := os.ReadFile(filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "upstream", "opencode", "sdd-overlay-single.json"))
@@ -157,6 +167,7 @@ func TestRunSyncUpstreamAssetsRecordsPreviousMaintainedCommitInStateNote(t *test
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "persona-gentleman.md"), []byte("## Rules\n\n- Persona v1.\n"))
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "background-subagents.md"), []byte("background policy\n"))
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "engram", "protocol.md"), []byte("## Engram Persistent Memory — Protocol\n\n- v1\n"))
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "generic", "remote-authorization-contract.md"), []byte("## Remote operation authorization\n\n- v1\n"))
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "sdd-overlay-single.json"), []byte("{\n  \"name\": \"single\"\n}\n"))
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "sdd-overlay-multi.json"), []byte("{\n  \"name\": \"multi\"\n}\n"))
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "plugins", "model-variants.ts"), []byte("export const modelVariants = [];\n"))
@@ -403,8 +414,8 @@ func TestUpstreamRuntimeSnapshotsAreNeverOwnedInstallSources(t *testing.T) {
 	if foundSnapshots == 0 {
 		t.Fatal("managed-assets does not declare upstream runtime snapshots")
 	}
-	if len(target.RuntimePatches) != 1 || target.RuntimePatches[0].Key != "judgment-retrospective-handoff" {
-		t.Fatalf("runtime patches = %#v, want only judgment-retrospective-handoff", target.RuntimePatches)
+	if len(target.RuntimePatches) != 2 || target.RuntimePatches[0].Key != "judgment-retrospective-handoff" || target.RuntimePatches[1].Key != "sdd-research-output-only" {
+		t.Fatalf("runtime patches = %#v, want judgment-retrospective-handoff and sdd-research-output-only", target.RuntimePatches)
 	}
 	ownedRoot := filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "owned", "opencode")
 	var ownedFiles []string
@@ -463,12 +474,35 @@ func TestBackgroundSubagentsPromptIsAuditOnlyUpstreamSource(t *testing.T) {
 	}
 }
 
+func TestRemoteAuthorizationContractIsAuditOnlyUpstreamSource(t *testing.T) {
+	target, _, err := loadManagedAssetsTarget(repoRootForTest(t), "opencode")
+	if err != nil {
+		t.Fatal(err)
+	}
+	asset, found := findOwnedOverlayAsset(target.OwnedOverlayAssets, "opencode-remote-authorization-source")
+	if !found {
+		t.Fatal("managed-assets is missing the remote authorization contract")
+	}
+	if asset.Class != "upstream_source" || asset.Kind != "upstream_source_file" {
+		t.Fatalf("remote authorization classification = %s/%s, want upstream_source/upstream_source_file", asset.Class, asset.Kind)
+	}
+	if asset.RepoOwnedPath != "" || len(asset.RuntimeTargets) != 0 {
+		t.Fatalf("remote authorization must remain audit-only, got repo_owned_path=%q runtime_targets=%v", asset.RepoOwnedPath, asset.RuntimeTargets)
+	}
+	for _, suffix := range []string{"components/agentguidance/remote_authorization.go", "components/agentguidance/inject.go", "components/sdd/orchestrator.go", "components/sdd/prompts.go"} {
+		if !declaresStructuralSource(target.StructuralInvariantSources, suffix) {
+			t.Errorf("managed-assets structural sources missing %q", suffix)
+		}
+	}
+}
+
 func testOpenCodeAgentsTarget() ManagedAssetsTarget {
 	return ManagedAssetsTarget{
 		WatchRoots: []string{
 			"internal/assets/opencode",
 			"internal/assets/engram/protocol.md",
 			"internal/assets/skills",
+			"internal/assets/generic/remote-authorization-contract.md",
 		},
 		OwnedOverlayAssets: []OwnedOverlayAsset{
 			{
@@ -491,6 +525,13 @@ func testOpenCodeAgentsTarget() ManagedAssetsTarget {
 				Kind:             "upstream_source_file",
 				UpstreamPath:     "internal/assets/engram/protocol.md",
 				RepoUpstreamPath: "overlay/gentle-ai/assets/upstream/opencode/engram-protocol.md",
+			},
+			{
+				Key:              "opencode-remote-authorization-source",
+				Class:            "upstream_source",
+				Kind:             "upstream_source_file",
+				UpstreamPath:     "internal/assets/generic/remote-authorization-contract.md",
+				RepoUpstreamPath: "overlay/gentle-ai/assets/upstream/opencode/remote-authorization-contract.md",
 			},
 			{
 				Key:              "opencode-overlay-single",
@@ -881,6 +922,461 @@ _ = message
 `
 	if baseAssetInjectionInvariantOK(text) {
 		t.Fatal("baseAssetInjectionInvariantOK() = true, want false for comment/string decoys")
+	}
+}
+
+func TestBaseAssetInjectionInvariantOKAcceptsV290CompositionChain(t *testing.T) {
+	injectSource := `package sdd
+func inlineOpenCodeSDDPrompts() {
+	orchestratorPrompt, err := composeOpenCodeOrchestratorPrompt(agent, renderOptions)
+	_ = err
+	orchestratorMap["prompt"] = orchestratorPrompt
+}`
+	if !baseAssetInjectionInvariantOK(injectSource, upstreamV290OrchestratorCompositionFixture) {
+		t.Fatal("baseAssetInjectionInvariantOK() = false, want true for bound v2.9.0 composition chain")
+	}
+}
+
+func TestBaseAssetInjectionInvariantOKRejectsUnboundV290PromptAssignment(t *testing.T) {
+	injectSource := `package sdd
+func inlineOpenCodeSDDPrompts() {
+	orchestratorPrompt := arbitraryPrompt
+	_, _ = composeOpenCodeOrchestratorPrompt(agent, renderOptions)
+	orchestratorMap["prompt"] = orchestratorPrompt
+}`
+	if baseAssetInjectionInvariantOK(injectSource, upstreamV290OrchestratorCompositionFixture) {
+		t.Fatal("baseAssetInjectionInvariantOK() = true, want false for unbound composition decoy")
+	}
+}
+
+func TestBaseAssetInjectionInvariantOKRejectsNestedBindingDecoy(t *testing.T) {
+	injectSource := `package sdd
+func inlineOpenCodeSDDPrompts() {
+	orchestratorPrompt := arbitraryPrompt
+	{
+		orchestratorPrompt, err := composeOpenCodeOrchestratorPrompt(agent, renderOptions)
+		_, _ = orchestratorPrompt, err
+	}
+	orchestratorMap["prompt"] = orchestratorPrompt
+}`
+	if baseAssetInjectionInvariantOK(injectSource, upstreamV290OrchestratorCompositionFixture) {
+		t.Fatal("baseAssetInjectionInvariantOK() = true, want false for a canonical call bound only in a nested decoy scope")
+	}
+}
+
+func TestBaseAssetInjectionInvariantOKRejectsBrokenV290AssetChain(t *testing.T) {
+	injectSource := `package sdd
+func inlineOpenCodeSDDPrompts() {
+	orchestratorPrompt, err := composeOpenCodeOrchestratorPrompt(agent, renderOptions)
+	_ = err
+	orchestratorMap["prompt"] = orchestratorPrompt
+}`
+	broken := strings.Replace(upstreamV290OrchestratorCompositionFixture, `assets.MustRead(path)`, `assets.MustRead("opencode/decoy.md")`, 1)
+	if baseAssetInjectionInvariantOK(injectSource, broken) {
+		t.Fatal("baseAssetInjectionInvariantOK() = true, want false when the composer bypasses the selected canonical asset")
+	}
+}
+
+func TestBaseAssetInjectionInvariantOKRejectsReassignedV290Prompt(t *testing.T) {
+	tests := []struct {
+		name   string
+		inject string
+	}{
+		{
+			name: "direct overwrite",
+			inject: `package sdd
+func inlineOpenCodeSDDPrompts() {
+	orchestratorPrompt, err := composeOpenCodeOrchestratorPrompt(agent, renderOptions)
+	_ = err
+	orchestratorPrompt = arbitraryPrompt
+	orchestratorMap["prompt"] = orchestratorPrompt
+	}`,
+		},
+		{
+			name: "conditional overwrite",
+			inject: `package sdd
+func inlineOpenCodeSDDPrompts() {
+	orchestratorPrompt, err := composeOpenCodeOrchestratorPrompt(agent, renderOptions)
+	_ = err
+	if replacePrompt { orchestratorPrompt = arbitraryPrompt }
+	orchestratorMap["prompt"] = orchestratorPrompt
+	}`,
+		},
+		{
+			name: "self-consuming overwrite",
+			inject: `package sdd
+func inlineOpenCodeSDDPrompts() {
+	orchestratorPrompt, err := composeOpenCodeOrchestratorPrompt(agent, renderOptions)
+	_ = err
+	orchestratorPrompt = arbitraryTransform(orchestratorPrompt)
+	orchestratorMap["prompt"] = orchestratorPrompt
+	}`,
+		},
+		{
+			name: "conditional sink overwrite",
+			inject: `package sdd
+func inlineOpenCodeSDDPrompts() {
+	orchestratorPrompt, err := composeOpenCodeOrchestratorPrompt(agent, renderOptions)
+	_ = err
+	orchestratorMap["prompt"] = orchestratorPrompt
+	if replacePrompt { orchestratorMap["prompt"] = arbitraryPrompt }
+	}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if baseAssetInjectionInvariantOK(tt.inject, upstreamV290OrchestratorCompositionFixture) {
+				t.Fatal("baseAssetInjectionInvariantOK() = true, want false when the composed prompt is overwritten before assignment")
+			}
+		})
+	}
+}
+
+func TestBaseAssetInjectionInvariantOKRejectsV290DecoyControlFlow(t *testing.T) {
+	tests := []struct {
+		name   string
+		inject string
+	}{
+		{
+			name: "nested function literal",
+			inject: `package sdd
+func inlineOpenCodeSDDPrompts() {
+	decoy := func() {
+		orchestratorPrompt, err := composeOpenCodeOrchestratorPrompt(agent, renderOptions)
+		_ = err
+		orchestratorMap["prompt"] = orchestratorPrompt
+	}
+	_ = decoy
+}`,
+		},
+		{
+			name: "dead false branch",
+			inject: `package sdd
+func inlineOpenCodeSDDPrompts() {
+	if false {
+		orchestratorPrompt, err := composeOpenCodeOrchestratorPrompt(agent, renderOptions)
+		_ = err
+		orchestratorMap["prompt"] = orchestratorPrompt
+	}
+}`,
+		},
+		{
+			name: "direct bypass of validated entrypoint",
+			inject: `package sdd
+func inlineOpenCodeSDDPrompts() {
+	orchestratorMap["prompt"] = composeOrchestratorPrompt(agent, renderOptions)
+}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if baseAssetInjectionInvariantOK(tt.inject, upstreamV290OrchestratorCompositionFixture) {
+				t.Fatal("baseAssetInjectionInvariantOK() = true, want false for decoy or bypassed v2.9 control flow")
+			}
+		})
+	}
+}
+
+func TestOrchestratorCompositionInvariantOKRejectsDeadAndNestedDecoys(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(string) string
+	}{
+		{
+			name: "nested compose entrypoint return",
+			mutate: func(source string) string {
+				return strings.Replace(source,
+					`return projectSDDSessionPreflight(composeOrchestratorPrompt(agent, options...), "anchor")`,
+					`decoy := func() string { return projectSDDSessionPreflight(composeOrchestratorPrompt(agent, options...), "anchor") }; _ = decoy; return "wrong"`, 1)
+			},
+		},
+		{
+			name: "dead selected asset read",
+			mutate: func(source string) string {
+				return strings.Replace(source, `content := assets.MustRead(path)`, `if false { content := assets.MustRead(path); _ = content }; content := "wrong"`, 1)
+			},
+		},
+		{
+			name: "selected asset chain after return",
+			mutate: func(source string) string {
+				return strings.Replace(source, `	path := sddOrchestratorAsset(agent)`, `	return "wrong"
+	path := sddOrchestratorAsset(agent)`, 1)
+			},
+		},
+		{
+			name: "nested OpenCode case",
+			mutate: func(source string) string {
+				return strings.Replace(source,
+					`switch agent {
+	case model.AgentOpenCode, model.AgentKilocode:`,
+					`decoy := func() string { switch agent { case model.AgentOpenCode, model.AgentKilocode: return "opencode/sdd-orchestrator.md" }; return "" }; _ = decoy
+	switch agent {
+	case model.AgentKilocode:`, 1)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if orchestratorCompositionInvariantOK(tt.mutate(upstreamV290OrchestratorCompositionFixture)) {
+				t.Fatal("orchestratorCompositionInvariantOK() = true, want false for dead or nested decoy")
+			}
+		})
+	}
+}
+
+func TestOrchestratorCompositionInvariantOKRejectsReassignedAssetChain(t *testing.T) {
+	tests := []struct {
+		name   string
+		before string
+		after  string
+	}{
+		{
+			name:   "selected path overwritten before read",
+			before: "\tcontent := assets.MustRead(path)",
+			after:  "\tpath = arbitraryPath\n\tcontent := assets.MustRead(path)",
+		},
+		{
+			name:   "selected content overwritten before return",
+			before: "\treturn bindRuntimeAgentIdentity(content, agent)",
+			after:  "\tcontent = arbitraryPrompt\n\treturn bindRuntimeAgentIdentity(content, agent)",
+		},
+		{
+			name:   "selected content passed through untrusted transform",
+			before: "\treturn bindRuntimeAgentIdentity(content, agent)",
+			after:  "\tcontent = arbitraryTransform(content)\n\treturn bindRuntimeAgentIdentity(content, agent)",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			broken := strings.Replace(upstreamV290OrchestratorCompositionFixture, tt.before, tt.after, 1)
+			if orchestratorCompositionInvariantOK(broken) {
+				t.Fatal("orchestratorCompositionInvariantOK() = true, want false after canonical asset-chain reassignment")
+			}
+		})
+	}
+}
+
+const upstreamV290OrchestratorCompositionFixture = `package sdd
+func composeOpenCodeOrchestratorPrompt(agent model.AgentID, options ...OrchestratorRenderOptions) (string, error) {
+	return projectSDDSessionPreflight(composeOrchestratorPrompt(agent, options...), "anchor")
+}
+func composeOrchestratorPrompt(agent model.AgentID, options ...OrchestratorRenderOptions) string {
+	path := sddOrchestratorAsset(agent)
+	content := assets.MustRead(path)
+	if usesFallbackSessionPreflight(agent) {
+		content = composeFallbackSessionPreflight(content, agent)
+	}
+	content = substituteSharedOrchestratorSections(content)
+	content = renderBoundedReviewAssetBodyFromContent(agent, path, content)
+	return bindRuntimeAgentIdentity(content, agent)
+}
+func sddOrchestratorAsset(agent model.AgentID) string {
+	switch agent {
+	case model.AgentOpenCode, model.AgentKilocode:
+		return "opencode/sdd-orchestrator.md"
+	default:
+		return "generic/sdd-orchestrator.md"
+	}
+}`
+
+func TestRemoteAuthorizationProjectionInvariantOK(t *testing.T) {
+	sources := validRemoteAuthorizationProjectionSources()
+	if !remoteAuthorizationProjectionInvariantOK(sources) {
+		t.Fatal("remoteAuthorizationProjectionInvariantOK() = false, want true for complete OpenCode projection")
+	}
+	delete(sources, "components/sdd/profiles.go")
+	if remoteAuthorizationProjectionInvariantOK(sources) {
+		t.Fatal("remoteAuthorizationProjectionInvariantOK() = true, want false when named-profile projection is missing")
+	}
+}
+
+func TestRemoteAuthorizationProjectionInvariantOKRejectsDecoys(t *testing.T) {
+	tests := []struct {
+		name   string
+		path   string
+		source string
+	}{
+		{
+			name: "helper calls are unused",
+			path: "components/agentguidance/remote_authorization.go",
+			source: `package agentguidance
+func InjectRemoteAuthorization(prompt string) string {
+	contract := assets.MustRead("generic/remote-authorization-contract.md")
+	_ = filemerge.InjectMarkdownSection(prompt, "remote-authorization", strings.TrimSpace(contract))
+	return prompt
+}`,
+		},
+		{
+			name: "routing projection is nested in function literal",
+			path: "components/agentguidance/inject.go",
+			source: `package agentguidance
+func InjectRoutingWithOptions() { decoy := func() { rendered = InjectRemoteAuthorization(rendered) }; _ = decoy }`,
+		},
+		{
+			name: "shared prompt projection is dead",
+			path: "components/sdd/prompts.go",
+			source: `package sdd
+func WriteSharedPromptFiles() { if false { content = agentguidance.InjectRemoteAuthorization(content) } }
+func injectRemoteAuthorizationIntoSubagentPrompts() { agent["prompt"] = agentguidance.InjectRemoteAuthorization(prompt) }`,
+		},
+		{
+			name: "subagent projection call is unused",
+			path: "components/sdd/prompts.go",
+			source: `package sdd
+func WriteSharedPromptFiles() { content = agentguidance.InjectRemoteAuthorization(content) }
+func injectRemoteAuthorizationIntoSubagentPrompts() { _ = agentguidance.InjectRemoteAuthorization(prompt) }`,
+		},
+		{
+			name: "profile projection is nested in function literal",
+			path: "components/sdd/profiles.go",
+			source: `package sdd
+func GenerateProfileOverlay() { decoy := func() { injectRemoteAuthorizationIntoSubagentPrompts(agentMap) }; _ = decoy }`,
+		},
+		{
+			name: "phase projection is unused",
+			path: "components/sdd/inject.go",
+			source: `package sdd
+func Inject() { _ = agentguidance.InjectRemoteAuthorization(contentStr) }
+func inlineOpenCodeSDDPrompts() { injectRemoteAuthorizationIntoSubagentPrompts(agentsMap) }`,
+		},
+		{
+			name: "base projection is dead",
+			path: "components/sdd/inject.go",
+			source: `package sdd
+func Inject() { contentStr = agentguidance.InjectRemoteAuthorization(contentStr) }
+func inlineOpenCodeSDDPrompts() { if false { injectRemoteAuthorizationIntoSubagentPrompts(agentsMap) } }`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sources := validRemoteAuthorizationProjectionSources()
+			sources[tt.path] = tt.source
+			if remoteAuthorizationProjectionInvariantOK(sources) {
+				t.Fatal("remoteAuthorizationProjectionInvariantOK() = true, want false for dead, nested, or unused projection")
+			}
+		})
+	}
+}
+
+func TestRemoteAuthorizationProjectionInvariantOKRejectsReassignmentBeforeSink(t *testing.T) {
+	tests := []struct {
+		name   string
+		path   string
+		source string
+	}{
+		{
+			name: "contract overwritten before return",
+			path: "components/agentguidance/remote_authorization.go",
+			source: `package agentguidance
+func InjectRemoteAuthorization(prompt string) string {
+	contract := assets.MustRead("generic/remote-authorization-contract.md")
+	contract = arbitraryContract
+	return filemerge.InjectMarkdownSection(prompt, "remote-authorization", strings.TrimSpace(contract))
+}`,
+		},
+		{
+			name: "routing prompt overwritten before return",
+			path: "components/agentguidance/inject.go",
+			source: `package agentguidance
+func InjectRoutingWithOptions() {
+	rendered = InjectRemoteAuthorization(rendered)
+	rendered = arbitraryPrompt
+	switch delivery.kind { case deliveryPrompt: return injectPrompt(delivery, rendered); default: return injectOther(delivery, rendered) }
+}`,
+		},
+		{
+			name: "shared prompt overwritten before write",
+			path: "components/sdd/prompts.go",
+			source: `package sdd
+func WriteSharedPromptFiles() { content = agentguidance.InjectRemoteAuthorization(content); content = arbitraryPrompt; _, _ = filemerge.WriteFileAtomic(path, []byte(content), 0) }
+func injectRemoteAuthorizationIntoSubagentPrompts() { agent["prompt"] = agentguidance.InjectRemoteAuthorization(prompt) }`,
+		},
+		{
+			name: "shared prompt conditionally overwritten before write",
+			path: "components/sdd/prompts.go",
+			source: `package sdd
+func WriteSharedPromptFiles() { content = agentguidance.InjectRemoteAuthorization(content); if replacePrompt { content = arbitraryPrompt }; _, _ = filemerge.WriteFileAtomic(path, []byte(content), 0) }
+func injectRemoteAuthorizationIntoSubagentPrompts() { agent["prompt"] = agentguidance.InjectRemoteAuthorization(prompt) }`,
+		},
+		{
+			name: "shared prompt passed through untrusted transform before write",
+			path: "components/sdd/prompts.go",
+			source: `package sdd
+func WriteSharedPromptFiles() { content = agentguidance.InjectRemoteAuthorization(content); content = arbitraryTransform(content); _, _ = filemerge.WriteFileAtomic(path, []byte(content), 0) }
+func injectRemoteAuthorizationIntoSubagentPrompts() { agent["prompt"] = agentguidance.InjectRemoteAuthorization(prompt) }`,
+		},
+		{
+			name: "inline subagent prompt overwritten after projection",
+			path: "components/sdd/prompts.go",
+			source: `package sdd
+func WriteSharedPromptFiles() { content = agentguidance.InjectRemoteAuthorization(content); _, _ = filemerge.WriteFileAtomic(path, []byte(content), 0) }
+func injectRemoteAuthorizationIntoSubagentPrompts() { agent["prompt"] = agentguidance.InjectRemoteAuthorization(prompt); agent["prompt"] = arbitraryPrompt }`,
+		},
+		{
+			name: "profile agent map overwritten before marshal",
+			path: "components/sdd/profiles.go",
+			source: `package sdd
+func GenerateProfileOverlay() { injectRemoteAuthorizationIntoSubagentPrompts(agentMap); agentMap = arbitraryMap; result, _ := json.MarshalIndent(overlay, "", "  "); return result }`,
+		},
+		{
+			name: "profile output carrier overwritten before marshal",
+			path: "components/sdd/profiles.go",
+			source: `package sdd
+func GenerateProfileOverlay() { injectRemoteAuthorizationIntoSubagentPrompts(agentMap); overlay := map[string]any{"agent": agentMap}; overlay = arbitraryOverlay; result, _ := json.MarshalIndent(overlay, "", "  "); return result }`,
+		},
+		{
+			name: "agent file content overwritten before write",
+			path: "components/sdd/inject.go",
+			source: `package sdd
+func Inject() { contentStr = agentguidance.InjectRemoteAuthorization(contentStr); contentStr = arbitraryPrompt; _, _ = filemerge.WriteFileAtomic(path, []byte(contentStr), 0) }
+func inlineOpenCodeSDDPrompts() { injectRemoteAuthorizationIntoSubagentPrompts(agentsMap); result, _ := json.MarshalIndent(overlay, "", "  "); return result }`,
+		},
+		{
+			name: "inline agent map overwritten before marshal",
+			path: "components/sdd/inject.go",
+			source: `package sdd
+func Inject() { contentStr = agentguidance.InjectRemoteAuthorization(contentStr); _, _ = filemerge.WriteFileAtomic(path, []byte(contentStr), 0) }
+func inlineOpenCodeSDDPrompts() { injectRemoteAuthorizationIntoSubagentPrompts(agentsMap); agentsMap = arbitraryMap; result, _ := json.MarshalIndent(overlay, "", "  "); return result }`,
+		},
+		{
+			name: "inline output carrier overwritten before marshal",
+			path: "components/sdd/inject.go",
+			source: `package sdd
+func Inject() { contentStr = agentguidance.InjectRemoteAuthorization(contentStr); _, _ = filemerge.WriteFileAtomic(path, []byte(contentStr), 0) }
+func inlineOpenCodeSDDPrompts() { injectRemoteAuthorizationIntoSubagentPrompts(agentsMap); overlay = arbitraryOverlay; result, _ := json.MarshalIndent(overlay, "", "  "); return result }`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sources := validRemoteAuthorizationProjectionSources()
+			sources[tt.path] = tt.source
+			if remoteAuthorizationProjectionInvariantOK(sources) {
+				t.Fatal("remoteAuthorizationProjectionInvariantOK() = true, want false after projection reassignment before sink")
+			}
+		})
+	}
+}
+
+func validRemoteAuthorizationProjectionSources() map[string]string {
+	return map[string]string{
+		"components/agentguidance/remote_authorization.go": `package agentguidance
+func InjectRemoteAuthorization(prompt string) string {
+	contract := assets.MustRead("generic/remote-authorization-contract.md")
+	return filemerge.InjectMarkdownSection(prompt, "remote-authorization", strings.TrimSpace(contract))
+}`,
+		"components/agentguidance/inject.go": `package agentguidance
+func InjectRoutingWithOptions() {
+	rendered = InjectRemoteAuthorization(rendered)
+	switch delivery.kind { case deliveryPrompt: return injectPrompt(delivery, rendered); default: return injectOther(delivery, rendered) }
+}`,
+		"components/sdd/prompts.go": `package sdd
+func WriteSharedPromptFiles() { content = agentguidance.InjectRemoteAuthorization(content); _, _ = filemerge.WriteFileAtomic(path, []byte(content), 0) }
+func injectRemoteAuthorizationIntoSubagentPrompts() { agent["prompt"] = agentguidance.InjectRemoteAuthorization(prompt) }`,
+		"components/sdd/profiles.go": `package sdd
+func GenerateProfileOverlay() { injectRemoteAuthorizationIntoSubagentPrompts(agentMap); overlay := map[string]any{"agent": agentMap}; result, _ := json.MarshalIndent(overlay, "", "  "); return result }`,
+		"components/sdd/inject.go": `package sdd
+func Inject() { if isMarkdown { contentStr = agentguidance.InjectRemoteAuthorization(contentStr) }; _, _ = filemerge.WriteFileAtomic(path, []byte(contentStr), 0) }
+func inlineOpenCodeSDDPrompts() { injectRemoteAuthorizationIntoSubagentPrompts(agentsMap); result, _ := json.MarshalIndent(overlay, "", "  "); return result }`,
 	}
 }
 

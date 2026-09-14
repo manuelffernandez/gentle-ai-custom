@@ -18,6 +18,7 @@ var opaquePluginFixture = []byte{0x00, 0xff, 0x10, 'o', 'p', 'a', 'q', 'u', 'e'}
 func TestApplyPreservesUpstreamRuntimeAndReusesBasePromptsForProfiles(t *testing.T) {
 	repoRoot := repoRootForTest(t)
 	home, configPath := writeCompatibleRuntimeFixture(t, repoRoot)
+	runtimePatchBaselines := snapshotRuntimePatchTargets(t, repoRoot, home)
 	orchestratorBefore := opaqueUpstreamOrchestratorFixture
 	pluginPath := filepath.Join(home, ".config", "opencode", "plugins", "review-result-artifacts.ts")
 	phasePath := filepath.Join(home, ".config", "opencode", "prompts", "sdd", "sdd-init.md")
@@ -76,9 +77,11 @@ func TestApplyPreservesUpstreamRuntimeAndReusesBasePromptsForProfiles(t *testing
 
 	judgmentSkill := filepath.Join(home, ".config", "opencode", "skills", "judgment-day", "SKILL.md")
 	judgmentPrompt := filepath.Join(home, ".config", "opencode", "skills", "judgment-day", "references", "prompts-and-formats.md")
+	researchSkill := filepath.Join(home, ".config", "opencode", "skills", "sdd-research", "SKILL.md")
 	for path, marker := range map[string]string{
 		judgmentSkill:  "invoke the repo-owned `judgment-retrospective` skill",
 		judgmentPrompt: "## Terminal Retrospective Handoff",
+		researchSkill:  "Inline launcher instructions cannot override this output-only boundary.",
 	} {
 		if count := strings.Count(mustReadFile(t, path), marker); count != 1 {
 			t.Fatalf("patched %s marker count = %d, want 1", path, count)
@@ -86,13 +89,14 @@ func TestApplyPreservesUpstreamRuntimeAndReusesBasePromptsForProfiles(t *testing
 	}
 	firstSkill := mustReadFile(t, judgmentSkill)
 	firstPrompt := mustReadFile(t, judgmentPrompt)
+	firstResearch := mustReadFile(t, researchSkill)
 	firstConfig := mustReadFile(t, configPath)
-	assertRuntimePatchIsExactDelta(t, repoRoot, home)
+	assertRuntimePatchIsExactDelta(t, repoRoot, home, runtimePatchBaselines)
 	if code := runApplyPolicyWithOptions(repoRoot, options); code != 0 {
 		t.Fatalf("idempotent run code = %d, want 0", code)
 	}
-	if mustReadFile(t, judgmentSkill) != firstSkill || mustReadFile(t, judgmentPrompt) != firstPrompt {
-		t.Fatal("Judgment Day runtime patch is not byte-idempotent")
+	if mustReadFile(t, judgmentSkill) != firstSkill || mustReadFile(t, judgmentPrompt) != firstPrompt || mustReadFile(t, researchSkill) != firstResearch {
+		t.Fatal("runtime patches are not byte-idempotent")
 	}
 	if mustReadFile(t, configPath) != firstConfig {
 		t.Fatal("profile reconciliation is not byte-idempotent")
@@ -367,26 +371,61 @@ func TestPrepareRuntimePatchesRejectsMixedPatchedAndUnpatchedAnchors(t *testing.
 	}
 }
 
-func assertRuntimePatchIsExactDelta(t *testing.T, repoRoot, home string) {
+func snapshotRuntimePatchTargets(t *testing.T, repoRoot, home string) map[string]string {
 	t.Helper()
-	var definition runtimePatchDefinition
-	patchPath := filepath.Join(repoRoot, "overlay", "gentle-ai", "patches", "opencode", "judgment-retrospective.json")
-	if err := readJSONFile(patchPath, &definition); err != nil {
+	target, _, err := loadManagedAssetsTarget(repoRoot, "opencode")
+	if err != nil {
 		t.Fatal(err)
 	}
-	for _, target := range definition.Targets {
-		runtimePath := filepath.Join(home, ".config", "opencode", filepath.FromSlash(target.Path))
-		reverted := mustReadFile(t, runtimePath)
-		for index := len(target.Replacements) - 1; index >= 0; index-- {
-			replacement := target.Replacements[index]
-			if strings.Count(reverted, replacement.After) != 1 {
-				t.Fatalf("runtime patch target %s does not contain exact declared delta %d", target.Path, index+1)
-			}
-			reverted = strings.Replace(reverted, replacement.After, replacement.Before, 1)
+	baselines := map[string]string{}
+	for _, patch := range target.RuntimePatches {
+		var definition runtimePatchDefinition
+		if err := readJSONFile(filepath.Join(repoRoot, filepath.FromSlash(patch.PatchPath)), &definition); err != nil {
+			t.Fatalf("load runtime patch %s: %v", patch.Key, err)
 		}
-		upstreamPath := filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "upstream", "opencode", filepath.FromSlash(target.Path))
-		if reverted != mustReadFile(t, upstreamPath) {
-			t.Fatalf("runtime patch target %s differs from upstream beyond the declared replacements", target.Path)
+		for _, patchTarget := range definition.Targets {
+			if _, exists := baselines[patchTarget.Path]; !exists {
+				baselines[patchTarget.Path] = mustReadFile(t, filepath.Join(home, ".config", "opencode", filepath.FromSlash(patchTarget.Path)))
+			}
+		}
+	}
+	return baselines
+}
+
+func assertRuntimePatchIsExactDelta(t *testing.T, repoRoot, home string, baselines map[string]string) {
+	t.Helper()
+	target, _, err := loadManagedAssetsTarget(repoRoot, "opencode")
+	if err != nil {
+		t.Fatal(err)
+	}
+	reverted := map[string]string{}
+	for path := range baselines {
+		reverted[path] = mustReadFile(t, filepath.Join(home, ".config", "opencode", filepath.FromSlash(path)))
+	}
+	for patchIndex := len(target.RuntimePatches) - 1; patchIndex >= 0; patchIndex-- {
+		patch := target.RuntimePatches[patchIndex]
+		var definition runtimePatchDefinition
+		if err := readJSONFile(filepath.Join(repoRoot, filepath.FromSlash(patch.PatchPath)), &definition); err != nil {
+			t.Fatalf("load runtime patch %s: %v", patch.Key, err)
+		}
+		for _, patchTarget := range definition.Targets {
+			content, exists := reverted[patchTarget.Path]
+			if !exists {
+				t.Fatalf("runtime patch %s target %s has no pre-apply baseline", patch.Key, patchTarget.Path)
+			}
+			for index := len(patchTarget.Replacements) - 1; index >= 0; index-- {
+				replacement := patchTarget.Replacements[index]
+				if strings.Count(content, replacement.After) != 1 {
+					t.Fatalf("runtime patch %s target %s does not contain exact declared delta %d", patch.Key, patchTarget.Path, index+1)
+				}
+				content = strings.Replace(content, replacement.After, replacement.Before, 1)
+			}
+			reverted[patchTarget.Path] = content
+		}
+	}
+	for path, baseline := range baselines {
+		if reverted[path] != baseline {
+			t.Fatalf("runtime patch target %s differs from its pre-apply baseline beyond the declared replacements", path)
 		}
 	}
 }
@@ -488,6 +527,14 @@ func TestApplyPreflightFailureLeavesRuntimeUnchanged(t *testing.T) {
 				t.Helper()
 				path := filepath.Join(home, ".config", "opencode", "skills", "judgment-day", "SKILL.md")
 				mustWriteFile(t, path, []byte("incompatible upstream skill\n"))
+			},
+		},
+		{
+			name: "incompatible sdd-research output-only anchor",
+			breakRuntime: func(t *testing.T, home string) {
+				t.Helper()
+				path := filepath.Join(home, ".config", "opencode", "skills", "sdd-research", "SKILL.md")
+				mustWriteFile(t, path, []byte("incompatible upstream research skill\n"))
 			},
 		},
 	}
@@ -601,6 +648,7 @@ func writeCompatibleRuntimeFixture(t *testing.T, repoRoot string) (string, strin
 	upstreamRoot := filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "upstream", "opencode", "skills", "judgment-day")
 	mustWriteFile(t, filepath.Join(home, ".config", "opencode", "skills", "judgment-day", "SKILL.md"), []byte(mustReadFile(t, filepath.Join(upstreamRoot, "SKILL.md"))))
 	mustWriteFile(t, filepath.Join(home, ".config", "opencode", "skills", "judgment-day", "references", "prompts-and-formats.md"), []byte(mustReadFile(t, filepath.Join(upstreamRoot, "references", "prompts-and-formats.md"))))
+	mustWriteFile(t, filepath.Join(home, ".config", "opencode", "skills", "sdd-research", "SKILL.md"), []byte("## Hard Rules\n\n- Do not read local artifacts or call persistence tools. Do not read or mutate repository or Engram state.\n"))
 	mustWriteFile(t, filepath.Join(home, ".config", "opencode", "skills", "branch-pr", "SKILL.md"), []byte("pruned sentinel\n"))
 	return home, configPath
 }

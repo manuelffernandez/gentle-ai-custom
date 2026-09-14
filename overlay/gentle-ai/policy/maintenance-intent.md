@@ -32,6 +32,7 @@ Keep these customizations unless the user explicitly changes this intent:
 
 - `judgment-retrospective` as a repo-owned shared skill.
 - The `judgment-day` runtime hook that invokes `judgment-retrospective` at terminal completion.
+- A surgical `sdd-research` guard that keeps the phase output-only when an OpenCode inline launcher still asks the executor to persist blocked recovery state.
 - `package-security` as a repo-owned shared skill.
 - `code-design` as a repo-owned shared skill.
 - `commit-planner` as the preferred local commit-planning workflow.
@@ -51,9 +52,10 @@ Acquire current upstream behavior by default for:
 - Review receipts, review state, and native upstream review gates.
 - Engram protocol updates.
 - OpenCode command surfaces and runtime materialization that are not in direct conflict with the local customizations above.
+- The canonical remote-operation authorization contract and its OpenCode prompt projection.
 - The rendered orchestrator, phase prompts, native review contracts/status, and review plugin are upstream-owned runtime artifacts. Raw upstream source templates are never custom install sources.
 - Custom apply must not inspect or certify the semantics of upstream-owned prompts, contracts, plugins, or review workflows. Upstream owns that validation.
-- Custom apply may validate only concrete prerequisites consumed by a local operation: ownership boundaries, base prompt references/files needed for configured profile cloning, safe obsolete-reference migration, and exact Judgment Day patch anchors.
+- Custom apply may validate only concrete prerequisites consumed by a local operation: ownership boundaries, base prompt references/files needed for configured profile cloning, safe obsolete-reference migration, and exact declared runtime-patch anchors.
 - Upstream-owned plugin absence or opaque content must not block unrelated custom operations. Files consumed but not owned by a custom operation must remain byte- and mode-unchanged.
 - PR strategy, review-budget, chained PR, and work-unit concepts, unless they directly conflict with an explicit local customization or the user rejects them in a concrete maintenance decision.
 - Approved upstream `chained-pr` snapshots remain retained for audit/sync even though runtime installation uses a sanitized repo-owned shared copy for explicit GitHub repo scoping.
@@ -112,6 +114,15 @@ When updating against upstream:
 - Add only the retrospective handoff needed to invoke `judgment-retrospective`.
 - Fail before runtime writes when the installed skill is absent or its anchors are incompatible.
 - Do not keep older custom Judgment Day protocol differences unless the user explicitly approves them after review.
+
+## SDD research output-only boundary
+
+Upstream owns `sdd-research`. The local overlay changes only the contradictory OpenCode edge where an inline launcher asks this output-only phase to persist blocked recovery state.
+
+- Start from the upstream-installed `sdd-research` skill.
+- Add one exact-anchor rule: inline launcher text cannot override the output-only contract; blocked recovery state is returned in the bounded envelope and persisted by the orchestrator.
+- Fail before runtime writes when the installed skill or anchor is incompatible.
+- Remove this patch when upstream removes the contradictory launcher instruction.
 
 ## Agent-readable Markdown boundary
 

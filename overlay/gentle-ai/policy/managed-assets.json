@@ -7,19 +7,25 @@
       "watch_roots": [
         "internal/assets/opencode",
         "internal/assets/engram/protocol.md",
-        "internal/assets/skills"
+        "internal/assets/skills",
+        "internal/assets/generic/remote-authorization-contract.md"
       ],
       "upstream_path_interpretation": "upstream_path identifies source input in Gentle AI; repo_upstream_path stores the approved audit snapshot. Only class=repo_owned_runtime is copied by custom apply. Upstream_runtime_snapshot entries are installed and rendered by upstream Gentle AI.",
       "structural_invariant_sources": [
         "internal/components/sdd/profiles.go",
         "internal/components/sdd/inject.go",
+        "internal/components/sdd/orchestrator.go",
+        "internal/components/sdd/prompts.go",
         "internal/components/sdd/boundedreview.go",
+        "internal/components/agentguidance/remote_authorization.go",
+        "internal/components/agentguidance/inject.go",
         "internal/opencode/models.go"
       ],
       "owned_overlay_assets": [
         {"key":"opencode-persona-source","class":"upstream_source","kind":"upstream_source_file","upstream_path":"internal/assets/opencode/persona-gentleman.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/persona-gentleman.md"},
         {"key":"opencode-background-subagents-source","class":"upstream_source","kind":"upstream_source_file","upstream_path":"internal/assets/opencode/background-subagents.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/background-subagents.md"},
         {"key":"opencode-engram-source","class":"upstream_source","kind":"upstream_source_file","upstream_path":"internal/assets/engram/protocol.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/engram-protocol.md"},
+        {"key":"opencode-remote-authorization-source","class":"upstream_source","kind":"upstream_source_file","upstream_path":"internal/assets/generic/remote-authorization-contract.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/remote-authorization-contract.md"},
         {"key":"opencode-overlay-single","class":"upstream_source","kind":"upstream_source_file","upstream_path":"internal/assets/opencode/sdd-overlay-single.json","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/sdd-overlay-single.json"},
         {"key":"opencode-overlay-multi","class":"upstream_source","kind":"upstream_source_file","upstream_path":"internal/assets/opencode/sdd-overlay-multi.json","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/sdd-overlay-multi.json"},
         {"key":"opencode-plugins","class":"upstream_runtime_snapshot","kind":"upstream_source_directory","upstream_path":"internal/assets/opencode/plugins","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/plugins","runtime_targets":["~/.config/opencode/plugins"]},
@@ -45,7 +51,8 @@
         {"key":"sdd-commands","class":"upstream_runtime_snapshot","kind":"command_directory","upstream_path":"internal/assets/opencode/commands","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/commands","runtime_targets":["~/.config/opencode/commands"]}
       ],
       "runtime_patches": [
-        {"key":"judgment-retrospective-handoff","patch_path":"overlay/gentle-ai/patches/opencode/judgment-retrospective.json"}
+        {"key":"judgment-retrospective-handoff","patch_path":"overlay/gentle-ai/patches/opencode/judgment-retrospective.json"},
+        {"key":"sdd-research-output-only","patch_path":"overlay/gentle-ai/patches/opencode/sdd-research-output-only.json"}
       ],
       "retained_upstream_skills": [
         {"key":"chained-pr","upstream_path":"internal/assets/skills/chained-pr","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/chained-pr"},

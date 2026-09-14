@@ -31,7 +31,7 @@ Use this skill when:
 - `sync-gentle-ai-upstream-assets` refreshes `overlay/gentle-ai/assets/upstream/...` plus the maintained boundary only after the drift has been reviewed and accepted.
 - `apply-gentle-ai-custom` installs true repo-owned assets and portable skills, renders wrappers, prunes rejected skills, applies overrides, and reconciles profiles while preserving upstream-materialized SDD/review runtime assets.
 - For OpenCode, derive external-skill denies from policy-pruned names minus repo-owned same-name skills intentionally installed by the managed target. Apply them globally and to configured agents. Always persist the canonical permission order when effective denies exist: OpenCode uses the last matching rule, and parsed JSON loses the original order needed to detect an exact deny before a matching wildcard allow.
-- Before any runtime write, apply validates only its own prerequisites: ownership boundaries, base prompts consumed by configured profiles, safe obsolete-reference migration, and compatible Judgment Day patch anchors.
+- Before any runtime write, apply validates only its own prerequisites: ownership boundaries, base prompts consumed by configured profiles, safe obsolete-reference migration, and compatible declared runtime-patch anchors.
 - Apply must not inspect or certify upstream plugin, contract, prompt, or review semantics. Opaque or absent upstream plugins do not block unrelated custom operations.
 - Owned-state cleanup must track every custom-installed output while protecting upstream runtime targets, retained upstream skill trees, and surgical patch targets without claiming whole-file ownership.
 - Read semantic intent before making maintenance decisions.
@@ -51,7 +51,7 @@ Use this skill when:
 - The versioned policy MUST NOT carry per-profile orchestrator/phase model+variant choices. Those live in the per-machine local config at `~/.config/gentle-ai-custom/opencode-local-config.json` under `default_profile` and `profiles`.
 - The same local config may manage the three global Judgment Day actors, all six global review actors (including `review-validator`), and optional named-profile JD actors. Review actors are always global; never invent suffixed review topology.
 - Omitted JD/review slots preserve runtime assignment. Only explicit `{"inherit": true}` removes both `model` and `variant` for OpenCode Task inheritance.
-- Treat RDD reactivation as blocked until the canonical checklist in `overlay/gentle-ai/maintenance.md` under `Receipt-Driven Development mode and reactivation blocker` passes for an adopted upstream release. Never recommend global enable from release notes alone; require source/tests plus a correction-required canary.
+- Treat RDD as maintainer-approved, active, and functional based on the owner's cross-repository operational validation. Effective mode remains user- and machine-owned: check it with `gentle-ai review mode status --cwd .` and never infer it from repository policy or upstream control. The correction-required canary is an optional regression diagnostic, not an activation gate. Preserve the kill switch, candidate-bound receipts, bounded correction lifecycle, and ordinary delivery policy.
 - Treat `sdd-research` as the phase immediately after `sdd-explore`. Profile audits must validate all 11 phases, semantic managed-profile detection, and deny-by-default `permission.task` delegation without requiring deprecated agent-local `tools.task`.
 
 ## Audit report contract
@@ -78,6 +78,11 @@ Report rows use this shape:
 
 - `Upstream change` is a concise human summary of the upstream delta and why it matters; do not use a file-path list as the main content.
 - `Follow-up` is optional; leave it empty when no further action is needed.
+- One row represents one atomic decision. `Decision` applies exactly to the change named in `Upstream change`.
+- Put distinct local remediation in `Follow-up` or a separate row. Runtime sanitization always receives its own row.
+- Map every required adjustment named in the summary to an explicit row.
+- Never merge rows when `Scope`, `Impact`, or `Decision` differ.
+- Reconcile the summary, report rows, and final recommendation before presenting them.
 
 Do not use `descartar` as the main decision label for report rows.
 
@@ -116,7 +121,7 @@ Re-apply is mandatory after `gentle-ai sync` or reinstall because upstream rewri
 | Upstream only added a new agent/platform outside the maintained runtime target/materialized state | Note it in the audit, but do NOT recommend reinstall for that reason alone. |
 | Upstream added new skills or workflow behavior without maintained-target topology drift | STOP, summarize the impact, and recommend `gentle-ai sync` after the repo is updated. |
 | Upstream changes PR strategy, chained/stacked PR governance, review budget, or review workload behavior | Compare against explicit local customizations in `maintenance-intent.md`; recommend `Sanitizar` only for concrete conflicts, otherwise recommend `Adquirir`. |
-| Gentle AI v2.5.0 supplies correction-handoff source/tests | Record that evidence, but keep RDD blocked. Recommend enable only after the correction-required canary proves authoritative corroborated correction scope is available before mutation and the lifecycle reaches a valid receipt. |
+| Reviewing RDD policy or effective state | Treat RDD as accepted and functional by owner decision, then query `gentle-ai review mode status --cwd .` for the effective machine/clone state. Preserve exact receipt and correction contracts; use the correction-required canary only as an optional regression diagnostic. |
 | Fresh-context review finds inconsistency after maintenance edits | Fix it before closing, or STOP and surface the inconsistency if the correct resolution is unclear. |
 
 ## Execution Steps
@@ -165,6 +170,7 @@ Re-apply is mandatory after `gentle-ai sync` or reinstall because upstream rewri
    - representative upstream-owned prompt, plugin, and contract files remain byte- and mode-unchanged by custom apply
    - no managed agent references an obsolete `.overlay.md` prompt
    - Judgment Day differs from its compatible installed upstream baseline only by the declared retrospective handoff
+   - `sdd-research` differs from its compatible installed upstream baseline only by the declared output-only precedence rule
    - default/named profile assignments still match the local config
    - `overlay/gentle-ai/assets/upstream/opencode/prompts/orchestrators/gentle-orchestrator.md` and related upstream metadata remain consistent with `upstream-state.json`
 19. Run one fresh-context consistency pass against the changed maintainer artifacts and the final maintenance diff. Use a reviewer/subagent when delegation is authorized; otherwise perform the pass directly.
