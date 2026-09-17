@@ -355,6 +355,7 @@ func (s *applyPolicyState) reconcileProfileAgent(profile validatedProfile, key s
 		}
 		s.agents[key] = agentObj
 		s.expectedPromptRefs[key] = jsonString(source["prompt"])
+		s.metrics.promptRefsUpdated++
 		s.metrics.profileAgentsCreated++
 		s.configChanged = true
 		detail := fmt.Sprintf("profile %s: created %s with model %s", profileName, key, quotedValue(assignment.Model))
@@ -379,7 +380,10 @@ func (s *applyPolicyState) reconcileProfileAgent(profile validatedProfile, key s
 		if jsonString(existing["prompt"]) != sourcePrompt {
 			existing["prompt"] = sourcePrompt
 			changed = true
+			s.metrics.promptRefsUpdated++
 			s.recordVerbose(s.configPath, fmt.Sprintf("profile %s: %s.prompt reset to verified upstream base agent %s", profileName, key, sourceKey))
+		} else {
+			s.metrics.promptRefsUnchanged++
 		}
 		s.expectedPromptRefs[key] = sourcePrompt
 	}

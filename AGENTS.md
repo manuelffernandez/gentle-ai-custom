@@ -355,9 +355,9 @@ Prune:
 - `issue-creation`
 - `hermes-ephemeral-delegation`
 
-Current machine-local built-in OpenCode agent overrides:
-- `general` → `openai/gpt-5.6-terra` / `high`
-- `explore` → `openai/gpt-5.6-sol` / `medium`
+Built-in OpenCode agent overrides are machine-local assignments from
+`~/.config/gentle-ai-custom/opencode-local-config.json`; their current values
+are intentionally not part of versioned policy.
 
 SDD profile orchestrators (`sdd-orchestrator-<name>` and `sdd-<phase>-<name>`) are **NOT** baked into the versioned policy. They are reconciled from a per-machine local config — see `## Local OpenCode overlay config` below. The versioned policy keeps only portable baseline keys (`gentle-orchestrator`) so the repo never carries machine-specific model/variant choices.
 

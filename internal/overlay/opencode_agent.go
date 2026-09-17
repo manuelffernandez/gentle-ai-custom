@@ -54,9 +54,8 @@ func (a *OpenCodeAgent) BuildCommandContent(cmd customCommand, body string) stri
 	return strings.Join(lines, "\n") + body
 }
 
-// ApplyOverlay runs the Gentle AI policy pipeline for OpenCode and returns
-// its exit code. The pipeline handles orchestrator generation, opencode.json
-// mutations, and prints its own summary via runApplyPolicyWithOptions.
+// ApplyOverlay delegates to the shared pipeline so OpenCode preserves
+// upstream-materialized prompts while local references are reconciled.
 func (a *OpenCodeAgent) ApplyOverlay(repoRoot string, options applyPolicyOptions) int {
 	return runApplyPolicyWithOptions(repoRoot, options)
 }

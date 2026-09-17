@@ -4,6 +4,17 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-09-17 | Fixed apply prompt-reference accounting
+
+- **Date**: `2026-09-17`
+- **Title**: Fixed apply prompt-reference accounting
+- **Type**: `tooling-change`
+- **Upstream scope/range**: Maintained v2.9.1 boundary at `9ec0cf443622f20fe511815ff5a83088c7467bff`; no boundary or snapshot change.
+- **Decision**: Count each managed named-profile orchestrator or phase prompt reference once where profile reconciliation creates, updates, or confirms it. Preserve upstream-materialized base prompts and keep machine-local assignments outside versioned policy.
+- **Why it mattered**: The apply summary always reported zero prompt-reference updates and unchanged references even when profile reconciliation assigned or compared them, weakening operator verification of overlay apply behavior.
+- **Affected artifacts**: `internal/overlay/profiles.go`; focused tests in `internal/overlay/profiles_test.go`; and clarifications in `internal/overlay/opencode_agent.go` and `AGENTS.md`.
+- **Verification**: Parent-provided canonical audit evidence passed for installed Gentle AI `2.9.1`, exact tag `v2.9.1`, and release commit `9ec0cf443622f20fe511815ff5a83088c7467bff`, with no managed drift or structural mismatch. `go test ./internal/overlay`, `go test ./...`, and `git diff --check` passed. No runtime refresh, overlay apply, commit, push, or PR was performed.
+
 ## 2026-09-14 | Adopted Gentle AI v2.9.1 and verified runtime materialization
 
 - **Date**: `2026-09-14`
