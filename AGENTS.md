@@ -246,7 +246,7 @@ Files that `apply-gentle-ai-custom.sh` installs into the global OpenCode runtime
 - `shared/commands/` — reusable prompt bodies for commit/PR wrapper commands rendered by the apply script.
 - `overlay/gentle-ai/assets/` — approved upstream audit snapshots plus true repo-owned runtime assets.
 - `overlay/gentle-ai/assets/upstream/opencode/` — current approved upstream-equivalent OpenCode snapshots: `persona-gentleman.md`, `engram-protocol.md` (mirrors `internal/assets/engram/protocol.md` for the owned AGENTS build), `background-subagents.md`, the orchestrator prompt, overlay JSONs, plugins, retained `commands/` snapshots, and selected skill snapshots. The maintained boundary is verified v2.9.1 at `9ec0cf443622f20fe511815ff5a83088c7467bff`; the v2.9.1 repository sync changed only `upstream-state.json` because all 74 approved files were unchanged. The user reports that the later runtime `gentle-ai sync` and `bash apply-gentle-ai-custom.sh opencode` both completed, and independent read-only post-state verification passed. RDD is maintainer-approved as active and functional, while effective mode remains machine-owned.
-- `overlay/gentle-ai/assets/owned/opencode/AGENTS.md` — source of truth for repo-owned global agent behavior installed to `~/.config/opencode/AGENTS.md`, including credential-file safety for the primary agent and every delegated subagent or tool.
+- `overlay/gentle-ai/assets/owned/opencode/AGENTS.md` — full-file source of truth for repo-owned global agent behavior installed to `~/.config/opencode/AGENTS.md`. Its inherited persona and OpenCode full Engram sections must remain semantically equal to the approved `persona-gentleman.md` and `engram-protocol.md` snapshots; only the Agent-Readable Markdown Standard, Credential-File Safety, no-auto-commit, and Gemini override are overlay-only additions.
 - `overlay/gentle-ai/patches/opencode/judgment-retrospective.json` — exact local delta applied to a compatible upstream-installed Judgment Day skill.
 - `overlay/gentle-ai/patches/opencode/sdd-research-output-only.json` — exact local delta that keeps the upstream-installed research executor output-only despite contradictory inline launcher text.
 - `overlay/gentle-ai/policy/gentle-ai-policy.json` — keep/prune policy, OpenCode paths, and runtime overrides.
@@ -292,6 +292,7 @@ The repo now uses a **repo-owned managed-assets** model:
 
 - `overlay/gentle-ai/assets/upstream/` will hold approved upstream behavior assets for diff/audit review, including the OpenCode overlay JSONs/plugins, the conditionally composed `background-subagents.md` prompt source, and only the approved `internal/assets/engram/protocol.md` snapshot tracked by the managed-assets manifest
 - `overlay/gentle-ai/assets/owned/` holds only true repo-owned runtime assets; raw upstream snapshots never become install sources
+- focused repository tests compare the inherited persona and OpenCode full Engram sections in the owned `AGENTS.md` with their approved snapshots, so snapshot refreshes cannot silently leave the install source stale
 - `overlay/gentle-ai/patches/` holds exact surgical deltas for compatible installed upstream assets
 - `shared/skills/` remains the canonical source for portable repo-owned skills and is NOT folded into the overlay asset tree
 

@@ -134,7 +134,7 @@ If this diagnostic exposes a regression, record the evidence and reassess the af
 | `policy/gentle-ai-policy.json` | Runtime policy consumed by the Go CLI and wrappers |
 | `policy/managed-assets.json` | Canonical map of approved upstream assets and installable owned assets |
 | `assets/upstream/` | Approved upstream copies currently on disk for review/diff, including `persona-gentleman.md`, `engram-protocol.md` (mirrors `internal/assets/engram/protocol.md`), `background-subagents.md`, the orchestrator prompt, overlay JSONs/plugins, retained `commands/` snapshots, and selected skill snapshots. The maintained boundary is verified v2.9.1 at `9ec0cf443622f20fe511815ff5a83088c7467bff`; all 74 approved files were unchanged from v2.9.0. This did not refresh the installed runtime. |
-| `assets/owned/` | True repo-owned runtime assets installed by `apply`, currently the local OpenCode `AGENTS.md` surface |
+| `assets/owned/` | True repo-owned runtime assets installed by `apply`, currently the full-file local OpenCode `AGENTS.md` surface. Its inherited persona and OpenCode full Engram sections track the approved snapshots, with four explicit overlay-only additions. |
 | `patches/` | Exact-anchor local deltas applied only to compatible upstream runtime files |
 | `shared/skills/` | Portable repo-owned skills installed globally by `apply`, including the sanitized `branch-pr` and `chained-pr`, the temporary `pr-finalizer` compatibility skill, and the Judgment Day retrospective companion skill that is activated by the `judgment-day` terminal hook |
 | `shared/commands/` | Source bodies for custom wrappers rendered by `apply` |
@@ -211,6 +211,7 @@ Runtime refresh, repo snapshot sync, and overlay apply are separate actions. App
 
 - repeats the same exact release parity preflight before copy or write
 - copies approved upstream assets into `assets/upstream/...`
+- after a snapshot refresh, requires the owned `AGENTS.md` persona and OpenCode full Engram sections to be rebased when the focused semantic parity test reports drift; do not replace full-file ownership with runtime patching or marker merging
 - stores the verified binary version, exact tag, and release commit in `state/upstream-state.json` when the new upstream was accepted
 - does not touch local runtime under `~/.config/opencode/`
 - always runs after approval of a newly accepted upstream boundary; it is the repo sync step, not the runtime refresh step
@@ -304,6 +305,7 @@ Operational rules:
 
 - [ ] `maintenance-intent.md` still reflects what to keep and depure
 - [ ] `managed-assets.json` still aligns with `assets/upstream/` and `assets/owned/`
+- [ ] the owned OpenCode `AGENTS.md` inherited persona and full Engram sections pass semantic parity against the approved snapshots, while the four overlay-only sections remain present
 - [ ] `upstream-state.json` still points to the last upstream boundary that was actually maintained
 - [ ] `apply-gentle-ai-custom` still preserves upstream prompt refs and fails closed when a requested custom operation lacks its prerequisite
 - [ ] the public shell and PowerShell entrypoints remain equivalent

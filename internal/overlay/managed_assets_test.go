@@ -2,6 +2,7 @@ package overlay
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -323,47 +324,186 @@ func inject() {
 	}
 }
 
-func TestOpenCodeAgentsOwnedSourceExtendsMaterializedBaseline(t *testing.T) {
+func TestOpenCodeAgentsOwnedSourceMatchesApprovedInheritedSections(t *testing.T) {
 	if testing.Short() {
 		t.Skip("integration: reads committed repo files to verify owned AGENTS.md invariants")
 	}
 	repoRoot := repoRootForTest(t)
 	ownedSnapshot := mustReadFile(t, filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "owned", "opencode", "AGENTS.md"))
 
-	// The owned file must contain the required local overlay sections.
-	for _, required := range []string{
-		"gentle-ai-custom:no-auto-commit",
-		"gentle-ai-custom:gemini-override",
-	} {
-		if !strings.Contains(ownedSnapshot, required) {
-			t.Fatalf("owned AGENTS.md missing required section %q", required)
-		}
+	if err := validateOwnedAgentsComposition(ownedSnapshot); err != nil {
+		t.Fatalf("owned AGENTS.md composition: %v", err)
 	}
 
-	// The owned file must not contain stale content from old ownership model.
 	if strings.Contains(ownedSnapshot, "Agent Skills Index") {
 		t.Fatalf("owned AGENTS.md still contains old root index content")
 	}
 
-	// The owned file must start with the upstream persona section marker,
-	// confirming the upstream baseline is the starting point.
 	if !strings.HasPrefix(strings.TrimLeft(ownedSnapshot, " \t\r\n"), "<!-- gentle-ai:persona -->") {
 		t.Fatalf("owned AGENTS.md does not start with the upstream persona section marker")
 	}
 
-	// The upstream source mirrors must exist and contain content.
-	for _, mirrorPath := range []string{
-		filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "upstream", "opencode", "persona-gentleman.md"),
-		filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "upstream", "opencode", "engram-protocol.md"),
-	} {
-		content := mustReadFile(t, mirrorPath)
-		if strings.TrimSpace(content) == "" {
-			t.Fatalf("upstream source mirror %s is empty", mirrorPath)
-		}
+	personaSnapshot := mustReadFile(t, filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "upstream", "opencode", "persona-gentleman.md"))
+	ownedPersona := mustMarkdownBetweenUniqueMarkers(t, ownedSnapshot, "<!-- gentle-ai:persona -->", "<!-- /gentle-ai:persona -->")
+	if normalizeMarkdownSection(ownedPersona) != normalizeMarkdownSection(personaSnapshot) {
+		t.Fatal("owned AGENTS.md persona section is stale relative to the approved upstream snapshot")
 	}
+
+	engramSnapshot := mustReadFile(t, filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "upstream", "opencode", "engram-protocol.md"))
+	upstreamFullEngram := mustMarkdownBetweenUniqueMarkers(t, engramSnapshot, "<!-- section:full -->", "<!-- /section:full -->")
+	ownedEngram := mustMarkdownBetweenUniqueMarkers(t, ownedSnapshot, "<!-- gentle-ai:engram-protocol -->", "<!-- /gentle-ai:engram-protocol -->")
+	if normalizeMarkdownSection(ownedEngram) != normalizeMarkdownSection(upstreamFullEngram) {
+		t.Fatal("owned AGENTS.md Engram section is stale relative to the approved OpenCode full projection")
+	}
+
 	if _, err := os.Stat(filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "upstream", "claude")); !os.IsNotExist(err) {
 		t.Fatalf("owned AGENTS baseline should not materialize the claude snapshot tree")
 	}
+}
+
+func TestValidateOwnedAgentsCompositionRejectsAmbiguousOrExtraBlocks(t *testing.T) {
+	blocks := ownedAgentsBlocks()
+	valid := renderMarkdownBlocks(blocks)
+	if err := validateOwnedAgentsComposition(strings.ReplaceAll(valid, "\n", "\r\n")); err != nil {
+		t.Fatalf("validateOwnedAgentsComposition() rejected valid CRLF composition: %v", err)
+	}
+	persona := renderMarkdownBlocks(blocks[:1])
+	personaClosingBeforeOpening := blocks[0].closing + "\ncontent\n" + blocks[0].opening + "\n"
+
+	tests := []struct {
+		name    string
+		content string
+	}{
+		{
+			name:    "duplicate persona",
+			content: valid + renderMarkdownBlocks(blocks[:1]),
+		},
+		{
+			name:    "duplicate Engram",
+			content: valid + renderMarkdownBlocks(blocks[3:4]),
+		},
+		{
+			name:    "extra overlay top-level section",
+			content: valid + "\n## Unexpected Overlay Policy\n",
+		},
+		{
+			name:    "inherited blocks out of order",
+			content: renderMarkdownBlocks([]markdownBlock{blocks[3], blocks[0], blocks[1], blocks[2], blocks[4], blocks[5]}),
+		},
+		{
+			name:    "closing marker before opening marker",
+			content: strings.Replace(valid, persona, personaClosingBeforeOpening, 1),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := validateOwnedAgentsComposition(tt.content); err == nil {
+				t.Fatal("validateOwnedAgentsComposition() error = nil, want invalid composition rejection")
+			}
+		})
+	}
+}
+
+type markdownBlock struct {
+	name             string
+	opening          string
+	closing          string
+	overlayH2Heading string
+}
+
+func ownedAgentsBlocks() []markdownBlock {
+	return []markdownBlock{
+		{name: "persona", opening: "<!-- gentle-ai:persona -->", closing: "<!-- /gentle-ai:persona -->"},
+		{name: "Agent-Readable Markdown Standard", opening: "<!-- gentle-ai-custom:agent-readable-markdown -->", closing: "<!-- /gentle-ai-custom:agent-readable-markdown -->", overlayH2Heading: "Agent-Readable Markdown Standard"},
+		{name: "Credential-File Safety", opening: "<!-- gentle-ai-custom:credential-file-safety -->", closing: "<!-- /gentle-ai-custom:credential-file-safety -->", overlayH2Heading: "Credential-File Safety"},
+		{name: "OpenCode full Engram", opening: "<!-- gentle-ai:engram-protocol -->", closing: "<!-- /gentle-ai:engram-protocol -->"},
+		{name: "no-auto-commit", opening: "<!-- gentle-ai-custom:no-auto-commit -->", closing: "<!-- /gentle-ai-custom:no-auto-commit -->"},
+		{name: "Gemini Anti-Sycophancy Override", opening: "<!-- gentle-ai-custom:gemini-override -->", closing: "<!-- /gentle-ai-custom:gemini-override -->", overlayH2Heading: "Gemini Anti-Sycophancy Override"},
+	}
+}
+
+func validateOwnedAgentsComposition(content string) error {
+	content = strings.ReplaceAll(content, "\r\n", "\n")
+	cursor := 0
+	for _, block := range ownedAgentsBlocks() {
+		openingStart, contentStart, contentEnd, closingEnd, err := uniqueMarkdownMarkerBounds(content, block.opening, block.closing)
+		if err != nil {
+			return fmt.Errorf("%s block: %w", block.name, err)
+		}
+		if openingStart < cursor {
+			return fmt.Errorf("%s block is out of order", block.name)
+		}
+		if unexpected := strings.TrimSpace(content[cursor:openingStart]); unexpected != "" {
+			return fmt.Errorf("unexpected content before %s block: %q", block.name, unexpected)
+		}
+		if block.name != "persona" && block.name != "OpenCode full Engram" {
+			headings := markdownH2Headings(content[contentStart:contentEnd])
+			if block.overlayH2Heading == "" && len(headings) != 0 {
+				return fmt.Errorf("%s block contains unexpected top-level sections %q", block.name, headings)
+			}
+			if block.overlayH2Heading != "" && (len(headings) != 1 || headings[0] != block.overlayH2Heading) {
+				return fmt.Errorf("%s block top-level sections = %q, want [%q]", block.name, headings, block.overlayH2Heading)
+			}
+		}
+		cursor = closingEnd
+	}
+	if unexpected := strings.TrimSpace(content[cursor:]); unexpected != "" {
+		return fmt.Errorf("unexpected content after declared blocks: %q", unexpected)
+	}
+	return nil
+}
+
+func markdownH2Headings(content string) []string {
+	var headings []string
+	for _, line := range strings.Split(content, "\n") {
+		if strings.HasPrefix(line, "## ") {
+			headings = append(headings, strings.TrimSpace(strings.TrimPrefix(line, "## ")))
+		}
+	}
+	return headings
+}
+
+func mustMarkdownBetweenUniqueMarkers(t *testing.T, content, opening, closing string) string {
+	t.Helper()
+	_, contentStart, contentEnd, _, err := uniqueMarkdownMarkerBounds(content, opening, closing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return content[contentStart:contentEnd]
+}
+
+func uniqueMarkdownMarkerBounds(content, opening, closing string) (openingStart, contentStart, contentEnd, closingEnd int, err error) {
+	if count := strings.Count(content, opening); count != 1 {
+		return 0, 0, 0, 0, fmt.Errorf("opening marker %q count = %d, want 1", opening, count)
+	}
+	if count := strings.Count(content, closing); count != 1 {
+		return 0, 0, 0, 0, fmt.Errorf("closing marker %q count = %d, want 1", closing, count)
+	}
+	openingStart = strings.Index(content, opening)
+	contentStart = openingStart + len(opening)
+	contentEnd = strings.Index(content, closing)
+	if contentEnd < contentStart {
+		return 0, 0, 0, 0, fmt.Errorf("closing marker %q precedes opening marker %q", closing, opening)
+	}
+	closingEnd = contentEnd + len(closing)
+	return openingStart, contentStart, contentEnd, closingEnd, nil
+}
+
+func renderMarkdownBlocks(blocks []markdownBlock) string {
+	var rendered strings.Builder
+	for _, block := range blocks {
+		fmt.Fprintf(&rendered, "%s\n", block.opening)
+		if block.overlayH2Heading != "" {
+			fmt.Fprintf(&rendered, "## %s\n", block.overlayH2Heading)
+		}
+		fmt.Fprintf(&rendered, "content\n%s\n", block.closing)
+	}
+	return rendered.String()
+}
+
+func normalizeMarkdownSection(content string) string {
+	return strings.TrimSpace(strings.ReplaceAll(content, "\r\n", "\n"))
 }
 
 func TestUpstreamRuntimeSnapshotsAreNeverOwnedInstallSources(t *testing.T) {

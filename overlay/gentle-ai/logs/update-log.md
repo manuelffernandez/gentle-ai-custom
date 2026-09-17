@@ -4,6 +4,17 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-09-17 | Rebased owned OpenCode instructions onto v2.9.1
+
+- **Date**: `2026-09-17`
+- **Title**: Rebased owned OpenCode instructions onto v2.9.1
+- **Type**: `tooling-change`
+- **Upstream scope/range**: Maintained v2.9.1 boundary at `9ec0cf443622f20fe511815ff5a83088c7467bff`; the separately approved repository sync found 74 unchanged files across 18 directories and left state unchanged.
+- **Decision**: `Adquirir` the approved v2.9.1 persona and OpenCode full Engram projection in the repo-owned full-file `AGENTS.md`. Preserve exactly four overlay-only additions: Agent-Readable Markdown Standard, Credential-File Safety, no-auto-commit, and Gemini Anti-Sycophancy Override. Add semantic section-parity coverage rather than runtime patching or marker merging.
+- **Why it mattered**: Snapshot sync could refresh the inherited sources without proving that the repo-owned install source had been rebased, allowing stale global instructions to survive a later overlay apply.
+- **Affected artifacts**: `overlay/gentle-ai/assets/owned/opencode/AGENTS.md`; focused parity coverage in `internal/overlay/managed_assets_test.go`; and composition guidance in `AGENTS.md`, `README.md`, `overlay/gentle-ai/README.md`, and `overlay/gentle-ai/maintenance.md`.
+- **Verification**: The canonical audit passed for installed Gentle AI `2.9.1`, exact tag `v2.9.1`, and release commit `9ec0cf443622f20fe511815ff5a83088c7467bff`, with no managed drift or structural mismatch. Focused and full Go verification plus `git diff --check` passed. No chained-pr artifact, runtime file, overlay apply, runtime sync, reinstall, commit, push, or PR was touched.
+
 ## 2026-09-17 | Fixed apply prompt-reference accounting
 
 - **Date**: `2026-09-17`

@@ -191,6 +191,8 @@ La actualización del runtime sigue siendo tuya por defecto. Aprobar la auditor�
 
 El comando `apply-gentle-ai-custom` sigue siendo independiente de la carpeta original: compara la versión instalada con la versión mantenida por este overlay y no necesita encontrar el clon de upstream.
 
+El `AGENTS.md` propio sigue siendo un archivo completo que instala este repo. Su persona y el protocolo completo de Engram para OpenCode deben coincidir con los snapshots aprobados. Los tests permiten solamente cuatro agregados propios: el estándar de Markdown para agentes, la seguridad de archivos de credenciales, la regla de no hacer commits automáticamente y el ajuste para Gemini.
+
 ### Cuándo usar `gentle-ai sync` y cuándo reinstalar
 
 - Es preferible usar `gentle-ai sync` si los cambios que adoptamos sirven, pero no rompen de forma profunda cómo están configurados los agentes y perfiles.
@@ -283,7 +285,7 @@ Para ver el código exacto que cambió, siempre podés mirar el historial de Git
 
 | Ruta | Para qué sirve |
 | --- | --- |
-| `overlay/gentle-ai/assets/` | Contiene las copias aprobadas del proyecto original para auditoría y los pocos archivos que este repo realmente posee, como `AGENTS.md`. |
+| `overlay/gentle-ai/assets/` | Contiene las copias aprobadas del proyecto original para auditoría y los pocos archivos que este repo realmente posee, como el `AGENTS.md` completo. Sus secciones heredadas se comparan con los snapshots aprobados mediante tests. |
 | `overlay/gentle-ai/patches/` | Define ajustes locales pequeños y verificables que se aplican sobre un runtime upstream compatible. |
 | `~/.config/gentle-ai-custom/opencode-local-config.json` | Tu configuración personal: dónde está el código original, qué modelos preferís usar, etc. |
 | `overlay/gentle-ai/maintenance.md` | Guía y notas técnicas pensadas para que las lea una persona que esté manteniendo esto. |
