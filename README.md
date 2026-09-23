@@ -87,17 +87,17 @@ El mantenimiento en este repositorio sigue siempre los mismos pasos. Lo único q
 ### Pasos recomendados
 
 1. Actualizá el ejecutable de `gentle-ai`.
-2. Actualizá los tags en tu carpeta local de `gentle-ai` y dejala en el tag exacto que corresponde a la versión instalada.
-3. Desde `gentle-ai-custom`, pedile al agente de mantenimiento que revise qué cambió. Apenas carga sus instrucciones, debe ejecutar la auditoría antes de explorar muchos archivos o delegar lecturas. Si falla la coincidencia de versión, tag y commit, se detiene sin delegar nada.
+2. Actualizá los tags en tu carpeta local de `gentle-ai` y dejala en el tag exacto que querés revisar.
+3. Desde `gentle-ai-custom`, pedile al agente de mantenimiento que revise qué cambió. Apenas carga sus instrucciones, debe ejecutar la auditoría antes de explorar muchos archivos o delegar lecturas. Por defecto revisa el tag de la versión instalada. Si querés revisar otra versión sin actualizar el ejecutable que usan sesiones abiertas, indicá el tag exacto.
 4. Antes de cambiar cualquier archivo acá, el agente te tiene que dar un resumen claro: qué hay de nuevo, qué sugiere `Adquirir`, `Sanitizar` o `Ignorar`, por qué, y qué comando recomienda para actualizar.
 5. Confirmá por separado qué autorizás: cambios en este repo, copia de snapshots, actualización del runtime y reaplicación del overlay no son el mismo permiso.
-6. Si aceptaste una nueva versión upstream y autorizaste la copia al repo, el agente puede ejecutar `sync-gentle-ai-upstream-assets.sh`.
+6. Una auditoría con `--release` es solo una vista previa: no adopta esa versión ni autoriza la copia al repo. Si después aceptaste esa versión y autorizaste la copia, el agente puede ejecutar `sync-gentle-ai-upstream-assets.sh --release v<V>` con el mismo tag.
 7. El agente te recomienda `gentle-ai sync` o una reinstalación y te muestra los comandos exactos. Por defecto los ejecutás vos; el agente solo puede hacerlo si le pedís de forma explícita esa acción concreta.
 8. Volvé a aplicar nuestra capa con `apply-gentle-ai-custom.sh`. El agente también necesita una autorización explícita separada para ejecutarlo.
 9. Terminá con una revisión general para asegurar que todo quedó bien y dejá un resumen final de lo que se adquirió, sanitizó o ignoró.
 10. Reiniciá OpenCode si el archivo `~/.config/opencode/opencode.json` tuvo algún cambio.
 
-Es normal no haber ejecutado todavía `gentle-ai sync` ni una reinstalación: esos pasos vienen después de la auditoría y de tu aprobación.
+Es normal no haber ejecutado todavía `gentle-ai sync` ni una reinstalación: esos pasos vienen después de la auditoría y de tu aprobación. La opción `--release v<V>` no actualiza el ejecutable ni el runtime; solo elige qué tag exacto se revisa. El tag debe existir, estar limpio y coincidir con `HEAD`. El modo habitual sin esa opción sigue exigiendo que coincida con la versión instalada.
 
 ### Estado actual: repo y runtime v2.9.1
 
@@ -131,22 +131,22 @@ La adopción de v2.9.1 incorpora desde upstream el consentimiento de revisión c
 
 La copia y el avance de `upstream-state.json` a v2.9.1 terminaron con autorización separada. Después, el usuario completó manualmente `gentle-ai sync` y el `apply` del overlay. La verificación independiente de solo lectura pasó; no queda una actualización del runtime pendiente para este cierre.
 
-Antes de explorar el repo o delegar el análisis, la auditoría comprueba cuatro cosas: la versión instalada, que la carpeta original esté totalmente limpia, que exista el tag exacto `v<versión>` y que `HEAD` apunte al commit de ese tag. También revisa cambios dentro de submódulos. Si algo no coincide, se detiene sin delegar nada y explica cómo actualizar tags o cambiar al tag correcto de forma manual. Nunca descarga tags ni cambia de versión por su cuenta. `last_maintained_commit` sirve para elegir desde dónde comparar cambios; no demuestra esta coincidencia.
+Antes de explorar el repo o delegar el análisis, la auditoría informa la versión instalada y verifica el release elegido: por defecto `v<versión instalada>`, o el tag indicado con `--release v<V>`. Comprueba que la carpeta original esté totalmente limpia, que exista ese tag exacto y que `HEAD` apunte al commit del tag. También revisa cambios dentro de submódulos. Si algo no coincide, se detiene sin delegar nada y explica cómo actualizar tags o cambiar al tag correcto de forma manual. Nunca descarga tags ni cambia de versión por su cuenta. Una auditoría de otro release es solo una vista previa: no significa que se aceptó ni que se autorizó copiarlo al repo. `last_maintained_commit` sirve para elegir desde dónde comparar cambios; no demuestra esta coincidencia.
 
 Para encontrar el clon upstream durante la auditoría o la copia de snapshots, solo lee `upstream_repo_path` del archivo local. Así puede auditar una nueva fase antes de que actualices las asignaciones de modelos de cada perfil. La validación completa de esos perfiles sigue siendo obligatoria antes de que `apply` escriba en el runtime.
 
-Esto también vale para versiones preliminares: solo se aceptan si existe su tag exacto. No alcanza con estar cerca de un tag, en una rama que lo contiene o en un commit posterior. El mismo control se repite antes de copiar snapshots con `sync-gentle-ai-upstream-assets`.
+Esto también vale para versiones preliminares: solo se aceptan si existe su tag exacto. No alcanza con estar cerca de un tag, en una rama que lo contiene o en un commit posterior. El mismo control se repite antes de copiar snapshots con `sync-gentle-ai-upstream-assets`; la copia sigue necesitando autorización separada y, para un release alternativo, usa el mismo `--release v<V>`.
 
 ```bash
 brew upgrade gentle-ai
 git -C /path/to/gentle-ai pull
 
-# dejá el upstream en el tag exacto de `gentle-ai --version`
-# desde gentle-ai-custom, el agente de mantenimiento debería ejecutar esto
-bash ~/Documentos/gentle-ai-custom/audit-gentle-ai-upstream.sh
+# dejá el upstream en el tag exacto que vas a revisar
+# Reemplazá <V> por el número exacto de la versión elegida.
+bash ~/Documentos/gentle-ai-custom/audit-gentle-ai-upstream.sh --release 'v<V>'
 
-# solo después de aprobar los cambios
-bash ~/Documentos/gentle-ai-custom/sync-gentle-ai-upstream-assets.sh
+# solo después de aprobar la adopción y autorizar la copia al repo
+bash ~/Documentos/gentle-ai-custom/sync-gentle-ai-upstream-assets.sh --release 'v<V>'
 
 # acción del runtime: la ejecuta la persona, salvo pedido explícito al agente
 gentle-ai sync

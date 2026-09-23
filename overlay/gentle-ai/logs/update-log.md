@@ -4,6 +4,17 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-09-23 | Added explicit upstream release selection
+
+- **Date**: `2026-09-23`
+- **Title**: Added explicit upstream release selection
+- **Type**: `tooling-change`
+- **Upstream scope/range**: Maintainer contract and release-verification tooling; no upstream boundary or snapshot change.
+- **Decision**: Keep installed-binary parity as the default for audit and snapshot sync. Add optional `--release v<V>` for a separately selected exact release, requiring a clean checkout and exact tag/HEAD match. Treat alternate-release audits as preview only; repo sync remains separately approved and uses the same selector.
+- **Why it mattered**: Maintainers can inspect an exact newer upstream release without replacing a binary needed by live sessions, while preserving fail-closed tag verification and separate approval boundaries for adoption, repo sync, runtime refresh, and overlay apply.
+- **Affected artifacts**: shared release guard, audit/sync CLI, and focused tests under `internal/overlay/` and `cmd/gentle-ai-overlay/`; `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`; `.opencode/commands/maintain.md`; `overlay/gentle-ai/policy/maintenance-intent.md`; `AGENTS.md`; `README.md`; `overlay/gentle-ai/README.md`; `overlay/gentle-ai/maintenance.md`; `overlay/gentle-ai/owned-assets-refactor.md`.
+- **Verification**: `gofmt` on changed Go files; `go test ./internal/overlay ./cmd/gentle-ai-overlay`; `go test ./...`; `git diff --check`; Bash audit and sync `--help` output. Tests cover default binary parity, explicit newer exact release, dirty/missing/branch-shadow/ahead failures, invalid and repeated arguments, preview labeling, and no repo writes when sync verification fails. No upstream drift audit, snapshot sync, runtime sync/reinstall, overlay apply, commit, push, or PR was run.
+
 ## 2026-09-17 | Rebased owned OpenCode instructions onto v2.9.1
 
 - **Date**: `2026-09-17`

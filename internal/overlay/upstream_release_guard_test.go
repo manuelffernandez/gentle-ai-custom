@@ -1,6 +1,7 @@
 package overlay
 
 import (
+	"bytes"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -26,7 +27,7 @@ func TestVerifyUpstreamReleaseParity(t *testing.T) {
 			repo := newReleaseGuardRepo(t, tt.tag, tt.ahead)
 			installFakeGentleAI(t, "#!/bin/sh\necho 'gentle-ai "+tt.binaryVersion+"'\n")
 
-			got, err := verifyUpstreamReleaseParity(repo)
+			got, err := verifyUpstreamReleaseParity(repo, "")
 			if tt.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 					t.Fatalf("verifyUpstreamReleaseParity() error = %v, want containing %q", err, tt.wantErr)
@@ -36,7 +37,7 @@ func TestVerifyUpstreamReleaseParity(t *testing.T) {
 			if err != nil {
 				t.Fatalf("verifyUpstreamReleaseParity() error = %v", err)
 			}
-			if got.Version != tt.wantVersion || got.Tag != "v"+tt.wantVersion {
+			if got.Version != tt.wantVersion || got.Tag != "v"+tt.wantVersion || got.InstalledVersion != tt.wantVersion {
 				t.Fatalf("release identity = %#v, want version %q and exact tag", got, tt.wantVersion)
 			}
 			head, gitErr := runGit(repo, false, "rev-parse", "HEAD")
@@ -68,7 +69,7 @@ func TestVerifyUpstreamReleaseParityRejectsBinaryCheckoutVersionMismatch(t *test
 			}
 			installFakeGentleAI(t, "#!/bin/sh\necho 'gentle-ai "+tt.binaryVersion+"'\n")
 
-			if _, err := verifyUpstreamReleaseParity(repo); err == nil || !strings.Contains(err.Error(), "does not equal exact release") {
+			if _, err := verifyUpstreamReleaseParity(repo, ""); err == nil || !strings.Contains(err.Error(), "does not equal exact release") {
 				t.Fatalf("verifyUpstreamReleaseParity() error = %v, want exact release mismatch", err)
 			}
 		})
@@ -82,7 +83,7 @@ func TestVerifyUpstreamReleaseParityRejectsSameNamedBranchWithoutTag(t *testing.
 	}
 	installFakeGentleAI(t, "#!/bin/sh\necho 'gentle-ai 2.2.2'\n")
 
-	if _, err := verifyUpstreamReleaseParity(repo); err == nil || !strings.Contains(err.Error(), "exact release tag refs/tags/v2.2.2") {
+	if _, err := verifyUpstreamReleaseParity(repo, ""); err == nil || !strings.Contains(err.Error(), "exact release tag refs/tags/v2.2.2") {
 		t.Fatalf("verifyUpstreamReleaseParity() error = %v, want missing exact tag failure", err)
 	}
 }
@@ -111,7 +112,7 @@ func TestVerifyUpstreamReleaseParityRejectsDirtyCheckout(t *testing.T) {
 			repo := newReleaseGuardRepo(t, "v2.2.2", false)
 			installFakeGentleAI(t, "#!/bin/sh\necho 'gentle-ai 2.2.2'\n")
 			tt.dirty(t, repo)
-			if _, err := verifyUpstreamReleaseParity(repo); err == nil || !strings.Contains(err.Error(), "checkout is dirty") {
+			if _, err := verifyUpstreamReleaseParity(repo, ""); err == nil || !strings.Contains(err.Error(), "checkout is dirty") {
 				t.Fatalf("verifyUpstreamReleaseParity() error = %v, want dirty checkout failure", err)
 			}
 		})
@@ -133,7 +134,7 @@ func TestVerifyUpstreamReleaseParityRejectsDirtySubmodule(t *testing.T) {
 	installFakeGentleAI(t, "#!/bin/sh\necho 'gentle-ai 2.2.2'\n")
 	mustWriteFile(t, filepath.Join(repo, "deps", "example", "tracked.txt"), []byte("dirty submodule\n"))
 
-	if _, err := verifyUpstreamReleaseParity(repo); err == nil || !strings.Contains(err.Error(), "checkout is dirty") {
+	if _, err := verifyUpstreamReleaseParity(repo, ""); err == nil || !strings.Contains(err.Error(), "checkout is dirty") {
 		t.Fatalf("verifyUpstreamReleaseParity() error = %v, want dirty submodule failure", err)
 	}
 }
@@ -161,7 +162,7 @@ func TestRunSyncUpstreamAssetsReleaseRefusalDoesNotMutateRepo(t *testing.T) {
 	mustWriteFile(t, statePath, stateBefore)
 	mustWriteFile(t, snapshotPath, snapshotBefore)
 
-	if exitCode := RunSyncUpstreamAssets(repoRoot, nil); exitCode == 0 {
+	if exitCode := RunSyncUpstreamAssets(repoRoot, []string{"--release", "v2.2.2"}); exitCode == 0 {
 		t.Fatal("RunSyncUpstreamAssets() exit code = 0, want release parity refusal")
 	}
 	if got := mustReadFile(t, statePath); got != string(stateBefore) {
@@ -169,6 +170,129 @@ func TestRunSyncUpstreamAssetsReleaseRefusalDoesNotMutateRepo(t *testing.T) {
 	}
 	if got := mustReadFile(t, snapshotPath); got != string(snapshotBefore) {
 		t.Fatalf("snapshot changed on refused sync: %q", got)
+	}
+}
+
+func TestVerifyUpstreamReleaseParityAllowsNewerTagOnlyWhenExplicit(t *testing.T) {
+	repo := newReleaseGuardRepo(t, "v2.2.2", true)
+	if _, err := runGit(repo, false, "tag", "v2.2.3"); err != nil {
+		t.Fatalf("tag newer release: %v", err)
+	}
+	installFakeGentleAI(t, "#!/bin/sh\necho 'gentle-ai 2.2.2'\n")
+
+	if _, err := verifyUpstreamReleaseParity(repo, ""); err == nil || !strings.Contains(err.Error(), "does not equal exact release") {
+		t.Fatalf("default parity error = %v, want installed-release mismatch", err)
+	}
+	got, err := verifyUpstreamReleaseParity(repo, "v2.2.3")
+	if err != nil {
+		t.Fatalf("explicit newer release verification: %v", err)
+	}
+	if got.InstalledVersion != "2.2.2" || got.Version != "2.2.3" || got.Tag != "v2.2.3" {
+		t.Fatalf("release identity = %#v, want installed 2.2.2 and selected v2.2.3", got)
+	}
+}
+
+func TestVerifyUpstreamReleaseParityRejectsInvalidOrMissingExplicitTag(t *testing.T) {
+	tests := []struct {
+		name string
+		tag  string
+		want string
+	}{
+		{name: "missing tag", tag: "v2.2.3", want: "exact release tag refs/tags/v2.2.3"},
+		{name: "branch shadow is not a tag", tag: "v2.2.2", want: "exact release tag refs/tags/v2.2.2"},
+		{name: "invalid tag syntax", tag: "v2.2.3^{commit}", want: "invalid release"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repoTag := "v2.2.2"
+			if tt.name == "branch shadow is not a tag" {
+				repoTag = "v2.2.1"
+			}
+			repo := newReleaseGuardRepo(t, repoTag, false)
+			if tt.name == "branch shadow is not a tag" {
+				if _, err := runGit(repo, false, "branch", tt.tag); err != nil {
+					t.Fatalf("create branch shadow: %v", err)
+				}
+			}
+			installFakeGentleAI(t, "#!/bin/sh\necho 'gentle-ai 2.2.2'\n")
+			if _, err := verifyUpstreamReleaseParity(repo, tt.tag); err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("verifyUpstreamReleaseParity() error = %v, want containing %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestNormalizeAuditUpstreamArgs(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		release string
+		exit    int
+	}{
+		{name: "default", exit: -1},
+		{name: "explicit release", args: []string{"--release", "v2.9.1"}, release: "v2.9.1", exit: -1},
+		{name: "missing value", args: []string{"--release"}, exit: 1},
+		{name: "invalid tag", args: []string{"--release", "release-v2.9.1"}, exit: 1},
+		{name: "duplicate", args: []string{"--release", "v2.9.1", "--release", "v2.9.2"}, release: "v2.9.1", exit: 1},
+		{name: "unknown flag", args: []string{"--other"}, exit: 1},
+		{name: "positional argument", args: []string{"v2.9.1"}, exit: 1},
+		{name: "help", args: []string{"--help"}, exit: 0},
+		{name: "help does not hide unknown argument", args: []string{"--help", "--other"}, exit: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			options, exit := normalizeAuditUpstreamArgs(tt.args)
+			if exit != tt.exit || options.release != tt.release {
+				t.Fatalf("normalizeAuditUpstreamArgs() = (%#v, %d), want release %q and exit %d", options, exit, tt.release, tt.exit)
+			}
+		})
+	}
+}
+
+func TestPrintAuditReleaseSummaryLabelsPreviewWithoutAdoption(t *testing.T) {
+	var output bytes.Buffer
+	printAuditReleaseSummary(&output, upstreamReleaseIdentity{
+		InstalledVersion: "2.9.1",
+		Version:          "2.9.2",
+		Tag:              "v2.9.2",
+		Commit:           "abc123",
+	})
+	for _, want := range []string{
+		"Installed binary version: 2.9.1",
+		"Selected audited release: v2.9.2 (2.9.2)",
+		"Verified release commit: abc123",
+		"Preview only",
+		"does not approve adoption, snapshot sync, or runtime refresh",
+	} {
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("audit release output %q does not contain %q", output.String(), want)
+		}
+	}
+}
+
+func TestNormalizeSyncUpstreamAssetsArgs(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		release string
+		verbose bool
+		exit    int
+	}{
+		{name: "default", exit: -1},
+		{name: "release and verbose", args: []string{"--release", "v2.9.1", "--verbose"}, release: "v2.9.1", verbose: true, exit: -1},
+		{name: "missing value", args: []string{"--release"}, exit: 1},
+		{name: "invalid tag", args: []string{"--release", "release-v2.9.1"}, exit: 1},
+		{name: "duplicate", args: []string{"--release", "v2.9.1", "--release", "v2.9.2"}, release: "v2.9.1", exit: 1},
+		{name: "unknown flag", args: []string{"--other"}, exit: 1},
+		{name: "help does not hide unknown argument", args: []string{"--help", "--other"}, exit: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			options, exit := normalizeSyncUpstreamAssetsArgs(tt.args)
+			if exit != tt.exit || options.release != tt.release || options.verbose != tt.verbose {
+				t.Fatalf("normalizeSyncUpstreamAssetsArgs() = (%#v, %d), want release %q verbose %t exit %d", options, exit, tt.release, tt.verbose, tt.exit)
+			}
+		})
 	}
 }
 

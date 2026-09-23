@@ -2,21 +2,32 @@ package overlay
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
 type upstreamReleaseIdentity struct {
-	Version string
-	Tag     string
-	Commit  string
+	InstalledVersion string
+	Version          string
+	Tag              string
+	Commit           string
 }
 
-func verifyUpstreamReleaseParity(upstreamRepo string) (upstreamReleaseIdentity, error) {
-	version, err := detectGentleAIVersion()
+var releaseVersionPattern = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$`)
+
+func verifyUpstreamReleaseParity(upstreamRepo, selectedTag string) (upstreamReleaseIdentity, error) {
+	installedVersion, err := detectGentleAIVersion()
 	if err != nil {
 		return upstreamReleaseIdentity{}, err
 	}
-	tag := "v" + version
+	installedVersion = strings.TrimSpace(installedVersion)
+	tag := "v" + installedVersion
+	if selectedTag != "" {
+		if !isValidReleaseTag(selectedTag) {
+			return upstreamReleaseIdentity{}, fmt.Errorf("invalid release %q; expected an exact v<V> release tag such as v2.9.1", selectedTag)
+		}
+		tag = selectedTag
+	}
 
 	status, err := runGit(upstreamRepo, false, "status", "--porcelain=v1", "--untracked-files=all", "--ignore-submodules=none")
 	if err != nil {
@@ -28,19 +39,24 @@ func verifyUpstreamReleaseParity(upstreamRepo string) (upstreamReleaseIdentity, 
 
 	commit, err := runGit(upstreamRepo, false, "rev-parse", "--verify", "refs/tags/"+tag+"^{commit}")
 	if err != nil {
-		return upstreamReleaseIdentity{}, fmt.Errorf("exact release tag refs/tags/%s for installed gentle-ai %s is missing or stale in %s; run `git -C %s fetch --tags`, verify the tag, and check out %s manually before retrying (nothing was fetched or checked out automatically)", tag, version, upstreamRepo, upstreamRepo, tag)
+		return upstreamReleaseIdentity{}, fmt.Errorf("exact release tag refs/tags/%s is missing or stale in %s; run `git -C %s fetch --tags`, verify the tag, and check out %s manually before retrying (nothing was fetched or checked out automatically)", tag, upstreamRepo, upstreamRepo, tag)
 	}
 	head, err := runGit(upstreamRepo, false, "rev-parse", "--verify", "HEAD^{commit}")
 	if err != nil {
 		return upstreamReleaseIdentity{}, fmt.Errorf("cannot resolve upstream HEAD commit: %w", err)
 	}
 	if head != commit {
-		return upstreamReleaseIdentity{}, fmt.Errorf("upstream HEAD %s does not equal exact release %s commit %s for installed gentle-ai %s; fetch tags if needed, then check out %s manually before retrying (audit/sync never uses branch ancestry or nearest-tag matches)", head, tag, commit, version, tag)
+		return upstreamReleaseIdentity{}, fmt.Errorf("upstream HEAD %s does not equal exact release %s commit %s; fetch tags if needed, then check out %s manually before retrying (audit/sync never uses branch ancestry or nearest-tag matches)", head, tag, commit, tag)
 	}
 
 	return upstreamReleaseIdentity{
-		Version: strings.TrimSpace(version),
-		Tag:     tag,
-		Commit:  commit,
+		InstalledVersion: installedVersion,
+		Version:          strings.TrimPrefix(tag, "v"),
+		Tag:              tag,
+		Commit:           commit,
 	}, nil
+}
+
+func isValidReleaseTag(tag string) bool {
+	return tag == strings.TrimSpace(tag) && strings.HasPrefix(tag, "v") && releaseVersionPattern.MatchString(strings.TrimPrefix(tag, "v"))
 }

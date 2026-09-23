@@ -22,13 +22,13 @@ Use this skill when:
 - Work from `gentle-ai-custom`, not from the upstream repo.
 - Treat the resolved upstream `gentle-ai` clone as input only. Resolution order: `~/.config/gentle-ai-custom/opencode-local-config.json` (`upstream_repo_path`) -> `$GENTLE_AI_CUSTOM_UPSTREAM_REPO` -> `../gentle-ai` fallback.
 - Follow this order for maintainer updates: update `gentle-ai` binary -> update tags/checkout in the upstream clone -> immediate audit from `gentle-ai-custom` -> decision/approval gate -> separately approved repo sync via `sync-gentle-ai-upstream-assets` when a new boundary was accepted -> human-owned runtime refresh (`gentle-ai sync` or reinstall) -> separately authorized `apply-gentle-ai-custom`.
-- Immediately after loading this skill and the minimal context needed to invoke it, run `bash audit-gentle-ai-upstream.sh` synchronously. Run nothing that performs broad repository exploration, repository-reading delegation, or drift-analysis delegation first. If release parity fails, STOP immediately and delegate nothing.
+- Immediately after loading this skill and the minimal context needed to invoke it, run the canonical audit synchronously. Run nothing that performs broad repository exploration, repository-reading delegation, or drift-analysis delegation first. By default use `bash audit-gentle-ai-upstream.sh`; when the user has selected a different release from the installed binary, use `bash audit-gentle-ai-upstream.sh --release v<V>`. If selected-release verification fails, STOP immediately and delegate nothing.
 - Treat the user's account of what was updated as diagnostic context only. Before every audit, run the canonical audit entrypoint and trust its release parity preflight, not the answer.
-- Audit and sync must fail before drift analysis, copy, or writes unless the upstream checkout is completely clean, exact `refs/tags/v<V>` for installed `gentle-ai --version` exists and peels to a commit, and `HEAD` equals that commit. Never use nearest-tag, version ordering, branch ancestry, or `git describe` as parity proof. Never fetch or check out automatically.
+- Audit and sync default to the exact `refs/tags/v<V>` for installed `gentle-ai --version`. An explicit `--release v<V>` may select a different release, but that exact tag must exist, peel to a commit, and equal `HEAD` in a completely clean upstream checkout before drift analysis, copying, or writes. This selector does not change the binary or runtime. Never use nearest-tag, version ordering, branch ancestry, or `git describe` as proof. Never fetch or check out automatically.
 - Audit/sync upstream resolution reads only `upstream_repo_path` from the local config. Do not require machine-local profile assignments to match a newly adopted phase schema before the repository audit; apply retains full runtime-config validation before writes.
 - Treat `last_maintained_commit` only as the drift-range boundary after parity succeeds. It is never release parity proof.
-- `audit-gentle-ai-upstream` discovers drift from `git diff --name-status --find-renames <last_maintained_commit>..<verified-release-commit>`, filtered through `overlay/gentle-ai/policy/managed-assets.json`, while still checking structural invariants from upstream integration code.
-- `sync-gentle-ai-upstream-assets` refreshes `overlay/gentle-ai/assets/upstream/...` plus the maintained boundary only after the drift has been reviewed and accepted.
+- `audit-gentle-ai-upstream` discovers drift from `git diff --name-status --find-renames <last_maintained_commit>..<verified-release-commit>`, filtered through `overlay/gentle-ai/policy/managed-assets.json`, while still checking structural invariants from upstream integration code. An audit selected with `--release` is preview evidence only; it does not adopt the release or authorize repo snapshot sync.
+- `sync-gentle-ai-upstream-assets` refreshes `overlay/gentle-ai/assets/upstream/...` plus the maintained boundary only after the drift has been reviewed and accepted and repo sync is separately authorized. Pass the same `--release v<V>` selector to sync only after that approval.
 - `apply-gentle-ai-custom` installs true repo-owned assets and portable skills, renders wrappers, prunes rejected skills, applies overrides, and reconciles profiles while preserving upstream-materialized SDD/review runtime assets.
 - For OpenCode, derive external-skill denies from policy-pruned names minus repo-owned same-name skills intentionally installed by the managed target. Apply them globally and to configured agents. Always persist the canonical permission order when effective denies exist: OpenCode uses the last matching rule, and parsed JSON loses the original order needed to detect an exact deny before a matching wildcard allow.
 - Before any runtime write, apply validates only its own prerequisites: ownership boundaries, base prompts consumed by configured profiles, safe obsolete-reference migration, and compatible declared runtime-patch anchors.
@@ -100,8 +100,8 @@ Re-apply is mandatory after `gentle-ai sync` or reinstall because upstream rewri
 
 | If | Then |
 |---|---|
-| Only the binary was updated | Run the audit. Expect parity preflight to block until the upstream clone has the exact matching tag checked out. |
-| Only the upstream clone was updated | Run the audit. Expect parity preflight to block unless its exact checked-out release matches the installed binary. |
+| Only the binary was updated | By default, the audit requires its exact matching upstream tag. For a separately selected newer release, pass `--release v<V>` and still require that exact clean tag at `HEAD`. |
+| Only the upstream clone was updated | By default, the audit requires parity with the installed binary. To inspect a different exact release while preserving the binary, explicitly pass `--release v<V>`. |
 | Binary and clone were updated, but the branch is ahead of the release | STOP on parity failure. Check out exact `v<V>` manually; do not audit unreleased commits. |
 | Binary and clone are aligned at a clean exact release tag | Continue to drift analysis. A prerelease is valid only when its exact `v<V>` tag and commit match. |
 | Neither was updated | Run the same preflight. Continue only if the existing binary and clone still match exactly. |
@@ -126,9 +126,9 @@ Re-apply is mandatory after `gentle-ai sync` or reinstall because upstream rewri
 
 ## Execution Steps
 
-1. Immediately after loading this skill and minimal invocation context, run `bash audit-gentle-ai-upstream.sh` synchronously. Do not broadly explore the repo or delegate repository reading/drift analysis first.
-2. If release parity fails, STOP immediately, delegate nothing, and return the manual recovery instructions. Do not read the drift range.
-3. Capture the verified binary version, exact tag, and release commit. Treat `last_maintained_commit` only as the later audit-range boundary.
+1. Immediately after loading this skill and minimal invocation context, run `bash audit-gentle-ai-upstream.sh` synchronously, or pass `--release v<V>` when the user has selected a release other than the installed binary's. Do not broadly explore the repo or delegate repository reading/drift analysis first.
+2. If selected-release verification fails, STOP immediately, delegate nothing, and return the manual recovery instructions. Do not read the drift range.
+3. Capture the installed binary version and the selected exact release tag/commit separately. Treat `last_maintained_commit` only as the later audit-range boundary. An explicit-release audit is preview only and is not adoption approval.
 4. Ask what was updated only when it helps diagnosis; the answer never replaces the completed preflight.
 5. Read `overlay/gentle-ai/policy/maintenance-intent.md`.
 6. Read `overlay/gentle-ai/policy/gentle-ai-policy.json`.
@@ -154,7 +154,7 @@ Re-apply is mandatory after `gentle-ai sync` or reinstall because upstream rewri
      - repo sync requirement: whether approval of a new boundary requires `bash sync-gentle-ai-upstream-assets.sh`
      - recommended upstream refresh path: `gentle-ai sync` vs full reinstall
 14. STOP for explicit user approval before editing repo files, advancing `upstream-state.json`, or running `sync-gentle-ai-upstream-assets`.
-15. After approval, update this repo if needed: owned assets, approved upstream snapshots, policy, docs, state, and logs together. If a new upstream boundary was accepted and repo sync was separately approved, run `bash sync-gentle-ai-upstream-assets.sh`.
+15. After approval, update this repo if needed: owned assets, approved upstream snapshots, policy, docs, state, and logs together. If a new upstream boundary was accepted and repo sync was separately approved, run `bash sync-gentle-ai-upstream-assets.sh --release v<V>` when the audit used an explicit release selector; otherwise preserve the installed-binary default.
 16. Recommend the runtime refresh path and print exact instructions. Run `gentle-ai sync` or a full reinstall only when the human explicitly requests that specific runtime action.
 17. Recommend overlay apply after a runtime refresh when needed. Run `bash apply-gentle-ai-custom.sh opencode` (or `all`) only with separate explicit authorization, then capture `Summary:`.
 18. Verify post-state on disk only for actions actually authorized and executed:
@@ -193,7 +193,7 @@ Return:
 - fresh-context reviewer/subagent result (what it checked and whether it found inconsistencies)
 - whether keep/prune, runtime ownership, or local patch behavior changed
 - what upstream range was audited
-- verified installed binary version, exact tag, and release commit
+- verified installed binary version and selected exact release tag/commit
 - release parity failure and manual recovery instructions when audit did not start
 - whether user approval was required and how it affected the result
 - which separate actions, if any, the human explicitly authorized: repo sync, runtime refresh, and overlay apply

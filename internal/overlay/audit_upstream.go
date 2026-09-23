@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -13,10 +14,13 @@ import (
 	"strings"
 )
 
-type auditUpstreamOptions struct{}
+type auditUpstreamOptions struct {
+	release string
+}
 
 func RunAuditUpstream(repoRoot string, args []string) int {
-	if exitCode := normalizeAuditUpstreamArgs(args); exitCode >= 0 {
+	options, exitCode := normalizeAuditUpstreamArgs(args)
+	if exitCode >= 0 {
 		return exitCode
 	}
 	policy, _, err := loadPolicy(repoRoot)
@@ -35,7 +39,7 @@ func RunAuditUpstream(repoRoot string, args []string) int {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		return 1
 	}
-	release, err := verifyUpstreamReleaseParity(upstreamRepo)
+	release, err := verifyUpstreamReleaseParity(upstreamRepo, options.release)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: upstream release parity preflight failed: %v\n", err)
 		return 1
@@ -109,9 +113,7 @@ func RunAuditUpstream(repoRoot string, args []string) int {
 	fmt.Printf("- Repo root: %s\n", repoRoot)
 	fmt.Printf("- Upstream repo: %s\n", upstreamRepo)
 	fmt.Printf("- Upstream source: %s\n", upstreamRepoSource)
-	fmt.Printf("- Verified binary version: %s\n", release.Version)
-	fmt.Printf("- Verified exact tag: %s\n", release.Tag)
-	fmt.Printf("- Verified release commit: %s\n", release.Commit)
+	printAuditReleaseSummary(os.Stdout, release)
 	fmt.Printf("- Upstream baseline limit: %s\n", state.LastMaintainedCommit)
 	fmt.Printf("- Managed assets manifest: %s\n", manifestPath)
 	fmt.Println()
@@ -162,12 +164,38 @@ func RunAuditUpstream(repoRoot string, args []string) int {
 	return 0
 }
 
-func normalizeAuditUpstreamArgs(args []string) int {
-	for _, arg := range args {
+func printAuditReleaseSummary(out io.Writer, release upstreamReleaseIdentity) {
+	fmt.Fprintf(out, "- Installed binary version: %s\n", release.InstalledVersion)
+	fmt.Fprintf(out, "- Selected audited release: %s (%s)\n", release.Tag, release.Version)
+	fmt.Fprintf(out, "- Verified release commit: %s\n", release.Commit)
+	if release.Version != release.InstalledVersion {
+		fmt.Fprintln(out, "- Preview only: auditing another release does not approve adoption, snapshot sync, or runtime refresh.")
+	}
+}
+
+func normalizeAuditUpstreamArgs(args []string) (auditUpstreamOptions, int) {
+	var options auditUpstreamOptions
+	releaseSeen := false
+	help := false
+	for index := 0; index < len(args); index++ {
+		arg := args[index]
 		switch arg {
 		case "-h", "--help":
-			printAuditUpstreamUsage(os.Stdout)
-			return 0
+			help = true
+		case "--release":
+			if releaseSeen {
+				fmt.Fprintln(os.Stderr, "ERROR: --release may be specified only once")
+				printAuditUpstreamUsage(os.Stderr)
+				return options, 1
+			}
+			if index+1 >= len(args) || strings.HasPrefix(args[index+1], "-") || !isValidReleaseTag(args[index+1]) {
+				fmt.Fprintln(os.Stderr, "ERROR: --release requires an exact v<V> tag, such as v2.9.1")
+				printAuditUpstreamUsage(os.Stderr)
+				return options, 1
+			}
+			releaseSeen = true
+			options.release = args[index+1]
+			index++
 		default:
 			if strings.HasPrefix(arg, "-") {
 				fmt.Fprintf(os.Stderr, "Unknown audit-upstream flag: %s\n", arg)
@@ -175,14 +203,19 @@ func normalizeAuditUpstreamArgs(args []string) int {
 				fmt.Fprintf(os.Stderr, "audit-upstream does not accept positional argument: %s\n", arg)
 			}
 			printAuditUpstreamUsage(os.Stderr)
-			return 1
+			return options, 1
 		}
 	}
-	return -1
+	if help {
+		printAuditUpstreamUsage(os.Stdout)
+		return options, 0
+	}
+	return options, -1
 }
 
 func printAuditUpstreamUsage(out *os.File) {
-	fmt.Fprintf(out, "Usage: %s\n", usageCommandName("audit-upstream"))
+	fmt.Fprintf(out, "Usage: %s [--release v<V>]\n", usageCommandName("audit-upstream"))
+	fmt.Fprintln(out, "  --release v<V>  Audit an exact clean upstream release without changing the installed binary or runtime.")
 }
 
 type structuralInvariantResult struct {

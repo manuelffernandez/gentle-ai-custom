@@ -437,8 +437,8 @@ This section stays intentionally short: it is the human maintainer's quick path,
 
 Canonical order:
 
-1. update the `gentle-ai` binary
-2. update tags in the resolved upstream `gentle-ai` repo and manually check out exact `v<V>` for installed `gentle-ai --version`
+1. update the `gentle-ai` binary when appropriate; keeping it unchanged is valid when live sessions depend on it
+2. update tags in the resolved upstream `gentle-ai` repo and manually check out the exact release tag to inspect
 3. open `gentle-ai-custom`; immediately after loading the maintainer skill/minimal context, run the canonical audit synchronously before broad repository exploration or repository-reading/drift-analysis delegation
 4. read `Summary:` and, if present, `Drift summary:`; convert the audit into a concise decision summary that states what is new upstream, the `Scope` / `Impact` classification, the `Decision` (`Adquirir`, `Sanitizar`, or `Ignorar`), whether repo sync is required, why, and the runtime refresh recommendation
 5. STOP for explicit user approval before any repo mutation, upstream-boundary advance, or upstream-asset sync
@@ -449,11 +449,12 @@ Canonical order:
 
 Current audit discovery model:
 
-- audit and sync first require a fully clean upstream checkout whose `HEAD` equals the peeled commit of exact `refs/tags/v<V>` for installed `gentle-ai --version`
+- audit and sync default to the installed binary's exact `v<V>` tag. An explicit `--release v<V>` may select a different exact release for both commands without changing the binary or runtime.
+- every selected release still requires a fully clean upstream checkout whose `HEAD` equals the peeled commit of that exact `refs/tags/v<V>`
 - audit/sync upstream resolution reads only `upstream_repo_path` from the local config, so a newly expanded phase schema can be audited before per-machine profile assignments are updated; runtime config validation still happens before apply writes
-- the audit is an activation hard gate: if parity fails, stop immediately and delegate nothing; `last_maintained_commit` is only the later audit-range boundary
+- the audit is an activation hard gate: if selected-release verification fails, stop immediately and delegate nothing; `last_maintained_commit` is only the later audit-range boundary
 - missing/stale tags, any staged/unstaged/untracked/submodule dirt, or a branch ahead of the release block before analysis/copy/write; the tools never fetch or check out automatically
-- the user's description of what was updated is diagnostic only; exact parity is always verified and never inferred from `git describe`, nearest tags, version ordering, or ancestry
+- the user's description of what was updated is diagnostic only; an explicit release selector must be used to inspect a release other than the installed binary's, and exact tag/HEAD identity is always verified, never inferred from `git describe`, nearest tags, version ordering, or ancestry
 - `audit-gentle-ai-upstream` uses `last_maintained_commit` from `overlay/gentle-ai/state/upstream-state.json`
 - it discovers changed upstream files via `git diff --name-status --find-renames <last_maintained_commit>..<verified-release-commit>`
 - it filters that drift through `overlay/gentle-ai/policy/managed-assets.json`
@@ -483,6 +484,7 @@ Operational reminders:
 - apply keeps its separate advisory installed-binary versus maintained-baseline check and does not require an upstream clone
 - `gentle-ai sync` rewrites runtime prompt refs and restores pruned skills, so re-apply is mandatory afterward.
 - approval of audit findings, adoption, repo snapshot sync, or overlay edits never authorizes runtime refresh; only an explicit request for that specific runtime action does
+- an audit using `--release` is preview evidence only; it does not mean that release was adopted or approve repo snapshot sync. Repo sync still requires separate explicit authorization and must use the selected exact release only after approval.
 - runtime-refresh authorization never authorizes overlay apply; apply requires its own explicit approval
 - `apply-gentle-ai-custom.sh opencode` is the minimum OpenCode refresh; `all` is equivalent — `opencode` is the only registered agent.
 - The maintainer workflow is approval-gated: audit first, decision summary second, mutations only after explicit user approval.

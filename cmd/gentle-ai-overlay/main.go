@@ -85,6 +85,6 @@ func printMainUsage(out *os.File) {
 	fmt.Fprintln(out, "Subcommands:")
 	fmt.Fprintln(out, "  apply-custom [--verbose] all | opencode")
 	fmt.Fprintln(out, "  apply-policy [--verbose]")
-	fmt.Fprintln(out, "  audit-upstream")
-	fmt.Fprintln(out, "  sync-upstream-assets [--verbose]")
+	fmt.Fprintln(out, "  audit-upstream [--release v<V>]")
+	fmt.Fprintln(out, "  sync-upstream-assets [--verbose] [--release v<V>]")
 }

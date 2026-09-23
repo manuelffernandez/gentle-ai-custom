@@ -27,7 +27,7 @@ The owned-assets cutover is complete.
 
 ### `audit-gentle-ai-upstream`
 
-- requires a clean upstream checkout at the exact release tag and commit for installed `gentle-ai --version`
+- defaults to a clean upstream checkout at the exact release tag for installed `gentle-ai --version`; `--release v<V>` can select another exact clean tag without changing the installed binary or runtime
 - reads `last_maintained_commit` from `upstream-state.json`
 - diffs upstream with `git diff --name-status --find-renames <last_maintained_commit>..<verified-release-commit>`
 - filters changes through `managed-assets.json`
@@ -36,7 +36,7 @@ The owned-assets cutover is complete.
 
 ### `sync-gentle-ai-upstream-assets`
 
-- repeats the exact release parity check before copy or write
+- repeats the exact release check before copy or write; supports the same optional `--release v<V>` selector while retaining installed-binary parity by default
 - copies approved upstream assets into `overlay/gentle-ai/assets/upstream/...`
 - updates the audited `gentle-orchestrator` baseline + metadata
 - advances `upstream-state.json` with the verified version, exact tag, and release commit when the new upstream state is accepted

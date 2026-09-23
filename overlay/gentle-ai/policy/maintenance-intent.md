@@ -172,15 +172,15 @@ If the manifest conflicts with this file, this file wins semantically and the ma
 
 Before mutating repo or runtime state for upstream alignment:
 
-1. Immediately after loading the minimal maintainer skill/context, run the canonical audit release parity preflight synchronously, before broad repository exploration or repository-reading/drift-analysis delegation.
+1. Immediately after loading the minimal maintainer skill/context, run the canonical audit synchronously, before broad repository exploration or repository-reading/drift-analysis delegation. By default it checks the release matching the installed binary. When the user explicitly selects another release, pass its exact tag with `--release v<V>`.
 2. Require the resolved upstream checkout to be clean, including staged, unstaged, untracked, and submodule state.
-3. Require exact `refs/tags/v<V>` for installed `gentle-ai --version` to exist, peel to a commit, and equal upstream `HEAD`.
+3. Require exact `refs/tags/v<V>` for the selected release to exist, peel to a commit, and equal upstream `HEAD`.
 4. Audit drift against the last maintained boundary only after parity succeeds.
 5. Classify each meaningful change as `Adquirir`, `Sanitizar`, or `Ignorar`.
 6. Produce a concise pre-mutation decision summary.
 7. Stop for explicit user approval.
 
-If release parity fails, stop immediately and delegate nothing. Do not use `last_maintained_commit`, `git describe`, nearest tags, semantic version ordering, or branch ancestry as release parity proof. `last_maintained_commit` defines only the audit range after parity succeeds. Prereleases are allowed only through their exact matching tag. Missing or stale tags, dirty state, and a branch ahead of the release block audit and sync with manual fetch/checkout guidance; automation must not fetch or check out revisions.
+If selected-release verification fails, stop immediately and delegate nothing. An explicit release selector is preview-only: it does not change the installed binary or runtime, adopt the release, or authorize repository snapshot sync. Repo sync requires separate explicit authorization and must use the same selected release. Do not use `last_maintained_commit`, `git describe`, nearest tags, semantic version ordering, or branch ancestry as release parity proof. `last_maintained_commit` defines only the audit range after selected-release verification succeeds. Prereleases are allowed only through their exact matching tag. Missing or stale tags, dirty state, and a branch ahead of the release block audit and sync with manual fetch/checkout guidance; automation must not fetch or check out revisions.
 
 Not having run `gentle-ai sync` or a reinstall yet is the normal pre-audit state. Runtime refresh is human-owned by default: the maintainer may audit, classify, recommend, and print exact instructions, but must not run `gentle-ai sync` or a reinstall unless the human explicitly requests that specific action. Audit/adoption approval, repo snapshot sync, and overlay-edit approval do not authorize runtime refresh.
 

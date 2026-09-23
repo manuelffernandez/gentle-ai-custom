@@ -10,6 +10,7 @@ import (
 )
 
 type syncUpstreamAssetsOptions struct {
+	release  string
 	verbose  bool
 	recorder *verboseRecorder
 }
@@ -45,7 +46,7 @@ func RunSyncUpstreamAssets(repoRoot string, args []string) int {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		return 1
 	}
-	release, err := verifyUpstreamReleaseParity(upstreamRepo)
+	release, err := verifyUpstreamReleaseParity(upstreamRepo, options.release)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: upstream release parity preflight failed: %v\n", err)
 		return 1
@@ -121,8 +122,8 @@ func RunSyncUpstreamAssets(repoRoot string, args []string) int {
 	fmt.Printf("- Upstream repo: %s\n", upstreamRepo)
 	fmt.Printf("- Upstream source: %s\n", upstreamRepoSource)
 	fmt.Printf("- Managed assets manifest: %s\n", manifestPath)
-	fmt.Printf("- Verified binary version: %s\n", release.Version)
-	fmt.Printf("- Verified exact tag: %s\n", release.Tag)
+	fmt.Printf("- Installed binary version: %s\n", release.InstalledVersion)
+	fmt.Printf("- Selected sync release: %s (%s)\n", release.Tag, release.Version)
 	fmt.Printf("- Verified release commit: %s\n", release.Commit)
 	fmt.Println()
 	fmt.Println("Summary:")
@@ -140,13 +141,27 @@ func RunSyncUpstreamAssets(repoRoot string, args []string) int {
 
 func normalizeSyncUpstreamAssetsArgs(args []string) (syncUpstreamAssetsOptions, int) {
 	var options syncUpstreamAssetsOptions
-	for _, arg := range args {
+	help := false
+	for index := 0; index < len(args); index++ {
+		arg := args[index]
 		switch arg {
 		case "-h", "--help":
-			printSyncUpstreamAssetsUsage(os.Stdout)
-			return options, 0
+			help = true
 		case "--verbose":
 			options.verbose = true
+		case "--release":
+			if options.release != "" {
+				fmt.Fprintln(os.Stderr, "ERROR: --release may be specified only once")
+				printSyncUpstreamAssetsUsage(os.Stderr)
+				return options, 1
+			}
+			if index+1 >= len(args) || strings.HasPrefix(args[index+1], "-") || !isValidReleaseTag(args[index+1]) {
+				fmt.Fprintln(os.Stderr, "ERROR: --release requires an exact v<V> tag, such as v2.9.1")
+				printSyncUpstreamAssetsUsage(os.Stderr)
+				return options, 1
+			}
+			options.release = args[index+1]
+			index++
 		default:
 			if strings.HasPrefix(arg, "-") {
 				fmt.Fprintf(os.Stderr, "Unknown sync-upstream-assets flag: %s\n", arg)
@@ -157,11 +172,15 @@ func normalizeSyncUpstreamAssetsArgs(args []string) (syncUpstreamAssetsOptions, 
 			return options, 1
 		}
 	}
+	if help {
+		printSyncUpstreamAssetsUsage(os.Stdout)
+		return options, 0
+	}
 	return options, -1
 }
 
 func printSyncUpstreamAssetsUsage(out *os.File) {
-	fmt.Fprintf(out, "Usage: %s [--verbose]\n", usageCommandName("sync-upstream-assets"))
+	fmt.Fprintf(out, "Usage: %s [--verbose] [--release v<V>]\n", usageCommandName("sync-upstream-assets"))
 }
 
 func syncManagedTarget(repoRoot, upstreamRepo string, target ManagedAssetsTarget, recorder *verboseRecorder, stats *syncUpstreamAssetsStats) error {

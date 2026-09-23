@@ -20,8 +20,8 @@ Approved upstream runtime assets are adopted replacement-first: let upstream mat
 ## Quick path
 
 1. Update the `gentle-ai` binary.
-2. Update tags in the resolved upstream clone and manually check out the exact `v<V>` release matching `gentle-ai --version`.
-3. From `gentle-ai-custom`, load the maintainer skill/minimal invocation context and immediately run `bash audit-gentle-ai-upstream.sh` synchronously. Do not broadly explore the repo or delegate repository reading/drift analysis first. If parity fails, STOP and delegate nothing.
+2. Update tags in the resolved upstream clone and manually check out the exact `v<V>` release to inspect.
+3. From `gentle-ai-custom`, load the maintainer skill/minimal invocation context and immediately run `bash audit-gentle-ai-upstream.sh` synchronously. By default it checks the installed binary's release; to inspect another release while preserving that binary, pass `--release v<V>`. Do not broadly explore the repo or delegate repository reading/drift analysis first. If selected-release verification fails, STOP and delegate nothing.
 4. Convert the audit into a concise decision summary before any mutation:
    - what changed upstream and why it matters
    - `Scope`: `Managed` / `Unmanaged`
@@ -45,20 +45,22 @@ No `gentle-ai sync` or reinstall yet is the normal state before step 3. Asking w
 
 ## Release parity preflight
 
-Both canonical audit and sync entrypoints stop before drift analysis, snapshot copy, or state writes unless all conditions pass:
+Both canonical audit and sync entrypoints default to the installed binary release. `--release v<V>` explicitly selects another release without changing the binary or runtime. Either mode stops before drift analysis, snapshot copy, or state writes unless all conditions pass:
 
-- `gentle-ai --version` yields version `V`.
+- The selected version is `V` (the installed version by default, or the explicit selector).
 - The upstream checkout has no staged, unstaged, untracked, or submodule changes.
-- Exact `refs/tags/v<V>` exists and peels to a commit.
+- The selected exact `refs/tags/v<V>` exists and peels to a commit.
 - Upstream `HEAD` equals that peeled commit.
 
-This accepts a prerelease only at its exact tag. It does not use `git describe`, nearest tags, version ordering, or branch ancestry. It never fetches tags or changes the checkout automatically.
+This accepts a prerelease only at its exact tag. The explicit selector requires the exact `v<V>` syntax; same-named branches are not tags. It does not use `git describe`, nearest tags, version ordering, or branch ancestry. It never fetches tags or changes the checkout automatically.
+
+An audit with `--release` is preview evidence only. It reports installed binary and selected audit release separately and does not approve adoption or repository snapshot sync. If adoption and repo sync are later approved, pass the same selector to `sync-gentle-ai-upstream-assets`; sync remains a separate repository mutation. Runtime refresh and overlay apply remain separately authorized.
 
 Audit and repo sync consume only `upstream_repo_path` while resolving the upstream clone. They intentionally do not validate runtime profile assignments at this stage, because a new phase topology must be auditable before the machine-local profile schema is migrated. Full local runtime config validation remains an apply precondition.
 
 For the maintainer flow, this is an activation hard gate. Run it immediately after the minimal skill context and before broad repository exploration or repository-reading/drift-analysis delegation. On failure, stop immediately and delegate nothing. `last_maintained_commit` defines the later drift range; it is not parity proof.
 
-If the tag is missing or stale, run `git -C <upstream-repo> fetch --tags`, verify `v<V>`, and check it out manually. If a pulled branch is ahead of the release, check out the exact tag before retrying. If either only the binary or only the clone changed, the same preflight blocks until both match. If neither changed, it still verifies the existing pair.
+If the selected tag is missing or stale, run `git -C <upstream-repo> fetch --tags`, verify `v<V>`, and check it out manually. If a pulled branch is ahead of the selected release, check out that exact tag before retrying. The default mode blocks when binary and clone differ; explicit `--release v<V>` allows work on another clean exact release without upgrading the binary. The default still verifies the installed release when neither changed.
 
 ## Receipt-Driven Development policy and effective mode
 
@@ -148,7 +150,9 @@ Package-install guidance lives in the canonical `shared/skills/package-security/
 
 ### `audit-gentle-ai-upstream`
 
-- verifies and reports the installed binary version, exact canonical tag, and release commit before analysis
+- verifies and reports the installed binary version separately from the selected exact audit release and commit before analysis
+- accepts `--release v<V>` for a clean exact upstream release newer or older than the installed binary; default behavior remains installed-binary parity
+- marks explicit-release output as preview only; it does not adopt the release or authorize snapshot sync
 - uses `last_maintained_commit` from `state/upstream-state.json`
 - discovers drift with `git diff --name-status --find-renames <last_maintained_commit>..<verified-release-commit>`
 - filters that drift through `policy/managed-assets.json`
@@ -211,10 +215,10 @@ Runtime refresh, repo snapshot sync, and overlay apply are separate actions. App
 
 ### `sync-gentle-ai-upstream-assets`
 
-- repeats the same exact release parity preflight before copy or write
+- repeats the same exact release preflight before copy or write; accepts `--release v<V>` for a separately approved release, while default behavior remains installed-binary parity
 - copies approved upstream assets into `assets/upstream/...`
 - after a snapshot refresh, requires the owned `AGENTS.md` persona and OpenCode full Engram sections to be rebased when the focused semantic parity test reports drift; do not replace full-file ownership with runtime patching or marker merging
-- stores the verified binary version, exact tag, and release commit in `state/upstream-state.json` when the new upstream was accepted
+- stores the selected release version, exact tag, and release commit in `state/upstream-state.json` when the new upstream was accepted
 - does not touch local runtime under `~/.config/opencode/`
 - always runs after approval of a newly accepted upstream boundary; it is the repo sync step, not the runtime refresh step
 

@@ -23,7 +23,8 @@ This directory contains the operational assets for the Gentle AI overlay.
 
 - `policy/managed-assets.json` is the canonical map between approved upstream inputs and repo-owned runtime outputs.
 - Audit is an activation gate. It runs synchronously after the maintainer loads minimal context and before broad exploration or delegation.
-- Audit and repo sync require a clean upstream checkout at the exact release tag matching the installed binary. They never fetch tags or change revisions automatically.
+- Audit and repo sync default to the installed binary's exact release tag. An explicit `--release v<V>` can select another clean exact tag without changing the binary or runtime. Neither command fetches tags or changes revisions automatically.
+- An explicit-release audit is preview only, not adoption or repo-sync approval. Repo snapshot sync remains separately approval-gated and must use the same selected release.
 - Upstream resolution reads only `upstream_repo_path` from the local config. This lets audit/sync inspect a new topology before per-machine profile assignments are migrated; apply still validates the complete runtime config before writing.
 - `last_maintained_commit` defines the audit range after release parity succeeds; it is not parity proof.
 - `sync-gentle-ai-upstream-assets` refreshes approved snapshots and the maintained boundary. It does not refresh runtime.
