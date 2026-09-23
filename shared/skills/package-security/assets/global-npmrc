@@ -1,11 +1,14 @@
-# Global npm baseline (npm 11+)
+# Global npm baseline
 # Protects ad-hoc npm usage on one workstation.
 #
-# Important: npm does not have a first-class built-in equivalent to
-# pnpm's `allowBuilds` + `strictDepBuilds`, so `ignore-scripts=true`
-# remains the strongest native baseline when the project can tolerate it.
+# Conservative mode: block dependency lifecycle scripts entirely.
+# npm also has a reviewed `allowScripts` policy plus `approve-scripts` and
+# `strict-allow-scripts` in supported releases, but enforcement is advisory by
+# default. Verify support before relying on that policy. `ignore-scripts=true`
+# takes precedence and blocks any reviewed grants too.
 
 ignore-scripts=true
 allow-git=none
+# npm measures min-release-age in days (3 = 72 hours); pnpm uses minutes.
 min-release-age=3
 save-exact=true

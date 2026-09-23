@@ -2,9 +2,10 @@
 # Put this at ~/.config/pnpm/config.yaml
 #
 # Keep project-specific `allowBuilds` in the repo, not here.
-# Unlike npm, pnpm has a reviewed allowlist model for dependency build scripts.
-# Prefer `allowBuilds` + `strictDepBuilds` in project config over a blanket
-# `ignore-scripts` approach.
+# Both pnpm and supported npm releases offer reviewed script policies.
+# pnpm uses `allowBuilds` + `strictDepBuilds`; npm's `allowScripts` policy is
+# advisory unless supported `strict-allow-scripts` is enabled. Check the exact
+# CLI features before relying on either policy.
 
 minimumReleaseAge: 4320
 trustPolicy: no-downgrade

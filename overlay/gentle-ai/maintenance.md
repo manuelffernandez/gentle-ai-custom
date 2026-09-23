@@ -142,6 +142,8 @@ If this diagnostic exposes a regression, record the evidence and reassess the af
 
 The retained skill snapshots `gentle-ai-bench`, `rdd-defect-workflow`, and `systemic-issue-triage` are audit/sync inputs only. They are not repo-owned install sources and do not force runtime selection or RDD activation.
 
+Package-install guidance lives in the canonical `shared/skills/package-security/SKILL.md` and its local templates. It forbids credential-file inspection, requires human review for script approvals, and distinguishes npm's advisory-by-default policy from pnpm's version-gated build controls. Check the effective CLI's support for each feature. Editing the source does not update the global skill; the separately authorized `apply-gentle-ai-custom.sh opencode` step propagates it.
+
 ## What each command does
 
 ### `audit-gentle-ai-upstream`

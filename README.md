@@ -369,6 +369,14 @@ Excepción concreta:
 
 En otras palabras: la fuente semántica ya no es una lista de parches heredados de v1.44, sino `overlay/gentle-ai/policy/maintenance-intent.md`, que define qué queda local y qué vuelve a upstream.
 
+### Seguridad al instalar paquetes
+
+La guía canónica está en `shared/skills/package-security/SKILL.md` y sus plantillas, dentro de `assets/`. Nunca se deben leer ni buscar archivos de credenciales, como `.env` o un `.npmrc` real; utiliza plantillas, documentación o resultados redactados.
+
+- El ejemplo de npm bloquea scripts de dependencias. npm también permite aprobar scripts revisados, pero esa política es solo informativa por defecto: úsala solo si la versión efectiva admite y tiene activado `strict-allow-scripts`. `ignore-scripts=true` bloquea esos scripts aprobados.
+- pnpm ofrece `allowBuilds` para permitir o denegar scripts y `strictDepBuilds` para fallar ante paquetes sin revisar. Comprueba que el pnpm efectivo admita cada opción (`allowBuilds` desde 10.26; `strictDepBuilds` desde 10.3).
+- Editar el origen no actualiza la copia global de OpenCode. Para propagarlo hace falta ejecutar `bash apply-gentle-ai-custom.sh opencode` con autorización; hasta entonces, no des por actualizado el runtime.
+
 ### Overrides de agentes
 
 Estos overrides existen por cómo OpenCode delega trabajo. Verificado contra la documentación oficial de OpenCode: el sistema trae agentes built-in propios (`Build`, `Plan`, `General`, `Explore`, `Scout`) y, si un subagente no tiene modelo explícito, usa el modelo del agente primario que lo invocó. Esta capa agrega overrides porque, en este setup, quiero fijar de forma explícita qué modelo usan algunos agentes built-in de OpenCode cuando entran en juego fuera del sistema de perfiles SDD.

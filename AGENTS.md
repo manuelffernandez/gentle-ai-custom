@@ -194,7 +194,7 @@ The most common pattern in this repo is `shared/skills/<name>/` + global runtime
   bash apply-gentle-ai-custom.sh opencode
   ```
   This ensures the global copy is written by the installer, which may apply transformations, wrappers, or path rewrites that a manual copy would miss — the exact source of drift if bypassed.
-- If the user declines to run the installer in the same session, surface a reminder that the global copy is now stale.
+- Never claim the global copy is updated until the installer has run successfully. If the user declines to run it in the same session, say the global copy remains stale.
 - Skills under `.agents/skills/` are project-exclusive. They are never propagated and require no installer step.
 
 ---
@@ -324,6 +324,8 @@ Approved upstream runtime assets use replacement-first adoption: upstream Gentle
 - `shared/skills/judgment-retrospective/SKILL.md`
 - `shared/skills/package-security/SKILL.md`
 - `shared/skills/pr-finalizer/SKILL.md`
+
+`package-security` is the canonical source for package-manager guidance. It prohibits credential-file inspection and distinguishes npm's advisory-by-default reviewed script policy from pnpm's version-gated build approvals; use its local templates and verify exact CLI feature support rather than assuming a major version guarantees it.
 
 **Overlay-owned runtime hook:**
 - `overlay/gentle-ai/patches/opencode/judgment-retrospective.json` — exact-anchor patch that adds the terminal retrospective handoff to a compatible upstream-installed Judgment Day skill

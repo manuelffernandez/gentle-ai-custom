@@ -17,6 +17,7 @@ This directory contains the operational assets for the Gentle AI overlay.
 - `policy/` — semantic intent and machine-readable overlay policy
 - `state/` — last maintained upstream boundary
 - `logs/` — closed maintenance-event ledger
+- `../../shared/skills/package-security/` — canonical package-security skill and templates
 
 ## Current model
 
@@ -57,6 +58,7 @@ This directory contains the operational assets for the Gentle AI overlay.
 ## Preserved local boundaries
 
 - `assets/owned/opencode/AGENTS.md` is the source of truth for global credential-file safety. It applies to the primary agent and every delegated subagent or tool, favors non-secret alternatives, and requires a stop plus explicit user direction before any exceptional access.
+- `shared/skills/package-security/SKILL.md` prohibits credential-file reads. Its templates use blocked scripts as npm's conservative baseline; reviewed npm approvals require supported strict enforcement, while pnpm `allowBuilds` / `strictDepBuilds` require exact CLI feature checks. Editing this canonical source does not update the installed global copy; `apply-gentle-ai-custom` is the propagation step.
 - Policy-pruned skills without a repo-owned same-name replacement are denied through OpenCode `permission.skill` rules, globally and for configured agents. This blocks external copies without deleting or changing another runtime's files; the sanitized repo-owned `branch-pr` remains available.
 - `shared/skills/chained-pr/` remains the sanitized runtime source. It adopts upstream anti-code-golf and bounded single-pass slicing rules while preserving explicit `owner/repo` scoping and plan-only automatic activation.
 - `branch-pr` remains pruned upstream and replaced by the repo-owned sanitized copy. Explicit `/pr-create` and `/pr-regenerate` render title/body for audit visibility and then mutate through GitHub CLI without a content-approval pause; push authorization and unresolved required metadata, identity, or chain context remain blocking.
