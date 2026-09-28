@@ -29,7 +29,7 @@ This directory contains the operational assets for the Gentle AI overlay.
 - `last_maintained_commit` defines the audit range after release parity succeeds; it is not parity proof.
 - `sync-gentle-ai-upstream-assets` refreshes approved snapshots and the maintained boundary. It does not refresh runtime.
 - `apply-gentle-ai-custom` preserves Gentle AI-materialized SDD prompts, contracts, commands, and plugins. Snapshots under `assets/upstream/` are audit inputs, not custom install sources.
-- `assets/owned/opencode/AGENTS.md` remains a full-file repo-owned install source. Its persona and OpenCode full Engram sections must match the approved source snapshots semantically; focused tests allow only the four declared overlay-only sections.
+- `assets/owned/opencode/AGENTS.md` remains a full-file repo-owned install source and the single source of truth for global agent rules. Its persona and OpenCode full Engram sections must match the approved source snapshots semantically; focused tests allow only the five declared overlay-only sections.
 - Audit follows the composed OpenCode orchestrator call chain and watches the upstream remote-authorization contract plus its maintained projection paths.
 - Runtime refresh, repo snapshot sync, and overlay apply are separate authorization boundaries.
 

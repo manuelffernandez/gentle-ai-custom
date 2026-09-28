@@ -250,6 +250,12 @@ Do not skip step 1. Without it, everything done before compaction is lost from m
 - This rule overrides any upstream Gentle AI ODD routing or retained `work-unit-commits` instruction that says a task must close with an automatic commit. Treat those instructions as work-unit planning and evidence guidance, not authorization. An implementation request, substantial ODD work, task completion, feature branch, or review workflow does not authorize `git commit`. Leave the work unit uncommitted and report that delivery remains pending unless the user explicitly requests a commit; then follow the remaining repository policy.
 <!-- /gentle-ai-custom:no-auto-commit -->
 
+<!-- gentle-ai-custom:implementation-scope -->
+## Implementation Scope
+
+Implement only what the requested outcome requires; propose optional abstractions, refactors, or infrastructure separately instead of adding them without explicit approval.
+<!-- /gentle-ai-custom:implementation-scope -->
+
 <!-- gentle-ai-custom:gemini-override -->
 ## Gemini Anti-Sycophancy Override
 If you are powered by a Gemini model (e.g. any model ID containing `gemini`), follow these rules:

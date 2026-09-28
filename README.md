@@ -201,7 +201,7 @@ La actualización del runtime sigue siendo tuya por defecto. Aprobar la auditor�
 
 El comando `apply-gentle-ai-custom` sigue siendo independiente de la carpeta original: compara la versión instalada con la versión mantenida por este overlay y no necesita encontrar el clon de upstream.
 
-El `AGENTS.md` propio sigue siendo un archivo completo que instala este repo. Su persona y el protocolo completo de Engram para OpenCode deben coincidir con los snapshots aprobados. Los tests permiten solamente cuatro agregados propios: el estándar de Markdown para agentes, la seguridad de archivos de credenciales, la regla de no hacer commits automáticamente y el ajuste para Gemini.
+El `AGENTS.md` propio sigue siendo un archivo completo que instala este repo. Su persona y el protocolo completo de Engram para OpenCode deben coincidir con los snapshots aprobados. Los tests permiten cinco secciones propias: alcance de implementación, estándar de Markdown para agentes, seguridad de archivos de credenciales, regla de no hacer commits automáticamente y ajuste para Gemini.
 
 ### Cuándo usar `gentle-ai sync` y cuándo reinstalar
 
@@ -364,7 +364,7 @@ Se mantiene localmente:
 - las skills repo-owned `code-design`, `package-security`, `commit-planner` y la `branch-pr` sanitizada, con `pr-finalizer` como compatibilidad temporal
 - la copia repo-owned sanitizada de `chained-pr` para runtime, mientras su snapshot upstream sigue retenido para auditoría
 - el parche puntual que conecta `judgment-day` con `judgment-retrospective`
-- las reglas `no-auto-commit`, Agent-Readable Markdown Standard y Gemini anti-sycophancy
+- las reglas `no-auto-commit`, Agent-Readable Markdown Standard, Gemini anti-sycophancy y alcance de implementación; el detalle global está en `overlay/gentle-ai/assets/owned/opencode/AGENTS.md`
 - la regla global que evita que el agente principal, los subagentes y las herramientas accedan a archivos de credenciales; su detalle vive en `overlay/gentle-ai/assets/owned/opencode/AGENTS.md`
 
 Se adquiere desde upstream por defecto:

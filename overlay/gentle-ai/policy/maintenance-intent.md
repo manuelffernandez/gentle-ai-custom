@@ -44,6 +44,7 @@ Keep these customizations unless the user explicitly changes this intent:
 - A sanitized repo-owned runtime copy of `chained-pr` so GitHub CLI actions resolve an explicit `owner/repo`, avoid wrong-repo mutation, and keep automatic SDD/review-budget activation plan-only until the user explicitly requests branch/PR execution.
 - `pr-finalizer` as a temporary deprecated compatibility skill during the `branch-pr` migration.
 - Agent-Readable Markdown Standard for agent-consumed Markdown.
+- A concise implementation-scope rule in the repo-owned global `AGENTS.md`; that file is its single source of truth.
 - `no-auto-commit`: never commit, push, or create PRs unless the user explicitly asks.
 - The repo-owned `AGENTS.md` prepares an explicit override for upstream ODD task-close commit wording; it is not installed in the current runtime. A request to implement, task completion, or a review gate is not commit authorization.
 - Keep the exact v3.7.0 `work-unit-commits` authorization patch prepared in the repo: at its ODD task-close anchor it makes commits opt-in, fails closed before writes when incompatible, and leaves unrequested work units uncommitted with verification/rollback evidence reported. This patch is not installed in the current v2.9.1 runtime; its `apply` is intentionally incompatible until a separately authorized refresh makes the anchor available.

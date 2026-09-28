@@ -447,6 +447,7 @@ func ownedAgentsBlocks() []markdownBlock {
 		{name: "Credential-File Safety", opening: "<!-- gentle-ai-custom:credential-file-safety -->", closing: "<!-- /gentle-ai-custom:credential-file-safety -->", overlayH2Heading: "Credential-File Safety"},
 		{name: "OpenCode full Engram", opening: "<!-- gentle-ai:engram-protocol -->", closing: "<!-- /gentle-ai:engram-protocol -->"},
 		{name: "no-auto-commit", opening: "<!-- gentle-ai-custom:no-auto-commit -->", closing: "<!-- /gentle-ai-custom:no-auto-commit -->"},
+		{name: "Implementation Scope", opening: "<!-- gentle-ai-custom:implementation-scope -->", closing: "<!-- /gentle-ai-custom:implementation-scope -->", overlayH2Heading: "Implementation Scope"},
 		{name: "Gemini Anti-Sycophancy Override", opening: "<!-- gentle-ai-custom:gemini-override -->", closing: "<!-- /gentle-ai-custom:gemini-override -->", overlayH2Heading: "Gemini Anti-Sycophancy Override"},
 	}
 }
