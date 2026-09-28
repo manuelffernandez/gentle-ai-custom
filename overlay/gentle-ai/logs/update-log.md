@@ -4,6 +4,18 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-09-23 | Adopted Gentle AI v3.7.0 repository snapshots
+
+- **Date**: `2026-09-23`
+- **Title**: Adopted Gentle AI v3.7.0 repository snapshots
+- **Type**: `adoption`
+- **Upstream scope/range**: Maintained v2.9.1 boundary `9ec0cf443622f20fe511815ff5a83088c7467bff` -> exact v3.7.0 commit `6dee8f833aec9e46015759c5065a9035795d9af1`.
+- **Decision**: `Adquirir` the approved v3.7.0 snapshots and `sdd-research` output-only source contract. Consciously accept explicit partial SDD archive as local policy: an explicit archive can promote a syntactically applicable delta while tasks remain unchecked; this does not assert upstream intent, prove implementation completeness, or resolve a bug. `Sanitizar` ODD's mandatory task-close commit with the prepared exact-anchor opt-in patch; it is not installed in the current runtime. Keep V2 plugin files as audit/sync snapshots only; no V2 apply support is claimed.
+- **Why it mattered**: The maintained repository baseline now reflects v3.7.0 while the installed binary/runtime remain v2.9.1. Recording this boundary prevents snapshot adoption from being mistaken for runtime refresh or verification and makes the pending ODD commit-safety window explicit.
+- **Affected artifacts**: `overlay/gentle-ai/state/upstream-state.json`; approved snapshots under `overlay/gentle-ai/assets/upstream/opencode/`, including `plugins-v2/`; `overlay/gentle-ai/patches/opencode/work-unit-commits-authorization.json`; retired `sdd-research` patch; `overlay/gentle-ai/policy/managed-assets.json`; `overlay/gentle-ai/policy/maintenance-intent.md`; and live guidance in `AGENTS.md`, `README.md`, `overlay/gentle-ai/README.md`, `overlay/gentle-ai/maintenance.md`, and `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`.
+- **Verification**: Authorized snapshot sync reported 36 managed changes (5 new, 31 changed, 43 unchanged, 0 deleted), 19 directories synced, and `upstream-state.json` changed. The canonical post-sync audit passed at exact v3.7.0 commit with no managed or watched-unmanaged drift and all structural checks `ok`. This verifies repository snapshots only. No runtime sync/reinstall, overlay apply, binary upgrade, further snapshot sync, commit, push, or PR was run.
+- **Follow-up**: Future upstream audits must compare partial-archive task gating, spec promotion, unfinished-work reporting, and native composer safeguards with the accepted v3.7.0 behavior; reassess if semantics change. Runtime refresh and overlay apply each require separate authorization. The current v2.9.1 `apply` is intentionally incompatible with the v3.7.0 ODD patch anchor; treat commit protection as inactive until a later separately authorized refresh/apply is verified. Require explicit commit authorization in the meantime.
+
 ## 2026-09-23 | Added explicit upstream release selection
 
 - **Date**: `2026-09-23`

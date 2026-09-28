@@ -99,15 +99,25 @@ El mantenimiento en este repositorio sigue siempre los mismos pasos. Lo único q
 
 Es normal no haber ejecutado todavía `gentle-ai sync` ni una reinstalación: esos pasos vienen después de la auditoría y de tu aprobación. La opción `--release v<V>` no actualiza el ejecutable ni el runtime; solo elige qué tag exacto se revisa. El tag debe existir, estar limpio y coincidir con `HEAD`. El modo habitual sin esa opción sigue exigiendo que coincida con la versión instalada.
 
-### Estado actual: repo y runtime v2.9.1
+### Estado actual: snapshots del repo v3.7.0; runtime v2.9.1
 
-`upstream-state.json` ya está en v2.9.1, commit `9ec0cf443622f20fe511815ff5a83088c7467bff`. La copia autorizada no cambió snapshots: informó 0 archivos nuevos, 0 actualizados, 74 sin cambios, ninguno eliminado y 18 carpetas sincronizadas.
+El repo ya adoptó Gentle AI v3.7.0 para sus snapshots y su frontera mantenida: `6dee8f833aec9e46015759c5065a9035795d9af1`. La sincronización autorizada informó 36 cambios administrados: 5 archivos nuevos, 31 actualizados, 43 sin cambios, ninguno eliminado y 19 carpetas sincronizadas. También actualizó `upstream-state.json`.
 
-Después del cierre del repositorio, el usuario ejecutó manualmente `gentle-ai sync` y `bash apply-gentle-ai-custom.sh opencode`. No se guardaron los resúmenes ni la salida original de esos comandos, así que no se informan cantidades nuevas del `apply`. Una verificación independiente y de solo lectura confirmó el estado final.
+La auditoría posterior pasó para ese mismo commit, sin diferencias administradas ni cambios no administrados vigilados; todos los controles estructurales informaron `ok`. Esto verifica la adopción del repo, no el runtime instalado.
 
-La auditoría canónica pasó en v2.9.1, commit `9ec0cf443622f20fe511815ff5a83088c7467bff`, sin diferencias en archivos administrados ni en archivos no administrados vigilados y con todos los controles en `ok`. También pasaron 602 comprobaciones sobre asignaciones, perfiles, prompts, permisos, alcance de tareas, ausencia de actores de review con sufijo y referencias obsoletas.
+El binario y el runtime siguen en Gentle AI 2.9.1; OpenCode instalado es 1.18.32. No se autorizó ni ejecutó `gentle-ai sync`, una reinstalación ni `apply` para esta adopción. Los cinco plugins V2 son solo snapshots para auditoría y sincronización; OpenCode 1.18.32 usa el camino V1 y este repo no declara soporte para instalar plugins V2.
 
-El orchestrator instalado contiene el consentimiento de revisión v3 compatible. Las 7 skills propias, los 5 wrappers y el `AGENTS.md` propio coinciden con sus fuentes. `issue-creation` y `hermes-ephemeral-delegation` no están instaladas en el destino OpenCode, y `branch-pr` es el reemplazo propio. Los 3 archivos del runtime que reciben parches locales coinciden con los snapshots aprobados al revertir solamente esos parches.
+#### Seguridad de commits ODD pendiente en runtime
+
+El snapshot v3.7.0 de `work-unit-commits` exige cerrar cada tarea ODD con un commit. El parche local que convierte esa instrucción en optativa ya está preparado en el repo, pero todavía no está instalado en el runtime. No des por protegida una sesión que use ese skill hasta que una actualización y un `apply` autorizados por separado terminen y se verifique el resultado. El `apply` actual, con binario 2.9.1, es intencionalmente incompatible con el anchor v3.7.0 y debe detenerse antes de escribir. Mientras tanto, no hagas commits sin autorización explícita.
+
+La copia de v3.7.0 incorpora el contrato output-only de `sdd-research`; por eso se retiró su parche local redundante. El handoff local de Judgment Day se mantiene.
+
+El repo también acepta de forma consciente que una solicitud explícita de archivo SDD pueda guardar specs aplicables aunque queden tareas sin marcar. Es una decisión local: no confirma la intención de upstream ni demuestra que la implementación esté completa. Tampoco cambia la revisión RDD escalada por separado. La guía de mantenimiento incluye qué revisar en futuras auditorías.
+
+#### Evidencia histórica del runtime v2.9.1 y v2.5.0
+
+En el cierre anterior de v2.9.1, la auditoría pasó para `9ec0cf443622f20fe511815ff5a83088c7467bff`, y una verificación de solo lectura confirmó 602 comprobaciones sobre asignaciones, perfiles, prompts, permisos, alcance de tareas y referencias. También confirmó el orchestrator con consentimiento compatible, las 7 skills propias, 5 wrappers, el `AGENTS.md` propio, la poda de skills y los parches locales. Esa evidencia corresponde al runtime v2.9.1 y no verifica un runtime v3.7.0.
 
 #### Evidencia histórica del runtime v2.5.0
 
@@ -125,7 +135,7 @@ La política del repositorio considera RDD activo y funcional por decisión expl
 
 La auditoría entiende la nueva composición del orchestrator sin depender del número de versión: sigue la cadena real desde la asignación del prompt hasta el asset OpenCode y rechaza asignaciones sueltas o señuelos. También vigila el contrato upstream de autorización remota y comprueba que llegue a los prompts de OpenCode que este repo mantiene.
 
-El skill upstream `sdd-research` sigue siendo la fuente del runtime. Un parche local exacto aclara únicamente la contradicción del launcher de OpenCode: el executor devuelve el estado bloqueado, pero no lo guarda; la persistencia queda a cargo del orchestrator. Si el archivo instalado no tiene el anchor esperado, `apply` frena antes de escribir.
+El skill upstream `sdd-research` sigue siendo la fuente del runtime. En los snapshots adoptados de v3.7.0, tanto el skill como el comando de investigación indican que la recolección es output-only y que el orchestrator se ocupa de la persistencia. Por eso se retiró el parche local de precedencia. El runtime instalado sigue en 2.9.1 y no se afirma que ya use ese contrato.
 
 La adopción de v2.9.1 incorpora desde upstream el consentimiento de revisión compatible y la migración de prompts preservados para OpenCode. Los cambios de autoridad de despacho derivados de transcripciones de Claude Code quedan fuera del alcance OpenCode mantenido por este repo. No fue necesario cambiar la política, los parches, los perfiles ni la topología.
 
@@ -198,7 +208,7 @@ El `AGENTS.md` propio sigue siendo un archivo completo que instala este repo. Su
 - Es preferible usar `gentle-ai sync` si los cambios que adoptamos sirven, pero no rompen de forma profunda cómo están configurados los agentes y perfiles.
 - Conviene hacer una reinstalación completa cuando los cambios del proyecto original afectan la estructura básica de los perfiles que usamos, o cuando un simple `gentle-ai sync` ya no alcanza para armar bien la configuración.
 - Si el proyecto original agrega soporte para un nuevo agente o plataforma que no usamos, no hace falta reinstalar.
-- Las reglas del proyecto original sobre estrategia de PR, PRs encadenadas y presupuesto de revisión se adoptan por defecto. Solo se sanitizan si chocan con una personalización local explícita.
+- Las reglas del proyecto original sobre estrategia de PR, PRs encadenadas y presupuesto de revisión se adoptan por defecto. Solo se sanitizan si chocan con una personalización local explícita. En v3.7.0, ODD pide cerrar cada tarea con un commit. El snapshot y el parche exacto que lo vuelve optativo ya están en el repo, pero aún no en el runtime. El runtime sigue en 2.9.1; su `apply` es intencionalmente incompatible con el anchor v3.7.0. No se debe afirmar que esa protección está activa hasta una actualización y un `apply` autorizados por separado, seguidos de verificación. Hasta entonces, no hagas commits sin autorización explícita.
 
 ### Qué hace el comando `apply-gentle-ai-custom`
 
@@ -207,11 +217,11 @@ El `AGENTS.md` propio sigue siendo un archivo completo que instala este repo. Su
 - bloquea en OpenCode cada skill podada que no tenga un reemplazo propio con el mismo nombre mediante `permission.skill`, incluso si OpenCode encuentra una copia en `~/.agents/skills` o `~/.claude/skills`. No borra ni modifica esas copias externas, y conserva los permisos de skills no podadas ni de reemplazos propios como `branch-pr`.
 - aplica nuestras preferencias de modelos de IA si las configuramos.
 - comprueba solo los archivos, referencias y anchors que necesita para aplicar perfiles o los parches locales declarados.
-- aplica dos parches puntuales con anchors exactos: el handoff de Judgment Day y la regla output-only de `sdd-research`.
-- conserva los prompts y plugins preparados por Gentle AI; no los reemplaza con plantillas fuente. La frontera mantenida y el runtime verificado están en v2.9.1, y los snapshots aprobados no cambiaron frente a v2.9.0. La política acepta RDD como activo y funcional, pero su estado efectivo se consulta por máquina o clon.
+- aplica el parche puntual de Judgment Day y, cuando el runtime contenga el anchor v3.7.0 compatible, el parche ODD que deja el commit optativo. Si el anchor no coincide, `apply` se detiene antes de escribir. El parche de `sdd-research` se retiró de los snapshots adoptados por estar cubierto por el contrato upstream v3.7.0.
+- conserva los prompts y plugins preparados por Gentle AI; no los reemplaza con plantillas fuente. La frontera de snapshots está en v3.7.0, pero el runtime y el binario siguen en 2.9.1; no se autorizó su actualización ni el `apply`. La política acepta RDD como activo y funcional, pero su estado efectivo se consulta por máquina o clon.
 - ajusta modelos y perfiles reutilizando los prompts base ya instalados.
 - agrega de forma puntual el handoff de `judgment-retrospective` al skill `judgment-day` compatible.
-- evita que una instrucción inline contradictoria haga que `sdd-research` persista estado por su cuenta.
+- conserva el contrato upstream output-only de `sdd-research`; no instala un parche local redundante.
 - registra todos los archivos que instala como propios. Al limpiar registros viejos, conserva los archivos devueltos a Gentle AI y los targets de parches puntuales sin declararlos como propios.
 
 Ejecutarlo apuntando a `opencode` reinstala todo para OpenCode. Si usás `all` hace lo mismo, porque hoy es el único entorno soportado.

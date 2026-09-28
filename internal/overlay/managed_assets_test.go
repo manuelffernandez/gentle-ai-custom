@@ -9,6 +9,22 @@ import (
 	"testing"
 )
 
+var openCodeV2PluginNames = []string{
+	"opencode-review-transport.ts",
+	"skill-registry.ts",
+	"sdd-task-result-artifacts.ts",
+	"telemetry-runtime.ts",
+	"model-variants.ts",
+}
+
+func writeOpenCodeV2PluginFixtures(t *testing.T, upstreamRepo string) {
+	t.Helper()
+	for _, name := range openCodeV2PluginNames {
+		path := filepath.Join(upstreamRepo, "internal", "assets", "opencode", "plugins-v2", name)
+		mustWriteFile(t, path, []byte("// fixture: "+name+"\n"))
+	}
+}
+
 func TestCategorizeGitDiffTreatsOnlyOpenCodeAndEngramSourcesAsManaged(t *testing.T) {
 	target := testOpenCodeAgentsTarget()
 	managed, unmanaged := categorizeGitDiff([]GitDiffEntry{
@@ -19,13 +35,18 @@ func TestCategorizeGitDiffTreatsOnlyOpenCodeAndEngramSourcesAsManaged(t *testing
 		{Status: "M", Path: "internal/assets/opencode/sdd-overlay-single.json"},
 		{Status: "M", Path: "internal/assets/opencode/sdd-overlay-multi.json"},
 		{Status: "M", Path: "internal/assets/opencode/plugins/model-variants.ts"},
+		{Status: "M", Path: "internal/assets/opencode/plugins-v2/opencode-review-transport.ts"},
+		{Status: "M", Path: "internal/assets/opencode/plugins-v2/skill-registry.ts"},
+		{Status: "M", Path: "internal/assets/opencode/plugins-v2/sdd-task-result-artifacts.ts"},
+		{Status: "M", Path: "internal/assets/opencode/plugins-v2/telemetry-runtime.ts"},
+		{Status: "M", Path: "internal/assets/opencode/plugins-v2/model-variants.ts"},
 		{Status: "M", Path: "internal/assets/claude/agents/jd-fix-agent.md"},
 		{Status: "M", Path: "internal/assets/claude/commands/sdd-apply.md"},
 		{Status: "A", Path: "internal/assets/claude/output-style-neutral.md"},
 	}, buildManagedAssetCatalog(target))
 
-	if len(managed) != 7 {
-		t.Fatalf("managed entries = %d, want 7", len(managed))
+	if len(managed) != 12 {
+		t.Fatalf("managed entries = %d, want 12", len(managed))
 	}
 	if len(unmanaged) != 0 {
 		t.Fatalf("unmanaged entries = %d, want 0", len(unmanaged))
@@ -34,7 +55,7 @@ func TestCategorizeGitDiffTreatsOnlyOpenCodeAndEngramSourcesAsManaged(t *testing
 	for _, entry := range managed {
 		keys[entry.Record.Key] = true
 	}
-	for _, key := range []string{"opencode-persona-source", "opencode-background-subagents-source", "opencode-engram-source", "opencode-remote-authorization-source", "opencode-overlay-single", "opencode-overlay-multi", "opencode-plugins"} {
+	for _, key := range []string{"opencode-persona-source", "opencode-background-subagents-source", "opencode-engram-source", "opencode-remote-authorization-source", "opencode-overlay-single", "opencode-overlay-multi", "opencode-plugins", "opencode-plugins-v2"} {
 		if !keys[key] {
 			t.Fatalf("managed record keys missing %q", key)
 		}
@@ -63,6 +84,7 @@ func TestSyncManagedTargetCopiesOpenCodeAgentsSourceFilesFromUpstream(t *testing
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "plugins", "model-variants.ts"), []byte("export const modelVariants = [];\n"))
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "plugins", "skill-registry.ts"), []byte("export const skillRegistry = [];\n"))
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "plugins", "background-agents.ts"), []byte("export const backgroundAgents = [];\n"))
+	writeOpenCodeV2PluginFixtures(t, upstreamRepo)
 
 	repoRoot := t.TempDir()
 	stats := &syncUpstreamAssetsStats{}
@@ -71,11 +93,11 @@ func TestSyncManagedTargetCopiesOpenCodeAgentsSourceFilesFromUpstream(t *testing
 	}
 
 	// Fix #4: verify stats
-	if stats.FilesNew != 9 {
-		t.Fatalf("stats.FilesNew = %d, want 9", stats.FilesNew)
+	if stats.FilesNew != 14 {
+		t.Fatalf("stats.FilesNew = %d, want 14", stats.FilesNew)
 	}
-	if stats.DirsSynced != 1 {
-		t.Fatalf("stats.DirsSynced = %d, want 1", stats.DirsSynced)
+	if stats.DirsSynced != 2 {
+		t.Fatalf("stats.DirsSynced = %d, want 2", stats.DirsSynced)
 	}
 
 	// Verify persona-gentleman.md was copied verbatim
@@ -131,6 +153,11 @@ func TestSyncManagedTargetCopiesOpenCodeAgentsSourceFilesFromUpstream(t *testing
 			t.Fatalf("read plugin mirror %s: %v", name, err)
 		}
 	}
+	for _, name := range openCodeV2PluginNames {
+		if _, err := os.Stat(filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "upstream", "opencode", "plugins-v2", name)); err != nil {
+			t.Fatalf("read v2 plugin mirror %s: %v", name, err)
+		}
+	}
 	if _, err := os.Stat(filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "upstream", "claude")); !os.IsNotExist(err) {
 		t.Fatalf("sync wrote unsupported claude snapshot tree")
 	}
@@ -174,6 +201,7 @@ func TestRunSyncUpstreamAssetsRecordsPreviousMaintainedCommitInStateNote(t *test
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "plugins", "model-variants.ts"), []byte("export const modelVariants = [];\n"))
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "plugins", "skill-registry.ts"), []byte("export const skillRegistry = [];\n"))
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "opencode", "plugins", "background-agents.ts"), []byte("export const backgroundAgents = [];\n"))
+	writeOpenCodeV2PluginFixtures(t, upstreamRepo)
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "components", "sdd", "profiles.go"), []byte(`package opencode
 
 var profilePhaseOrder = []string{
@@ -554,8 +582,8 @@ func TestUpstreamRuntimeSnapshotsAreNeverOwnedInstallSources(t *testing.T) {
 	if foundSnapshots == 0 {
 		t.Fatal("managed-assets does not declare upstream runtime snapshots")
 	}
-	if len(target.RuntimePatches) != 2 || target.RuntimePatches[0].Key != "judgment-retrospective-handoff" || target.RuntimePatches[1].Key != "sdd-research-output-only" {
-		t.Fatalf("runtime patches = %#v, want judgment-retrospective-handoff and sdd-research-output-only", target.RuntimePatches)
+	if len(target.RuntimePatches) != 2 || target.RuntimePatches[0].Key != "judgment-retrospective-handoff" || target.RuntimePatches[1].Key != "work-unit-commits-authorization" {
+		t.Fatalf("runtime patches = %#v, want judgment-retrospective-handoff and work-unit-commits-authorization", target.RuntimePatches)
 	}
 	ownedRoot := filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "owned", "opencode")
 	var ownedFiles []string
@@ -572,6 +600,20 @@ func TestUpstreamRuntimeSnapshotsAreNeverOwnedInstallSources(t *testing.T) {
 	}
 	if len(ownedFiles) != 1 || ownedFiles[0] != "AGENTS.md" {
 		t.Fatalf("owned OpenCode runtime files = %v, want only AGENTS.md", ownedFiles)
+	}
+}
+
+func TestOwnedAgentInstructionsOverrideODDCommitMandate(t *testing.T) {
+	path := filepath.Join(repoRootForTest(t), "overlay", "gentle-ai", "assets", "owned", "opencode", "AGENTS.md")
+	content := mustReadFile(t, path)
+	for _, required := range []string{
+		"This rule overrides any upstream Gentle AI ODD routing or retained `work-unit-commits` instruction",
+		"An implementation request, substantial ODD work, task completion, feature branch, or review workflow does not authorize `git commit`",
+		"Leave the work unit uncommitted and report that delivery remains pending unless the user explicitly requests a commit",
+	} {
+		if !strings.Contains(content, required) {
+			t.Errorf("owned AGENTS.md is missing the ODD commit-authorization safeguard %q", required)
+		}
 	}
 }
 
@@ -636,6 +678,43 @@ func TestRemoteAuthorizationContractIsAuditOnlyUpstreamSource(t *testing.T) {
 	}
 }
 
+func TestOpenCodeV2PluginsAreAuditOnlyUpstreamSource(t *testing.T) {
+	target, _, err := loadManagedAssetsTarget(repoRootForTest(t), "opencode")
+	if err != nil {
+		t.Fatal(err)
+	}
+	asset, found := findOwnedOverlayAsset(target.OwnedOverlayAssets, "opencode-plugins-v2")
+	if !found {
+		t.Fatal("managed-assets is missing the OpenCode V2 plugin source directory")
+	}
+	if asset.Class != "upstream_source" || asset.Kind != "upstream_source_directory" {
+		t.Fatalf("V2 plugin classification = %s/%s, want upstream_source/upstream_source_directory", asset.Class, asset.Kind)
+	}
+	if asset.UpstreamPath != "internal/assets/opencode/plugins-v2" || asset.RepoUpstreamPath != "overlay/gentle-ai/assets/upstream/opencode/plugins-v2" {
+		t.Fatalf("V2 plugin paths = %q -> %q", asset.UpstreamPath, asset.RepoUpstreamPath)
+	}
+	if asset.RepoOwnedPath != "" || len(asset.RuntimeTargets) != 0 {
+		t.Fatalf("V2 plugins must remain audit/sync-only, got repo_owned_path=%q runtime_targets=%v", asset.RepoOwnedPath, asset.RuntimeTargets)
+	}
+}
+
+func TestAuditDriftSummaryDoesNotInferNoMaterializationDriftFromStructuralChecks(t *testing.T) {
+	entries := []managedDiffEntry{{Record: managedAssetRecord{Key: "opencode-plugins-v2"}}}
+	if !hasManagedDriftOutsideBasePrompt(entries) {
+		t.Fatal("managed V2 plugin drift was not classified outside the base prompt")
+	}
+
+	summary := buildAuditDriftSummary(true, true, false, true, true, true, true, true, true)
+	if len(summary) != 1 || !strings.Contains(summary[0], "do not rule out runtime materialization drift") {
+		t.Fatalf("summary = %#v, want explicit materialization uncertainty", summary)
+	}
+
+	cleanSummary := buildAuditDriftSummary(true, false, false, true, true, true, true, true, true)
+	if len(cleanSummary) != 1 || !strings.Contains(cleanSummary[0], "rather than topology or materialization drift") {
+		t.Fatalf("clean summary = %#v, want the prompt-only summary", cleanSummary)
+	}
+}
+
 func testOpenCodeAgentsTarget() ManagedAssetsTarget {
 	return ManagedAssetsTarget{
 		WatchRoots: []string{
@@ -693,6 +772,13 @@ func testOpenCodeAgentsTarget() ManagedAssetsTarget {
 				Kind:             "upstream_source_directory",
 				UpstreamPath:     "internal/assets/opencode/plugins",
 				RepoUpstreamPath: "overlay/gentle-ai/assets/upstream/opencode/plugins",
+			},
+			{
+				Key:              "opencode-plugins-v2",
+				Class:            "upstream_source",
+				Kind:             "upstream_source_directory",
+				UpstreamPath:     "internal/assets/opencode/plugins-v2",
+				RepoUpstreamPath: "overlay/gentle-ai/assets/upstream/opencode/plugins-v2",
 			},
 			{
 				Key:            "opencode-agents",

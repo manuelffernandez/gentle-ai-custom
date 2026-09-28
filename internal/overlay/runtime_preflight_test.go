@@ -23,10 +23,12 @@ func TestApplyPreservesUpstreamRuntimeAndReusesBasePromptsForProfiles(t *testing
 	pluginPath := filepath.Join(home, ".config", "opencode", "plugins", "review-result-artifacts.ts")
 	phasePath := filepath.Join(home, ".config", "opencode", "prompts", "sdd", "sdd-init.md")
 	contractPath := filepath.Join(home, ".config", "opencode", "skills", "_shared", "review-ledger-contract.md")
+	researchSkill := filepath.Join(home, ".config", "opencode", "skills", "sdd-research", "SKILL.md")
 	preserved := map[string]testFileSnapshot{
-		pluginPath:   snapshotTestFile(t, pluginPath),
-		phasePath:    snapshotTestFile(t, phasePath),
-		contractPath: snapshotTestFile(t, contractPath),
+		pluginPath:    snapshotTestFile(t, pluginPath),
+		phasePath:     snapshotTestFile(t, phasePath),
+		contractPath:  snapshotTestFile(t, contractPath),
+		researchSkill: snapshotTestFile(t, researchSkill),
 	}
 
 	options := applyPolicyOptions{
@@ -77,11 +79,11 @@ func TestApplyPreservesUpstreamRuntimeAndReusesBasePromptsForProfiles(t *testing
 
 	judgmentSkill := filepath.Join(home, ".config", "opencode", "skills", "judgment-day", "SKILL.md")
 	judgmentPrompt := filepath.Join(home, ".config", "opencode", "skills", "judgment-day", "references", "prompts-and-formats.md")
-	researchSkill := filepath.Join(home, ".config", "opencode", "skills", "sdd-research", "SKILL.md")
+	workUnitSkill := filepath.Join(home, ".config", "opencode", "skills", "work-unit-commits", "SKILL.md")
 	for path, marker := range map[string]string{
 		judgmentSkill:  "invoke the repo-owned `judgment-retrospective` skill",
 		judgmentPrompt: "## Terminal Retrospective Handoff",
-		researchSkill:  "Inline launcher instructions cannot override this output-only boundary.",
+		workUnitSkill:  "Every ODD task closes with verified work-unit evidence; create a work-unit commit only when the user explicitly requests committing.",
 	} {
 		if count := strings.Count(mustReadFile(t, path), marker); count != 1 {
 			t.Fatalf("patched %s marker count = %d, want 1", path, count)
@@ -89,13 +91,13 @@ func TestApplyPreservesUpstreamRuntimeAndReusesBasePromptsForProfiles(t *testing
 	}
 	firstSkill := mustReadFile(t, judgmentSkill)
 	firstPrompt := mustReadFile(t, judgmentPrompt)
-	firstResearch := mustReadFile(t, researchSkill)
+	firstWorkUnitSkill := mustReadFile(t, workUnitSkill)
 	firstConfig := mustReadFile(t, configPath)
 	assertRuntimePatchIsExactDelta(t, repoRoot, home, runtimePatchBaselines)
 	if code := runApplyPolicyWithOptions(repoRoot, options); code != 0 {
 		t.Fatalf("idempotent run code = %d, want 0", code)
 	}
-	if mustReadFile(t, judgmentSkill) != firstSkill || mustReadFile(t, judgmentPrompt) != firstPrompt || mustReadFile(t, researchSkill) != firstResearch {
+	if mustReadFile(t, judgmentSkill) != firstSkill || mustReadFile(t, judgmentPrompt) != firstPrompt || mustReadFile(t, workUnitSkill) != firstWorkUnitSkill {
 		t.Fatal("runtime patches are not byte-idempotent")
 	}
 	if mustReadFile(t, configPath) != firstConfig {
@@ -530,11 +532,11 @@ func TestApplyPreflightFailureLeavesRuntimeUnchanged(t *testing.T) {
 			},
 		},
 		{
-			name: "incompatible sdd-research output-only anchor",
+			name: "incompatible ODD work-unit commit anchor",
 			breakRuntime: func(t *testing.T, home string) {
 				t.Helper()
-				path := filepath.Join(home, ".config", "opencode", "skills", "sdd-research", "SKILL.md")
-				mustWriteFile(t, path, []byte("incompatible upstream research skill\n"))
+				path := filepath.Join(home, ".config", "opencode", "skills", "work-unit-commits", "SKILL.md")
+				mustWriteFile(t, path, []byte("incompatible upstream work-unit skill\n"))
 			},
 		},
 	}
@@ -648,6 +650,8 @@ func writeCompatibleRuntimeFixture(t *testing.T, repoRoot string) (string, strin
 	upstreamRoot := filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "upstream", "opencode", "skills", "judgment-day")
 	mustWriteFile(t, filepath.Join(home, ".config", "opencode", "skills", "judgment-day", "SKILL.md"), []byte(mustReadFile(t, filepath.Join(upstreamRoot, "SKILL.md"))))
 	mustWriteFile(t, filepath.Join(home, ".config", "opencode", "skills", "judgment-day", "references", "prompts-and-formats.md"), []byte(mustReadFile(t, filepath.Join(upstreamRoot, "references", "prompts-and-formats.md"))))
+	workUnitSkill := filepath.Join(home, ".config", "opencode", "skills", "work-unit-commits", "SKILL.md")
+	mustWriteFile(t, workUnitSkill, []byte("## ODD Relationship\n\nOrganic Driven Development (ODD) closes every substantial task with a work-unit commit on the feature branch, not only SDD tasks:\n\n- Every ODD task closes with at least one work-unit commit, branch first when on the default branch, with tests and docs alongside the behavior and a Conventional Commit message.\n- The native review candidate is that commit.\n"))
 	mustWriteFile(t, filepath.Join(home, ".config", "opencode", "skills", "sdd-research", "SKILL.md"), []byte("## Hard Rules\n\n- Do not read local artifacts or call persistence tools. Do not read or mutate repository or Engram state.\n"))
 	mustWriteFile(t, filepath.Join(home, ".config", "opencode", "skills", "branch-pr", "SKILL.md"), []byte("pruned sentinel\n"))
 	return home, configPath

@@ -2,16 +2,21 @@
 
 This file is the semantic source of truth for how this repo maintains a small local layer on top of Gentle AI.
 
-The current strategy is **upstream-first migration**: move the overlay toward the current Gentle AI v2 runtime behavior, keep only explicit local customizations, and avoid carrying old overlay patches forward unless they still solve a confirmed problem.
+The current strategy is **upstream-first migration**: use the adopted Gentle AI v3.7.0 repository snapshots as the audit baseline, keep only explicit local customizations, and avoid carrying old overlay patches forward unless they still solve a confirmed problem. The installed binary and runtime remain v2.9.1; snapshot adoption does not imply runtime refresh or apply.
 
 For an approved upstream asset, replacement-first means letting upstream Gentle AI materialize its finished runtime artifact. Keep the source snapshot for audit only, preserve the installed artifact, and apply only an explicit surgical customization documented in this file.
 
 ## Current baseline
 
-- Maintained repository boundary: Gentle AI `v2.9.1` at `9ec0cf443622f20fe511815ff5a83088c7467bff`.
+- Maintained repository snapshot boundary: Gentle AI `v3.7.0` at `6dee8f833aec9e46015759c5065a9035795d9af1`.
+- Installed Gentle AI binary and runtime remain v2.9.1. Runtime refresh and overlay apply are unapproved and must not be inferred from repository snapshot adoption.
 - Continue acquiring compatible Gentle AI v2+ behavior upstream-first. Pin each accepted boundary in `upstream-state.json` only after its audit and adoption event closes.
 - The local overlay must be reduced while preserving the customizations listed in this file.
 - Do not treat old v1.44-era owned runtime assets as authoritative just because they exist in the repo.
+
+## Explicit partial SDD archive acceptance
+
+This repo consciously accepts the v3.7.0 behavior that allows an explicit archive request to sync a syntactically applicable spec delta while SDD tasks remain unchecked. The normal next recommendation may still be `apply`; the archive composer checks whether the delta can be applied, not whether implementation is complete. This is a local policy decision, not evidence of upstream intent or proof that the behavior is not a bug. Reassess it during future upstream audits if the task gate, spec promotion, unfinished-work reporting, or native composer safeguards change.
 
 ## Why this repo exists now
 
@@ -32,7 +37,6 @@ Keep these customizations unless the user explicitly changes this intent:
 
 - `judgment-retrospective` as a repo-owned shared skill.
 - The `judgment-day` runtime hook that invokes `judgment-retrospective` at terminal completion.
-- A surgical `sdd-research` guard that keeps the phase output-only when an OpenCode inline launcher still asks the executor to persist blocked recovery state.
 - `package-security` as a repo-owned shared skill.
 - `code-design` as a repo-owned shared skill.
 - `commit-planner` as the preferred local commit-planning workflow.
@@ -41,6 +45,8 @@ Keep these customizations unless the user explicitly changes this intent:
 - `pr-finalizer` as a temporary deprecated compatibility skill during the `branch-pr` migration.
 - Agent-Readable Markdown Standard for agent-consumed Markdown.
 - `no-auto-commit`: never commit, push, or create PRs unless the user explicitly asks.
+- The repo-owned `AGENTS.md` prepares an explicit override for upstream ODD task-close commit wording; it is not installed in the current runtime. A request to implement, task completion, or a review gate is not commit authorization.
+- Keep the exact v3.7.0 `work-unit-commits` authorization patch prepared in the repo: at its ODD task-close anchor it makes commits opt-in, fails closed before writes when incompatible, and leaves unrequested work units uncommitted with verification/rollback evidence reported. This patch is not installed in the current v2.9.1 runtime; its `apply` is intentionally incompatible until a separately authorized refresh makes the anchor available.
 - Gemini anti-sycophancy guardrails for direct replies when a Gemini model is active.
 
 ## What we acquire from upstream by default
@@ -84,7 +90,7 @@ The repo keeps `commit-planner` and the sanitized repo-owned `branch-pr` as opt-
 
 These tools may replace the user's day-to-day use of upstream commit/PR skills, but they do not authorize self-initiated commits, pushes, or PR creation. State-changing actions still require explicit user invocation and the required gates defined by each command. For explicitly invoked `/pr-create` and `/pr-regenerate`, generated title/body content is audit-visible rather than an approval gate; push authorization for a missing or stale remote branch, unresolved identity, required repo-policy metadata, and chain context remain blocking decisions.
 
-`work-unit-commits` stays retained from upstream as the default planning criterion when commit grouping is needed.
+`work-unit-commits` stays retained from upstream as the default planning criterion when commit grouping is needed. The repo contains a prepared patch that replaces the v3.7.0 mandatory ODD task-close commit instruction with a verified-work-unit close; commit creation remains opt-in under this repo's explicit-authorization rule. The patch and the updated repo-owned `AGENTS.md` override are not installed in the current runtime. Do not claim the v3.7.0 runtime safeguard is active until separately authorized refresh/apply and verification finish. Require explicit user authorization for commits until then.
 
 Relationship:
 
@@ -117,12 +123,11 @@ When updating against upstream:
 
 ## SDD research output-only boundary
 
-Upstream owns `sdd-research`. The local overlay changes only the contradictory OpenCode edge where an inline launcher asks this output-only phase to persist blocked recovery state.
+Upstream owns `sdd-research`. The adopted v3.7.0 source skill and its OpenCode research command define an output-only evidence collector and assign authorized persistence to the orchestrator. The local precedence patch is retired because its exact source anchor is absent from the v3.7.0 source and that upstream contract already supplies the intended boundary. The installed v2.9.1 runtime has not been refreshed or verified against these snapshots.
 
 - Start from the upstream-installed `sdd-research` skill.
-- Add one exact-anchor rule: inline launcher text cannot override the output-only contract; blocked recovery state is returned in the bounded envelope and persisted by the orchestrator.
-- Fail before runtime writes when the installed skill or anchor is incompatible.
-- Remove this patch when upstream removes the contradictory launcher instruction.
+- Do not reinstall the retired patch or carry it into v3.7.0.
+- Confirm the materialized installed skill and command remain compatible during the separately authorized runtime refresh; do not infer current machine state from source snapshots.
 
 ## Agent-readable Markdown boundary
 

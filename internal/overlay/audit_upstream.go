@@ -107,7 +107,7 @@ func RunAuditUpstream(repoRoot string, args []string) int {
 	remoteAuthorizationOK := structuralResult.RemoteAuthorizationOK
 	roleTopologyOK := structuralResult.RoleTopologyOK
 	phaseOrderOK := structuralResult.PhaseOrderOK
-	driftSummary = append(driftSummary, buildAuditDriftSummary(basePromptDrift, phaseOrderOK, profileNamingOK, taskScopingOK, baseAssetInjectionOK, remoteAuthorizationOK, roleTopologyOK)...)
+	driftSummary = append(driftSummary, buildAuditDriftSummary(basePromptDrift, hasManagedDriftOutsideBasePrompt(managedEntries), len(unmanagedEntries) > 0, phaseOrderOK, profileNamingOK, taskScopingOK, baseAssetInjectionOK, remoteAuthorizationOK, roleTopologyOK)...)
 
 	fmt.Println("Auditing Gentle AI upstream baseline...")
 	fmt.Printf("- Repo root: %s\n", repoRoot)
@@ -1813,11 +1813,24 @@ func statusWord(ok bool) string {
 	return "mismatch"
 }
 
-func buildAuditDriftSummary(basePromptDrift, phaseOrderOK, profileNamingOK, taskScopingOK, baseAssetInjectionOK, remoteAuthorizationOK, roleTopologyOK bool) []string {
+func hasManagedDriftOutsideBasePrompt(entries []managedDiffEntry) bool {
+	for _, entry := range entries {
+		if entry.Record.Key != "gentle-orchestrator" {
+			return true
+		}
+	}
+	return false
+}
+
+func buildAuditDriftSummary(basePromptDrift, otherManagedDrift, unmanagedDrift, phaseOrderOK, profileNamingOK, taskScopingOK, baseAssetInjectionOK, remoteAuthorizationOK, roleTopologyOK bool) []string {
 	var summary []string
 	if basePromptDrift {
 		if phaseOrderOK && profileNamingOK && taskScopingOK && baseAssetInjectionOK && remoteAuthorizationOK && roleTopologyOK {
-			summary = append(summary, "No profile-generation or base-asset binding drift was detected alongside this prompt change, so this looks like prompt-content guidance rather than topology or materialization drift.")
+			if otherManagedDrift || unmanagedDrift {
+				summary = append(summary, "Profile-generation and base-asset binding checks passed, but other managed or unmapped watched assets also changed; these checks do not rule out runtime materialization drift.")
+			} else {
+				summary = append(summary, "No profile-generation or base-asset binding drift was detected alongside this prompt change, so this looks like prompt-content guidance rather than topology or materialization drift.")
+			}
 		}
 	}
 

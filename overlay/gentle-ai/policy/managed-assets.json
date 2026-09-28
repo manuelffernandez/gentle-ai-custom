@@ -29,6 +29,7 @@
         {"key":"opencode-overlay-single","class":"upstream_source","kind":"upstream_source_file","upstream_path":"internal/assets/opencode/sdd-overlay-single.json","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/sdd-overlay-single.json"},
         {"key":"opencode-overlay-multi","class":"upstream_source","kind":"upstream_source_file","upstream_path":"internal/assets/opencode/sdd-overlay-multi.json","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/sdd-overlay-multi.json"},
         {"key":"opencode-plugins","class":"upstream_runtime_snapshot","kind":"upstream_source_directory","upstream_path":"internal/assets/opencode/plugins","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/plugins","runtime_targets":["~/.config/opencode/plugins"]},
+        {"key":"opencode-plugins-v2","class":"upstream_source","kind":"upstream_source_directory","upstream_path":"internal/assets/opencode/plugins-v2","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/plugins-v2"},
         {"key":"opencode-agents","class":"repo_owned_runtime","kind":"agent_instruction_file","repo_owned_path":"overlay/gentle-ai/assets/owned/opencode/AGENTS.md","runtime_targets":["~/.config/opencode/AGENTS.md"]},
         {"key":"gentle-orchestrator","class":"upstream_runtime_snapshot","kind":"orchestrator_prompt","upstream_path":"internal/assets/opencode/sdd-orchestrator.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/prompts/orchestrators/gentle-orchestrator.md"},
         {"key":"sdd-init","class":"upstream_runtime_snapshot","kind":"phase_skill_prompt","upstream_path":"internal/assets/skills/sdd-init/SKILL.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/sdd-init/SKILL.md","runtime_targets":["~/.config/opencode/skills/sdd-init","~/.config/opencode/prompts/sdd/sdd-init.md"]},
@@ -52,7 +53,7 @@
       ],
       "runtime_patches": [
         {"key":"judgment-retrospective-handoff","patch_path":"overlay/gentle-ai/patches/opencode/judgment-retrospective.json"},
-        {"key":"sdd-research-output-only","patch_path":"overlay/gentle-ai/patches/opencode/sdd-research-output-only.json"}
+        {"key":"work-unit-commits-authorization","patch_path":"overlay/gentle-ai/patches/opencode/work-unit-commits-authorization.json"}
       ],
       "retained_upstream_skills": [
         {"key":"chained-pr","upstream_path":"internal/assets/skills/chained-pr","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/chained-pr"},

@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "targets": [
+    {
+      "path": "skills/work-unit-commits/SKILL.md",
+      "replacements": [
+        {
+          "before": "- Every ODD task closes with at least one work-unit commit, branch first when on the default branch, with tests and docs alongside the behavior and a Conventional Commit message.\n",
+          "after": "- Every ODD task closes with verified work-unit evidence; create a work-unit commit only when the user explicitly requests committing. An implementation request, ODD task-close instruction, review gate, feature branch, or this skill is not commit authorization. Without an explicit commit request, leave the work unit uncommitted, preserve its tests and docs, record its verification and rollback evidence, and report that no commit was created.\n"
+        }
+      ]
+    }
+  ]
+}

@@ -35,7 +35,17 @@ This directory contains the operational assets for the Gentle AI overlay.
 
 ## Current adoption status
 
-- The maintained boundary is verified v2.9.1 at `9ec0cf443622f20fe511815ff5a83088c7467bff`. Approved snapshots remain byte-unchanged from v2.9.0.
+- The current repository snapshot boundary is v3.7.0 at `6dee8f833aec9e46015759c5065a9035795d9af1`.
+- The authorized snapshot sync reported 36 managed changes: 5 new files, 31 changed, 43 unchanged, 0 deleted, and 19 directories synced; `upstream-state.json` changed.
+- The canonical post-sync audit passed at that exact v3.7.0 commit with no managed or watched-unmanaged drift and all structural checks `ok`.
+- The installed Gentle AI binary and runtime remain v2.9.1, with OpenCode 1.18.32. No runtime refresh or overlay apply was authorized or performed for v3.7.0. Snapshot adoption does not verify runtime behavior.
+- All five `plugins-v2` files are audit/sync-only. OpenCode 1.18.32 uses the V1 plugin path; this repository does not claim V2 runtime materialization support.
+- The v3.7.0 `sdd-research` skill and command provide output-only collection with orchestrator-owned persistence. Its former local precedence patch is retired; the installed v2.9.1 runtime has not been verified against this source contract.
+- The ODD commit authorization patch is prepared in the repo but is not installed in the current runtime. The current v2.9.1 `apply` is intentionally incompatible with its v3.7.0 anchor. Treat the safeguard as inactive until a separately authorized runtime refresh and apply complete and are verified; until then, commits require explicit user authorization.
+- The repo consciously accepts v3.7.0 explicit partial SDD archive as local policy, not as confirmed upstream intent or proof of implementation completion. Future-audit checks are in [`maintenance.md`](maintenance.md#partial-sdd-archive-watchpoint).
+
+### Historical v2.9.1 verification
+
 - The separately authorized repository sync reported 0 new files, 0 changed files, 74 unchanged files, 0 deletions, and 18 synced directories; only `state/upstream-state.json` changed.
 - The post-sync canonical audit passed at exact v2.9.1 / `9ec0cf443622f20fe511815ff5a83088c7467bff`, with no managed or watched-unmanaged drift and all profile, injection, remote-authorization, and JD/review topology invariants `ok`.
 - Compatible OpenCode review consent and preserved-prompt migration are acquired upstream-first. Claude Code transcript-derived dispatch authority is outside the maintained OpenCode target. No policy, patch, topology, profile, preset, or materialization changes were required.
@@ -43,6 +53,7 @@ This directory contains the operational assets for the Gentle AI overlay.
 - Independent read-only post-state verification passed 602 selected assertions over runtime assignments, named profiles, prompt parity, task scoping, skill permissions, absence of suffixed review actors, and obsolete prompt references. The installed orchestrator includes the compatible `gentle-ai.review-integration.consent/v3` semantics.
 - All 7 repo-owned skill sources/assets, all 5 wrapper bodies, and the owned `AGENTS.md` matched their installed targets. `issue-creation` and `hermes-ephemeral-delegation` were absent, `branch-pr` was the repo-owned replacement, and all 3 installed runtime patch targets matched approved upstream snapshots after reversing only their declared local patches.
 - RDD remains globally `on`, but the user explicitly excluded this v2.9.1 maintenance candidate from RDD. Effective mode must always be queried rather than inferred from repository policy.
+- In the earlier v2.9.1 state, the owned global `AGENTS.md` and installed skill sources matched their targets and independent read-only post-state verification passed. This is historical v2.9.1 evidence, not verification of v3.7.0 runtime materialization.
 
 ## Historical v2.5.0 runtime evidence
 
@@ -66,7 +77,8 @@ This directory contains the operational assets for the Gentle AI overlay.
 - `gentle-ai-bench`, `rdd-defect-workflow`, and `systemic-issue-triage` remain retained snapshots, not forced runtime selections.
 - Named profiles may create suffixed Judgment Day actors only for explicit assignments. Review actors remain global.
 - The Judgment Day retrospective handoff remains a declared surgical patch and still requires exact compatible anchors.
-- The `sdd-research` output-only guard is a second surgical patch. It prevents contradictory inline launcher text from assigning persistence to the research executor and fails closed on incompatible anchors.
+- The prepared `work-unit-commits` authorization patch is intended to replace the v3.7.0 automatic ODD task-close commit instruction. It is not active in the current runtime; its exact anchor is incompatible with the current v2.9.1 `apply`. Do not treat the safeguard as active until separately authorized refresh/apply and verification. Without explicit commit authorization, do not commit.
+- The `sdd-research` v3.7.0 source skill and OpenCode command define output-only collection with orchestrator-owned persistence. Its local precedence patch is retired and is not an install source.
 
 ## Maintainer report contract
 

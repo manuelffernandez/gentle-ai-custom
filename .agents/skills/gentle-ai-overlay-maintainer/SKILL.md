@@ -42,6 +42,10 @@ Use this skill when:
 - Runtime refresh is human-owned by default. Recommend the correct path and print exact instructions, but never run `gentle-ai sync` or a reinstall unless the human explicitly requests that specific runtime action. Approval of audit findings, upstream adoption, repo snapshot sync, or overlay edits is not runtime-refresh authorization.
 - Overlay apply is separately authorized. Never infer apply permission from approval of findings, repo sync, runtime refresh, or other maintenance edits.
 - Preserve the local keep/prune baseline and upstream/runtime ownership boundaries defined in `maintenance-intent.md`.
+- Treat v3.7.0 explicit partial SDD archive as a conscious local acceptance, not confirmed upstream intent or proof of completed implementation; apply the future-audit watchpoint in `overlay/gentle-ai/maintenance.md` and do not imply an RDD escalation was retroactively approved.
+- Distinguish preview, repository snapshot adoption, and runtime state. An explicit-release audit alone is preview only; after an authorized snapshot sync, report the new maintained boundary without implying a runtime refresh or apply.
+- OpenCode V2 plugin snapshots are audit/sync inputs only, not custom apply install sources. OpenCode 1.18.32 uses the V1 plugin path; V2 materialization requires custom apply schema work and must not be claimed as supported.
+- Upstream ODD work-unit commit wording does not override local `no-auto-commit`; never create a commit without explicit user authorization. A prepared or declared `work-unit-commits` patch is not active runtime protection until a separately authorized runtime refresh and overlay apply complete and are verified. If the installed runtime is older than the patch anchor, its apply must fail closed; do not claim the safeguard is active.
 - Treat upstream PR strategy, chained PR, review-budget, and review-workload governance as adopt-by-default under the current upstream-first intent; sanitize only when a concrete conflict with explicit local customizations is confirmed.
 - Keep bash and PowerShell scripts behaviorally equivalent.
 - Update `AGENTS.md`, `README.md`, `overlay/gentle-ai/maintenance.md`, and `overlay/gentle-ai/logs/update-log.md` when the workflow changes, but write to the log only for eligible closed maintenance events under `AGENTS.md` rule 4.
@@ -170,7 +174,7 @@ Re-apply is mandatory after `gentle-ai sync` or reinstall because upstream rewri
    - representative upstream-owned prompt, plugin, and contract files remain byte- and mode-unchanged by custom apply
    - no managed agent references an obsolete `.overlay.md` prompt
    - Judgment Day differs from its compatible installed upstream baseline only by the declared retrospective handoff
-   - `sdd-research` differs from its compatible installed upstream baseline only by the declared output-only precedence rule
+   - upstream `sdd-research` remains output-only and orchestrator-persisted; the retired local precedence patch is not reapplied
    - default/named profile assignments still match the local config
    - `overlay/gentle-ai/assets/upstream/opencode/prompts/orchestrators/gentle-orchestrator.md` and related upstream metadata remain consistent with `upstream-state.json`
 19. Run one fresh-context consistency pass against the changed maintainer artifacts and the final maintenance diff. Use a reviewer/subagent when delegation is authorized; otherwise perform the pass directly.
