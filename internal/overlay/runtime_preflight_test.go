@@ -19,14 +19,14 @@ func TestApplyPreservesUpstreamRuntimeAndReusesBasePromptsForProfiles(t *testing
 	repoRoot := repoRootForTest(t)
 	home, configPath := writeCompatibleRuntimeFixture(t, repoRoot)
 	runtimePatchBaselines := snapshotRuntimePatchTargets(t, repoRoot, home)
-	orchestratorBefore := opaqueUpstreamOrchestratorFixture
+	orchestratorBefore := remoteAuthorizationFixturePrompt(t, opaqueUpstreamOrchestratorFixture)
+	orchestratorAfter := strings.Replace(orchestratorBefore, mustRemoteAuthorizationSection(t, false), mustRemoteAuthorizationSection(t, true), 1)
 	pluginPath := filepath.Join(home, ".config", "opencode", "plugins", "review-result-artifacts.ts")
 	phasePath := filepath.Join(home, ".config", "opencode", "prompts", "sdd", "sdd-init.md")
 	contractPath := filepath.Join(home, ".config", "opencode", "skills", "_shared", "review-ledger-contract.md")
 	researchSkill := filepath.Join(home, ".config", "opencode", "skills", "sdd-research", "SKILL.md")
 	preserved := map[string]testFileSnapshot{
 		pluginPath:    snapshotTestFile(t, pluginPath),
-		phasePath:     snapshotTestFile(t, phasePath),
 		contractPath:  snapshotTestFile(t, contractPath),
 		researchSkill: snapshotTestFile(t, researchSkill),
 	}
@@ -40,14 +40,26 @@ func TestApplyPreservesUpstreamRuntimeAndReusesBasePromptsForProfiles(t *testing
 	}
 
 	agents := readFixtureAgents(t, configPath)
-	if got := jsonString(mustAgent(t, agents, "gentle-orchestrator")["prompt"]); got != orchestratorBefore {
-		t.Fatalf("base orchestrator prompt changed\nwant: %q\ngot:  %q", orchestratorBefore, got)
+	if got := jsonString(mustAgent(t, agents, "gentle-orchestrator")["prompt"]); got != orchestratorAfter {
+		t.Fatalf("base orchestrator prompt does not contain the local remote-authorization section\nwant: %q\ngot:  %q", orchestratorAfter, got)
 	}
 	for path, before := range preserved {
 		assertTestFileSnapshot(t, path, before)
 	}
+	assertRemoteAuthorizationSection(t, mustReadFile(t, phasePath), true)
+	onboardPath := filepath.Join(home, ".config", "opencode", "prompts", "sdd", "sdd-onboard.md")
+	assertRemoteAuthorizationSection(t, mustReadFile(t, onboardPath), true)
+	if mode := snapshotTestFile(t, phasePath).mode.Perm(); mode != 0o640 {
+		t.Fatalf("phase prompt mode = %o, want preserved 640", mode)
+	}
+	for _, key := range []string{"general", "explore", "jd-judge-a", "review-risk", "sdd-init-cheap"} {
+		t.Run("remote authorization carrier "+key, func(t *testing.T) {
+			assertAgentRemoteAuthorizationSection(t, jsonString(mustAgent(t, agents, key)["prompt"]), true)
+		})
+	}
+	assertRemoteAuthorizationSection(t, jsonString(mustAgent(t, agents, "custom-agent")["prompt"]), false)
 	for _, key := range []string{"gentle-orchestrator", "sdd-orchestrator-cheap"} {
-		if got := jsonString(mustAgent(t, agents, key)["prompt"]); got != orchestratorBefore {
+		if got := jsonString(mustAgent(t, agents, key)["prompt"]); got != orchestratorAfter {
 			t.Fatalf("%s prompt does not reuse the rendered upstream base prompt", key)
 		}
 	}
@@ -219,10 +231,12 @@ func TestApplyReconcilesNamedJudgmentDayActorsAndPreservesUnmanagedAgents(t *tes
 		t.Fatalf("runApplyPolicyWithOptions() code = %d, want 0", code)
 	}
 	agents = readFixtureAgents(t, configPath)
+	baseJudge = mustAgent(t, agents, "jd-judge-a")
 	namedJudge := mustAgent(t, agents, "jd-judge-a-cheap")
 	if jsonString(namedJudge["model"]) != "profile/judge" {
 		t.Fatalf("named judge model = %q, want profile/judge", jsonString(namedJudge["model"]))
 	}
+	assertRemoteAuthorizationSection(t, jsonString(namedJudge["prompt"]), true)
 	if jsonString(namedJudge["prompt"]) != jsonString(baseJudge["prompt"]) || !reflect.DeepEqual(namedJudge["tools"], baseJudge["tools"]) || namedJudge["hidden"] != true {
 		t.Fatal("named judge did not preserve upstream prompt/tools/hidden structure")
 	}
@@ -373,6 +387,80 @@ func TestPrepareRuntimePatchesRejectsMixedPatchedAndUnpatchedAnchors(t *testing.
 	}
 }
 
+func TestRemoteAuthorizationSectionReplacementIsExactAndIdempotent(t *testing.T) {
+	before := mustRemoteAuthorizationSection(t, false)
+	after := mustRemoteAuthorizationSection(t, true)
+	definition := runtimePatchSection{Before: before, After: after}
+	original := "unrelated leading bytes\n\n" + before + "\n\n## Next section\nkeep this too\n"
+	want := "unrelated leading bytes\n\n" + after + "\n\n## Next section\nkeep this too\n"
+	updated, err := replaceRemoteAuthorizationSection(original, definition)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated != want {
+		t.Fatalf("replacement changed unrelated content\nwant: %q\ngot:  %q", want, updated)
+	}
+	second, err := replaceRemoteAuthorizationSection(updated, definition)
+	if err != nil || second != updated {
+		t.Fatalf("revised section was not idempotent: err=%v", err)
+	}
+	markedOriginal := "unrelated prefix\r\n<!-- gentle-ai:remote-authorization -->\r\n" + before + "\r\n<!-- /gentle-ai:remote-authorization -->"
+	markedWant := "unrelated prefix\r\n<!-- gentle-ai:remote-authorization -->\r\n" + after + "\r\n<!-- /gentle-ai:remote-authorization -->"
+	markedUpdated, err := replaceRemoteAuthorizationSection(markedOriginal, definition)
+	if err != nil || markedUpdated != markedWant {
+		t.Fatalf("marked EOF section replacement changed markers or unrelated bytes: err=%v\nwant: %q\ngot:  %q", err, markedWant, markedUpdated)
+	}
+	if second, err := replaceRemoteAuthorizationSection(markedUpdated, definition); err != nil || second != markedUpdated {
+		t.Fatalf("marked section was not idempotent: err=%v", err)
+	}
+	markedBeforeHeading := "<!-- gentle-ai:remote-authorization -->\n" + before + "\n<!-- /gentle-ai:remote-authorization -->\n\n## Next section\nkeep this too\n"
+	markedAfterHeading := "<!-- gentle-ai:remote-authorization -->\n" + after + "\n<!-- /gentle-ai:remote-authorization -->\n\n## Next section\nkeep this too\n"
+	if got, err := replaceRemoteAuthorizationSection(markedBeforeHeading, definition); err != nil || got != markedAfterHeading {
+		t.Fatalf("marked section before later heading changed unrelated bytes: err=%v\nwant: %q\ngot:  %q", err, markedAfterHeading, got)
+	}
+	for _, invalid := range []struct {
+		name    string
+		content string
+	}{
+		{name: "missing", content: "no remote section"},
+		{name: "duplicate", content: before + "\n\n" + before},
+		{name: "unknown heading", content: strings.Replace(before, "## Remote operation authorization", "### Remote authorization", 1)},
+		{name: "changed body", content: strings.Replace(before, "Before remote work", "Before any remote work", 1)},
+		{name: "mixed old and new", content: after + "\n\n" + before},
+		{name: "duplicate opening marker", content: "<!-- gentle-ai:remote-authorization -->\n<!-- gentle-ai:remote-authorization -->\n" + before + "\n<!-- /gentle-ai:remote-authorization -->"},
+		{name: "missing closing marker", content: "<!-- gentle-ai:remote-authorization -->\n" + before},
+		{name: "reversed markers", content: "<!-- /gentle-ai:remote-authorization -->\n" + before + "\n<!-- gentle-ai:remote-authorization -->"},
+		{name: "unexpected text before heading", content: "<!-- gentle-ai:remote-authorization -->\nunexpected\n" + before + "\n<!-- /gentle-ai:remote-authorization -->"},
+	} {
+		t.Run(invalid.name, func(t *testing.T) {
+			if _, err := replaceRemoteAuthorizationSection(invalid.content, definition); err == nil {
+				t.Fatal("replaceRemoteAuthorizationSection() error = nil, want fail-closed anchor rejection")
+			}
+		})
+	}
+}
+
+func TestRemoteAuthorizationSkipsAbsentOptionalSharedFilesButRejectsMissingReferences(t *testing.T) {
+	repoRoot := repoRootForTest(t)
+	runtimeRoot := t.TempDir()
+	state := applyPolicyState{
+		configPath: filepath.Join(runtimeRoot, "opencode.json"),
+		managedTarget: ManagedAssetsTarget{
+			RuntimePatches:     []RuntimePatchRef{{Key: remoteAuthorizationPatchKey, PatchPath: "overlay/gentle-ai/patches/opencode/remote-authorization-scope.json"}},
+			OwnedOverlayAssets: []OwnedOverlayAsset{{RuntimeTargets: []string{"~/.config/opencode/prompts/sdd/optional.md"}}},
+		},
+		agents: map[string]any{},
+	}
+	state.policy.OpenCode.BaseOrchestratorKey = "base"
+	if err := state.prepareRemoteAuthorizationCustomization(repoRoot); err != nil {
+		t.Fatalf("absent optional shared prompt failed preflight: %v", err)
+	}
+	state.agents["base"] = map[string]any{"prompt": "{file:" + filepath.ToSlash(filepath.Join(runtimeRoot, "prompts", "missing.md")) + "}"}
+	if err := state.prepareRemoteAuthorizationCustomization(repoRoot); err == nil {
+		t.Fatal("missing referenced prompt passed preflight; want failure")
+	}
+}
+
 func snapshotRuntimePatchTargets(t *testing.T, repoRoot, home string) map[string]string {
 	t.Helper()
 	target, _, err := loadManagedAssetsTarget(repoRoot, "opencode")
@@ -384,6 +472,9 @@ func snapshotRuntimePatchTargets(t *testing.T, repoRoot, home string) map[string
 		var definition runtimePatchDefinition
 		if err := readJSONFile(filepath.Join(repoRoot, filepath.FromSlash(patch.PatchPath)), &definition); err != nil {
 			t.Fatalf("load runtime patch %s: %v", patch.Key, err)
+		}
+		if len(definition.Sections) > 0 {
+			continue
 		}
 		for _, patchTarget := range definition.Targets {
 			if _, exists := baselines[patchTarget.Path]; !exists {
@@ -409,6 +500,9 @@ func assertRuntimePatchIsExactDelta(t *testing.T, repoRoot, home string, baselin
 		var definition runtimePatchDefinition
 		if err := readJSONFile(filepath.Join(repoRoot, filepath.FromSlash(patch.PatchPath)), &definition); err != nil {
 			t.Fatalf("load runtime patch %s: %v", patch.Key, err)
+		}
+		if len(definition.Sections) > 0 {
+			continue
 		}
 		for _, patchTarget := range definition.Targets {
 			content, exists := reverted[patchTarget.Path]
@@ -539,6 +633,95 @@ func TestApplyPreflightFailureLeavesRuntimeUnchanged(t *testing.T) {
 				mustWriteFile(t, path, []byte("incompatible upstream work-unit skill\n"))
 			},
 		},
+		{
+			name: "duplicate remote authorization section",
+			breakRuntime: func(t *testing.T, home string) {
+				t.Helper()
+				configPath := filepath.Join(home, ".config", "opencode", "opencode.json")
+				data, err := readJSONAny(configPath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				agents, _ := jsonObject(data["agent"])
+				prompt := jsonString(mustAgent(t, agents, "gentle-orchestrator")["prompt"])
+				mustAgent(t, agents, "gentle-orchestrator")["prompt"] = prompt + "\n\n" + mustRemoteAuthorizationSection(t, false)
+				writeJSONFixture(t, configPath, data)
+			},
+		},
+		{
+			name: "modified remote authorization section",
+			breakRuntime: func(t *testing.T, home string) {
+				t.Helper()
+				configPath := filepath.Join(home, ".config", "opencode", "opencode.json")
+				data, err := readJSONAny(configPath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				agents, _ := jsonObject(data["agent"])
+				prompt := jsonString(mustAgent(t, agents, "gentle-orchestrator")["prompt"])
+				mustAgent(t, agents, "gentle-orchestrator")["prompt"] = strings.Replace(prompt, "Before remote work", "Before any remote work", 1)
+				writeJSONFixture(t, configPath, data)
+			},
+		},
+		{
+			name: "malformed remote authorization marker pair",
+			breakRuntime: func(t *testing.T, home string) {
+				t.Helper()
+				path := filepath.Join(home, ".config", "opencode", "prompts", "sdd", "sdd-onboard.md")
+				content := mustReadFile(t, path)
+				content = strings.Replace(content, "\n<!-- /gentle-ai:remote-authorization -->", "", 1)
+				mustWriteFile(t, path, []byte(content))
+			},
+		},
+		{
+			name: "remote-bearing unmanaged named profile",
+			breakRuntime: func(t *testing.T, home string) {
+				t.Helper()
+				configPath := filepath.Join(home, ".config", "opencode", "opencode.json")
+				data, err := readJSONAny(configPath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				agents, _ := jsonObject(data["agent"])
+				agents["sdd-orchestrator-unmanaged"] = map[string]any{"prompt": remoteAuthorizationFixturePrompt(t, "unmanaged")}
+				writeJSONFixture(t, configPath, data)
+			},
+		},
+		{
+			name: "symlink prompt reference",
+			breakRuntime: func(t *testing.T, home string) {
+				t.Helper()
+				configPath := filepath.Join(home, ".config", "opencode", "opencode.json")
+				data, err := readJSONAny(configPath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				agents, _ := jsonObject(data["agent"])
+				promptPath := filepath.Join(home, ".config", "opencode", "prompts", "sdd", "sdd-init.md")
+				linkPath := filepath.Join(home, ".config", "opencode", "prompts", "sdd", "linked-sdd-init.md")
+				if err := os.Symlink(promptPath, linkPath); err != nil {
+					t.Fatal(err)
+				}
+				mustAgent(t, agents, "sdd-init")["prompt"] = "{file:" + filepath.ToSlash(linkPath) + "}"
+				writeJSONFixture(t, configPath, data)
+			},
+		},
+		{
+			name: "out-of-root prompt reference",
+			breakRuntime: func(t *testing.T, home string) {
+				t.Helper()
+				configPath := filepath.Join(home, ".config", "opencode", "opencode.json")
+				data, err := readJSONAny(configPath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				agents, _ := jsonObject(data["agent"])
+				outsidePath := filepath.Join(t.TempDir(), "outside-prompt.md")
+				mustWriteFile(t, outsidePath, []byte(remoteAuthorizationFixturePrompt(t, "outside prompt")))
+				mustAgent(t, agents, "sdd-init")["prompt"] = "{file:" + filepath.ToSlash(outsidePath) + "}"
+				writeJSONFixture(t, configPath, data)
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -590,7 +773,7 @@ func writeCompatibleRuntimeFixture(t *testing.T, repoRoot string) (string, strin
 	promptDir := filepath.Join(home, ".config", "opencode", "prompts", "sdd")
 	agents := map[string]any{
 		"gentle-orchestrator": map[string]any{
-			"mode": "primary", "prompt": opaqueUpstreamOrchestratorFixture,
+			"mode": "primary", "prompt": remoteAuthorizationFixturePrompt(t, opaqueUpstreamOrchestratorFixture),
 			"tools": map[string]any{"task": true}, "model": "upstream/base",
 		},
 	}
@@ -599,7 +782,7 @@ func writeCompatibleRuntimeFixture(t *testing.T, repoRoot string) (string, strin
 	profilePhases := map[string]any{}
 	for _, phase := range policy.OpenCode.SDDPhases {
 		promptPath := filepath.Join(promptDir, phase+".md")
-		mustWriteFile(t, promptPath, []byte("upstream rendered phase prompt for "+phase+"\n"))
+		mustWriteFile(t, promptPath, []byte(remoteAuthorizationFixturePrompt(t, "upstream rendered phase prompt for "+phase+"\n")))
 		if err := os.Chmod(promptPath, 0o640); err != nil {
 			t.Fatal(err)
 		}
@@ -611,10 +794,14 @@ func writeCompatibleRuntimeFixture(t *testing.T, repoRoot string) (string, strin
 		defaultPhases[phase] = map[string]any{"model": "default/" + phase, "variant": "high"}
 		profilePhases[phase] = map[string]any{"model": "profile/" + phase, "variant": "low"}
 	}
+	for _, key := range []string{"general", "explore"} {
+		agents[key] = map[string]any{"mode": "subagent", "prompt": remoteAuthorizationFixturePrompt(t, "upstream "+key)}
+	}
+	agents["custom-agent"] = map[string]any{"prompt": remoteAuthorizationFixturePrompt(t, "unrelated custom agent")}
 	actorKeys := append(append([]string{}, judgmentDayActorKeys...), reviewActorKeys...)
 	for _, key := range actorKeys {
 		baseTaskPermissions[key] = "allow"
-		agents[key] = map[string]any{"mode": "subagent", "hidden": true, "prompt": "upstream " + key, "tools": map[string]any{"read": true}}
+		agents[key] = map[string]any{"mode": "subagent", "hidden": true, "prompt": remoteAuthorizationFixturePrompt(t, "upstream "+key), "tools": map[string]any{"read": true}}
 	}
 	mustAgent(t, agents, "gentle-orchestrator")["permission"] = map[string]any{
 		"question": "allow",
@@ -762,4 +949,52 @@ func snapshotTree(t *testing.T, root string) map[string]string {
 		t.Fatal(err)
 	}
 	return result
+}
+
+func remoteAuthorizationFixturePrompt(t *testing.T, prompt string) string {
+	t.Helper()
+	repoRoot := repoRootForTest(t)
+	var definition runtimePatchDefinition
+	patchPath := filepath.Join(repoRoot, "overlay", "gentle-ai", "patches", "opencode", "remote-authorization-scope.json")
+	if err := readJSONFile(patchPath, &definition); err != nil {
+		t.Fatal(err)
+	}
+	if len(definition.Sections) != 1 {
+		t.Fatalf("remote patch sections = %d, want one", len(definition.Sections))
+	}
+	return strings.TrimRight(prompt, "\n") + "\n\n<!-- gentle-ai:remote-authorization -->\n" + definition.Sections[0].Before + "\n<!-- /gentle-ai:remote-authorization -->"
+}
+
+func assertRemoteAuthorizationSection(t *testing.T, content string, revised bool) {
+	t.Helper()
+	want := mustRemoteAuthorizationSection(t, revised)
+	if !strings.Contains(content, want) || revised && strings.Contains(content, mustRemoteAuthorizationSection(t, false)) {
+		t.Fatalf("remote-authorization section does not match revised=%v; content=%q", revised, content)
+	}
+}
+
+func assertAgentRemoteAuthorizationSection(t *testing.T, prompt string, revised bool) {
+	t.Helper()
+	if strings.HasPrefix(prompt, "{file:") && strings.HasSuffix(prompt, "}") {
+		path := strings.TrimSuffix(strings.TrimPrefix(prompt, "{file:"), "}")
+		prompt = mustReadFile(t, path)
+	}
+	assertRemoteAuthorizationSection(t, prompt, revised)
+}
+
+func mustRemoteAuthorizationSection(t *testing.T, revised bool) string {
+	t.Helper()
+	repoRoot := repoRootForTest(t)
+	var definition runtimePatchDefinition
+	patchPath := filepath.Join(repoRoot, "overlay", "gentle-ai", "patches", "opencode", "remote-authorization-scope.json")
+	if err := readJSONFile(patchPath, &definition); err != nil {
+		t.Fatal(err)
+	}
+	if len(definition.Sections) != 1 {
+		t.Fatalf("remote patch sections = %d, want one", len(definition.Sections))
+	}
+	if revised {
+		return definition.Sections[0].After
+	}
+	return definition.Sections[0].Before
 }

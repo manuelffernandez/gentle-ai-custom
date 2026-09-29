@@ -47,6 +47,7 @@ Keep these customizations unless the user explicitly changes this intent:
 - A concise implementation-scope rule in the repo-owned global `AGENTS.md`; that file is its single source of truth.
 - `no-auto-commit`: never commit, push, or create PRs unless the user explicitly asks.
 - The repo-owned `AGENTS.md` prepares an explicit override for upstream ODD task-close commit wording; it is not installed in the current runtime. A request to implement, task completion, or a review gate is not commit authorization.
+- A local remote-operation authorization exception on maintained OpenCode prompts: an explicit request authorizes only the requested operation, indicated or clearly implied destination, and the tool's normally configured authentication. Clarify ambiguous destination, operation, or account before any remote action; never discover, inspect, select, or switch ambient credentials or sessions. Native ask rules remain independent.
 - Keep the exact v3.7.0 `work-unit-commits` authorization patch prepared in the repo: at its ODD task-close anchor it makes commits opt-in, fails closed before writes when incompatible, and leaves unrequested work units uncommitted with verification/rollback evidence reported. This patch is not installed in the current v2.9.1 runtime; its `apply` is intentionally incompatible until a separately authorized refresh makes the anchor available.
 - Gemini anti-sycophancy guardrails for direct replies when a Gemini model is active.
 
@@ -82,6 +83,18 @@ Do not preserve these v1.44-era local patches by default:
 - old local SDD review lifecycle behavior that predates upstream v2 review/remediation
 
 If a similar problem reappears on the v2 baseline, solve it against the v2 design instead of copying the old patch forward.
+
+## Remote operation authorization boundary
+
+Keep the upstream authorization contract as the audit baseline, but apply the explicit local exception through `overlay/gentle-ai/patches/opencode/remote-authorization-scope.json` to maintained OpenCode prompt projections. The snapshot under `assets/upstream/` remains unchanged and is never a runtime source.
+
+- An explicit user request authorizes only the requested remote operation, its indicated or clearly implied destination, and the tool's normally configured authentication. Do not ask again solely because that authentication is an existing session.
+- Ask before any remote action if destination, operation, or account is ambiguous. Do not probe a destination to resolve ambiguity.
+- Never discover, inspect, select, or switch ambient credentials, agents, sockets, authenticated sessions, or other access channels. Delegation carries the same scope and cannot expand it.
+- Native ask rules remain independent and do not broaden this contract.
+- Apply must validate every reachable maintained inline/file prompt section before its first write, reject incompatible anchors and remote-bearing unmanaged named profiles, preserve unrelated content and file modes, and remain idempotent.
+- The repo-owned `AGENTS.md` is a full-file source and carries the same local boundary; it is not a runtime patch target.
+- Runtime refresh and overlay apply remain separately authorized. The repository customization does not establish that the installed runtime has been updated.
 
 ## Commit and PR workflow boundary
 

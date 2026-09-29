@@ -115,6 +115,12 @@ La copia de v3.7.0 incorpora el contrato output-only de `sdd-research`; por eso 
 
 El repo también acepta de forma consciente que una solicitud explícita de archivo SDD pueda guardar specs aplicables aunque queden tareas sin marcar. Es una decisión local: no confirma la intención de upstream ni demuestra que la implementación esté completa. Tampoco cambia la revisión RDD escalada por separado. La guía de mantenimiento incluye qué revisar en futuras auditorías.
 
+#### Excepción local para autorización remota
+
+El repo mantiene sin cambios la copia upstream usada para auditoría y declara un parche local exacto para los prompts OpenCode administrados. Ante un pedido explícito de una operación remota, la herramienta puede usar su autenticación configurada normalmente para esa operación y el destino indicado o claramente implícito; no tiene que volver a preguntar solo porque sea una sesión existente. Si el destino, la operación o la cuenta no están claros, debe preguntar antes de actuar. No puede explorar, inspeccionar ni cambiar credenciales o sesiones disponibles, y las reglas nativas de `ask` siguen siendo independientes.
+
+El cambio solo está preparado en este repositorio. El runtime todavía necesita un `apply` ejecutado por vos; esta sesión no ejecutó `gentle-ai sync`, reinstalación ni `apply`.
+
 #### Evidencia histórica del runtime v2.9.1 y v2.5.0
 
 En el cierre anterior de v2.9.1, la auditoría pasó para `9ec0cf443622f20fe511815ff5a83088c7467bff`, y una verificación de solo lectura confirmó 602 comprobaciones sobre asignaciones, perfiles, prompts, permisos, alcance de tareas y referencias. También confirmó el orchestrator con consentimiento compatible, las 7 skills propias, 5 wrappers, el `AGENTS.md` propio, la poda de skills y los parches locales. Esa evidencia corresponde al runtime v2.9.1 y no verifica un runtime v3.7.0.

@@ -10,8 +10,14 @@ import (
 )
 
 type runtimePatchDefinition struct {
-	Version int                  `json:"version"`
-	Targets []runtimePatchTarget `json:"targets"`
+	Version  int                   `json:"version"`
+	Targets  []runtimePatchTarget  `json:"targets"`
+	Sections []runtimePatchSection `json:"sections"`
+}
+
+type runtimePatchSection struct {
+	Before string `json:"before"`
+	After  string `json:"after"`
 }
 
 type runtimePatchTarget struct {
@@ -27,6 +33,7 @@ type runtimePatchReplacement struct {
 type preparedRuntimePatch struct {
 	path    string
 	content string
+	mode    os.FileMode
 }
 
 type runtimeFileSnapshot struct {
@@ -51,6 +58,9 @@ func (s *applyPolicyState) preflightCustomRuntimePrerequisites(repoRoot string) 
 		}
 	}
 	if err := s.requireConfiguredActorBases(); err != nil {
+		return err
+	}
+	if err := s.prepareRemoteAuthorizationCustomization(repoRoot); err != nil {
 		return err
 	}
 	if err := s.prepareRuntimePatches(repoRoot); err != nil {
@@ -217,6 +227,12 @@ func (s *applyPolicyState) prepareRuntimePatches(repoRoot string) error {
 		if definition.Version != 1 {
 			return fmt.Errorf("runtime patch %q at %s has unsupported version %d", ref.Key, definitionPath, definition.Version)
 		}
+		if len(definition.Sections) != 0 {
+			if ref.Key != remoteAuthorizationPatchKey || len(definition.Targets) != 0 {
+				return fmt.Errorf("runtime patch %q cannot combine section and fixed-file targets", ref.Key)
+			}
+			continue
+		}
 		for _, target := range definition.Targets {
 			path := filepath.Join(filepath.Dir(s.configPath), filepath.FromSlash(target.Path))
 			raw, err := os.ReadFile(path)
@@ -239,7 +255,11 @@ func (s *applyPolicyState) prepareRuntimePatches(repoRoot string) error {
 				}
 				content = strings.Replace(content, replacement.Before, replacement.After, 1)
 			}
-			s.runtimePatches = append(s.runtimePatches, preparedRuntimePatch{path: path, content: content})
+			info, err := os.Stat(path)
+			if err != nil {
+				return upstreamRuntimeError("runtime patch %q requires installed upstream file %s: %v", ref.Key, path, err)
+			}
+			s.runtimePatches = append(s.runtimePatches, preparedRuntimePatch{path: path, content: content, mode: info.Mode()})
 		}
 	}
 	return nil
@@ -247,7 +267,7 @@ func (s *applyPolicyState) prepareRuntimePatches(repoRoot string) error {
 
 func (s *applyPolicyState) applyRuntimePatches() error {
 	for _, patch := range s.runtimePatches {
-		status, err := writeTextFileWithStatus(patch.path, patch.content)
+		status, err := writeAtomicFileWithStatus(patch.path, []byte(patch.content), patch.mode.Perm())
 		if err != nil {
 			return err
 		}
@@ -288,7 +308,8 @@ func (s *applyPolicyState) removeObsoleteManagedPrompts() error {
 func (s *applyPolicyState) verifyRuntimePatches() error {
 	for _, patch := range s.runtimePatches {
 		raw, err := os.ReadFile(patch.path)
-		if err != nil || string(raw) != patch.content {
+		info, statErr := os.Stat(patch.path)
+		if err != nil || statErr != nil || string(raw) != patch.content || info.Mode() != patch.mode {
 			return fmt.Errorf("post-write verification failed for runtime patch target %s", patch.path)
 		}
 	}

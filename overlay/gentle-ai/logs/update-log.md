@@ -4,6 +4,18 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-09-29 | Narrowed remote authorization for maintained OpenCode prompts
+
+- **Date**: `2026-09-29`
+- **Title**: Narrowed remote authorization for maintained OpenCode prompts
+- **Type**: `tooling-change`
+- **Upstream scope/range**: Local runtime customization against the unchanged v3.7.0 audit snapshot; no upstream boundary or snapshot change.
+- **Decision**: `Sanitizar` the effective maintained OpenCode prompt projections with an exact, manifest-declared section replacement. An explicit remote request uses only normally configured authentication for its requested operation and indicated or clearly implied destination; ambiguous destination, operation, or account blocks remote action until clarification. Credential/session discovery and switching remain prohibited, and native ask rules remain independent.
+- **Why it mattered**: The upstream audit contract requires explicit credential/session selection even when the user has already explicitly requested a remote operation. The local exception makes that request usable without granting ambient access or allowing scope expansion, while preserving the upstream snapshot for future audits.
+- **Affected artifacts**: `internal/overlay/remote_authorization.go`; runtime preflight, verification, and tests in `internal/overlay/`; `overlay/gentle-ai/patches/opencode/remote-authorization-scope.json`; `overlay/gentle-ai/policy/managed-assets.json` and `maintenance-intent.md`; owned OpenCode `AGENTS.md`; maintainer guidance and task evidence.
+- **Verification**: `go test ./internal/overlay`, `go test ./...`, and `git diff --check` passed. Tests exercise exact section replacement, idempotence, carrier coverage, mode/content preservation, and failure-before-write paths. No upstream clone, runtime apply, sync, credential file, authenticated operation, commit, push, or PR was accessed or run.
+- **Follow-up**: The user must run overlay apply separately. No runtime behavior is claimed until that apply is performed and verified.
+
 ## 2026-09-23 | Adopted Gentle AI v3.7.0 repository snapshots
 
 - **Date**: `2026-09-23`

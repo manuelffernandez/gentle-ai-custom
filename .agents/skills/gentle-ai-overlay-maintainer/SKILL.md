@@ -32,6 +32,8 @@ Use this skill when:
 - `apply-gentle-ai-custom` installs true repo-owned assets and portable skills, renders wrappers, prunes rejected skills, applies overrides, and reconciles profiles while preserving upstream-materialized SDD/review runtime assets.
 - For OpenCode, derive external-skill denies from policy-pruned names minus repo-owned same-name skills intentionally installed by the managed target. Apply them globally and to configured agents. Always persist the canonical permission order when effective denies exist: OpenCode uses the last matching rule, and parsed JSON loses the original order needed to detect an exact deny before a matching wildcard allow.
 - Before any runtime write, apply validates only its own prerequisites: ownership boundaries, base prompts consumed by configured profiles, safe obsolete-reference migration, and compatible declared runtime-patch anchors.
+- The local remote-authorization exception is a manifest-declared exact-section patch. Apply preflights maintained inline prompts, referenced files, and installed shared SDD prompt files before the first write; it must reject missing referenced files, duplicate/mixed/unknown sections, unsafe paths, and remote-bearing unmanaged named profiles. Keep the upstream snapshot audit-only and unchanged.
+- Remote authorization is limited to the explicit requested operation, indicated or clearly implied destination, and normally configured authentication. Clarify an ambiguous destination, operation, or account before remote action; never discover, inspect, select, or switch ambient credentials or sessions. Native ask rules remain independent.
 - Apply must not inspect or certify upstream plugin, contract, prompt, or review semantics. Opaque or absent upstream plugins do not block unrelated custom operations.
 - Owned-state cleanup must track every custom-installed output while protecting upstream runtime targets, retained upstream skill trees, and surgical patch targets without claiming whole-file ownership.
 - Read semantic intent before making maintenance decisions.
@@ -173,7 +175,8 @@ Re-apply is mandatory after `gentle-ai sync` or reinstall because upstream rewri
    - each of the 11 unsuffixed and managed suffixed SDD phase agents, including `sdd-research`, reuses its upstream base phase prompt/reference
    - representative upstream-owned prompt, plugin, and contract files remain byte- and mode-unchanged by custom apply
    - no managed agent references an obsolete `.overlay.md` prompt
-   - Judgment Day differs from its compatible installed upstream baseline only by the declared retrospective handoff
+     - Judgment Day differs from its compatible installed upstream baseline only by the declared retrospective handoff
+     - maintained inline prompt values and reachable prompt files contain exactly one local remote-authorization section; file bytes outside the section and file modes are unchanged
    - upstream `sdd-research` remains output-only and orchestrator-persisted; the retired local precedence patch is not reapplied
    - default/named profile assignments still match the local config
    - `overlay/gentle-ai/assets/upstream/opencode/prompts/orchestrators/gentle-orchestrator.md` and related upstream metadata remain consistent with `upstream-state.json`

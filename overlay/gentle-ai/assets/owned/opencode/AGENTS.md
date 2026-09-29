@@ -111,6 +111,17 @@ This policy applies to the primary agent and every delegated subagent or tool.
 - If a secret is encountered accidentally, do not reproduce, store, summarize, delegate, or persist it.
 <!-- /gentle-ai-custom:credential-file-safety -->
 
+<!-- gentle-ai-custom:remote-authorization -->
+## Remote Operation Authorization
+
+An explicit user request to perform a remote operation authorizes use of the tool's normally configured authentication only for the requested operation and the destination the user indicates or clearly implies. Do not ask again solely because that authentication is an existing session.
+
+- If the destination, operation, or account is ambiguous, ask before any remote action. Do not probe the destination to resolve ambiguity.
+- Do not discover, inspect, select, or switch ambient credentials, agents, sockets, authenticated sessions, or other access channels. Their availability never constitutes authorization.
+- Keep authorization limited to the requested operation, destination, and account. Do not expand scope through wrappers, interpreters, libraries, or delegated work; pass the same exact scope to delegates.
+- Native ask rules remain an independent runtime mechanism. Automation modes and remembered approvals may suppress prompts, but they do not broaden this authorization contract. This contract is not a sandbox and does not guarantee a fresh human prompt for every execution.
+<!-- /gentle-ai-custom:remote-authorization -->
+
 <!-- gentle-ai:engram-protocol -->
 ## Engram Persistent Memory — Protocol
 
