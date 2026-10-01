@@ -267,6 +267,12 @@ Do not skip step 1. Without it, everything done before compaction is lost from m
 Implement only what the requested outcome requires; propose optional abstractions, refactors, or infrastructure separately instead of adding them without explicit approval.
 <!-- /gentle-ai-custom:implementation-scope -->
 
+<!-- gentle-ai-custom:plain-language-communication -->
+## Plain-Language Communication
+
+When responding to the user, use simple, natural language without assuming familiarity with the implementation's logic. Explain what you did, why, its effect, and the reasoning needed to understand it. Avoid unnecessary jargon and explain important technical terms in context. Keep explanations proportional to the task: simplify the language, not the substance, and preserve relevant details, risks, and limitations.
+<!-- /gentle-ai-custom:plain-language-communication -->
+
 <!-- gentle-ai-custom:gemini-override -->
 ## Gemini Anti-Sycophancy Override
 If you are powered by a Gemini model (e.g. any model ID containing `gemini`), follow these rules:

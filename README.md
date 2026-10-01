@@ -207,7 +207,7 @@ La actualización del runtime sigue siendo tuya por defecto. Aprobar la auditor�
 
 El comando `apply-gentle-ai-custom` sigue siendo independiente de la carpeta original: compara la versión instalada con la versión mantenida por este overlay y no necesita encontrar el clon de upstream.
 
-El `AGENTS.md` propio sigue siendo un archivo completo que instala este repo. Su persona y el protocolo completo de Engram para OpenCode deben coincidir con los snapshots aprobados. Los tests permiten cinco secciones propias: alcance de implementación, estándar de Markdown para agentes, seguridad de archivos de credenciales, regla de no hacer commits automáticamente y ajuste para Gemini.
+El `AGENTS.md` propio sigue siendo un archivo completo que instala este repo. Su persona y el protocolo completo de Engram para OpenCode deben coincidir con los snapshots aprobados. Los tests permiten siete secciones propias: alcance de implementación, comunicación en lenguaje simple, estándar de Markdown para agentes, seguridad de archivos de credenciales, autorización para operaciones remotas, regla de no hacer commits automáticamente y ajuste para Gemini. El archivo propio es la única fuente de estas reglas globales.
 
 ### Cuándo usar `gentle-ai sync` y cuándo reinstalar
 

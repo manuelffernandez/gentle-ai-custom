@@ -4,6 +4,18 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-10-01 | Added plain-language communication policy
+
+- **Date**: `2026-10-01`
+- **Title**: Added plain-language communication policy
+- **Type**: `policy-change`
+- **Upstream scope/range**: Local maintenance-contract update against the unchanged v3.7.0 boundary; no upstream boundary or snapshot change.
+- **Decision**: Keep the concise plain-language reply rule in the repo-owned global `AGENTS.md` as a separate customization, naturally scoped to responses by its opening.
+- **Why it mattered**: Replies should stay understandable without assuming implementation familiarity, while preserving substance, relevant reasoning, risks, and limitations.
+- **Affected artifacts**: Owned OpenCode `AGENTS.md`; composition coverage in `internal/overlay/managed_assets_test.go`; `maintenance-intent.md`; and count/source guidance in `AGENTS.md`, `README.md`, `overlay/gentle-ai/README.md`, and `overlay/gentle-ai/maintenance.md`.
+- **Verification**: The focused composition tests and `git diff --check` passed. The inherited persona and full Engram section bytes were compared before and after and remained unchanged.
+- **Follow-up**: Source-only change; not globally applied. No upstream boundary, runtime state, or snapshots changed.
+
 ## 2026-09-29 | Narrowed remote authorization for maintained OpenCode prompts
 
 - **Date**: `2026-09-29`

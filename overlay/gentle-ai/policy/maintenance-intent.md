@@ -45,6 +45,7 @@ Keep these customizations unless the user explicitly changes this intent:
 - `pr-finalizer` as a temporary deprecated compatibility skill during the `branch-pr` migration.
 - Agent-Readable Markdown Standard for agent-consumed Markdown.
 - A concise implementation-scope rule in the repo-owned global `AGENTS.md`; that file is its single source of truth.
+- A plain-language communication rule in the repo-owned global `AGENTS.md`; that file is its single source of truth.
 - `no-auto-commit`: never commit, push, or create PRs unless the user explicitly asks.
 - The repo-owned `AGENTS.md` prepares an explicit override for upstream ODD task-close commit wording; it is not installed in the current runtime. A request to implement, task completion, or a review gate is not commit authorization.
 - A local remote-operation authorization exception on maintained OpenCode prompts: an explicit request authorizes only the requested operation, indicated or clearly implied destination, and the tool's normally configured authentication. Clarify ambiguous destination, operation, or account before any remote action; never discover, inspect, select, or switch ambient credentials or sessions. Native ask rules remain independent.

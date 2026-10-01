@@ -362,6 +362,10 @@ func TestOpenCodeAgentsOwnedSourceMatchesApprovedInheritedSections(t *testing.T)
 	if err := validateOwnedAgentsComposition(ownedSnapshot); err != nil {
 		t.Fatalf("owned AGENTS.md composition: %v", err)
 	}
+	plainLanguage := mustMarkdownBetweenUniqueMarkers(t, ownedSnapshot, "<!-- gentle-ai-custom:plain-language-communication -->", "<!-- /gentle-ai-custom:plain-language-communication -->")
+	if !strings.Contains(plainLanguage, "When responding to the user, use simple, natural language without assuming familiarity with the implementation's logic.") {
+		t.Fatal("owned AGENTS.md is missing the approved plain-language communication rule")
+	}
 
 	if strings.Contains(ownedSnapshot, "Agent Skills Index") {
 		t.Fatalf("owned AGENTS.md still contains old root index content")
@@ -416,7 +420,7 @@ func TestValidateOwnedAgentsCompositionRejectsAmbiguousOrExtraBlocks(t *testing.
 		},
 		{
 			name:    "inherited blocks out of order",
-			content: renderMarkdownBlocks([]markdownBlock{blocks[3], blocks[0], blocks[1], blocks[2], blocks[4], blocks[5]}),
+			content: renderMarkdownBlocks([]markdownBlock{blocks[3], blocks[0], blocks[1], blocks[2], blocks[4], blocks[5], blocks[6], blocks[7], blocks[8]}),
 		},
 		{
 			name:    "closing marker before opening marker",
@@ -449,6 +453,7 @@ func ownedAgentsBlocks() []markdownBlock {
 		{name: "OpenCode full Engram", opening: "<!-- gentle-ai:engram-protocol -->", closing: "<!-- /gentle-ai:engram-protocol -->"},
 		{name: "no-auto-commit", opening: "<!-- gentle-ai-custom:no-auto-commit -->", closing: "<!-- /gentle-ai-custom:no-auto-commit -->"},
 		{name: "Implementation Scope", opening: "<!-- gentle-ai-custom:implementation-scope -->", closing: "<!-- /gentle-ai-custom:implementation-scope -->", overlayH2Heading: "Implementation Scope"},
+		{name: "Plain-Language Communication", opening: "<!-- gentle-ai-custom:plain-language-communication -->", closing: "<!-- /gentle-ai-custom:plain-language-communication -->", overlayH2Heading: "Plain-Language Communication"},
 		{name: "Gemini Anti-Sycophancy Override", opening: "<!-- gentle-ai-custom:gemini-override -->", closing: "<!-- /gentle-ai-custom:gemini-override -->", overlayH2Heading: "Gemini Anti-Sycophancy Override"},
 	}
 }

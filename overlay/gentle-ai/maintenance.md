@@ -136,7 +136,7 @@ If this diagnostic exposes a regression, record the evidence and reassess the af
 | `policy/gentle-ai-policy.json` | Runtime policy consumed by the Go CLI and wrappers |
 | `policy/managed-assets.json` | Canonical map of approved upstream assets and installable owned assets |
 | `assets/upstream/` | Approved upstream copies currently on disk for review/diff, including `persona-gentleman.md`, `engram-protocol.md` (mirrors `internal/assets/engram/protocol.md`), `background-subagents.md`, the orchestrator prompt, overlay JSONs/plugins, retained `commands/` snapshots, and selected skill snapshots. The current boundary is v3.7.0 at `6dee8f833aec9e46015759c5065a9035795d9af1`; the authorized sync changed 36 managed files (5 new, 31 changed, 43 unchanged, 0 deleted) across 19 directories. The canonical post-sync audit passed with no managed or watched-unmanaged drift and all structural checks `ok`. This repository sync did not refresh or verify the installed runtime, which remains v2.9.1. |
-| `assets/owned/` | True repo-owned runtime assets installed by `apply`, currently the full-file local OpenCode `AGENTS.md` surface. Its inherited persona and OpenCode full Engram sections track the approved snapshots, with six explicit overlay-only additions. |
+| `assets/owned/` | True repo-owned runtime assets installed by `apply`, currently the full-file local OpenCode `AGENTS.md` surface. Its inherited persona and OpenCode full Engram sections track the approved snapshots, with seven explicit overlay-only additions. |
 | `patches/` | Exact-anchor local deltas applied only to compatible upstream runtime files |
 | `shared/skills/` | Portable repo-owned skills installed globally by `apply`, including the sanitized `branch-pr` and `chained-pr`, the temporary `pr-finalizer` compatibility skill, and the Judgment Day retrospective companion skill that is activated by the `judgment-day` terminal hook |
 | `shared/commands/` | Source bodies for custom wrappers rendered by `apply` |
@@ -338,7 +338,7 @@ Operational rules:
 
 - [ ] `maintenance-intent.md` still reflects what to keep and depure
 - [ ] `managed-assets.json` still aligns with `assets/upstream/` and `assets/owned/`
-- [ ] the owned OpenCode `AGENTS.md` inherited persona and full Engram sections pass semantic parity against the approved snapshots, while the six overlay-only sections remain present
+- [ ] the owned OpenCode `AGENTS.md` inherited persona and full Engram sections pass semantic parity against the approved snapshots, while the seven overlay-only sections remain present
 - [ ] `upstream-state.json` still points to the last upstream boundary that was actually maintained
 - [ ] future upstream audits compare partial-archive task gating, spec promotion, unfinished-work reporting, and native composer safeguards against the accepted v3.7.0 behavior
 - [ ] `apply-gentle-ai-custom` still preserves upstream prompt refs and fails closed when a requested custom operation lacks its prerequisite
