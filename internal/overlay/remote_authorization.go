@@ -9,40 +9,31 @@ import (
 	"strings"
 )
 
-const remoteAuthorizationPatchKey = "remote-authorization-scope"
-
 var remoteAuthorizationHeading = regexp.MustCompile(`(?im)^##[ \t]+Remote operation authorization[ \t]*$`)
 var anyMarkdownHeading = regexp.MustCompile(`(?m)^(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$`)
 var remoteAuthorizationOpenMarker = regexp.MustCompile(`(?m)^<!-- gentle-ai:remote-authorization -->[ \t]*\r?$`)
 var remoteAuthorizationCloseMarker = regexp.MustCompile(`(?m)^<!-- /gentle-ai:remote-authorization -->[ \t]*\r?$`)
 
-func (s *applyPolicyState) prepareRemoteAuthorizationCustomization(repoRoot string) error {
-	var ref *RuntimePatchRef
-	for index := range s.managedTarget.RuntimePatches {
-		candidate := &s.managedTarget.RuntimePatches[index]
-		if candidate.Key == remoteAuthorizationPatchKey {
-			if ref != nil {
-				return fmt.Errorf("managed-assets declares duplicate runtime patch %q", remoteAuthorizationPatchKey)
-			}
-			ref = candidate
-		}
-	}
-	if ref == nil {
-		return fmt.Errorf("managed-assets does not declare required runtime patch %q", remoteAuthorizationPatchKey)
-	}
-	definitionPath := filepath.Join(repoRoot, filepath.FromSlash(ref.PatchPath))
-	var definition runtimePatchDefinition
-	if err := readJSONFile(definitionPath, &definition); err != nil {
-		return fmt.Errorf("runtime patch %q is invalid at %s: %w", ref.Key, definitionPath, err)
-	}
-	if definition.Version != 1 || len(definition.Targets) != 0 || len(definition.Sections) != 1 {
-		return fmt.Errorf("runtime patch %q must declare exactly one version-1 section and no fixed-file targets", ref.Key)
-	}
-	section := definition.Sections[0]
-	if strings.TrimSpace(section.Before) == "" || strings.TrimSpace(section.After) == "" || section.Before == section.After {
-		return fmt.Errorf("runtime patch %q has an invalid remote-authorization section definition", ref.Key)
-	}
+var retiredRemoteAuthorizationSections = []string{
+	`## Remote operation authorization
 
+Permission to develop locally does not authorize remote execution or file transfer. Before remote work, require explicit user authorization for the destination, operation, and credential/session to use. If any part is missing or ambiguous, ask and remain local; do not probe the destination to resolve the ambiguity.
+
+- Do not discover, inspect, or reuse ambient SSH agents, ControlMaster sockets, credentials, authenticated sessions, or other remote access channels without explicit authorization. Their availability is not permission to use them.
+- Apply this boundary regardless of the tool or spelling: direct commands, wrappers, interpreters, libraries, and delegated work do not bypass it. Pass the authorized scope to delegates; delegation cannot expand it.
+- Explicitly authorized remote work is allowed within that scope. Preserve stricter user instructions and runtime restrictions; do not weaken them or change approval settings to proceed.
+- Native ask rules are an additional runtime mechanism, not authorization inferred from local-development access. Automation modes and remembered approvals may suppress prompts. This behavioral contract is not a sandbox and does not guarantee a fresh human prompt for every execution.`,
+	`## Remote operation authorization
+
+An explicit user request to perform a remote operation authorizes use of the tool's normally configured authentication only for the requested operation and the destination the user indicates or clearly implies. Do not ask again solely because that authentication is an existing session.
+
+- If the destination, operation, or account is ambiguous, ask before any remote action. Do not probe the destination to resolve ambiguity.
+- Do not discover, inspect, select, or switch ambient credentials, agents, sockets, authenticated sessions, or other access channels. Their availability never constitutes authorization.
+- Keep authorization limited to the requested operation, destination, and account. Do not expand scope through wrappers, interpreters, libraries, or delegated work; pass the same exact scope to delegates.
+- Native ask rules remain an independent runtime mechanism. Automation modes and remembered approvals may suppress prompts, but they do not broaden this authorization contract. This contract is not a sandbox and does not guarantee a fresh human prompt for every execution.`,
+}
+
+func (s *applyPolicyState) prepareRemoteAuthorizationRemoval() error {
 	fileChanges := map[string]preparedRuntimePatch{}
 	maintainedPromptKeys := s.maintainedRemoteAuthorizationAgentKeys()
 	for key, raw := range s.agents {
@@ -57,7 +48,7 @@ func (s *applyPolicyState) prepareRemoteAuthorizationCustomization(repoRoot stri
 		maintained := maintainedPromptKeys[key]
 		if !maintained {
 			if s.isNamedProfileAgentKey(key) {
-				contains, err := s.namedProfileHasRemoteAuthorization(prompt, filepath.Dir(s.configPath), section)
+				contains, err := s.namedProfileHasRemoteAuthorization(prompt, filepath.Dir(s.configPath))
 				if err != nil {
 					return upstreamRuntimeError("cannot assess unmanaged named profile agent %q: %v", key, err)
 				}
@@ -75,7 +66,7 @@ func (s *applyPolicyState) prepareRemoteAuthorizationCustomization(repoRoot stri
 			return upstreamRuntimeError("maintained agent %q has an invalid prompt reference: %v", key, err)
 		}
 		if !isFile {
-			updated, err := replaceRemoteAuthorizationSection(prompt, section)
+			updated, err := removeRemoteAuthorizationSection(prompt)
 			if err != nil {
 				return upstreamRuntimeError("maintained agent %q prompt is incompatible: %v", key, err)
 			}
@@ -86,7 +77,7 @@ func (s *applyPolicyState) prepareRemoteAuthorizationCustomization(repoRoot stri
 			s.expectedPromptRefs[key] = updated
 			continue
 		}
-		patch, err := prepareRemoteAuthorizationFile(path, filepath.Dir(s.configPath), section)
+		patch, err := prepareRemoteAuthorizationFile(path, filepath.Dir(s.configPath))
 		if err != nil {
 			return upstreamRuntimeError("maintained agent %q prompt file is incompatible: %v", key, err)
 		}
@@ -103,7 +94,7 @@ func (s *applyPolicyState) prepareRemoteAuthorizationCustomization(repoRoot stri
 		} else if err != nil {
 			return upstreamRuntimeError("cannot inspect optional shared SDD prompt %s: %v", path, err)
 		}
-		patch, err := prepareRemoteAuthorizationFile(path, filepath.Dir(s.configPath), section)
+		patch, err := prepareRemoteAuthorizationFile(path, filepath.Dir(s.configPath))
 		if err != nil {
 			return upstreamRuntimeError("shared SDD prompt %s is incompatible: %v", path, err)
 		}
@@ -179,7 +170,7 @@ func (s *applyPolicyState) isManagedNamedProfileAgent(key string) bool {
 	return false
 }
 
-func (s *applyPolicyState) namedProfileHasRemoteAuthorization(prompt, runtimeRoot string, section runtimePatchSection) (bool, error) {
+func (s *applyPolicyState) namedProfileHasRemoteAuthorization(prompt, runtimeRoot string) (bool, error) {
 	content := prompt
 	path, isFile, err := s.runtimePromptFilePath(prompt)
 	if err != nil {
@@ -195,7 +186,8 @@ func (s *applyPolicyState) namedProfileHasRemoteAuthorization(prompt, runtimeRoo
 		}
 		content = string(contentBytes)
 	}
-	return remoteAuthorizationSectionState(content, section) != remoteAuthorizationAbsent, nil
+	updated, err := removeRemoteAuthorizationSection(content)
+	return err != nil || updated != content, err
 }
 
 func (s *applyPolicyState) sharedSDDPromptPaths() []string {
@@ -218,7 +210,7 @@ func (s *applyPolicyState) sharedSDDPromptPaths() []string {
 	return result
 }
 
-func prepareRemoteAuthorizationFile(path, runtimeRoot string, section runtimePatchSection) (preparedRuntimePatch, error) {
+func prepareRemoteAuthorizationFile(path, runtimeRoot string) (preparedRuntimePatch, error) {
 	if err := validatePromptFilePath(path, runtimeRoot); err != nil {
 		return preparedRuntimePatch{}, err
 	}
@@ -233,7 +225,7 @@ func prepareRemoteAuthorizationFile(path, runtimeRoot string, section runtimePat
 	if err != nil {
 		return preparedRuntimePatch{}, err
 	}
-	updated, err := replaceRemoteAuthorizationSection(string(raw), section)
+	updated, err := removeRemoteAuthorizationSection(string(raw))
 	if err != nil {
 		return preparedRuntimePatch{}, err
 	}
@@ -266,32 +258,7 @@ func validatePromptFilePath(path, runtimeRoot string) error {
 	return nil
 }
 
-type remoteAuthorizationSectionStatus int
-
-const (
-	remoteAuthorizationAbsent remoteAuthorizationSectionStatus = iota
-	remoteAuthorizationOriginal
-	remoteAuthorizationRevised
-)
-
-func remoteAuthorizationSectionState(content string, section runtimePatchSection) remoteAuthorizationSectionStatus {
-	updated, err := replaceRemoteAuthorizationSection(content, section)
-	if err == nil && updated != content {
-		return remoteAuthorizationOriginal
-	}
-	for _, match := range anyMarkdownHeading.FindAllStringSubmatchIndex(content, -1) {
-		heading := strings.TrimSpace(content[match[4]:match[5]])
-		if strings.Contains(strings.ToLower(heading), "remote") && strings.Contains(strings.ToLower(heading), "authoriz") {
-			return remoteAuthorizationRevised
-		}
-	}
-	if strings.Contains(strings.ToLower(content), "remote operation authorization") || strings.Contains(strings.ToLower(content), "remote authorization") {
-		return remoteAuthorizationRevised
-	}
-	return remoteAuthorizationAbsent
-}
-
-func replaceRemoteAuthorizationSection(content string, section runtimePatchSection) (string, error) {
+func removeRemoteAuthorizationSection(content string) (string, error) {
 	var starts []int
 	for _, match := range anyMarkdownHeading.FindAllStringSubmatchIndex(content, -1) {
 		heading := strings.TrimSpace(content[match[4]:match[5]])
@@ -302,12 +269,18 @@ func replaceRemoteAuthorizationSection(content string, section runtimePatchSecti
 			starts = append(starts, match[0])
 		}
 	}
-	if len(starts) != 1 || !remoteAuthorizationHeading.MatchString(content) {
-		return "", fmt.Errorf("expected exactly one complete remote-authorization section, found %d", len(starts))
+	if strings.Contains(content, "<!-- gentle-ai:remote-authorization -->") != (len(remoteAuthorizationOpenMarker.FindAllStringIndex(content, -1)) > 0) || strings.Contains(content, "<!-- /gentle-ai:remote-authorization -->") != (len(remoteAuthorizationCloseMarker.FindAllStringIndex(content, -1)) > 0) {
+		return "", fmt.Errorf("malformed remote-authorization markers")
 	}
-	start := starts[0]
 	openMarkers := remoteAuthorizationOpenMarker.FindAllStringIndex(content, -1)
 	closeMarkers := remoteAuthorizationCloseMarker.FindAllStringIndex(content, -1)
+	if len(starts) == 0 && len(openMarkers) == 0 && len(closeMarkers) == 0 {
+		return content, nil
+	}
+	if len(starts) != 1 || !remoteAuthorizationHeading.MatchString(content) {
+		return "", fmt.Errorf("expected at most one complete remote-authorization section, found %d", len(starts))
+	}
+	start := starts[0]
 	openMarker := "<!-- gentle-ai:remote-authorization -->"
 	closeMarker := "<!-- /gentle-ai:remote-authorization -->"
 	if strings.Contains(content, openMarker) || strings.Contains(content, closeMarker) {
@@ -335,17 +308,10 @@ func replaceRemoteAuthorizationSection(content string, section runtimePatchSecti
 				return "", fmt.Errorf("unexpected heading inside marked remote-authorization section")
 			}
 		}
-		oldSection := content[start:closeStart]
-		trimmed := strings.TrimSpace(oldSection)
-		if trimmed == strings.TrimSpace(section.After) {
-			return content, nil
+		if err := validateRetiredRemoteAuthorizationSection(content[start:closeStart]); err != nil {
+			return "", err
 		}
-		if trimmed != strings.TrimSpace(section.Before) {
-			return "", fmt.Errorf("remote-authorization section does not match the declared original or revised section")
-		}
-		withoutTrailingSpace := strings.TrimRight(oldSection, " \t\r\n")
-		separator := oldSection[len(withoutTrailingSpace):]
-		return content[:start] + section.After + separator + content[closeStart:], nil
+		return content[:openMarkers[0][0]] + content[closeMarkers[0][1]:], nil
 	}
 	end := len(content)
 	for _, match := range anyMarkdownHeading.FindAllStringSubmatchIndex(content, -1) {
@@ -356,16 +322,22 @@ func replaceRemoteAuthorizationSection(content string, section runtimePatchSecti
 		break
 	}
 	oldSection := content[start:end]
-	trimmed := strings.TrimSpace(oldSection)
-	if trimmed == strings.TrimSpace(section.After) {
-		return content, nil
-	}
-	if trimmed != strings.TrimSpace(section.Before) {
-		return "", fmt.Errorf("remote-authorization section does not match the declared original or revised section")
+	if err := validateRetiredRemoteAuthorizationSection(oldSection); err != nil {
+		return "", err
 	}
 	withoutTrailingSpace := strings.TrimRight(oldSection, " \t\r\n")
 	separator := oldSection[len(withoutTrailingSpace):]
-	return content[:start] + section.After + separator + content[end:], nil
+	return content[:start] + separator + content[end:], nil
+}
+
+func validateRetiredRemoteAuthorizationSection(section string) error {
+	trimmed := strings.TrimSpace(section)
+	for _, known := range retiredRemoteAuthorizationSections {
+		if trimmed == strings.TrimSpace(known) {
+			return nil
+		}
+	}
+	return fmt.Errorf("remote-authorization section does not match a known upstream or previously relaxed section")
 }
 
 func (s *applyPolicyState) removePreservedUpstreamSnapshot(path string) {

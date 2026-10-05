@@ -19,8 +19,7 @@ func TestApplyPreservesUpstreamRuntimeAndReusesBasePromptsForProfiles(t *testing
 	repoRoot := repoRootForTest(t)
 	home, configPath := writeCompatibleRuntimeFixture(t, repoRoot)
 	runtimePatchBaselines := snapshotRuntimePatchTargets(t, repoRoot, home)
-	orchestratorBefore := remoteAuthorizationFixturePrompt(t, opaqueUpstreamOrchestratorFixture)
-	orchestratorAfter := strings.Replace(orchestratorBefore, mustRemoteAuthorizationSection(t, false), mustRemoteAuthorizationSection(t, true), 1)
+	orchestratorAfter := strings.TrimRight(opaqueUpstreamOrchestratorFixture, "\n") + "\n\n"
 	pluginPath := filepath.Join(home, ".config", "opencode", "plugins", "review-result-artifacts.ts")
 	phasePath := filepath.Join(home, ".config", "opencode", "prompts", "sdd", "sdd-init.md")
 	contractPath := filepath.Join(home, ".config", "opencode", "skills", "_shared", "review-ledger-contract.md")
@@ -41,23 +40,29 @@ func TestApplyPreservesUpstreamRuntimeAndReusesBasePromptsForProfiles(t *testing
 
 	agents := readFixtureAgents(t, configPath)
 	if got := jsonString(mustAgent(t, agents, "gentle-orchestrator")["prompt"]); got != orchestratorAfter {
-		t.Fatalf("base orchestrator prompt does not contain the local remote-authorization section\nwant: %q\ngot:  %q", orchestratorAfter, got)
+		t.Fatalf("base orchestrator prompt was not stripped of remote authorization\nwant: %q\ngot:  %q", orchestratorAfter, got)
 	}
 	for path, before := range preserved {
 		assertTestFileSnapshot(t, path, before)
 	}
-	assertRemoteAuthorizationSection(t, mustReadFile(t, phasePath), true)
+	assertRemoteAuthorizationAbsent(t, mustReadFile(t, phasePath))
 	onboardPath := filepath.Join(home, ".config", "opencode", "prompts", "sdd", "sdd-onboard.md")
-	assertRemoteAuthorizationSection(t, mustReadFile(t, onboardPath), true)
+	assertRemoteAuthorizationAbsent(t, mustReadFile(t, onboardPath))
+	for _, phase := range mustLoadPolicyPhases(t, repoRoot) {
+		path := filepath.Join(home, ".config", "opencode", "prompts", "sdd", phase+".md")
+		assertRemoteAuthorizationAbsent(t, mustReadFile(t, path))
+	}
 	if mode := snapshotTestFile(t, phasePath).mode.Perm(); mode != 0o640 {
 		t.Fatalf("phase prompt mode = %o, want preserved 640", mode)
 	}
 	for _, key := range []string{"general", "explore", "jd-judge-a", "review-risk", "sdd-init-cheap"} {
 		t.Run("remote authorization carrier "+key, func(t *testing.T) {
-			assertAgentRemoteAuthorizationSection(t, jsonString(mustAgent(t, agents, key)["prompt"]), true)
+			assertAgentRemoteAuthorizationAbsent(t, jsonString(mustAgent(t, agents, key)["prompt"]))
 		})
 	}
-	assertRemoteAuthorizationSection(t, jsonString(mustAgent(t, agents, "custom-agent")["prompt"]), false)
+	if !strings.Contains(jsonString(mustAgent(t, agents, "custom-agent")["prompt"]), retiredRemoteAuthorizationSections[0]) {
+		t.Fatal("unmanaged custom agent prompt was modified")
+	}
 	for _, key := range []string{"gentle-orchestrator", "sdd-orchestrator-cheap"} {
 		if got := jsonString(mustAgent(t, agents, key)["prompt"]); got != orchestratorAfter {
 			t.Fatalf("%s prompt does not reuse the rendered upstream base prompt", key)
@@ -236,7 +241,7 @@ func TestApplyReconcilesNamedJudgmentDayActorsAndPreservesUnmanagedAgents(t *tes
 	if jsonString(namedJudge["model"]) != "profile/judge" {
 		t.Fatalf("named judge model = %q, want profile/judge", jsonString(namedJudge["model"]))
 	}
-	assertRemoteAuthorizationSection(t, jsonString(namedJudge["prompt"]), true)
+	assertRemoteAuthorizationAbsent(t, jsonString(namedJudge["prompt"]))
 	if jsonString(namedJudge["prompt"]) != jsonString(baseJudge["prompt"]) || !reflect.DeepEqual(namedJudge["tools"], baseJudge["tools"]) || namedJudge["hidden"] != true {
 		t.Fatal("named judge did not preserve upstream prompt/tools/hidden structure")
 	}
@@ -387,76 +392,59 @@ func TestPrepareRuntimePatchesRejectsMixedPatchedAndUnpatchedAnchors(t *testing.
 	}
 }
 
-func TestRemoteAuthorizationSectionReplacementIsExactAndIdempotent(t *testing.T) {
-	before := mustRemoteAuthorizationSection(t, false)
-	after := mustRemoteAuthorizationSection(t, true)
-	definition := runtimePatchSection{Before: before, After: after}
-	original := "unrelated leading bytes\n\n" + before + "\n\n## Next section\nkeep this too\n"
-	want := "unrelated leading bytes\n\n" + after + "\n\n## Next section\nkeep this too\n"
-	updated, err := replaceRemoteAuthorizationSection(original, definition)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if updated != want {
-		t.Fatalf("replacement changed unrelated content\nwant: %q\ngot:  %q", want, updated)
-	}
-	second, err := replaceRemoteAuthorizationSection(updated, definition)
-	if err != nil || second != updated {
-		t.Fatalf("revised section was not idempotent: err=%v", err)
-	}
-	markedOriginal := "unrelated prefix\r\n<!-- gentle-ai:remote-authorization -->\r\n" + before + "\r\n<!-- /gentle-ai:remote-authorization -->"
-	markedWant := "unrelated prefix\r\n<!-- gentle-ai:remote-authorization -->\r\n" + after + "\r\n<!-- /gentle-ai:remote-authorization -->"
-	markedUpdated, err := replaceRemoteAuthorizationSection(markedOriginal, definition)
-	if err != nil || markedUpdated != markedWant {
-		t.Fatalf("marked EOF section replacement changed markers or unrelated bytes: err=%v\nwant: %q\ngot:  %q", err, markedWant, markedUpdated)
-	}
-	if second, err := replaceRemoteAuthorizationSection(markedUpdated, definition); err != nil || second != markedUpdated {
-		t.Fatalf("marked section was not idempotent: err=%v", err)
-	}
-	markedBeforeHeading := "<!-- gentle-ai:remote-authorization -->\n" + before + "\n<!-- /gentle-ai:remote-authorization -->\n\n## Next section\nkeep this too\n"
-	markedAfterHeading := "<!-- gentle-ai:remote-authorization -->\n" + after + "\n<!-- /gentle-ai:remote-authorization -->\n\n## Next section\nkeep this too\n"
-	if got, err := replaceRemoteAuthorizationSection(markedBeforeHeading, definition); err != nil || got != markedAfterHeading {
-		t.Fatalf("marked section before later heading changed unrelated bytes: err=%v\nwant: %q\ngot:  %q", err, markedAfterHeading, got)
+func TestRemoteAuthorizationSectionRemovalIsExactAndIdempotent(t *testing.T) {
+	for _, section := range retiredRemoteAuthorizationSections {
+		original := "unrelated leading bytes\n\n" + section + "\n\n## Next section\nkeep this too\n"
+		want := "unrelated leading bytes\n\n\n\n## Next section\nkeep this too\n"
+		updated, err := removeRemoteAuthorizationSection(original)
+		if err != nil || updated != want {
+			t.Fatalf("unmarked removal changed unrelated bytes: err=%v\nwant: %q\ngot:  %q", err, want, updated)
+		}
+		if second, err := removeRemoteAuthorizationSection(updated); err != nil || second != updated {
+			t.Fatalf("absence was not idempotent: err=%v", err)
+		}
+		marked := "unrelated prefix\r\n<!-- gentle-ai:remote-authorization -->\r\n" + section + "\r\n<!-- /gentle-ai:remote-authorization -->\r\nnext\n"
+		got, err := removeRemoteAuthorizationSection(marked)
+		if err != nil || got != "unrelated prefix\r\n\nnext\n" {
+			t.Fatalf("marked removal did not preserve surrounding bytes: err=%v, got %q", err, got)
+		}
 	}
 	for _, invalid := range []struct {
-		name    string
-		content string
+		name string
+		text string
 	}{
-		{name: "missing", content: "no remote section"},
-		{name: "duplicate", content: before + "\n\n" + before},
-		{name: "unknown heading", content: strings.Replace(before, "## Remote operation authorization", "### Remote authorization", 1)},
-		{name: "changed body", content: strings.Replace(before, "Before remote work", "Before any remote work", 1)},
-		{name: "mixed old and new", content: after + "\n\n" + before},
-		{name: "duplicate opening marker", content: "<!-- gentle-ai:remote-authorization -->\n<!-- gentle-ai:remote-authorization -->\n" + before + "\n<!-- /gentle-ai:remote-authorization -->"},
-		{name: "missing closing marker", content: "<!-- gentle-ai:remote-authorization -->\n" + before},
-		{name: "reversed markers", content: "<!-- /gentle-ai:remote-authorization -->\n" + before + "\n<!-- gentle-ai:remote-authorization -->"},
-		{name: "unexpected text before heading", content: "<!-- gentle-ai:remote-authorization -->\nunexpected\n" + before + "\n<!-- /gentle-ai:remote-authorization -->"},
+		{"duplicate", retiredRemoteAuthorizationSections[0] + "\n\n" + retiredRemoteAuthorizationSections[0]},
+		{"unknown heading", strings.Replace(retiredRemoteAuthorizationSections[0], "## Remote operation authorization", "### Remote authorization", 1)},
+		{"modified known body", strings.Replace(retiredRemoteAuthorizationSections[0], "Before remote work", "Before any remote work", 1)},
+		{"duplicate opening marker", "<!-- gentle-ai:remote-authorization -->\n<!-- gentle-ai:remote-authorization -->\n" + retiredRemoteAuthorizationSections[0] + "\n<!-- /gentle-ai:remote-authorization -->"},
+		{"missing closing marker", "<!-- gentle-ai:remote-authorization -->\n" + retiredRemoteAuthorizationSections[0]},
+		{"reversed markers", "<!-- /gentle-ai:remote-authorization -->\n" + retiredRemoteAuthorizationSections[0] + "\n<!-- gentle-ai:remote-authorization -->"},
+		{"unexpected marker content", "<!-- gentle-ai:remote-authorization -->\nunexpected\n" + retiredRemoteAuthorizationSections[0] + "\n<!-- /gentle-ai:remote-authorization -->"},
 	} {
 		t.Run(invalid.name, func(t *testing.T) {
-			if _, err := replaceRemoteAuthorizationSection(invalid.content, definition); err == nil {
-				t.Fatal("replaceRemoteAuthorizationSection() error = nil, want fail-closed anchor rejection")
+			if _, err := removeRemoteAuthorizationSection(invalid.text); err == nil {
+				t.Fatal("removeRemoteAuthorizationSection() error = nil, want fail-closed rejection")
 			}
 		})
 	}
 }
 
 func TestRemoteAuthorizationSkipsAbsentOptionalSharedFilesButRejectsMissingReferences(t *testing.T) {
-	repoRoot := repoRootForTest(t)
 	runtimeRoot := t.TempDir()
 	state := applyPolicyState{
 		configPath: filepath.Join(runtimeRoot, "opencode.json"),
 		managedTarget: ManagedAssetsTarget{
-			RuntimePatches:     []RuntimePatchRef{{Key: remoteAuthorizationPatchKey, PatchPath: "overlay/gentle-ai/patches/opencode/remote-authorization-scope.json"}},
+			RuntimePatches:     nil,
 			OwnedOverlayAssets: []OwnedOverlayAsset{{RuntimeTargets: []string{"~/.config/opencode/prompts/sdd/optional.md"}}},
 		},
 		agents: map[string]any{},
 	}
 	state.policy.OpenCode.BaseOrchestratorKey = "base"
-	if err := state.prepareRemoteAuthorizationCustomization(repoRoot); err != nil {
+	if err := state.prepareRemoteAuthorizationRemoval(); err != nil {
 		t.Fatalf("absent optional shared prompt failed preflight: %v", err)
 	}
 	state.agents["base"] = map[string]any{"prompt": "{file:" + filepath.ToSlash(filepath.Join(runtimeRoot, "prompts", "missing.md")) + "}"}
-	if err := state.prepareRemoteAuthorizationCustomization(repoRoot); err == nil {
+	if err := state.prepareRemoteAuthorizationRemoval(); err == nil {
 		t.Fatal("missing referenced prompt passed preflight; want failure")
 	}
 }
@@ -644,7 +632,7 @@ func TestApplyPreflightFailureLeavesRuntimeUnchanged(t *testing.T) {
 				}
 				agents, _ := jsonObject(data["agent"])
 				prompt := jsonString(mustAgent(t, agents, "gentle-orchestrator")["prompt"])
-				mustAgent(t, agents, "gentle-orchestrator")["prompt"] = prompt + "\n\n" + mustRemoteAuthorizationSection(t, false)
+				mustAgent(t, agents, "gentle-orchestrator")["prompt"] = prompt + "\n\n" + retiredRemoteAuthorizationSections[0]
 				writeJSONFixture(t, configPath, data)
 			},
 		},
@@ -953,48 +941,21 @@ func snapshotTree(t *testing.T, root string) map[string]string {
 
 func remoteAuthorizationFixturePrompt(t *testing.T, prompt string) string {
 	t.Helper()
-	repoRoot := repoRootForTest(t)
-	var definition runtimePatchDefinition
-	patchPath := filepath.Join(repoRoot, "overlay", "gentle-ai", "patches", "opencode", "remote-authorization-scope.json")
-	if err := readJSONFile(patchPath, &definition); err != nil {
-		t.Fatal(err)
-	}
-	if len(definition.Sections) != 1 {
-		t.Fatalf("remote patch sections = %d, want one", len(definition.Sections))
-	}
-	return strings.TrimRight(prompt, "\n") + "\n\n<!-- gentle-ai:remote-authorization -->\n" + definition.Sections[0].Before + "\n<!-- /gentle-ai:remote-authorization -->"
+	return strings.TrimRight(prompt, "\n") + "\n\n<!-- gentle-ai:remote-authorization -->\n" + retiredRemoteAuthorizationSections[0] + "\n<!-- /gentle-ai:remote-authorization -->"
 }
 
-func assertRemoteAuthorizationSection(t *testing.T, content string, revised bool) {
+func assertRemoteAuthorizationAbsent(t *testing.T, content string) {
 	t.Helper()
-	want := mustRemoteAuthorizationSection(t, revised)
-	if !strings.Contains(content, want) || revised && strings.Contains(content, mustRemoteAuthorizationSection(t, false)) {
-		t.Fatalf("remote-authorization section does not match revised=%v; content=%q", revised, content)
+	if strings.Contains(content, "Remote operation authorization") || strings.Contains(content, "gentle-ai:remote-authorization") {
+		t.Fatalf("remote-authorization section remains; content=%q", content)
 	}
 }
 
-func assertAgentRemoteAuthorizationSection(t *testing.T, prompt string, revised bool) {
+func assertAgentRemoteAuthorizationAbsent(t *testing.T, prompt string) {
 	t.Helper()
 	if strings.HasPrefix(prompt, "{file:") && strings.HasSuffix(prompt, "}") {
 		path := strings.TrimSuffix(strings.TrimPrefix(prompt, "{file:"), "}")
 		prompt = mustReadFile(t, path)
 	}
-	assertRemoteAuthorizationSection(t, prompt, revised)
-}
-
-func mustRemoteAuthorizationSection(t *testing.T, revised bool) string {
-	t.Helper()
-	repoRoot := repoRootForTest(t)
-	var definition runtimePatchDefinition
-	patchPath := filepath.Join(repoRoot, "overlay", "gentle-ai", "patches", "opencode", "remote-authorization-scope.json")
-	if err := readJSONFile(patchPath, &definition); err != nil {
-		t.Fatal(err)
-	}
-	if len(definition.Sections) != 1 {
-		t.Fatalf("remote patch sections = %d, want one", len(definition.Sections))
-	}
-	if revised {
-		return definition.Sections[0].After
-	}
-	return definition.Sections[0].Before
+	assertRemoteAuthorizationAbsent(t, prompt)
 }

@@ -4,6 +4,18 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-10-04 | Removed remote authorization rule from maintained prompts
+
+- **Date**: `2026-10-04`
+- **Title**: Removed remote authorization rule from maintained prompts
+- **Type**: `policy-change`
+- **Upstream scope/range**: Local maintenance-contract update against the unchanged v3.7.0 snapshot; no upstream boundary or snapshot change.
+- **Decision**: Retire the local relaxation exception and remove both the recognized upstream section and the previously installed relaxed section from maintained OpenCode prompts. Keep the upstream contract and structural projection audit as audit-only inputs. Omit the rule from the repo-owned global `AGENTS.md`.
+- **Why it mattered**: The requested runtime prompt surface must not carry this rule, while upstream audit evidence, credential-file safety, unrelated permission guards, and all content outside the recognized section remain unchanged.
+- **Affected artifacts**: `internal/overlay/remote_authorization.go`; runtime preflight and tests in `internal/overlay/`; `overlay/gentle-ai/policy/managed-assets.json` and `maintenance-intent.md`; deletion of `overlay/gentle-ai/patches/opencode/remote-authorization-scope.json`; owned OpenCode `AGENTS.md`; maintainer and human documentation; and the task evidence.
+- **Verification**: Focused remote-authorization/apply tests, `go test ./internal/overlay/...`, `go test ./...`, and `git diff --check` passed. Tests cover both recognized section bodies, marked and unmarked removal, idempotence, malformed/duplicate/unknown rejection before writes, unrelated prompt and unmanaged-profile preservation, and file modes. The upstream snapshot and structural audit source were not changed. No runtime apply, sync, reinstall, upstream checkout edit, credential access, commit, push, or PR was performed.
+- **Follow-up**: A separately authorized overlay apply is required before claiming that the installed runtime no longer contains the rule.
+
 ## 2026-10-01 | Added plain-language communication policy
 
 - **Date**: `2026-10-01`

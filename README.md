@@ -115,11 +115,11 @@ La copia de v3.7.0 incorpora el contrato output-only de `sdd-research`; por eso 
 
 El repo también acepta de forma consciente que una solicitud explícita de archivo SDD pueda guardar specs aplicables aunque queden tareas sin marcar. Es una decisión local: no confirma la intención de upstream ni demuestra que la implementación esté completa. Tampoco cambia la revisión RDD escalada por separado. La guía de mantenimiento incluye qué revisar en futuras auditorías.
 
-#### Excepción local para autorización remota
+#### Retiro de la regla de autorización remota
 
-El repo mantiene sin cambios la copia upstream usada para auditoría y declara un parche local exacto para los prompts OpenCode administrados. Ante un pedido explícito de una operación remota, la herramienta puede usar su autenticación configurada normalmente para esa operación y el destino indicado o claramente implícito; no tiene que volver a preguntar solo porque sea una sesión existente. Si el destino, la operación o la cuenta no están claros, debe preguntar antes de actuar. No puede explorar, inspeccionar ni cambiar credenciales o sesiones disponibles, y las reglas nativas de `ask` siguen siendo independientes.
+El repo conserva intacta la copia upstream para auditoría, pero ya no instala esa regla en los prompts OpenCode administrados. Al ejecutar `apply`, se elimina únicamente una sección reconocida: la versión upstream o la versión local relajada que se había aplicado antes. Si encuentra una sección duplicada, incompleta o desconocida, o una ruta insegura, se detiene antes de escribir. El resto del contenido y los permisos de los archivos se conservan.
 
-El cambio solo está preparado en este repositorio. El runtime todavía necesita un `apply` ejecutado por vos; esta sesión no ejecutó `gentle-ai sync`, reinstalación ni `apply`.
+El `AGENTS.md` propio tampoco incluye esa regla. Esto no modifica la protección separada contra la lectura de archivos de credenciales ni otros permisos del runtime. El cambio afecta solo al repo: el runtime instalado requiere un `apply` autorizado por separado. Esta sesión no ejecutó `gentle-ai sync`, una reinstalación ni `apply`.
 
 #### Evidencia histórica del runtime v2.9.1 y v2.5.0
 

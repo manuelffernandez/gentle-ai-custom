@@ -1,7 +1,7 @@
 {
   "version": 1,
   "status": "active_runtime_canonical",
-  "description": "Approved upstream assets are audit/sync snapshots. Apply preserves the installed upstream runtime and writes only repo-owned assets or declared surgical patches.",
+  "description": "Approved upstream assets are audit/sync snapshots. Apply preserves the installed upstream runtime and writes only repo-owned assets, declared surgical patches, or strictly validated legacy-section removals.",
   "targets": {
     "opencode": {
       "watch_roots": [
@@ -53,8 +53,7 @@
       ],
       "runtime_patches": [
         {"key":"judgment-retrospective-handoff","patch_path":"overlay/gentle-ai/patches/opencode/judgment-retrospective.json"},
-        {"key":"work-unit-commits-authorization","patch_path":"overlay/gentle-ai/patches/opencode/work-unit-commits-authorization.json"},
-        {"key":"remote-authorization-scope","patch_path":"overlay/gentle-ai/patches/opencode/remote-authorization-scope.json"}
+        {"key":"work-unit-commits-authorization","patch_path":"overlay/gentle-ai/patches/opencode/work-unit-commits-authorization.json"}
       ],
       "retained_upstream_skills": [
         {"key":"chained-pr","upstream_path":"internal/assets/skills/chained-pr","repo_upstream_path":"overlay/gentle-ai/assets/upstream/opencode/skills/chained-pr"},

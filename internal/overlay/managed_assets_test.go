@@ -362,6 +362,15 @@ func TestOpenCodeAgentsOwnedSourceMatchesApprovedInheritedSections(t *testing.T)
 	if err := validateOwnedAgentsComposition(ownedSnapshot); err != nil {
 		t.Fatalf("owned AGENTS.md composition: %v", err)
 	}
+	for _, retired := range []string{
+		"Remote Operation Authorization",
+		"gentle-ai-custom:remote-authorization",
+		"An explicit user request to perform a remote operation authorizes",
+	} {
+		if strings.Contains(ownedSnapshot, retired) {
+			t.Errorf("owned AGENTS.md still contains retired remote-authorization content %q", retired)
+		}
+	}
 	plainLanguage := mustMarkdownBetweenUniqueMarkers(t, ownedSnapshot, "<!-- gentle-ai-custom:plain-language-communication -->", "<!-- /gentle-ai-custom:plain-language-communication -->")
 	if !strings.Contains(plainLanguage, "When responding to the user, use simple, natural language without assuming familiarity with the implementation's logic.") {
 		t.Fatal("owned AGENTS.md is missing the approved plain-language communication rule")
@@ -420,7 +429,7 @@ func TestValidateOwnedAgentsCompositionRejectsAmbiguousOrExtraBlocks(t *testing.
 		},
 		{
 			name:    "inherited blocks out of order",
-			content: renderMarkdownBlocks([]markdownBlock{blocks[3], blocks[0], blocks[1], blocks[2], blocks[4], blocks[5], blocks[6], blocks[7], blocks[8]}),
+			content: renderMarkdownBlocks([]markdownBlock{blocks[3], blocks[0], blocks[1], blocks[2], blocks[4], blocks[5], blocks[6], blocks[7]}),
 		},
 		{
 			name:    "closing marker before opening marker",
@@ -449,7 +458,6 @@ func ownedAgentsBlocks() []markdownBlock {
 		{name: "persona", opening: "<!-- gentle-ai:persona -->", closing: "<!-- /gentle-ai:persona -->"},
 		{name: "Agent-Readable Markdown Standard", opening: "<!-- gentle-ai-custom:agent-readable-markdown -->", closing: "<!-- /gentle-ai-custom:agent-readable-markdown -->", overlayH2Heading: "Agent-Readable Markdown Standard"},
 		{name: "Credential-File Safety", opening: "<!-- gentle-ai-custom:credential-file-safety -->", closing: "<!-- /gentle-ai-custom:credential-file-safety -->", overlayH2Heading: "Credential-File Safety"},
-		{name: "Remote Operation Authorization", opening: "<!-- gentle-ai-custom:remote-authorization -->", closing: "<!-- /gentle-ai-custom:remote-authorization -->", overlayH2Heading: "Remote Operation Authorization"},
 		{name: "OpenCode full Engram", opening: "<!-- gentle-ai:engram-protocol -->", closing: "<!-- /gentle-ai:engram-protocol -->"},
 		{name: "no-auto-commit", opening: "<!-- gentle-ai-custom:no-auto-commit -->", closing: "<!-- /gentle-ai-custom:no-auto-commit -->"},
 		{name: "Implementation Scope", opening: "<!-- gentle-ai-custom:implementation-scope -->", closing: "<!-- /gentle-ai-custom:implementation-scope -->", overlayH2Heading: "Implementation Scope"},
@@ -589,8 +597,8 @@ func TestUpstreamRuntimeSnapshotsAreNeverOwnedInstallSources(t *testing.T) {
 	if foundSnapshots == 0 {
 		t.Fatal("managed-assets does not declare upstream runtime snapshots")
 	}
-	if len(target.RuntimePatches) != 3 || target.RuntimePatches[0].Key != "judgment-retrospective-handoff" || target.RuntimePatches[1].Key != "work-unit-commits-authorization" || target.RuntimePatches[2].Key != "remote-authorization-scope" {
-		t.Fatalf("runtime patches = %#v, want Judgment Day, work-unit, and remote-authorization patches", target.RuntimePatches)
+	if len(target.RuntimePatches) != 2 || target.RuntimePatches[0].Key != "judgment-retrospective-handoff" || target.RuntimePatches[1].Key != "work-unit-commits-authorization" {
+		t.Fatalf("runtime patches = %#v, want only Judgment Day and work-unit patches", target.RuntimePatches)
 	}
 	ownedRoot := filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "owned", "opencode")
 	var ownedFiles []string

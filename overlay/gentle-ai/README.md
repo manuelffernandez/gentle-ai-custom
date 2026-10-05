@@ -29,9 +29,10 @@ This directory contains the operational assets for the Gentle AI overlay.
 - `last_maintained_commit` defines the audit range after release parity succeeds; it is not parity proof.
 - `sync-gentle-ai-upstream-assets` refreshes approved snapshots and the maintained boundary. It does not refresh runtime.
 - `apply-gentle-ai-custom` preserves Gentle AI-materialized SDD prompts, contracts, commands, and plugins. Snapshots under `assets/upstream/` are audit inputs, not custom install sources.
-- `assets/owned/opencode/AGENTS.md` remains a full-file repo-owned install source and the single source of truth for global agent rules. Its persona and OpenCode full Engram sections must match the approved source snapshots semantically; focused tests allow only the seven declared overlay-only sections.
+- `assets/owned/opencode/AGENTS.md` remains a full-file repo-owned install source and the single source of truth for global agent rules. Its persona and OpenCode full Engram sections must match the approved source snapshots semantically; focused tests allow only the six declared overlay-only sections.
 - Audit follows the composed OpenCode orchestrator call chain and watches the upstream remote-authorization contract plus its maintained projection paths.
-- The local remote-authorization exception is declared in `patches/opencode/remote-authorization-scope.json`. Apply preflights maintained inline agents, their referenced files, and installed shared SDD prompt files, then patches only the declared section while preserving other content and modes. The upstream audit snapshot remains unchanged.
+- Apply removes only the exact recognized upstream or previously relaxed remote-authorization section from maintained inline prompts, referenced prompt files, and installed shared SDD prompts. Malformed, duplicate, or unknown sections and unsafe paths fail before writes; unrelated content and modes are preserved. The upstream audit snapshot and structural projection audit remain unchanged.
+- The owned global `AGENTS.md` intentionally omits that section. Credential-file safety and unrelated runtime/tool permission guards are unchanged.
 - Runtime refresh, repo snapshot sync, and overlay apply are separate authorization boundaries.
 
 ## Current adoption status
@@ -44,7 +45,7 @@ This directory contains the operational assets for the Gentle AI overlay.
 - The v3.7.0 `sdd-research` skill and command provide output-only collection with orchestrator-owned persistence. Its former local precedence patch is retired; the installed v2.9.1 runtime has not been verified against this source contract.
 - The ODD commit authorization patch is prepared in the repo but is not installed in the current runtime. The current v2.9.1 `apply` is intentionally incompatible with its v3.7.0 anchor. Treat the safeguard as inactive until a separately authorized runtime refresh and apply complete and are verified; until then, commits require explicit user authorization.
 - The repo consciously accepts v3.7.0 explicit partial SDD archive as local policy, not as confirmed upstream intent or proof of implementation completion. Future-audit checks are in [`maintenance.md`](maintenance.md#partial-sdd-archive-watchpoint).
-- The remote-authorization customization is repository-only and pending a separately authorized apply by the user. This work does not establish that the installed runtime has the new behavior.
+- The remote-authorization removal is implemented in the repository only. The installed runtime remains unchanged until a separately authorized overlay apply; this work does not claim the runtime is already clear of the rule.
 
 ### Historical v2.9.1 verification
 

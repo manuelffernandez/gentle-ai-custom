@@ -32,8 +32,8 @@ Use this skill when:
 - `apply-gentle-ai-custom` installs true repo-owned assets and portable skills, renders wrappers, prunes rejected skills, applies overrides, and reconciles profiles while preserving upstream-materialized SDD/review runtime assets.
 - For OpenCode, derive external-skill denies from policy-pruned names minus repo-owned same-name skills intentionally installed by the managed target. Apply them globally and to configured agents. Always persist the canonical permission order when effective denies exist: OpenCode uses the last matching rule, and parsed JSON loses the original order needed to detect an exact deny before a matching wildcard allow.
 - Before any runtime write, apply validates only its own prerequisites: ownership boundaries, base prompts consumed by configured profiles, safe obsolete-reference migration, and compatible declared runtime-patch anchors.
-- The local remote-authorization exception is a manifest-declared exact-section patch. Apply preflights maintained inline prompts, referenced files, and installed shared SDD prompt files before the first write; it must reject missing referenced files, duplicate/mixed/unknown sections, unsafe paths, and remote-bearing unmanaged named profiles. Keep the upstream snapshot audit-only and unchanged.
-- Remote authorization is limited to the explicit requested operation, indicated or clearly implied destination, and normally configured authentication. Clarify an ambiguous destination, operation, or account before remote action; never discover, inspect, select, or switch ambient credentials or sessions. Native ask rules remain independent.
+- Apply preflights maintained inline prompts, referenced files, and installed shared SDD prompt files before the first write; it removes only the exact recognized upstream or previously relaxed remote-authorization section. Missing referenced files, duplicate/malformed/unknown sections, unsafe paths, and remote-bearing unmanaged named profiles fail closed. Keep the upstream snapshot audit-only and its structural projection audit intact.
+- The repo-owned global `AGENTS.md` intentionally omits the remote-operation authorization section. This removal does not alter credential-file safety or unrelated runtime/tool permission guards.
 - Apply must not inspect or certify upstream plugin, contract, prompt, or review semantics. Opaque or absent upstream plugins do not block unrelated custom operations.
 - Owned-state cleanup must track every custom-installed output while protecting upstream runtime targets, retained upstream skill trees, and surgical patch targets without claiming whole-file ownership.
 - Read semantic intent before making maintenance decisions.
@@ -164,22 +164,22 @@ Re-apply is mandatory after `gentle-ai sync` or reinstall because upstream rewri
 16. Recommend the runtime refresh path and print exact instructions. Run `gentle-ai sync` or a full reinstall only when the human explicitly requests that specific runtime action.
 17. Recommend overlay apply after a runtime refresh when needed. Run `bash apply-gentle-ai-custom.sh opencode` (or `all`) only with separate explicit authorization, then capture `Summary:`.
 18. Verify post-state on disk only for actions actually authorized and executed:
-    - pruned skills are absent only in the selected registered runtime targets
-    - effective external-skill denies appear after matching wildcard rules in persisted OpenCode config; repo-owned same-name replacements receive no overlay deny
-   - owned runtime targets declared in `managed-assets.json` exist on disk
-   - `agent_overrides` resolve to the configured `model` / `variant`
-   - configured global JD assignments resolve exactly; inherited review actors have neither `model` nor `variant`
-   - named profiles create only explicitly configured suffixed JD actors, delegate omitted JD slots globally, and have no suffixed review actors
-   - `agent.gentle-orchestrator.prompt` remains the upstream-owned prompt or reference
-   - each managed named profile orchestrator reuses the upstream base orchestrator prompt
-   - each of the 11 unsuffixed and managed suffixed SDD phase agents, including `sdd-research`, reuses its upstream base phase prompt/reference
-   - representative upstream-owned prompt, plugin, and contract files remain byte- and mode-unchanged by custom apply
-   - no managed agent references an obsolete `.overlay.md` prompt
+     - pruned skills are absent only in the selected registered runtime targets
+     - effective external-skill denies appear after matching wildcard rules in persisted OpenCode config; repo-owned same-name replacements receive no overlay deny
+     - owned runtime targets declared in `managed-assets.json` exist on disk
+     - `agent_overrides` resolve to the configured `model` / `variant`
+     - configured global JD assignments resolve exactly; inherited review actors have neither `model` nor `variant`
+     - named profiles create only explicitly configured suffixed JD actors, delegate omitted JD slots globally, and have no suffixed review actors
+     - `agent.gentle-orchestrator.prompt` remains the upstream-owned prompt or reference
+     - each managed named profile orchestrator reuses the upstream base orchestrator prompt
+     - each of the 11 unsuffixed and managed suffixed SDD phase agents, including `sdd-research`, reuses its upstream base phase prompt/reference
+     - representative upstream-owned prompt, plugin, and contract files remain byte- and mode-unchanged by custom apply
+     - no managed agent references an obsolete `.overlay.md` prompt
      - Judgment Day differs from its compatible installed upstream baseline only by the declared retrospective handoff
-     - maintained inline prompt values and reachable prompt files contain exactly one local remote-authorization section; file bytes outside the section and file modes are unchanged
-   - upstream `sdd-research` remains output-only and orchestrator-persisted; the retired local precedence patch is not reapplied
-   - default/named profile assignments still match the local config
-   - `overlay/gentle-ai/assets/upstream/opencode/prompts/orchestrators/gentle-orchestrator.md` and related upstream metadata remain consistent with `upstream-state.json`
+     - maintained inline prompt values and reachable prompt files contain no recognized upstream or previously relaxed remote-authorization section; unrelated bytes and file modes are preserved
+     - upstream `sdd-research` remains output-only and orchestrator-persisted; the retired local precedence patch is not reapplied
+     - default/named profile assignments still match the local config
+     - `overlay/gentle-ai/assets/upstream/opencode/prompts/orchestrators/gentle-orchestrator.md` and related upstream metadata remain consistent with `upstream-state.json`
 19. Run one fresh-context consistency pass against the changed maintainer artifacts and the final maintenance diff. Use a reviewer/subagent when delegation is authorized; otherwise perform the pass directly.
 20. Return a closing summary that states what was actually `Adquirir`, `Sanitizar`, or `Ignorar`, and why.
 21. If the work closed an eligible maintenance event, record one consolidated entry in `overlay/gentle-ai/logs/update-log.md`.

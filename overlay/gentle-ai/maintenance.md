@@ -136,7 +136,7 @@ If this diagnostic exposes a regression, record the evidence and reassess the af
 | `policy/gentle-ai-policy.json` | Runtime policy consumed by the Go CLI and wrappers |
 | `policy/managed-assets.json` | Canonical map of approved upstream assets and installable owned assets |
 | `assets/upstream/` | Approved upstream copies currently on disk for review/diff, including `persona-gentleman.md`, `engram-protocol.md` (mirrors `internal/assets/engram/protocol.md`), `background-subagents.md`, the orchestrator prompt, overlay JSONs/plugins, retained `commands/` snapshots, and selected skill snapshots. The current boundary is v3.7.0 at `6dee8f833aec9e46015759c5065a9035795d9af1`; the authorized sync changed 36 managed files (5 new, 31 changed, 43 unchanged, 0 deleted) across 19 directories. The canonical post-sync audit passed with no managed or watched-unmanaged drift and all structural checks `ok`. This repository sync did not refresh or verify the installed runtime, which remains v2.9.1. |
-| `assets/owned/` | True repo-owned runtime assets installed by `apply`, currently the full-file local OpenCode `AGENTS.md` surface. Its inherited persona and OpenCode full Engram sections track the approved snapshots, with seven explicit overlay-only additions. |
+| `assets/owned/` | True repo-owned runtime assets installed by `apply`, currently the full-file local OpenCode `AGENTS.md` surface. Its inherited persona and OpenCode full Engram sections track the approved snapshots, with six explicit overlay-only additions. |
 | `patches/` | Exact-anchor local deltas applied only to compatible upstream runtime files |
 | `shared/skills/` | Portable repo-owned skills installed globally by `apply`, including the sanitized `branch-pr` and `chained-pr`, the temporary `pr-finalizer` compatibility skill, and the Judgment Day retrospective companion skill that is activated by the `judgment-day` terminal hook |
 | `shared/commands/` | Source bodies for custom wrappers rendered by `apply` |
@@ -158,8 +158,8 @@ Package-install guidance lives in the canonical `shared/skills/package-security/
 - filters that drift through `policy/managed-assets.json`
 - keeps verifying upstream structural invariants (`profiles.go`, `inject.go`, etc.)
 - follows the bound v2.9 OpenCode composition chain from `composeOpenCodeOrchestratorPrompt` through `composeOrchestratorPrompt`, `sddOrchestratorAsset`, and `assets.MustRead`; unbound or decoy calls fail
-- watches the canonical remote-authorization contract and verifies its helper plus maintained OpenCode primary, shared-file, inline, installed-executor, and named-profile projections
-- keeps the upstream remote-authorization snapshot audit-only while `remote-authorization-scope.json` declares the exact local replacement section
+- watches the canonical remote-authorization contract and verifies its helper plus maintained OpenCode primary, shared-file, inline, installed-executor, and named-profile projections; this remains an upstream structural audit, not a rule to retain in installed prompts
+- keeps the upstream remote-authorization snapshot audit-only and independently verifies that the upstream source still projects to its maintained prompt carriers
 - validates the ordered 11-phase profile topology, including `sdd-research` after `sdd-explore`
 - validates semantic managed-profile detection rather than a removed local prefix constant
 - validates deny-by-default `permission.task` scoping and does not require deprecated agent-local `tools.task`
@@ -226,9 +226,9 @@ Runtime refresh, repo snapshot sync, and overlay apply are separate actions. App
 ### `apply-gentle-ai-custom`
 
 - keeps its existing installed-binary versus maintained-overlay-baseline preflight and does not require an upstream clone
-- validates only custom-operation prerequisites before any write: ownership boundaries, profile source prompts, safe obsolete-reference migration, and declared runtime-patch anchors
-- preflights every reachable maintained inline prompt and `{file:...}` reference plus installed shared SDD prompt files for the declared remote-authorization section before the first write. Missing referenced files, duplicate or unknown anchors, out-of-root paths, symlink paths, and remote-bearing unmanaged named profiles fail closed; absent optional shared prompt files are skipped.
-- patches only the complete declared remote-authorization section. It accepts exactly one original or already-revised section, preserves unrelated content and permissions, updates inline agent prompts before profile cloning, and verifies resulting file bytes/modes plus persisted prompt values. A later OpenCode JSON remarshal may change formatting; prompt contents and unrelated parsed JSON values remain protected.
+- validates only custom-operation prerequisites before any write: ownership boundaries, profile source prompts, safe obsolete-reference migration, declared runtime-patch anchors, and exact recognized forms of the legacy prompt section being removed
+- preflights reachable maintained inline prompts and `{file:...}` references plus installed shared SDD prompt files for recognized upstream or previously relaxed remote-authorization sections before the first write. Missing references, duplicate, malformed, or unknown sections, out-of-root/symlink paths, and remote-bearing unmanaged named profiles fail closed; absent optional shared prompt files are skipped.
+- removes only the complete known section. Absence is valid and idempotent. Unrelated content and file modes are preserved, inline agent prompts are updated before profile cloning, and resulting file bytes/modes plus persisted prompt values are verified. A later OpenCode JSON remarshal may change formatting; prompt contents and unrelated parsed JSON values remain protected.
 - does not inspect or certify upstream prompt, contract, plugin, or review semantics; a missing or opaque plugin does not block unrelated custom operations
 - preserves upstream-owned prompt, contract, and plugin bytes and file modes
 - migrates managed obsolete `.overlay.md` references only when an upstream base prompt is available
@@ -242,7 +242,7 @@ Runtime refresh, repo snapshot sync, and overlay apply are separate actions. App
 - keeps all six review actors global, including `review-validator`; named profiles never create suffixed review actors
 - treats omission as preserve/delegate and `{"inherit": true}` as an explicit request to remove both `model` and `variant`
 - starts from the upstream standalone Judgment Day protocol, patches only the declared retrospective handoff, and rejects incompatible anchors
-- patches the declared remote-authorization section across maintained inline agents, referenced prompt files, and installed shared SDD prompt files; unmanaged named profiles with the old section block apply
+- removes the known upstream or previously relaxed remote-authorization section across maintained inline agents, referenced prompt files, and installed shared SDD prompt files; unmanaged named profiles containing it block apply
 - preserves the upstream `sdd-research` output-only source contract without a local precedence patch
 - records every custom-installed runtime output, including single-file assets without a sync mode
 - preserves stale-state paths returned to upstream, retained upstream skill trees, and surgical patch targets without recording those files as wholly custom-owned
@@ -303,8 +303,9 @@ After `apply`, confirm this:
 - `agent.gentle-orchestrator.prompt` remains the upstream-owned prompt or reference
 - `~/.config/opencode/AGENTS.md` matches the repo-owned asset from `assets/owned/opencode/AGENTS.md`
 - the installed `AGENTS.md` contains the repo-owned credential-file safety section without replacing it with filename-only rules or technical permission claims
-- the installed `AGENTS.md` contains the local remote-operation authorization rule from the full-file repo-owned source
-- every maintained inline prompt and reachable prompt file contains exactly one revised remote-authorization section; file bytes outside that declared section and file modes are preserved
+- the repo-owned and installed `AGENTS.md` omit the remote-operation authorization rule
+- maintained inline prompts and reachable prompt files contain no recognized upstream or previously relaxed remote-authorization section; unrelated bytes and file modes are preserved
+- the upstream remote-authorization snapshot and structural projection audit remain unchanged
 - the upstream OpenCode snapshot inputs under `assets/upstream/opencode/`, including `background-subagents.md`, match the maintained boundary recorded in `state/upstream-state.json`
 - each managed `sdd-orchestrator-<name>` reuses the upstream base orchestrator prompt
 - each of the 11 managed `sdd-<phase>-<name>` agents, including `sdd-research-<name>`, reuses the corresponding upstream base phase prompt/reference
@@ -338,7 +339,7 @@ Operational rules:
 
 - [ ] `maintenance-intent.md` still reflects what to keep and depure
 - [ ] `managed-assets.json` still aligns with `assets/upstream/` and `assets/owned/`
-- [ ] the owned OpenCode `AGENTS.md` inherited persona and full Engram sections pass semantic parity against the approved snapshots, while the seven overlay-only sections remain present
+- [ ] the owned OpenCode `AGENTS.md` inherited persona and full Engram sections pass semantic parity against the approved snapshots, while the six overlay-only sections remain present
 - [ ] `upstream-state.json` still points to the last upstream boundary that was actually maintained
 - [ ] future upstream audits compare partial-archive task gating, spec promotion, unfinished-work reporting, and native composer safeguards against the accepted v3.7.0 behavior
 - [ ] `apply-gentle-ai-custom` still preserves upstream prompt refs and fails closed when a requested custom operation lacks its prerequisite

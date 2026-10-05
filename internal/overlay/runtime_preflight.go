@@ -60,7 +60,7 @@ func (s *applyPolicyState) preflightCustomRuntimePrerequisites(repoRoot string) 
 	if err := s.requireConfiguredActorBases(); err != nil {
 		return err
 	}
-	if err := s.prepareRemoteAuthorizationCustomization(repoRoot); err != nil {
+	if err := s.prepareRemoteAuthorizationRemoval(); err != nil {
 		return err
 	}
 	if err := s.prepareRuntimePatches(repoRoot); err != nil {
@@ -228,10 +228,7 @@ func (s *applyPolicyState) prepareRuntimePatches(repoRoot string) error {
 			return fmt.Errorf("runtime patch %q at %s has unsupported version %d", ref.Key, definitionPath, definition.Version)
 		}
 		if len(definition.Sections) != 0 {
-			if ref.Key != remoteAuthorizationPatchKey || len(definition.Targets) != 0 {
-				return fmt.Errorf("runtime patch %q cannot combine section and fixed-file targets", ref.Key)
-			}
-			continue
+			return fmt.Errorf("runtime patch %q uses unsupported section replacement data", ref.Key)
 		}
 		for _, target := range definition.Targets {
 			path := filepath.Join(filepath.Dir(s.configPath), filepath.FromSlash(target.Path))
