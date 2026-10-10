@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "gentle-ai-overlay-baseline",
-  "description": "Runtime policy only: keep/prune baseline, built-in overrides, and SDD profile reconciliation against a local config.",
+  "description": "Runtime policy: OpenCode keep/prune baseline and SDD profile reconciliation, plus Codex preservation and command-surface constraints.",
   "maintenance": {
     "intent_file": "overlay/gentle-ai/policy/maintenance-intent.md",
     "state_file": "overlay/gentle-ai/state/upstream-state.json",
@@ -65,5 +65,9 @@
       "sdd-archive",
       "sdd-onboard"
     ]
+  },
+  "codex": {
+    "preserve_unselected_skills": true,
+    "render_commands": false
   }
 }

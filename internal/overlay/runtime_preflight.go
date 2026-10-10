@@ -231,7 +231,11 @@ func (s *applyPolicyState) prepareRuntimePatches(repoRoot string) error {
 			return fmt.Errorf("runtime patch %q uses unsupported section replacement data", ref.Key)
 		}
 		for _, target := range definition.Targets {
-			path := filepath.Join(filepath.Dir(s.configPath), filepath.FromSlash(target.Path))
+			runtimeRoot := filepath.Dir(s.configPath)
+			path, err := resolveRuntimePatchTarget(runtimeRoot, target.Path)
+			if err != nil {
+				return upstreamRuntimeError("runtime patch %q target %q is outside the selected runtime root: %v", ref.Key, target.Path, err)
+			}
 			raw, err := os.ReadFile(path)
 			if err != nil {
 				return upstreamRuntimeError("runtime patch %q requires installed upstream file %s: %v", ref.Key, path, err)
@@ -258,6 +262,46 @@ func (s *applyPolicyState) prepareRuntimePatches(repoRoot string) error {
 			}
 			s.runtimePatches = append(s.runtimePatches, preparedRuntimePatch{path: path, content: content, mode: info.Mode()})
 		}
+	}
+	return nil
+}
+
+func resolveRuntimePatchTarget(runtimeRoot, target string) (string, error) {
+	targetPath := filepath.FromSlash(target)
+	if target == "" || filepath.IsAbs(targetPath) {
+		return "", fmt.Errorf("target path must be relative")
+	}
+
+	root, err := filepath.Abs(runtimeRoot)
+	if err != nil {
+		return "", err
+	}
+	path := filepath.Clean(filepath.Join(root, targetPath))
+	if err := ensurePathWithinRoot(root, path); err != nil {
+		return "", err
+	}
+
+	resolvedRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", fmt.Errorf("cannot resolve runtime root: %w", err)
+	}
+	resolvedPath, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", fmt.Errorf("cannot resolve target path: %w", err)
+	}
+	if err := ensurePathWithinRoot(resolvedRoot, resolvedPath); err != nil {
+		return "", fmt.Errorf("target resolves outside runtime root: %w", err)
+	}
+	return resolvedPath, nil
+}
+
+func ensurePathWithinRoot(root, path string) error {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return err
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return fmt.Errorf("path %s escapes %s", path, root)
 	}
 	return nil
 }

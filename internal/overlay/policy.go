@@ -33,6 +33,10 @@ type Policy struct {
 		ProfileOrchestratorPrefix string   `json:"profile_orchestrator_prefix"`
 		SDDPhases                 []string `json:"sdd_phases"`
 	} `json:"opencode"`
+	Codex struct {
+		PreserveUnselectedSkills bool `json:"preserve_unselected_skills"`
+		RenderCommands           bool `json:"render_commands"`
+	} `json:"codex"`
 }
 
 type AgentOverride struct {

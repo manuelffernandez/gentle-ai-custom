@@ -92,6 +92,31 @@
           {"key":"pr-regenerate","body_path":"shared/commands/pr-regenerate-body.md","owner_skill":"branch-pr","mode":"regenerate","command_type":"state-changing","description":"Regenerate an existing PR from the committed diff after evidence gathering and required metadata resolution; title/body are audit-visible, not an approval gate"}
         ]
       }
+    },
+    "codex": {
+      "watch_roots": [],
+      "upstream_path_interpretation": "Codex AGENTS.md, skills, Engram files, config.toml, and model profiles are materialized and owned by Gentle AI. Apply copies repo-owned portable skills and applies only exact declared local patches; it does not install upstream snapshots or alter Codex configuration.",
+      "structural_invariant_sources": [],
+      "owned_overlay_assets": [],
+      "runtime_patches": [
+        {"key":"codex-local-instructions","patch_path":"overlay/gentle-ai/patches/codex/local-instructions.json"},
+        {"key":"judgment-retrospective-handoff","patch_path":"overlay/gentle-ai/patches/codex/judgment-retrospective.json"},
+        {"key":"work-unit-commits-authorization","patch_path":"overlay/gentle-ai/patches/codex/work-unit-commits-authorization.json"}
+      ],
+      "retained_upstream_skills": [],
+      "pruned_upstream_skills": [],
+      "repo_owned_shared_skills": {
+        "root": "shared/skills",
+        "runtime_root": "~/.codex/skills",
+        "install_mode": "copy_skill_directory",
+        "allowlist": ["branch-pr","chained-pr","code-design","commit-planner","judgment-retrospective","package-security","pr-finalizer"]
+      },
+      "repo_owned_command_bodies": {
+        "root": "shared/commands",
+        "runtime_root": "~/.codex/prompts",
+        "render_mode": "none",
+        "entries": []
+      }
     }
   }
 }

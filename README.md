@@ -40,17 +40,18 @@ Además, Go ya forma parte natural del stack porque es una dependencia directa d
 ## Agentes soportados
 
 - `opencode` → `~/.config/opencode`
+- `codex` → `~/.codex`
 
 ## Uso
 
-Para el uso normal, pensalo así: **hay un solo comando importante** y sirve para reaplicar esta capa sobre OpenCode.
+Para el uso normal, usá el entrypoint de apply y elegí el target que querés actualizar.
 
 Los entrypoints públicos son estos:
 
 - `apply-gentle-ai-custom.sh`
 - `apply-gentle-ai-custom.ps1`
 
-Ese es el comando que vas a usar normalmente. El target recomendado es `opencode`. `all` hoy es equivalente porque `opencode` es el único agente soportado.
+Los targets disponibles son `opencode`, `codex` y `all`. `all` aplica ambos targets. Elegí un solo target si querés mantener el efecto acotado.
 
 Los scripts `audit-gentle-ai-upstream.*` y `sync-gentle-ai-upstream-assets.*` existen, pero no están pensados como punto de entrada normal para una persona. Su uso recomendado es a través del agente en modo mantenimiento; salvo debugging puntual o un caso excepcional, no hace falta correrlos manualmente.
 
@@ -62,6 +63,10 @@ Todos estos wrappers delegan en la CLI Go compartida (`go run ./cmd/gentle-ai-ov
 
 ```bash
 bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh opencode
+# o solo para Codex:
+bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh codex
+# ambos targets:
+bash ~/Documentos/gentle-ai-custom/apply-gentle-ai-custom.sh all
 ```
 
 Opcional: agregá `--verbose` si querés ver el detalle de archivos tocados.
@@ -79,6 +84,8 @@ Opcional: agregá `--verbose` si querés ver el detalle de archivos tocados.
 ```
 
 Opcional: agregá `--verbose` si querés ver el detalle de archivos tocados.
+
+El target `opencode` modifica solo OpenCode; `codex` modifica solo Codex. `all` selecciona ambos y requiere autorización para el apply de los dos.
 
 ## Mantenimiento del overlay
 
@@ -99,19 +106,25 @@ El mantenimiento en este repositorio sigue siempre los mismos pasos. Lo único q
 
 Es normal no haber ejecutado todavía `gentle-ai sync` ni una reinstalación: esos pasos vienen después de la auditoría y de tu aprobación. La opción `--release v<V>` no actualiza el ejecutable ni el runtime; solo elige qué tag exacto se revisa. El tag debe existir, estar limpio y coincidir con `HEAD`. El modo habitual sin esa opción sigue exigiendo que coincida con la versión instalada.
 
-### Estado actual: snapshots del repo v3.7.0; runtime v2.9.1
+### Estado actual: snapshots del repo v3.7.0; runtime sin verificar
 
 El repo ya adoptó Gentle AI v3.7.0 para sus snapshots y su frontera mantenida: `6dee8f833aec9e46015759c5065a9035795d9af1`. La sincronización autorizada informó 36 cambios administrados: 5 archivos nuevos, 31 actualizados, 43 sin cambios, ninguno eliminado y 19 carpetas sincronizadas. También actualizó `upstream-state.json`.
 
-La auditoría posterior pasó para ese mismo commit, sin diferencias administradas ni cambios no administrados vigilados; todos los controles estructurales informaron `ok`. Esto verifica la adopción del repo, no el runtime instalado.
+La auditoría posterior pasó para ese mismo commit, sin diferencias administradas ni cambios no administrados vigilados; todos los controles estructurales informaron `ok`. La auditoría verificó que el binario instalado es v3.7.0 para la base administrada por OpenCode. No verificó el runtime materializado ni el runtime de Codex.
 
-El binario y el runtime siguen en Gentle AI 2.9.1; OpenCode instalado es 1.18.32. No se autorizó ni ejecutó `gentle-ai sync`, una reinstalación ni `apply` para esta adopción. Los cinco plugins V2 son solo snapshots para auditoría y sincronización; OpenCode 1.18.32 usa el camino V1 y este repo no declara soporte para instalar plugins V2.
+No se verificó la versión del runtime materializado ni la de Codex. La versión 2.9.1 corresponde a evidencia histórica, no a un estado actual confirmado. OpenCode 1.18.32 fue la versión en una verificación anterior; los cinco plugins V2 siguen siendo solo snapshots de auditoría y sincronización, y este repo no declara soporte para instalarlos. No se autorizó ni ejecutó `gentle-ai sync`, reinstalación ni `apply` como parte de la adopción.
 
 #### Seguridad de commits ODD pendiente en runtime
 
-El snapshot v3.7.0 de `work-unit-commits` exige cerrar cada tarea ODD con un commit. El parche local que convierte esa instrucción en optativa ya está preparado en el repo, pero todavía no está instalado en el runtime. No des por protegida una sesión que use ese skill hasta que una actualización y un `apply` autorizados por separado terminen y se verifique el resultado. El `apply` actual, con binario 2.9.1, es intencionalmente incompatible con el anchor v3.7.0 y debe detenerse antes de escribir. Mientras tanto, no hagas commits sin autorización explícita.
+El snapshot v3.7.0 de `work-unit-commits` exige cerrar cada tarea ODD con un commit. Los parches locales para OpenCode y Codex ya están preparados en el repo, pero su aplicación en el runtime no está verificada. No des por protegida una sesión que use ese skill hasta que autorices el `apply` del target correspondiente y revises el resultado. La evidencia histórica indica que el `apply` de OpenCode con binario 2.9.1 no acepta el anchor v3.7.0; no infieras cuál es el runtime actual. Mientras tanto, no hagas commits sin autorización explícita.
 
 La copia de v3.7.0 incorpora el contrato output-only de `sdd-research`; por eso se retiró su parche local redundante. El handoff local de Judgment Day se mantiene.
+
+#### Target Codex
+
+`apply-gentle-ai-custom.sh codex` instala las siete skills propias reutilizando sus fuentes en `shared/skills/`; reemplaza solo las skills con el mismo nombre que estén en esa lista y no poda otras skills upstream. También agrega reglas locales puntuales después de la sección SDD upstream en `~/.codex/AGENTS.md` y aplica parches exactos a Judgment Day y `work-unit-commits` cuando los anchors coinciden.
+
+La capa no reemplaza el archivo completo `AGENTS.md`, no poda skills upstream ajenas a la lista local, no genera comandos y no cambia `config.toml`, Engram, prompts SDD ni perfiles/modelos. Si falta o cambió un anchor, se detiene antes de escribir. La auditoría actual no verifica el runtime de Codex; su comportamiento queda sin confirmar hasta que se autorice y revise un apply de Codex.
 
 El repo también acepta de forma consciente que una solicitud explícita de archivo SDD pueda guardar specs aplicables aunque queden tareas sin marcar. Es una decisión local: no confirma la intención de upstream ni demuestra que la implementación esté completa. Tampoco cambia la revisión RDD escalada por separado. La guía de mantenimiento incluye qué revisar en futuras auditorías.
 
@@ -207,30 +220,30 @@ La actualización del runtime sigue siendo tuya por defecto. Aprobar la auditor�
 
 El comando `apply-gentle-ai-custom` sigue siendo independiente de la carpeta original: compara la versión instalada con la versión mantenida por este overlay y no necesita encontrar el clon de upstream.
 
-El `AGENTS.md` propio sigue siendo un archivo completo que instala este repo. Su persona y el protocolo completo de Engram para OpenCode deben coincidir con los snapshots aprobados. Los tests permiten siete secciones propias: alcance de implementación, comunicación en lenguaje simple, estándar de Markdown para agentes, seguridad de archivos de credenciales, autorización para operaciones remotas, regla de no hacer commits automáticamente y ajuste para Gemini. El archivo propio es la única fuente de estas reglas globales.
+El `AGENTS.md` propio de OpenCode sigue siendo un archivo completo que instala este repo. Su persona y el protocolo completo de Engram para OpenCode deben coincidir con los snapshots aprobados. Codex mantiene su archivo completo bajo control de upstream y recibe solo un bloque local delimitado; ese bloque incluye alcance de implementación, comunicación clara, estándar de Markdown para agentes, seguridad de credenciales, regla de no hacer commits automáticamente y el ajuste condicional para Gemini. Ninguno de los dos archivos propios incorpora la regla upstream de autorización remota.
 
 ### Cuándo usar `gentle-ai sync` y cuándo reinstalar
 
 - Es preferible usar `gentle-ai sync` si los cambios que adoptamos sirven, pero no rompen de forma profunda cómo están configurados los agentes y perfiles.
 - Conviene hacer una reinstalación completa cuando los cambios del proyecto original afectan la estructura básica de los perfiles que usamos, o cuando un simple `gentle-ai sync` ya no alcanza para armar bien la configuración.
 - Si el proyecto original agrega soporte para un nuevo agente o plataforma que no usamos, no hace falta reinstalar.
-- Las reglas del proyecto original sobre estrategia de PR, PRs encadenadas y presupuesto de revisión se adoptan por defecto. Solo se sanitizan si chocan con una personalización local explícita. En v3.7.0, ODD pide cerrar cada tarea con un commit. El snapshot y el parche exacto que lo vuelve optativo ya están en el repo, pero aún no en el runtime. El runtime sigue en 2.9.1; su `apply` es intencionalmente incompatible con el anchor v3.7.0. No se debe afirmar que esa protección está activa hasta una actualización y un `apply` autorizados por separado, seguidos de verificación. Hasta entonces, no hagas commits sin autorización explícita.
+- Las reglas del proyecto original sobre estrategia de PR, PRs encadenadas y presupuesto de revisión se adoptan por defecto. Solo se sanitizan si chocan con una personalización local explícita. En v3.7.0, ODD pide cerrar cada tarea con un commit. Los parches exactos de OpenCode y Codex ya están en el repo, pero no se afirma que estén instalados. No se debe afirmar que esa protección está activa hasta un `apply` autorizado para el target y una verificación posterior. Hasta entonces, no hagas commits sin autorización explícita.
 
 ### Qué hace el comando `apply-gentle-ai-custom`
 
-- vuelve a instalar nuestras skills y comandos personalizados.
-- borra las skills que no queremos usar, pero solo para los agentes donde estamos trabajando.
+- instala nuestras skills propias para el target elegido; los comandos personalizados solo se generan para OpenCode.
+- borra las skills que no queremos usar solo en OpenCode y únicamente para los targets seleccionados; Codex conserva sus skills upstream.
 - bloquea en OpenCode cada skill podada que no tenga un reemplazo propio con el mismo nombre mediante `permission.skill`, incluso si OpenCode encuentra una copia en `~/.agents/skills` o `~/.claude/skills`. No borra ni modifica esas copias externas, y conserva los permisos de skills no podadas ni de reemplazos propios como `branch-pr`.
 - aplica nuestras preferencias de modelos de IA si las configuramos.
 - comprueba solo los archivos, referencias y anchors que necesita para aplicar perfiles o los parches locales declarados.
 - aplica el parche puntual de Judgment Day y, cuando el runtime contenga el anchor v3.7.0 compatible, el parche ODD que deja el commit optativo. Si el anchor no coincide, `apply` se detiene antes de escribir. El parche de `sdd-research` se retiró de los snapshots adoptados por estar cubierto por el contrato upstream v3.7.0.
-- conserva los prompts y plugins preparados por Gentle AI; no los reemplaza con plantillas fuente. La frontera de snapshots está en v3.7.0, pero el runtime y el binario siguen en 2.9.1; no se autorizó su actualización ni el `apply`. La política acepta RDD como activo y funcional, pero su estado efectivo se consulta por máquina o clon.
+- conserva los prompts y plugins preparados por Gentle AI; no los reemplaza con plantillas fuente. El binario v3.7.0 está verificado, pero la auditoría no confirma el runtime materializado. La política acepta RDD como activo y funcional, pero su estado efectivo se consulta por máquina o clon.
 - ajusta modelos y perfiles reutilizando los prompts base ya instalados.
 - agrega de forma puntual el handoff de `judgment-retrospective` al skill `judgment-day` compatible.
 - conserva el contrato upstream output-only de `sdd-research`; no instala un parche local redundante.
 - registra todos los archivos que instala como propios. Al limpiar registros viejos, conserva los archivos devueltos a Gentle AI y los targets de parches puntuales sin declararlos como propios.
 
-Ejecutarlo apuntando a `opencode` reinstala todo para OpenCode. Si usás `all` hace lo mismo, porque hoy es el único entorno soportado.
+`opencode` y `codex` limitan el apply a un target. `all` selecciona los dos. Codex no altera permisos, configuración, pruning ni comandos de OpenCode.
 
 La configuración para elegir qué modelos de IA vas a usar o dónde está clonado el proyecto original se guarda en un archivo solo tuyo en tu computadora: `~/.config/gentle-ai-custom/opencode-local-config.json`. Más abajo se explica cómo armarlo.
 

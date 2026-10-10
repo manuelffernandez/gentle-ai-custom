@@ -392,6 +392,102 @@ func TestPrepareRuntimePatchesRejectsMixedPatchedAndUnpatchedAnchors(t *testing.
 	}
 }
 
+func TestPrepareRuntimePatchesRejectsTargetsOutsideRuntimeRoot(t *testing.T) {
+	runtimeRoot := t.TempDir()
+	outsideRoot := t.TempDir()
+	outsidePath := filepath.Join(outsideRoot, "outside.md")
+	mustWriteFile(t, outsidePath, []byte("anchor\n"))
+
+	tests := []struct {
+		name       string
+		targetPath string
+		prepare    func(t *testing.T) string
+	}{
+		{
+			name:       "parent traversal",
+			targetPath: filepath.ToSlash(filepath.Join("..", filepath.Base(outsideRoot), "outside.md")),
+		},
+		{
+			name: "absolute path",
+			prepare: func(t *testing.T) string {
+				t.Helper()
+				return outsidePath
+			},
+		},
+		{
+			name:       "symlink escape",
+			targetPath: "linked/outside.md",
+			prepare: func(t *testing.T) string {
+				t.Helper()
+				link := filepath.Join(runtimeRoot, "linked")
+				if err := os.Symlink(outsideRoot, link); err != nil {
+					t.Skipf("cannot create symlink fixture: %v", err)
+				}
+				return "linked/outside.md"
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			targetPath := tt.targetPath
+			if tt.prepare != nil {
+				targetPath = tt.prepare(t)
+			}
+			repoRoot := t.TempDir()
+			writeRuntimePatchFixture(t, repoRoot, targetPath)
+			state := applyPolicyState{
+				configPath: filepath.Join(runtimeRoot, "config.toml"),
+				managedTarget: ManagedAssetsTarget{RuntimePatches: []RuntimePatchRef{
+					{Key: "test-patch", PatchPath: "patch.json"},
+				}},
+			}
+			if err := state.prepareRuntimePatches(repoRoot); err == nil || !strings.Contains(err.Error(), "outside the selected runtime root") {
+				t.Fatalf("prepareRuntimePatches() error = %v, want runtime-root rejection", err)
+			}
+			if len(state.runtimePatches) != 0 {
+				t.Fatalf("prepared runtime patches = %d, want none", len(state.runtimePatches))
+			}
+			if got := mustReadFile(t, outsidePath); got != "anchor\n" {
+				t.Fatalf("outside target changed during rejected preflight: %q", got)
+			}
+		})
+	}
+}
+
+func TestPrepareRuntimePatchesAllowsRelativeTargetInsideRuntimeRoot(t *testing.T) {
+	runtimeRoot := t.TempDir()
+	targetPath := filepath.Join(runtimeRoot, "skills", "example.md")
+	mustWriteFile(t, targetPath, []byte("anchor\n"))
+	repoRoot := t.TempDir()
+	writeRuntimePatchFixture(t, repoRoot, "skills/example.md")
+	state := applyPolicyState{
+		configPath: filepath.Join(runtimeRoot, "config.toml"),
+		managedTarget: ManagedAssetsTarget{RuntimePatches: []RuntimePatchRef{
+			{Key: "test-patch", PatchPath: "patch.json"},
+		}},
+	}
+	if err := state.prepareRuntimePatches(repoRoot); err != nil {
+		t.Fatalf("prepareRuntimePatches() rejected a valid relative target: %v", err)
+	}
+	if len(state.runtimePatches) != 1 || state.runtimePatches[0].path != targetPath || state.runtimePatches[0].content != "patched\n" {
+		t.Fatalf("prepared runtime patches = %#v, want target %s with patched content", state.runtimePatches, targetPath)
+	}
+}
+
+func writeRuntimePatchFixture(t *testing.T, repoRoot, targetPath string) {
+	t.Helper()
+	writeJSONFixture(t, filepath.Join(repoRoot, "patch.json"), map[string]any{
+		"version": 1,
+		"targets": []any{map[string]any{
+			"path": targetPath,
+			"replacements": []any{map[string]any{
+				"before": "anchor",
+				"after":  "patched",
+			}},
+		}},
+	})
+}
+
 func TestRemoteAuthorizationSectionRemovalIsExactAndIdempotent(t *testing.T) {
 	for _, section := range retiredRemoteAuthorizationSections {
 		original := "unrelated leading bytes\n\n" + section + "\n\n## Next section\nkeep this too\n"

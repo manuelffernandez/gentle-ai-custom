@@ -28,6 +28,17 @@ func TestParseGlobalArgsRejectsUnknownFlag(t *testing.T) {
 	}
 }
 
+func TestMainHelpListsCodexApplyTarget(t *testing.T) {
+	output := captureStdout(t, func() {
+		if exit := run([]string{"--help"}); exit != 0 {
+			t.Fatalf("run help exit = %d, want 0", exit)
+		}
+	})
+	if !strings.Contains(output, "apply-custom [--verbose] all | codex | opencode") {
+		t.Fatalf("main help output %q does not list the Codex apply target", output)
+	}
+}
+
 func captureStdout(t *testing.T, run func()) string {
 	t.Helper()
 	reader, writer, err := os.Pipe()

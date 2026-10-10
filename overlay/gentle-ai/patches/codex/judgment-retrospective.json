@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "targets": [
+    {
+      "path": "skills/judgment-day/SKILL.md",
+      "replacements": [
+        {
+          "before": "- The only terminal verdicts are `APPROVED | ESCALATED`; never reset or extend an exhausted round budget.\n",
+          "after": "- The only terminal verdicts are `APPROVED | ESCALATED`; never reset or extend an exhausted round budget.\n- At terminal completion, invoke the repo-owned `judgment-retrospective` skill before the closing response and persist only its compact semantic output.\n"
+        },
+        {
+          "before": "6. Repeat once at most, then run independent final verification and return the terminal verdict.\n",
+          "after": "6. Repeat once at most, then run independent final verification and return the terminal verdict.\n7. Invoke `judgment-retrospective` with the compact terminal package before the closing response.\n"
+        },
+        {
+          "before": "artifact references, skill resolution, and exactly one final",
+          "after": "artifact references, skill resolution, retrospective status, and exactly one final"
+        }
+      ]
+    },
+    {
+      "path": "skills/judgment-day/references/prompts-and-formats.md",
+      "replacements": [
+        {
+          "before": "Warnings and suggestions are informational. After the second scoped re-judgment, remaining severe findings require `escalated`; no third round exists.\n",
+          "after": "Warnings and suggestions are informational. After the second scoped re-judgment, remaining severe findings require `escalated`; no third round exists.\n\n## Terminal Retrospective Handoff\n\nBefore the closing response for `approved` or `escalated`, invoke the repo-owned `judgment-retrospective` skill. Pass only target, terminal state, round, aggregated counts, fixes and re-judgment result, intervention history, recurrence signal, and skill resolution. Append its compact status, summary, pattern updates, intervention history updates, recurrence/effectiveness note, and persisted observation IDs or topic keys after the primary verdict.\n"
+        }
+      ]
+    }
+  ]
+}

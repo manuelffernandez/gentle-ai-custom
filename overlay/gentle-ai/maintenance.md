@@ -135,16 +135,16 @@ If this diagnostic exposes a regression, record the evidence and reassess the af
 | `policy/maintenance-intent.md` | Human intent: upstream-first baseline plus the small local layer to keep |
 | `policy/gentle-ai-policy.json` | Runtime policy consumed by the Go CLI and wrappers |
 | `policy/managed-assets.json` | Canonical map of approved upstream assets and installable owned assets |
-| `assets/upstream/` | Approved upstream copies currently on disk for review/diff, including `persona-gentleman.md`, `engram-protocol.md` (mirrors `internal/assets/engram/protocol.md`), `background-subagents.md`, the orchestrator prompt, overlay JSONs/plugins, retained `commands/` snapshots, and selected skill snapshots. The current boundary is v3.7.0 at `6dee8f833aec9e46015759c5065a9035795d9af1`; the authorized sync changed 36 managed files (5 new, 31 changed, 43 unchanged, 0 deleted) across 19 directories. The canonical post-sync audit passed with no managed or watched-unmanaged drift and all structural checks `ok`. This repository sync did not refresh or verify the installed runtime, which remains v2.9.1. |
+| `assets/upstream/` | Approved upstream copies currently on disk for review/diff, including `persona-gentleman.md`, `engram-protocol.md` (mirrors `internal/assets/engram/protocol.md`), `background-subagents.md`, the orchestrator prompt, overlay JSONs/plugins, retained `commands/` snapshots, and selected skill snapshots. The current boundary is v3.7.0 at `6dee8f833aec9e46015759c5065a9035795d9af1`; the authorized sync changed 36 managed files (5 new, 31 changed, 43 unchanged, 0 deleted) across 19 directories. The canonical post-sync audit passed for the OpenCode managed baseline. It verified the installed binary as v3.7.0 but did not refresh or verify the materialized runtime or Codex runtime. |
 | `assets/owned/` | True repo-owned runtime assets installed by `apply`, currently the full-file local OpenCode `AGENTS.md` surface. Its inherited persona and OpenCode full Engram sections track the approved snapshots, with six explicit overlay-only additions. |
 | `patches/` | Exact-anchor local deltas applied only to compatible upstream runtime files |
-| `shared/skills/` | Portable repo-owned skills installed globally by `apply`, including the sanitized `branch-pr` and `chained-pr`, the temporary `pr-finalizer` compatibility skill, and the Judgment Day retrospective companion skill that is activated by the `judgment-day` terminal hook |
-| `shared/commands/` | Source bodies for custom wrappers rendered by `apply` |
+| `shared/skills/` | Portable repo-owned skills installed for OpenCode and Codex, including the sanitized `branch-pr` and `chained-pr`, the temporary `pr-finalizer` compatibility skill, and the Judgment Day retrospective companion skill |
+| `shared/commands/` | Source bodies for OpenCode wrappers; Codex does not receive command wrappers |
 | `state/upstream-state.json` | Last maintained upstream boundary |
 
 The retained skill snapshots `gentle-ai-bench`, `rdd-defect-workflow`, and `systemic-issue-triage` are audit/sync inputs only. They are not repo-owned install sources and do not force runtime selection or RDD activation.
 
-Package-install guidance lives in the canonical `shared/skills/package-security/SKILL.md` and its local templates. It forbids credential-file inspection, requires human review for script approvals, and distinguishes npm's advisory-by-default policy from pnpm's version-gated build controls. Check the effective CLI's support for each feature. Editing the source does not update the global skill; the separately authorized `apply-gentle-ai-custom.sh opencode` step propagates it.
+Package-install guidance lives in the canonical `shared/skills/package-security/SKILL.md` and its local templates. It forbids credential-file inspection, requires human review for script approvals, and distinguishes npm's advisory-by-default policy from pnpm's version-gated build controls. Check the effective CLI's support for each feature. Editing the source does not update installed skills; separately authorize `apply-gentle-ai-custom.sh opencode` and/or `codex` to propagate them.
 
 ## What each command does
 
@@ -246,7 +246,17 @@ Runtime refresh, repo snapshot sync, and overlay apply are separate actions. App
 - preserves the upstream `sdd-research` output-only source contract without a local precedence patch
 - records every custom-installed runtime output, including single-file assets without a sync mode
 - preserves stale-state paths returned to upstream, retained upstream skill trees, and surgical patch targets without recording those files as wholly custom-owned
-- renders custom wrappers from `shared/commands/`
+- renders custom wrappers from `shared/commands/` for OpenCode
+
+### Codex target
+
+`apply-gentle-ai-custom.sh codex` installs the seven allowlisted skills from the canonical `shared/skills/` directory into `~/.codex/skills/`; allowlisted same-name skills are repo-owned replacements. It does not run OpenCode policy/config reconciliation, prune unrelated Codex skills, render command wrappers, or modify `config.toml`, Engram, SDD model profiles, or the full Codex `AGENTS.md`.
+
+- Codex's full `AGENTS.md` remains upstream-owned. Apply inserts only the marker-bounded local instruction rules after the unique `<!-- /gentle-ai:sdd-orchestrator -->` marker.
+- The local rules cover commit authorization, implementation scope, plain-language responses, agent-readable Markdown, credential-file safety, and the conditional Gemini response rule. The retired remote-operation authorization rule is not added.
+- Judgment Day and work-unit skill changes use separate exact Codex patch definitions. All anchors are preflighted before the first selected-target write; missing or changed anchors fail closed.
+- The upstream SDD, unrelated instructions, untouched skills, and existing modes are preserved. Only copied repo-owned skill outputs are tracked as owned. Patched upstream targets are protected during owned-state cleanup but are never claimed as whole-file owned assets.
+- The canonical upstream audit currently covers OpenCode managed assets only. It does not verify the installed Codex runtime. Codex behavior must remain reported as unverified until the user separately authorizes a Codex apply and checks its result.
 
 `apply` never copies raw upstream source snapshots into runtime. A missing or incompatible prerequisite for a requested custom operation fails closed before pruning, config changes, patch writes, or owned asset installation.
 
@@ -255,9 +265,9 @@ Runtime refresh, repo snapshot sync, and overlay apply are separate actions. App
 The repo snapshot adoption is closed at `6dee8f833aec9e46015759c5065a9035795d9af1`. The authorized `bash sync-gentle-ai-upstream-assets.sh --release v3.7.0` reported 36 managed changes (5 new, 31 changed, 43 unchanged, 0 deleted), 19 synced directories, and an `upstream-state.json` write. The canonical post-sync audit passed with no managed or watched-unmanaged drift and all structural checks `ok`.
 
 - All five `internal/assets/opencode/plugins-v2/` files are mapped as upstream-only source snapshots for audit/sync. They are not custom apply install sources.
-- The installed Gentle AI binary and runtime remain v2.9.1; OpenCode 1.18.32 uses the V1 plugin path. V2 materialization needs custom apply schema work. This repository does not claim V2 runtime support, and the snapshots do not enable it.
-- The v3.7.0 `sdd-research` source skill and OpenCode command enforce output-only collection with orchestrator-owned persistence. Its local precedence patch is retired; do not infer that the installed v2.9.1 skill has been refreshed or verified against this source contract.
-- Upstream ODD calls for a commit at each task close. The exact `work-unit-commits-authorization` patch is prepared in the repo but is not installed in the current runtime. The existing v2.9.1 `apply` is intentionally incompatible with the v3.7.0 anchor. Treat the ODD safeguard as inactive until a separately authorized runtime refresh and overlay apply both complete and the result is verified. Until then, never create a commit without explicit user authorization. Do not run a runtime refresh or apply based on this repository adoption; each remains separately authorized.
+- The canonical audit verified the installed Gentle AI binary as v3.7.0 for the OpenCode managed baseline. It does not verify the current materialized runtime or the Codex runtime; their versions are unverified. OpenCode 1.18.32 was the version in earlier historical checks and used the V1 plugin path. This repository does not claim V2 runtime support.
+- The v3.7.0 `sdd-research` source skill and OpenCode command enforce output-only collection with orchestrator-owned persistence. Its local precedence patch is retired; do not infer that the materialized runtime has been refreshed or verified against this source contract.
+- Upstream ODD calls for a commit at each task close. Exact OpenCode and Codex work-unit authorization patches are prepared in the repo but are not verified in the current runtime. The historical v2.9.1 OpenCode apply is incompatible with the v3.7.0 anchor. Treat the safeguard as inactive until the relevant target receives a separately authorized apply and its result is verified. Until then, never create a commit without explicit user authorization. Do not run a runtime refresh or apply based on repository adoption; each remains separately authorized.
 - The Judgment Day retrospective patch remains because the reviewed v3.7.0 source does not replace that local terminal handoff.
 
 ### Partial SDD archive watchpoint
@@ -317,6 +327,16 @@ After `apply`, confirm this:
 - configured global JD actors match explicit assignments; configured inherited review actors have neither `model` nor `variant`
 - named profiles have only explicitly configured suffixed JD actors, delegate omitted JD slots globally, and never gain suffixed review actors
 - the retired `sdd-research` precedence patch is absent from the manifest; verify upstream output-only behavior after a separately authorized runtime refresh
+
+For a separately authorized Codex apply, also verify:
+
+- each installed portable Codex skill under `~/.codex/skills/` matches its canonical source in `shared/skills/`
+- the upstream SDD block and all unrelated bytes in `~/.codex/AGENTS.md` remain unchanged outside the declared local instruction block
+- the local block appears exactly once after the unique upstream SDD closing marker and contains no remote-operation authorization rule
+- Judgment Day and work-unit skill files differ from their pre-apply bytes only by the declared Codex patch deltas; file modes are preserved
+- upstream Codex SDD skills, untouched skills, Engram files, `config.toml`, and model profile files remain byte- and mode-unchanged
+- Codex apply neither pruned skills nor rendered command wrappers, and its owned-state record claims only repo-owned skill outputs
+- this check verifies only the files inspected for that apply; the OpenCode upstream audit does not verify Codex runtime materialization
 - one fresh-context reviewer/subagent pass checked the changed maintainer artifacts and final summary for workflow consistency
 
 ## Local overlay config

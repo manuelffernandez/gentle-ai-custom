@@ -651,6 +651,39 @@ func TestValidateRuntimeOwnershipBoundaryAcceptsCurrentManifest(t *testing.T) {
 	}
 }
 
+func TestCodexTargetUsesSharedSkillsAndKeepsUpstreamRuntimeUnowned(t *testing.T) {
+	repoRoot := repoRootForTest(t)
+	target, _, err := loadManagedAssetsTarget(repoRoot, "codex")
+	if err != nil {
+		t.Fatalf("loadManagedAssetsTarget(codex) error = %v", err)
+	}
+	if target.RepoOwnedSharedSkills.Root != "shared/skills" || target.RepoOwnedSharedSkills.RuntimeRoot != "~/.codex/skills" {
+		t.Fatalf("Codex shared skill roots = %q -> %q", target.RepoOwnedSharedSkills.Root, target.RepoOwnedSharedSkills.RuntimeRoot)
+	}
+	if len(target.RepoOwnedSharedSkills.Allowlist) != 7 || len(target.RepoOwnedCommandBodies.Entries) != 0 {
+		t.Fatalf("Codex install surface = %d skills and %d command bodies, want 7 and 0", len(target.RepoOwnedSharedSkills.Allowlist), len(target.RepoOwnedCommandBodies.Entries))
+	}
+	if len(target.OwnedOverlayAssets) != 0 || len(target.RetainedUpstreamSkills) != 0 || len(target.PrunedUpstreamSkills) != 0 {
+		t.Fatalf("Codex target claims upstream runtime ownership or pruning: assets=%v retained=%v pruned=%v", target.OwnedOverlayAssets, target.RetainedUpstreamSkills, target.PrunedUpstreamSkills)
+	}
+	wantPatches := []string{"codex-local-instructions", "judgment-retrospective-handoff", "work-unit-commits-authorization"}
+	if len(target.RuntimePatches) != len(wantPatches) {
+		t.Fatalf("Codex runtime patches = %#v, want keys %v", target.RuntimePatches, wantPatches)
+	}
+	for index, want := range wantPatches {
+		if target.RuntimePatches[index].Key != want {
+			t.Errorf("Codex runtime patch %d = %q, want %q", index, target.RuntimePatches[index].Key, want)
+		}
+	}
+	policy, _, err := loadPolicy(repoRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !policy.Codex.PreserveUnselectedSkills || policy.Codex.RenderCommands {
+		t.Fatalf("Codex policy = preserve_unselected_skills:%v render_commands:%v, want true/false", policy.Codex.PreserveUnselectedSkills, policy.Codex.RenderCommands)
+	}
+}
+
 func TestBackgroundSubagentsPromptIsAuditOnlyUpstreamSource(t *testing.T) {
 	target, _, err := loadManagedAssetsTarget(repoRootForTest(t), "opencode")
 	if err != nil {

@@ -2,17 +2,27 @@
 
 This file is the semantic source of truth for how this repo maintains a small local layer on top of Gentle AI.
 
-The current strategy is **upstream-first migration**: use the adopted Gentle AI v3.7.0 repository snapshots as the audit baseline, keep only explicit local customizations, and avoid carrying old overlay patches forward unless they still solve a confirmed problem. The installed binary and runtime remain v2.9.1; snapshot adoption does not imply runtime refresh or apply.
+The current strategy is **upstream-first migration**: use the adopted Gentle AI v3.7.0 repository snapshots as the audit baseline, keep only explicit local customizations, and avoid carrying old overlay patches forward unless they still solve a confirmed problem. The canonical audit verified the installed binary as v3.7.0, but did not verify the materialized runtime; repository and source evidence must not be presented as runtime state.
 
 For an approved upstream asset, replacement-first means letting upstream Gentle AI materialize its finished runtime artifact. Keep the source snapshot for audit only, preserve the installed artifact, and apply only an explicit surgical customization documented in this file.
 
 ## Current baseline
 
 - Maintained repository snapshot boundary: Gentle AI `v3.7.0` at `6dee8f833aec9e46015759c5065a9035795d9af1`.
-- Installed Gentle AI binary and runtime remain v2.9.1. Runtime refresh and overlay apply are unapproved and must not be inferred from repository snapshot adoption.
+- Installed Gentle AI binary last verified by the canonical audit: v3.7.0. The current materialized runtime version is unverified; repository snapshot adoption does not prove runtime refresh or overlay apply.
 - Continue acquiring compatible Gentle AI v2+ behavior upstream-first. Pin each accepted boundary in `upstream-state.json` only after its audit and adoption event closes.
 - The local overlay must be reduced while preserving the customizations listed in this file.
 - Do not treat old v1.44-era owned runtime assets as authoritative just because they exist in the repo.
+
+## Codex target boundary
+
+Codex apply installs the existing seven repo-owned portable skills from `shared/skills/` under `~/.codex/skills/`; allowlisted same-name skills are intentional repo-owned replacements. It does not prune unrelated upstream Codex skills, render command wrappers, replace the full `~/.codex/AGENTS.md`, or change `config.toml`, Engram files, SDD prompts, or model profiles.
+
+- Preserve the upstream Codex SDD instruction section and all unrelated instruction bytes. Insert only the marker-bounded local rules after the unique upstream `<!-- /gentle-ai:sdd-orchestrator -->` anchor.
+- Keep local commit authorization, implementation scope, plain-language communication, Agent-Readable Markdown, credential-file safety, and the conditional Gemini response rule in that local block. Do not add the retired remote-operation authorization rule.
+- Apply the Judgment Day retrospective and work-unit commit authorization deltas only when their exact Codex-installed skill anchors match. Validate every declared patch before writing any target; preserve file modes and fail closed on missing, changed, or ambiguous anchors.
+- Treat upstream Codex skills and `AGENTS.md` as materialized runtime inputs, never as repo-owned full-file install sources. Install only the declared portable-skill allowlist; leave unrelated upstream skills alone. Track copied portable skills as owned output; surgical patch targets are protected but not wholly owned.
+- The v3.7.0 audit and checked-out source establish source-level anchors only. The audit currently reports OpenCode managed assets and does not verify installed Codex runtime materialization. Runtime behavior remains unverified until the user authorizes a Codex apply and its result is inspected separately.
 
 ## Explicit partial SDD archive acceptance
 
@@ -49,7 +59,7 @@ Keep these customizations unless the user explicitly changes this intent:
 - `no-auto-commit`: never commit, push, or create PRs unless the user explicitly asks.
 - The repo-owned `AGENTS.md` prepares an explicit override for upstream ODD task-close commit wording; it is not installed in the current runtime. A request to implement, task completion, or a review gate is not commit authorization.
 - Do not carry the upstream remote-operation authorization rule into overlay-maintained OpenCode prompts or the repo-owned global `AGENTS.md`. Keep the upstream contract and its source snapshot unchanged for audit; custom apply removes only the exact recognized upstream or previously relaxed section from maintained prompt carriers. This does not change credential-file safety or unrelated runtime/tool permission guards.
-- Keep the exact v3.7.0 `work-unit-commits` authorization patch prepared in the repo: at its ODD task-close anchor it makes commits opt-in, fails closed before writes when incompatible, and leaves unrequested work units uncommitted with verification/rollback evidence reported. This patch is not installed in the current v2.9.1 runtime; its `apply` is intentionally incompatible until a separately authorized refresh makes the anchor available.
+- Keep exact v3.7.0 `work-unit-commits` authorization patches prepared for OpenCode and Codex: at the ODD task-close anchor they make commits opt-in, fail closed before writes when incompatible, and leave unrequested work units uncommitted with verification/rollback evidence reported. Neither target's current runtime application is verified. Historical v2.9.1 OpenCode apply evidence predates this source anchor; require explicit commit authorization unless the relevant target's separately authorized apply and verification establish otherwise.
 - Gemini anti-sycophancy guardrails for direct replies when a Gemini model is active.
 
 ## What we acquire from upstream by default
@@ -136,7 +146,7 @@ When updating against upstream:
 
 ## SDD research output-only boundary
 
-Upstream owns `sdd-research`. The adopted v3.7.0 source skill and its OpenCode research command define an output-only evidence collector and assign authorized persistence to the orchestrator. The local precedence patch is retired because its exact source anchor is absent from the v3.7.0 source and that upstream contract already supplies the intended boundary. The installed v2.9.1 runtime has not been refreshed or verified against these snapshots.
+Upstream owns `sdd-research`. The adopted v3.7.0 source skill and its OpenCode research command define an output-only evidence collector and assign authorized persistence to the orchestrator. The local precedence patch is retired because its exact source anchor is absent from the v3.7.0 source and that upstream contract already supplies the intended boundary. The materialized runtime has not been verified against these snapshots.
 
 - Start from the upstream-installed `sdd-research` skill.
 - Do not reinstall the retired patch or carry it into v3.7.0.

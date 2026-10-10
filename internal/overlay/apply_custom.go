@@ -38,39 +38,47 @@ func RunApplyCustom(repoRoot string, args []string) int {
 		options.recorder.print()
 		return 1
 	}
-	target, _, err := loadManagedAssetsTarget(repoRoot, "opencode")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
-		options.recorder.print()
-		return 1
-	}
-	if err := validateRuntimeOwnershipBoundary(target); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
-		options.recorder.print()
-		return 1
-	}
 	if err := runVersionPreflight(repoRoot, policy, os.Stdin, os.Stderr); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		options.recorder.print()
 		return 1
 	}
-
-	sharedSkillsRoot := filepath.Join(repoRoot, filepath.FromSlash(target.RepoOwnedSharedSkills.Root))
-	commandBodiesRoot := filepath.Join(repoRoot, filepath.FromSlash(target.RepoOwnedCommandBodies.Root))
-	commandBodyByKey := mapCommandBodiesByKey(commandBodiesRoot, target.RepoOwnedCommandBodies.Entries)
-
-	if err := validateCustomSources(sharedSkillsRoot, customSkillNames(target), target.RepoOwnedCommandBodies.Entries, commandBodyByKey); err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-		options.recorder.print()
-		return 1
-	}
-	if err := validateOwnedAssetSources(repoRoot, target.OwnedOverlayAssets); err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-		options.recorder.print()
-		return 1
+	for _, targetName := range targets {
+		if targetName != "codex" {
+			continue
+		}
+		if _, _, err := prepareCodexOverlay(repoRoot, applyPolicyOptions{verbose: options.verbose, recorder: options.recorder}); err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+			options.recorder.print()
+			return 1
+		}
 	}
 
 	for _, targetName := range targets {
+		target, _, err := loadManagedAssetsTarget(repoRoot, targetName)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+			options.recorder.print()
+			return 1
+		}
+		if err := validateRuntimeOwnershipBoundary(target); err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+			options.recorder.print()
+			return 1
+		}
+		sharedSkillsRoot := filepath.Join(repoRoot, filepath.FromSlash(target.RepoOwnedSharedSkills.Root))
+		commandBodiesRoot := filepath.Join(repoRoot, filepath.FromSlash(target.RepoOwnedCommandBodies.Root))
+		commandBodyByKey := mapCommandBodiesByKey(commandBodiesRoot, target.RepoOwnedCommandBodies.Entries)
+		if err := validateCustomSources(sharedSkillsRoot, customSkillNames(target), target.RepoOwnedCommandBodies.Entries, commandBodyByKey); err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			options.recorder.print()
+			return 1
+		}
+		if err := validateOwnedAssetSources(repoRoot, target.OwnedOverlayAssets); err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			options.recorder.print()
+			return 1
+		}
 		entry := agentRegistry[targetName]
 		agent := entry.agent
 		if code := agent.ApplyOverlay(repoRoot, applyPolicyOptions{
