@@ -29,24 +29,27 @@ This directory contains the operational assets for the Gentle AI overlay.
 - Upstream resolution reads only `upstream_repo_path` from the local config. This lets audit/sync inspect a new topology before per-machine profile assignments are migrated; apply still validates the complete runtime config before writing.
 - `last_maintained_commit` defines the audit range after release parity succeeds; it is not parity proof.
 - `sync-gentle-ai-upstream-assets` refreshes approved snapshots and the maintained boundary. It does not refresh runtime.
-- `apply-gentle-ai-custom` preserves Gentle AI-materialized SDD prompts, contracts, commands, and plugins. Snapshots under `assets/upstream/` are audit inputs, not custom install sources.
+- `apply-gentle-ai-custom` preserves Gentle AI-materialized ODD prompts, contracts, commands, and plugins. Snapshots under `assets/upstream/` are audit inputs, not custom install sources.
 - `assets/owned/opencode/AGENTS.md` remains a full-file repo-owned install source and the single source of truth for global agent rules. Its persona and OpenCode full Engram sections must match the approved source snapshots semantically; focused tests allow only the six declared overlay-only sections.
 - Audit follows the composed OpenCode orchestrator call chain and watches the upstream remote-authorization contract plus its maintained projection paths.
-- Apply removes only the exact recognized upstream or previously relaxed remote-authorization section from maintained inline prompts, referenced prompt files, and installed shared SDD prompts. Malformed, duplicate, or unknown sections and unsafe paths fail before writes; unrelated content and modes are preserved. The upstream audit snapshot and structural projection audit remain unchanged.
+- Apply removes only the exact recognized upstream or previously relaxed remote-authorization section from maintained inline prompts, referenced prompt files, and any existing legacy shared SDD prompt files still declared among owned overlay assets. Missing optional legacy files are skipped; malformed, duplicate, or unknown sections and unsafe paths fail before writes. Unrelated content and modes are preserved, and the upstream audit snapshot and structural projection audit remain unchanged.
 - The owned global `AGENTS.md` intentionally omits that section. Credential-file safety and unrelated runtime/tool permission guards are unchanged.
 - Runtime refresh, repo snapshot sync, and overlay apply are separate authorization boundaries.
 
 ## Current adoption status
 
-- The current repository snapshot boundary is v3.7.0 at `6dee8f833aec9e46015759c5065a9035795d9af1`.
-- The authorized snapshot sync reported 36 managed changes: 5 new files, 31 changed, 43 unchanged, 0 deleted, and 19 directories synced; `upstream-state.json` changed.
-- The canonical post-sync audit passed at that exact v3.7.0 commit with no managed or watched-unmanaged drift and all structural checks `ok`.
-- The canonical audit verified the installed Gentle AI binary as v3.7.0 for the OpenCode managed baseline. It did not verify the materialized runtime or Codex runtime; current runtime versions are unverified. Snapshot adoption does not verify runtime behavior.
+- The maintained repository snapshot boundary is v4.0.0 at `ff77164d4f56f1665b22fb6fac51c2ccbb769400`.
+- The authorized snapshot sync reported 11 new, 13 changed, 31 unchanged, and 35 deleted snapshots across 19 directories. The canonical post-sync audit passed with no managed or watched-unmanaged drift and all structural flags `ok`.
+- The audit verifies repository snapshots and source structure only. OpenCode and Codex materialized runtime versions remain unverified; no runtime refresh, reinstall, or overlay apply is implied.
+- The 11 new OpenCode orchestrator and agent assets remain upstream audit snapshots, not custom runtime sources. Of the 35 deleted snapshots, 18 were exact SDD paths declared by `retired_upstream_snapshots`; the other 17 were stale files pruned inside still-declared synced directories (11 commands, 2 plugins, and 4 `_shared` files). The manifest removals are bounded to exact files and reject unsafe paths, active-path overlap, symlink parents, and directories; directory pruning applies only within declared synced assets. Neither mechanism changes runtime files.
+- Current OpenCode policy no longer keeps SDD skills and prunes legacy SDD skill names if they remain in the selected runtime. Codex apply preserves unrelated upstream skills. No apply ran, and user-owned machine-local SDD settings or runtime files were not removed.
+- The v4 audit checks the current `agentguidance` orchestrator/routing injection path, remote-authorization projection into routing, and ODD/JD/review actor sets. Future sync still requires all structural gates to pass.
 - All five `plugins-v2` files are audit/sync-only. OpenCode 1.18.32 uses the V1 plugin path; this repository does not claim V2 runtime materialization support.
 - The v3.7.0 `sdd-research` skill and command provide output-only collection with orchestrator-owned persistence. Its former local precedence patch is retired; the materialized runtime has not been verified against this source contract.
-- The ODD commit authorization patches are prepared for OpenCode and Codex, but neither is verified in the current runtime. Historical v2.9.1 apply evidence is not current runtime evidence. Treat the safeguard as inactive until the relevant target has a separately authorized apply and the result is verified; until then, commits require explicit user authorization.
-- Codex apply reuses the seven canonical `shared/skills/` sources, inserts only the local rules block after the unique upstream SDD marker, and applies exact compatible Judgment Day and work-unit deltas. It preserves upstream Codex content except allowlisted same-name skill replacements and declared patches; it does not prune unrelated Codex skills, render commands, replace the full `AGENTS.md`, or change Engram, `config.toml`, or model settings.
-- The repo consciously accepts v3.7.0 explicit partial SDD archive as local policy, not as confirmed upstream intent or proof of implementation completion. Future-audit checks are in [`maintenance.md`](maintenance.md#partial-sdd-archive-watchpoint).
+- Custom apply no longer creates SDD agents or profiles. It rejects legacy SDD assignments and keys before writes while preserving them for manual migration; global actor assignments use `global_actors`.
+- Upstream ODD requires a work-unit commit at task close. The local opt-out patches are removed from both targets, but their installed runtime state is unverified until separately authorized refresh and apply. Task-close commits do not authorize pushes or PRs.
+- Codex apply reuses the seven canonical `shared/skills/` sources, inserts the local rules block after the upstream Engram marker, and applies only the declared Judgment Day retrospective delta. It leaves the upstream work-unit skill unchanged, preserves unrelated Codex content, and does not prune unrelated Codex skills, render commands, replace the full `AGENTS.md`, or change Engram, `config.toml`, or model settings.
+- The repo's v3.7.0 partial SDD archive acceptance is historical policy evidence, not current v4 behavior or a future audit watchpoint.
 - The remote-authorization removal is implemented in the repository only. The installed runtime remains unchanged until a separately authorized overlay apply; this work does not claim the runtime is already clear of the rule.
 
 ### Historical v2.9.1 verification
@@ -62,8 +65,8 @@ This directory contains the operational assets for the Gentle AI overlay.
 
 ## Historical v2.5.0 runtime evidence
 
-- Repository policy now models 11 SDD phases, inserting `sdd-research` after `sdd-explore`.
-- Managed-assets policy covers the upstream `sdd-research` phase skill. Existing shared-skill and command-directory entries cover related shared and command files.
+- At the historical v2.5.0 boundary, repository policy modeled 11 SDD phases, including `sdd-research` after `sdd-explore`.
+- At that time, the managed-assets policy covered the upstream `sdd-research` phase skill and its related shared and command files.
 - Audit invariants validate semantic managed-profile detection and deny-by-default `permission.task` delegation. Deprecated agent-local `tools.task` is not required.
 - The v2.5.0 repository snapshot sync, user-run full SDD component installation, and later separately authorized `bash apply-gentle-ai-custom.sh opencode` completed successfully. This evidence is historical; the maintained repository boundary and independently verified runtime have since advanced to v2.9.1.
 - Apply updated config; pruned 2 skills; changed and verified 1 owned asset; reported 0 topology warnings; managed 4 profiles; and reported agents created 3, updated 4, unchanged 49, with 0 unmanaged profiles.
@@ -82,9 +85,9 @@ This directory contains the operational assets for the Gentle AI overlay.
 - `shared/skills/chained-pr/` remains the sanitized runtime source. It adopts upstream anti-code-golf and bounded single-pass slicing rules while preserving explicit `owner/repo` scoping and plan-only automatic activation.
 - `branch-pr` remains pruned upstream and replaced by the repo-owned sanitized copy. Explicit `/pr-create` and `/pr-regenerate` render title/body for audit visibility and then mutate through GitHub CLI without a content-approval pause; push authorization and unresolved required metadata, identity, or chain context remain blocking.
 - `gentle-ai-bench`, `rdd-defect-workflow`, and `systemic-issue-triage` remain retained snapshots, not forced runtime selections.
-- Named profiles may create suffixed Judgment Day actors only for explicit assignments. Review actors remain global.
+- Global Judgment Day and review assignments are configured independently of SDD profiles through `global_actors`; custom apply creates no suffixed actors or SDD agents.
 - The Judgment Day retrospective handoff remains a declared surgical patch and still requires exact compatible anchors.
-- The prepared OpenCode and Codex `work-unit-commits` authorization patches are intended to replace the v3.7.0 automatic ODD task-close commit instruction. Neither target's current runtime application is verified. Do not treat the safeguard as active until the relevant target's separately authorized apply and verification. Without explicit commit authorization, do not commit.
+- Upstream ODD task-close work-unit commits are retained for both targets; the local opt-out patches and OpenCode no-auto-commit runtime instruction are removed from repo sources. This does not authorize pushes or PRs, and the materialized runtime remains unverified until separately authorized refresh and apply.
 - The `sdd-research` v3.7.0 source skill and OpenCode command define output-only collection with orchestrator-owned persistence. Its local precedence patch is retired and is not an install source.
 
 ## Maintainer report contract

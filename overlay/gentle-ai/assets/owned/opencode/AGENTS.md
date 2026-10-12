@@ -245,11 +245,6 @@ If you see a compaction message or "FIRST ACTION REQUIRED":
 Do not skip step 1. Without it, everything done before compaction is lost from memory.
 <!-- /gentle-ai:engram-protocol -->
 
-<!-- gentle-ai-custom:no-auto-commit -->
-- NEVER commit, push, or create pull requests unless explicitly requested by the user. Do not assume permission to commit even if a task is complete.
-- This rule overrides any upstream Gentle AI ODD routing or retained `work-unit-commits` instruction that says a task must close with an automatic commit. Treat those instructions as work-unit planning and evidence guidance, not authorization. An implementation request, substantial ODD work, task completion, feature branch, or review workflow does not authorize `git commit`. Leave the work unit uncommitted and report that delivery remains pending unless the user explicitly requests a commit; then follow the remaining repository policy.
-<!-- /gentle-ai-custom:no-auto-commit -->
-
 <!-- gentle-ai-custom:implementation-scope -->
 ## Implementation Scope
 

@@ -100,14 +100,16 @@ func RunAuditUpstream(repoRoot string, args []string) int {
 	}
 
 	structuralResult, structuralFailures := evaluateStructuralInvariants(upstreamRepo, target, policy)
-	failures = append(failures, structuralFailures...)
-	profileNamingOK := structuralResult.ProfileNamingOK
-	taskScopingOK := structuralResult.TaskScopingOK
-	baseAssetInjectionOK := structuralResult.BaseAssetInjectionOK
+	for _, failure := range structuralFailures {
+		failures = append(failures, "structural invariant failure: "+failure)
+	}
+	orchestratorAssetOK := structuralResult.OrchestratorAssetOK
+	routingInjectionOK := structuralResult.RoutingInjectionOK
 	remoteAuthorizationOK := structuralResult.RemoteAuthorizationOK
 	roleTopologyOK := structuralResult.RoleTopologyOK
-	phaseOrderOK := structuralResult.PhaseOrderOK
-	driftSummary = append(driftSummary, buildAuditDriftSummary(basePromptDrift, hasManagedDriftOutsideBasePrompt(managedEntries), len(unmanagedEntries) > 0, phaseOrderOK, profileNamingOK, taskScopingOK, baseAssetInjectionOK, remoteAuthorizationOK, roleTopologyOK)...)
+	oddTopologyOK := structuralResult.ODDTopologyOK
+	oddRegistrationOK := structuralResult.ODDRegistrationOK
+	driftSummary = append(driftSummary, buildAuditDriftSummary(basePromptDrift, hasManagedDriftOutsideBasePrompt(managedEntries), len(unmanagedEntries) > 0, orchestratorAssetOK, routingInjectionOK, remoteAuthorizationOK, roleTopologyOK, oddTopologyOK, oddRegistrationOK)...)
 
 	fmt.Println("Auditing Gentle AI upstream baseline...")
 	fmt.Printf("- Repo root: %s\n", repoRoot)
@@ -125,12 +127,13 @@ func RunAuditUpstream(repoRoot string, args []string) int {
 	} else {
 		fmt.Println("  base prompt drift: yes")
 	}
-	fmt.Printf("  profile phase order: %s\n", statusWord(phaseOrderOK))
-	fmt.Printf("  profile orchestrator naming: %s\n", statusWord(profileNamingOK))
-	fmt.Printf("  profile task scoping invariant: %s\n", statusWord(taskScopingOK))
-	fmt.Printf("  base asset injection invariant: %s\n", statusWord(baseAssetInjectionOK))
+	fmt.Printf("  orchestrator asset binding invariant: %s\n", statusWord(orchestratorAssetOK))
+	fmt.Printf("  routing injection invariant: %s\n", statusWord(routingInjectionOK))
 	fmt.Printf("  remote authorization projection invariant: %s\n", statusWord(remoteAuthorizationOK))
+	fmt.Printf("  ODD agent topology invariant: %s\n", statusWord(oddTopologyOK))
+	fmt.Printf("  ODD agent registration invariant: %s\n", statusWord(oddRegistrationOK))
 	fmt.Printf("  JD/review actor topology invariant: %s\n", statusWord(roleTopologyOK))
+	fmt.Println("  snapshot drift is reported separately from structural invariant failures")
 	if len(driftSummary) > 0 {
 		fmt.Println()
 		fmt.Println("Drift summary:")
@@ -153,9 +156,9 @@ func RunAuditUpstream(repoRoot string, args []string) int {
 		}
 		fmt.Println()
 		fmt.Println("Action:")
-		fmt.Println("1. Review the managed drift against the last maintained commit and decide what is relevant to the overlay.")
-		fmt.Println("2. Update this repo (owned assets, approved upstream snapshots, docs, and/or state) if the new upstream state is accepted.")
-		fmt.Println("3. Run `gentle-ai sync` or reinstall as appropriate, then re-run `bash apply-gentle-ai-custom.sh opencode` (or `all` if you also want the multi-target refresh) so runtime verification passes.")
+		fmt.Println("1. Review managed snapshot drift against the last maintained commit; the structural flags above are reported separately.")
+		fmt.Println("2. Resolve any structural invariant failure before sync. If all current flags are ok, snapshot drift remains pending adoption and still needs separate approval for `sync-gentle-ai-upstream-assets`.")
+		fmt.Println("3. Treat runtime refresh and overlay apply as separate actions, each requiring its own authorization.")
 		return 1
 	}
 
@@ -219,12 +222,17 @@ func printAuditUpstreamUsage(out *os.File) {
 }
 
 type structuralInvariantResult struct {
-	PhaseOrderOK          bool
-	ProfileNamingOK       bool
-	TaskScopingOK         bool
-	BaseAssetInjectionOK  bool
+	OrchestratorAssetOK   bool
+	RoutingInjectionOK    bool
 	RemoteAuthorizationOK bool
 	RoleTopologyOK        bool
+	ODDTopologyOK         bool
+	ODDRegistrationOK     bool
+	// Deprecated fields remain for legacy fixture helpers; v4 audits do not evaluate SDD profiles.
+	PhaseOrderOK         bool
+	ProfileNamingOK      bool
+	TaskScopingOK        bool
+	BaseAssetInjectionOK bool
 }
 
 type managedAssetRecord struct {
@@ -479,89 +487,50 @@ func managedDriftStatus(count int) string {
 func evaluateStructuralInvariants(upstreamRepo string, target ManagedAssetsTarget, policy Policy) (structuralInvariantResult, []string) {
 	var failures []string
 	result := structuralInvariantResult{}
-	upstreamProfilesText, err := readStructuralSource(upstreamRepo, target.StructuralInvariantSources, "profiles.go")
-	if err != nil {
-		failures = append(failures, err.Error())
-	}
-	upstreamInjectText, err := readStructuralSource(upstreamRepo, target.StructuralInvariantSources, "inject.go")
-	if err != nil {
-		failures = append(failures, err.Error())
-	}
-	upstreamModelsText, err := readStructuralSource(upstreamRepo, target.StructuralInvariantSources, "models.go")
-	if err != nil {
-		failures = append(failures, err.Error())
-	}
-	phaseOrder, phaseErr := extractProfilePhaseOrder(upstreamProfilesText)
-	if phaseErr != nil {
-		failures = append(failures, phaseErr.Error())
-	}
-	if len(phaseOrder) > 0 && !sameStrings(phaseOrder, policy.OpenCode.SDDPhases) {
-		failures = append(failures, fmt.Sprintf("upstream profilePhaseOrder is %#v, expected %#v from policy", phaseOrder, policy.OpenCode.SDDPhases))
-	}
-	profileNamingOK := profileNamingInvariantOK(upstreamProfilesText)
-	if !profileNamingOK {
-		failures = append(failures, "upstream profiles.go no longer detects and builds named profiles through the canonical managed-profile mechanism")
-	}
-	if !profileTaskScopingInvariantOK(upstreamProfilesText) {
-		failures = append(failures, "upstream profiles.go no longer preserves a deny-by-default task permission map for named profile orchestrators")
-	}
-	requiredInjectSnippets := []string{
-		`orchestratorRaw, ok := agentsMap["gentle-orchestrator"]`,
-		`taskRaw, ok := permissionRaw["task"].(map[string]any)`,
-	}
-	for _, snippet := range requiredInjectSnippets {
-		if !strings.Contains(upstreamInjectText, snippet) {
-			failures = append(failures, fmt.Sprintf("upstream inject.go no longer contains expected base orchestrator asset binding snippet: %q", snippet))
-		}
-	}
-	upstreamOrchestratorText := ""
-	if declaresStructuralSource(target.StructuralInvariantSources, "components/sdd/orchestrator.go") {
-		upstreamOrchestratorText, err = readStructuralSource(upstreamRepo, target.StructuralInvariantSources, "components/sdd/orchestrator.go")
+	read := func(suffix string) string {
+		text, err := readStructuralSource(upstreamRepo, target.StructuralInvariantSources, suffix)
 		if err != nil {
 			failures = append(failures, err.Error())
 		}
+		return text
 	}
-	if !baseAssetInjectionInvariantOK(upstreamInjectText, upstreamOrchestratorText) {
-		failures = append(failures, "upstream inject.go no longer binds the OpenCode orchestrator prompt from the canonical SDD asset render path")
+	injectText := read("components/agentguidance/inject.go")
+	orchestratorText := read("components/agentguidance/orchestrator.go")
+	remoteText := read("components/agentguidance/remote_authorization.go")
+	modelsText := read("internal/opencode/models.go")
+	opencodeAgentsText := read("components/opencodeagents/agents.go")
+	cliRunText := read("internal/cli/run.go")
+	cliSyncText := read("internal/cli/sync.go")
+	result.OrchestratorAssetOK = orchestratorAssetBindingInvariantOK(orchestratorText)
+	if !result.OrchestratorAssetOK {
+		failures = append(failures, "upstream agentguidance no longer renders the canonical OpenCode orchestrator asset")
 	}
-	remoteAuthorizationOK := true
-	if declaresStructuralSource(target.StructuralInvariantSources, "components/agentguidance/remote_authorization.go") {
-		remoteSources := make(map[string]string)
-		for _, suffix := range []string{
-			"components/agentguidance/remote_authorization.go",
-			"components/agentguidance/inject.go",
-			"components/sdd/prompts.go",
-			"components/sdd/profiles.go",
-			"components/sdd/inject.go",
-		} {
-			remoteSources[suffix], err = readStructuralSource(upstreamRepo, target.StructuralInvariantSources, suffix)
-			if err != nil {
-				failures = append(failures, err.Error())
-				remoteAuthorizationOK = false
-			}
-		}
-		if remoteAuthorizationOK {
-			remoteAuthorizationOK = remoteAuthorizationProjectionInvariantOK(remoteSources)
-		}
-		if !remoteAuthorizationOK {
-			failures = append(failures, "upstream remote authorization contract no longer reaches all maintained OpenCode prompt carriers")
-		}
+	result.RoutingInjectionOK = routingInjectionInvariantOK(injectText, orchestratorText)
+	if !result.RoutingInjectionOK {
+		failures = append(failures, "upstream agentguidance no longer injects routing and orchestrator instructions into the resolved always-loaded carrier")
 	}
-	jdActors, jdErr := extractReturnedStringSlice(upstreamModelsText, "JDPhases")
+	remoteFile := parseInvariantSource(remoteText)
+	remoteFunction := findFunction(remoteFile, "InjectRemoteAuthorization")
+	remoteAuthorizationOK := remoteFunction != nil && remoteAuthorizationHelperIsCanonical(remoteFunction) &&
+		routingInjectionInvariantOK(injectText, orchestratorText)
+	if !remoteAuthorizationOK {
+		failures = append(failures, "upstream remote authorization contract no longer reaches the maintained OpenCode routing prompt carrier")
+	}
+	jdActors, jdErr := extractReturnedStringSlice(modelsText, "JDPhases")
 	if jdErr != nil {
 		failures = append(failures, jdErr.Error())
 	}
-	reviewActors, reviewErr := extractReturnedStringSlice(upstreamModelsText, "ReviewLensPhases")
+	reviewActors, reviewErr := extractReturnedStringSlice(modelsText, "ReviewLensPhases")
 	if reviewErr != nil {
 		failures = append(failures, reviewErr.Error())
 	}
-	refuter, refuterErr := extractStringConstant(upstreamModelsText, "ReviewRefuterAgent")
+	refuter, refuterErr := extractStringConstant(modelsText, "ReviewRefuterAgent")
 	if refuterErr != nil {
 		failures = append(failures, refuterErr.Error())
 	} else {
 		reviewActors = append(reviewActors, refuter)
 	}
-	validator, validatorErr := extractStringConstant(upstreamModelsText, "ReviewValidatorAgent")
+	validator, validatorErr := extractStringConstant(modelsText, "ReviewValidatorAgent")
 	if validatorErr != nil {
 		failures = append(failures, validatorErr.Error())
 	} else {
@@ -571,13 +540,527 @@ func evaluateStructuralInvariants(upstreamRepo string, target ManagedAssetsTarge
 	if !roleTopologyOK && jdErr == nil && reviewErr == nil && refuterErr == nil && validatorErr == nil {
 		failures = append(failures, fmt.Sprintf("upstream JD/review actor topology is JD=%#v review=%#v, expected JD=%#v review=%#v", jdActors, reviewActors, judgmentDayActorKeys, reviewActorKeys))
 	}
-	result.ProfileNamingOK = profileNamingOK
-	result.TaskScopingOK = profileTaskScopingInvariantOK(upstreamProfilesText)
-	result.BaseAssetInjectionOK = containsAll(upstreamInjectText, requiredInjectSnippets) && baseAssetInjectionInvariantOK(upstreamInjectText, upstreamOrchestratorText)
 	result.RemoteAuthorizationOK = remoteAuthorizationOK
-	result.PhaseOrderOK = len(phaseOrder) > 0 && sameStrings(phaseOrder, policy.OpenCode.SDDPhases)
 	result.RoleTopologyOK = roleTopologyOK
+	oddActors, oddErr := extractReturnedStringSlice(modelsText, "GentleAIODDPhases")
+	result.ODDTopologyOK = oddErr == nil && sameStrings(oddActors, []string{"gentle-ai-explore", "gentle-ai-verify", "gentle-ai-worker"})
+	if oddErr != nil {
+		failures = append(failures, oddErr.Error())
+	} else if !result.ODDTopologyOK {
+		failures = append(failures, fmt.Sprintf("upstream ODD agent topology is %#v, expected explore/verify/worker agents", oddActors))
+	}
+	result.ODDRegistrationOK = oddErr == nil && openCodeODDAgentRegistrationInvariantOK(opencodeAgentsText, cliRunText, cliSyncText, oddActors)
+	if oddErr == nil && !result.ODDRegistrationOK {
+		failures = append(failures, "upstream ODD names are not connected to OpenCode parity assets, settings materialization, and the sync routing stage")
+	}
 	return result, failures
+}
+
+func openCodeODDAgentRegistrationInvariantOK(opencodeAgentsText, cliRunText, cliSyncText string, oddNames []string) bool {
+	want := []string{"gentle-ai-explore", "gentle-ai-verify", "gentle-ai-worker"}
+	if !sameStrings(oddNames, want) || !stringSliceContainsAll(extractOpenCodeParitySpecNames(opencodeAgentsText), want) {
+		return false
+	}
+	return openCodeParityUsesRegisteredSpecs(opencodeAgentsText) &&
+		openCodeAgentEntryUsesSpecPrompt(opencodeAgentsText) &&
+		openCodeParityInstallerWritesSpecs(cliRunText) &&
+		openCodeRoutingStepInstallsParity(cliRunText) &&
+		syncSchedulesOpenCodeRouting(cliSyncText)
+}
+
+func extractOpenCodeParitySpecNames(text string) []string {
+	file := parseInvariantSource(text)
+	if file == nil {
+		return nil
+	}
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.VAR {
+			continue
+		}
+		for _, raw := range gen.Specs {
+			spec, ok := raw.(*ast.ValueSpec)
+			if !ok || len(spec.Names) != 1 || spec.Names[0].Name != "parity" || len(spec.Values) != 1 {
+				continue
+			}
+			list, ok := spec.Values[0].(*ast.CompositeLit)
+			if !ok || !isSliceType(list, "Spec") {
+				return nil
+			}
+			var names []string
+			for _, element := range list.Elts {
+				entry, ok := element.(*ast.CompositeLit)
+				if !ok || len(entry.Elts) == 0 {
+					return nil
+				}
+				name, ok := stringLiteralValue(entry.Elts[0])
+				if !ok {
+					return nil
+				}
+				names = append(names, name)
+			}
+			return names
+		}
+	}
+	return nil
+}
+
+func openCodeParityUsesRegisteredSpecs(text string) bool {
+	fn := findFunction(parseInvariantSource(text), "Parity")
+	if fn == nil || fn.Body == nil {
+		return false
+	}
+	registered := false
+	ast.Inspect(fn.Body, func(node ast.Node) bool {
+		branch, ok := node.(*ast.IfStmt)
+		if !ok || !isBinarySelectorEquals(branch.Cond, "agent", "model", "AgentOpenCode") || branch.Body == nil {
+			return true
+		}
+		for _, stmt := range branch.Body.List {
+			ret, ok := stmt.(*ast.ReturnStmt)
+			if !ok || len(ret.Results) != 1 {
+				continue
+			}
+			call, ok := ret.Results[0].(*ast.CallExpr)
+			if !ok || !isIdent(call.Fun, "append") || len(call.Args) != 2 || !isIdent(call.Args[1], "parity") {
+				continue
+			}
+			registered = isSliceType(call.Args[0], "Spec")
+		}
+		return true
+	})
+	return registered
+}
+
+func openCodeAgentEntryUsesSpecPrompt(text string) bool {
+	fn := findFunction(parseInvariantSource(text), "Entry")
+	if fn == nil || fn.Body == nil {
+		return false
+	}
+	bound := false
+	ast.Inspect(fn.Body, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok || !isSelector(call.Fun, "assets", "Read") || len(call.Args) != 1 {
+			return true
+		}
+		bound = isAgentPromptAssetPath(call.Args[0])
+		return true
+	})
+	return bound
+}
+
+func isAgentPromptAssetPath(expr ast.Expr) bool {
+	outer, ok := expr.(*ast.BinaryExpr)
+	if !ok || outer.Op != token.ADD || !isStringLiteral(outer.Y, ".md") {
+		return false
+	}
+	inner, ok := outer.X.(*ast.BinaryExpr)
+	return ok && inner.Op == token.ADD && isStringLiteral(inner.X, "opencode/agents/") && isSelector(inner.Y, "spec", "Name")
+}
+
+func openCodeParityInstallerWritesSpecs(text string) bool {
+	file := parseInvariantSource(text)
+	wrapper := findFunction(file, "installOpenCodeODDParityAgents")
+	installer := findFunction(file, "installOpenCodeFamilyParityAgents")
+	if wrapper == nil || installer == nil || wrapper.Body == nil || installer.Body == nil {
+		return false
+	}
+	delegatesOpenCode := false
+	ast.Inspect(wrapper.Body, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if ok && isIdent(call.Fun, "installOpenCodeFamilyParityAgents") && len(call.Args) == 2 && isSelector(call.Args[1], "model", "AgentOpenCode") {
+			delegatesOpenCode = true
+		}
+		return true
+	})
+	usesParity, iteratesParity, usesEntry, writesNamedSpec, marshalsAgentOverlay, merges, persists := false, false, false, false, false, false, false
+	var specsObject, iteratedSpecObject, entryObject *ast.Object
+	ast.Inspect(installer.Body, func(node ast.Node) bool {
+		switch current := node.(type) {
+		case *ast.AssignStmt:
+			if len(current.Lhs) == 1 && len(current.Rhs) == 1 {
+				if isIdent(current.Lhs[0], "specs") {
+					if call, ok := current.Rhs[0].(*ast.CallExpr); ok {
+						usesParity = isSelector(call.Fun, "opencodeagents", "Parity") && len(call.Args) == 1 && isIdent(call.Args[0], "agent")
+						if usesParity {
+							specsObject = identifierObject(current.Lhs[0])
+						}
+					}
+				}
+				if index, ok := current.Lhs[0].(*ast.IndexExpr); ok && isIdent(index.X, "agentsOverlay") && isSelector(index.Index, "spec", "Name") && identUsesObject(current.Rhs[0], entryObject) &&
+					selectorUsesObject(index.Index, "spec", "Name", iteratedSpecObject) {
+					writesNamedSpec = true
+				}
+			}
+			if len(current.Lhs) >= 1 && len(current.Rhs) >= 1 {
+				call, ok := assignmentRHS(current, 0).(*ast.CallExpr)
+				lhs, lhsOK := current.Lhs[0].(*ast.Ident)
+				if ok && lhsOK && lhs.Name == "entry" && isSelector(call.Fun, "opencodeagents", "Entry") && len(call.Args) == 1 &&
+					identUsesObject(call.Args[0], iteratedSpecObject) {
+					usesEntry = true
+					entryObject = identifierObject(lhs)
+				}
+			}
+		case *ast.RangeStmt:
+			value, ok := current.Value.(*ast.Ident)
+			if ok && value.Name == "spec" && identUsesObject(current.X, specsObject) {
+				iteratedSpecObject = identifierObject(value)
+				iteratesParity = true
+			}
+		case *ast.CallExpr:
+			if isSelector(current.Fun, "filemerge", "MergeJSONObjects") && len(current.Args) == 2 && isIdent(current.Args[1], "overlay") {
+				merges = true
+			}
+			if isSelector(current.Fun, "filemerge", "WriteFileAtomic") && len(current.Args) >= 2 && isIdent(current.Args[0], "settingsPath") && isIdent(current.Args[1], "merged") {
+				persists = true
+			}
+			if isSelector(current.Fun, "json", "Marshal") && len(current.Args) == 1 && mapContainsAgentOverlay(current.Args[0]) {
+				marshalsAgentOverlay = true
+			}
+		}
+		return true
+	})
+	return delegatesOpenCode && usesParity && iteratesParity && usesEntry && writesNamedSpec && marshalsAgentOverlay && merges && persists
+}
+
+func stringSliceContainsAll(values, expected []string) bool {
+	for _, want := range expected {
+		found := false
+		for _, value := range values {
+			if value == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+func mapContainsAgentOverlay(expr ast.Expr) bool {
+	literal, ok := expr.(*ast.CompositeLit)
+	if !ok {
+		return false
+	}
+	for _, element := range literal.Elts {
+		kv, ok := element.(*ast.KeyValueExpr)
+		if ok && isStringLiteral(kv.Key, "agent") && isIdent(kv.Value, "agentsOverlay") {
+			return true
+		}
+	}
+	return false
+}
+
+func selectorUsesObject(expr ast.Expr, receiver, selector string, object *ast.Object) bool {
+	value, ok := expr.(*ast.SelectorExpr)
+	if !ok || value.Sel == nil || value.Sel.Name != selector {
+		return false
+	}
+	ident, ok := value.X.(*ast.Ident)
+	return ok && ident.Name == receiver && (object == nil || ident.Obj == object)
+}
+
+func openCodeRoutingStepInstallsParity(text string) bool {
+	file := parseInvariantSource(text)
+	if file == nil {
+		return false
+	}
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Name.Name != "Run" || fn.Recv == nil || fn.Body == nil || !receiverHasType(fn.Recv, "agentRoutingGuidanceStep") {
+			continue
+		}
+		found := false
+		for _, stmt := range fn.Body.List {
+			branch, ok := stmt.(*ast.IfStmt)
+			if !ok || !isSelectorEquals(branch.Cond, "s", "agent", "model", "AgentOpenCode") || branch.Body == nil {
+				continue
+			}
+			found = found || blockDirectlyCallsOpenCodeParityInstaller(branch.Body)
+		}
+		return found
+	}
+	return false
+}
+
+func syncSchedulesOpenCodeRouting(text string) bool {
+	file := parseInvariantSource(text)
+	if file == nil {
+		return false
+	}
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Name.Name != "stagePlan" || fn.Recv == nil || fn.Body == nil || !receiverHasType(fn.Recv, "syncRuntime") {
+			continue
+		}
+		schedules := false
+		returnsScheduledPlan := false
+		ast.Inspect(fn.Body, func(node ast.Node) bool {
+			switch current := node.(type) {
+			case *ast.AssignStmt:
+				for _, rhs := range current.Rhs {
+					call, ok := rhs.(*ast.CallExpr)
+					if !ok || !isIdent(call.Fun, "append") || len(call.Args) != 2 || !isIdent(call.Args[0], "apply") {
+						continue
+					}
+					literal, ok := call.Args[1].(*ast.CompositeLit)
+					schedules = schedules || ok && isIdent(literal.Type, "agentRoutingGuidanceStep")
+				}
+			case *ast.ReturnStmt:
+				for _, result := range current.Results {
+					if literal, ok := result.(*ast.CompositeLit); ok {
+						for _, element := range literal.Elts {
+							field, ok := element.(*ast.KeyValueExpr)
+							returnsScheduledPlan = returnsScheduledPlan || ok && isIdent(field.Key, "Apply") && isIdent(field.Value, "apply")
+						}
+					}
+				}
+			}
+			return true
+		})
+		return schedules && returnsScheduledPlan
+	}
+	return false
+}
+
+func blockDirectlyCallsOpenCodeParityInstaller(block *ast.BlockStmt) bool {
+	if block == nil {
+		return false
+	}
+	for _, stmt := range block.List {
+		if statementDirectlyCallsOpenCodeParityInstaller(stmt) {
+			return true
+		}
+		if statementTerminatesBlock(stmt) {
+			return false
+		}
+	}
+	return false
+}
+
+func statementDirectlyCallsOpenCodeParityInstaller(stmt ast.Stmt) bool {
+	validCall := func(expr ast.Expr) bool {
+		call, ok := expr.(*ast.CallExpr)
+		return ok && isIdent(call.Fun, "installOpenCodeODDParityAgents") && len(call.Args) == 1 && isSelector(call.Args[0], "options", "SettingsPath")
+	}
+	switch current := stmt.(type) {
+	case *ast.ExprStmt:
+		return validCall(current.X)
+	case *ast.AssignStmt:
+		for _, rhs := range current.Rhs {
+			if validCall(rhs) {
+				return true
+			}
+		}
+	case *ast.ReturnStmt:
+		for _, result := range current.Results {
+			if validCall(result) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func receiverHasType(fields *ast.FieldList, typeName string) bool {
+	for _, field := range fields.List {
+		var expr ast.Expr = field.Type
+		if pointer, ok := expr.(*ast.StarExpr); ok {
+			expr = pointer.X
+		}
+		if isIdent(expr, typeName) {
+			return true
+		}
+	}
+	return false
+}
+
+func isBinarySelectorEquals(expr ast.Expr, left, packageName, selectorName string) bool {
+	binary, ok := expr.(*ast.BinaryExpr)
+	return ok && binary.Op == token.EQL && isIdent(binary.X, left) && isSelector(binary.Y, packageName, selectorName)
+}
+
+func isSelectorEquals(expr ast.Expr, leftReceiver, leftSelector, rightPackage, rightSelector string) bool {
+	binary, ok := expr.(*ast.BinaryExpr)
+	return ok && binary.Op == token.EQL && isSelector(binary.X, leftReceiver, leftSelector) && isSelector(binary.Y, rightPackage, rightSelector)
+}
+
+func isSliceType(expr ast.Expr, elementName string) bool {
+	var array *ast.ArrayType
+	switch value := expr.(type) {
+	case *ast.CompositeLit:
+		array, _ = value.Type.(*ast.ArrayType)
+	case *ast.CallExpr:
+		array, _ = value.Fun.(*ast.ArrayType)
+	}
+	return array != nil && array.Len == nil && isIdent(array.Elt, elementName)
+}
+
+func orchestratorAssetBindingInvariantOK(text string) bool {
+	file := parseInvariantSource(text)
+	asset := findFunction(file, "orchestratorAsset")
+	render := findFunction(file, "RenderOrchestratorWithSource")
+	if asset == nil || render == nil || render.Body == nil {
+		return false
+	}
+	openCodeAsset := false
+	ast.Inspect(asset.Body, func(node ast.Node) bool {
+		ret, ok := node.(*ast.ReturnStmt)
+		if !ok || len(ret.Results) != 1 {
+			return true
+		}
+		openCodeAsset = openCodeAsset || isStringLiteral(ret.Results[0], "opencode/orchestrator.md")
+		return true
+	})
+	readsSelected := false
+	ast.Inspect(render.Body, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok || !isSelector(call.Fun, "assets", "Read") || len(call.Args) != 1 {
+			return true
+		}
+		readsSelected = readsSelected || isIdent(call.Args[0], "path")
+		return true
+	})
+	return openCodeAsset && readsSelected
+}
+
+func routingInjectionInvariantOK(injectText, orchestratorText string) bool {
+	file := parseInvariantSource(injectText)
+	fn := findFunction(file, "InjectRoutingWithOptions")
+	if fn == nil || fn.Body == nil || !orchestratorAssetBindingInvariantOK(orchestratorText) {
+		return false
+	}
+	for index, stmt := range fn.Body.List {
+		projectedObject, ok := remoteAuthorizationAssignment(stmt)
+		if !ok {
+			continue
+		}
+		if !hasCanonicalRoutingWriterPath(fn.Body.List[index+1:], projectedObject) {
+			return false
+		}
+		return true
+	}
+	return false
+}
+
+func remoteAuthorizationAssignment(stmt ast.Stmt) (*ast.Object, bool) {
+	assign, ok := stmt.(*ast.AssignStmt)
+	if !ok || len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
+		return nil, false
+	}
+	lhs, ok := assign.Lhs[0].(*ast.Ident)
+	call, callOK := assign.Rhs[0].(*ast.CallExpr)
+	if !ok || lhs.Name != "rendered" || lhs.Obj == nil || !callOK || !isIdent(call.Fun, "InjectRemoteAuthorization") || len(call.Args) != 1 || !identUsesObject(call.Args[0], lhs.Obj) {
+		return nil, false
+	}
+	return lhs.Obj, true
+}
+
+func hasCanonicalRoutingWriterPath(statements []ast.Stmt, projectedObject *ast.Object) bool {
+	var mergeObject *ast.Object
+	mergeReady := false
+	for _, stmt := range statements {
+		if statementAssignsObject(stmt, projectedObject) {
+			return false
+		}
+		if assign, ok := stmt.(*ast.AssignStmt); ok && len(assign.Lhs) == 1 && len(assign.Rhs) == 1 {
+			merge, mergeOK := assign.Lhs[0].(*ast.Ident)
+			literal, literalOK := assign.Rhs[0].(*ast.FuncLit)
+			if mergeOK && merge.Name == "merge" && merge.Obj != nil && literalOK && routingMergeUsesProjection(literal.Body, projectedObject) {
+				mergeObject = merge.Obj
+				mergeReady = true
+			}
+		}
+		if mergeReady && statementPassesMergeToOpenCodeWriter(stmt, mergeObject) {
+			return true
+		}
+		if statementTerminatesBlock(stmt) {
+			return false
+		}
+	}
+	return false
+}
+
+func routingMergeUsesProjection(block *ast.BlockStmt, projectedObject *ast.Object) bool {
+	if block == nil {
+		return false
+	}
+	for _, stmt := range block.List {
+		if statementAssignsObject(stmt, projectedObject) {
+			return false
+		}
+		ret, ok := stmt.(*ast.ReturnStmt)
+		if ok && len(ret.Results) == 1 {
+			call, callOK := ret.Results[0].(*ast.CallExpr)
+			return callOK && isSelector(call.Fun, "filemerge", "InjectMarkdownSection") && len(call.Args) == 3 &&
+				(isStringLiteral(call.Args[1], "agent-routing") || isIdent(call.Args[1], "RoutingSectionID")) && identUsesObject(call.Args[2], projectedObject)
+		}
+		if statementTerminatesBlock(stmt) {
+			return false
+		}
+	}
+	return false
+}
+
+func statementAssignsObject(stmt ast.Stmt, object *ast.Object) bool {
+	if object == nil {
+		return true
+	}
+	if switchStmt, ok := stmt.(*ast.SwitchStmt); ok {
+		if switchStmt.Body == nil {
+			return true
+		}
+		for _, raw := range switchStmt.Body.List {
+			clause, ok := raw.(*ast.CaseClause)
+			if !ok || blockAssignsObject(&ast.BlockStmt{List: clause.Body}, object) {
+				return true
+			}
+		}
+		return false
+	}
+	return blockAssignsObject(&ast.BlockStmt{List: []ast.Stmt{stmt}}, object)
+}
+
+func statementPassesMergeToOpenCodeWriter(stmt ast.Stmt, mergeObject *ast.Object) bool {
+	valid := func(expr ast.Expr) bool {
+		call, ok := expr.(*ast.CallExpr)
+		return ok && isIdent(call.Fun, "injectOrchestratorPrompt") && len(call.Args) == 3 && identUsesObject(call.Args[2], mergeObject)
+	}
+	switch current := stmt.(type) {
+	case *ast.ReturnStmt:
+		for _, result := range current.Results {
+			if valid(result) {
+				return true
+			}
+		}
+	case *ast.ExprStmt:
+		return valid(current.X)
+	case *ast.SwitchStmt:
+		if !isSelector(current.Tag, "delivery", "kind") || current.Body == nil {
+			return false
+		}
+		for _, raw := range current.Body.List {
+			clause, ok := raw.(*ast.CaseClause)
+			if !ok || len(clause.List) != 1 || !isIdent(clause.List[0], "deliveryOrchestratorPrompt") {
+				continue
+			}
+			for _, caseStmt := range clause.Body {
+				if ret, ok := caseStmt.(*ast.ReturnStmt); ok {
+					for _, result := range ret.Results {
+						if valid(result) {
+							return true
+						}
+					}
+				}
+				if statementTerminatesBlock(caseStmt) {
+					break
+				}
+			}
+		}
+	}
+	return false
 }
 
 func extractReturnedStringSlice(text, functionName string) ([]string, error) {
@@ -1313,6 +1796,9 @@ func parseInvariantSource(text string) *ast.File {
 }
 
 func findFunction(file *ast.File, name string) *ast.FuncDecl {
+	if file == nil {
+		return nil
+	}
 	for _, decl := range file.Decls {
 		if fn, ok := decl.(*ast.FuncDecl); ok && fn.Name.Name == name {
 			return fn
@@ -1632,7 +2118,7 @@ func parseInvariantGoSource(text string) (*ast.File, error) {
 		return nil, fmt.Errorf("empty source")
 	}
 	source := trimmed
-	if !strings.HasPrefix(trimmed, "package ") {
+	if !regexp.MustCompile(`(?m)^package\s+\w+`).MatchString(trimmed) {
 		source = "package invariant\nfunc _() {\n" + text + "\n}\n"
 	}
 	return parser.ParseFile(token.NewFileSet(), "invariant.go", source, 0)
@@ -1822,35 +2308,35 @@ func hasManagedDriftOutsideBasePrompt(entries []managedDiffEntry) bool {
 	return false
 }
 
-func buildAuditDriftSummary(basePromptDrift, otherManagedDrift, unmanagedDrift, phaseOrderOK, profileNamingOK, taskScopingOK, baseAssetInjectionOK, remoteAuthorizationOK, roleTopologyOK bool) []string {
+func buildAuditDriftSummary(basePromptDrift, otherManagedDrift, unmanagedDrift, orchestratorAssetOK, routingInjectionOK, remoteAuthorizationOK, roleTopologyOK, oddTopologyOK, oddRegistrationOK bool) []string {
 	var summary []string
 	if basePromptDrift {
-		if phaseOrderOK && profileNamingOK && taskScopingOK && baseAssetInjectionOK && remoteAuthorizationOK && roleTopologyOK {
+		if orchestratorAssetOK && routingInjectionOK && remoteAuthorizationOK && roleTopologyOK && oddTopologyOK && oddRegistrationOK {
 			if otherManagedDrift || unmanagedDrift {
-				summary = append(summary, "Profile-generation and base-asset binding checks passed, but other managed or unmapped watched assets also changed; these checks do not rule out runtime materialization drift.")
+				summary = append(summary, "Orchestrator, routing, authorization, and actor-topology checks passed, but other managed or unmapped watched assets also changed; these checks do not rule out runtime materialization drift.")
 			} else {
-				summary = append(summary, "No profile-generation or base-asset binding drift was detected alongside this prompt change, so this looks like prompt-content guidance rather than topology or materialization drift.")
+				summary = append(summary, "No routing or orchestrator-binding drift was detected alongside this prompt change, so this looks like prompt-content guidance rather than topology or materialization drift.")
 			}
 		}
 	}
 
-	if !phaseOrderOK {
-		summary = append(summary, "The upstream SDD profile phase order changed. Review generated phase sequencing before adopting the new baseline.")
+	if !orchestratorAssetOK {
+		summary = append(summary, "The upstream OpenCode orchestrator asset binding changed. Verify the selected asset before sync/apply.")
 	}
-	if !profileNamingOK {
-		summary = append(summary, "The upstream `sdd-orchestrator-*` naming/key-building logic changed. The overlay may no longer target the right generated agent keys.")
-	}
-	if !taskScopingOK {
-		summary = append(summary, "The upstream profile task-permission scoping changed. Review task allow/deny assumptions before adopting the new baseline.")
-	}
-	if !baseAssetInjectionOK {
-		summary = append(summary, "The upstream base orchestrator asset binding changed. Verify the overlay is still reading the intended upstream source prompt before sync/apply.")
+	if !routingInjectionOK {
+		summary = append(summary, "The upstream agentguidance injection path changed. Verify the always-loaded routing and orchestrator carrier before adoption.")
 	}
 	if !remoteAuthorizationOK {
-		summary = append(summary, "The upstream remote authorization contract no longer reaches every maintained OpenCode prompt carrier. Review its canonical source and projection chain before adoption.")
+		summary = append(summary, "The upstream remote authorization contract no longer reaches the maintained OpenCode routing prompt. Review its canonical source and projection chain before adoption.")
 	}
 	if !roleTopologyOK {
 		summary = append(summary, "The upstream Judgment Day or review actor key set changed. Review global versus profile-scoped topology before adopting the new baseline.")
+	}
+	if !oddTopologyOK {
+		summary = append(summary, "The upstream ODD explore/verify/worker agent set changed. Review the new agent topology before adoption.")
+	}
+	if !oddRegistrationOK {
+		summary = append(summary, "The upstream ODD names are no longer connected to OpenCode agent materialization. Review the parity and sync wiring before adoption.")
 	}
 
 	return summary

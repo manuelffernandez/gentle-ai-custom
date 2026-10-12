@@ -117,39 +117,48 @@ func TestResolveUpstreamRepoFallsBackToEnvAndSibling(t *testing.T) {
 	}
 }
 
-func TestResolveLocalRuntimeConfigReadsDefaultProfileFromCanonicalConfig(t *testing.T) {
+func TestLoadLocalConfigRejectsLegacySDDConfiguration(t *testing.T) {
+	tests := []struct {
+		name   string
+		legacy string
+	}{
+		{name: "default profile", legacy: `"default_profile": {}`},
+		{name: "named profiles", legacy: `"profiles": []`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "local.json")
+			mustWriteFile(t, path, []byte(`{"version":1,`+tt.legacy+`}`))
+			if _, err := loadLocalConfigFile(path); err == nil || !strings.Contains(err.Error(), "legacy") || !strings.Contains(err.Error(), "manually") {
+				t.Fatalf("loadLocalConfigFile() error = %v, want actionable legacy refusal", err)
+			}
+		})
+	}
+}
+
+func TestLoadLocalConfigPreservesUnrelatedOverridesAndGlobalActors(t *testing.T) {
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
 	configDir := filepath.Join(homeDir, ".config", "gentle-ai-custom")
 	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		t.Fatalf("mkdir config dir: %v", err)
 	}
-	configJSON := `{
-  "version": 1,
-  "default_profile": {
-    "orchestrator": { "model": "openai/gpt-5.4", "variant": "high" },
-    "phases": {
-      "sdd-init": { "model": "openai/gpt-5.4", "variant": "medium" },
-      "sdd-apply": { "model": "openai/gpt-5.3-codex", "variant": "high" }
-    }
-  }
-}
-`
+	configJSON := `{"version":1,"agent_overrides":[{"key":"general","model":"openai/general"}],"global_actors":{"jd-judge-a":{"model":"openai/judge"},"review-risk":{"inherit":true}}}`
 	if err := os.WriteFile(filepath.Join(configDir, "opencode-local-config.json"), []byte(configJSON), 0o644); err != nil {
 		t.Fatalf("write local config: %v", err)
 	}
-	resolved, err := resolveLocalRuntimeConfig(testPolicy(), testPhasesSet())
+	resolved, err := resolveLocalRuntimeConfig(testPolicy())
 	if err != nil {
 		t.Fatalf("resolve local runtime config: %v", err)
 	}
-	if resolved.DefaultProfile == nil {
-		t.Fatalf("expected default profile to be loaded")
+	if len(resolved.AgentOverrides) != 1 || resolved.AgentOverrides[0].Key != "general" {
+		t.Fatalf("unrelated agent override not preserved: %#v", resolved.AgentOverrides)
 	}
-	if resolved.DefaultProfile.Orchestrator.Model != "openai/gpt-5.4" {
-		t.Fatalf("unexpected default profile orchestrator: %#v", resolved.DefaultProfile.Orchestrator)
+	if resolved.GlobalActors["jd-judge-a"].Model != "openai/judge" || !resolved.GlobalActors["review-risk"].Inherit {
+		t.Fatalf("global actor assignments not preserved: %#v", resolved.GlobalActors)
 	}
-	if resolved.DefaultProfile.Phases["sdd-init"].Variant != "medium" {
-		t.Fatalf("unexpected default profile phases: %#v", resolved.DefaultProfile.Phases)
+	if _, err := loadLocalConfigFile(filepath.Join(configDir, "opencode-local-config.json")); err != nil {
+		t.Fatalf("load v4-compatible local config: %v", err)
 	}
 }
 
@@ -171,7 +180,7 @@ func TestValidateActorAssignment(t *testing.T) {
 		{name: "variant only", value: map[string]any{"variant": "high"}, allowInherit: true, wantError: "model"},
 		{name: "empty object", value: map[string]any{}, allowInherit: true, wantError: "model"},
 		{name: "unknown field", value: map[string]any{"model": "openai/model", "other": true}, allowInherit: true, wantError: "unexpected fields"},
-		{name: "named inheritance rejected", value: map[string]any{"inherit": true}, allowInherit: false, wantError: "require an explicit model"},
+		{name: "inheritance rejected when disabled", value: map[string]any{"inherit": true}, allowInherit: false, wantError: "explicit inheritance is not allowed"},
 		{name: "malformed value", value: "openai/model", allowInherit: true, wantError: "must be an object"},
 	}
 	for _, tt := range tests {
@@ -193,75 +202,9 @@ func TestValidateActorAssignment(t *testing.T) {
 	}
 }
 
-func TestLoadLocalConfigValidatesActorFamilies(t *testing.T) {
-	phases := []string{"sdd-init", "sdd-apply"}
-	phaseSet := testPhasesSet()
-	validBase := func() map[string]any {
-		return map[string]any{
-			"version": 1,
-			"default_profile": map[string]any{
-				"orchestrator": map[string]any{"model": "openai/orchestrator"},
-				"phases": map[string]any{
-					"sdd-init":  map[string]any{"model": "openai/init"},
-					"sdd-apply": map[string]any{"model": "openai/apply"},
-				},
-				"judgment_day": map[string]any{"jd-judge-a": map[string]any{"model": "openai/judge"}},
-				"review": map[string]any{
-					"review-risk":      map[string]any{"inherit": true},
-					"review-validator": map[string]any{"model": "openai/validator"},
-				},
-			},
-			"profiles": []any{map[string]any{
-				"name": "named", "orchestrator": map[string]any{"model": "openai/orchestrator"},
-				"phases": map[string]any{
-					"sdd-init":  map[string]any{"model": "openai/init"},
-					"sdd-apply": map[string]any{"model": "openai/apply"},
-				},
-				"judgment_day": map[string]any{"jd-fix-agent": map[string]any{"model": "openai/fix"}},
-			}},
-		}
-	}
-	tests := []struct {
-		name      string
-		mutate    func(map[string]any)
-		wantError string
-	}{
-		{name: "valid explicit and inherit"},
-		{name: "unknown Judgment Day actor", mutate: func(config map[string]any) {
-			config["default_profile"].(map[string]any)["judgment_day"] = map[string]any{"jd-other": map[string]any{"model": "openai/model"}}
-		}, wantError: "unknown actors"},
-		{name: "unknown review actor", mutate: func(config map[string]any) {
-			config["default_profile"].(map[string]any)["review"] = map[string]any{"review-other": map[string]any{"inherit": true}}
-		}, wantError: "unknown actors"},
-		{name: "named review rejected", mutate: func(config map[string]any) {
-			config["profiles"].([]any)[0].(map[string]any)["review"] = map[string]any{"review-risk": map[string]any{"inherit": true}}
-		}, wantError: "unexpected fields"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			config := validBase()
-			if tt.mutate != nil {
-				tt.mutate(config)
-			}
-			path := filepath.Join(t.TempDir(), "local.json")
-			writeJSONFixture(t, path, config)
-			got, err := loadLocalConfigFile(path, phases, phaseSet)
-			if tt.wantError != "" {
-				if err == nil || !strings.Contains(err.Error(), tt.wantError) {
-					t.Fatalf("loadLocalConfigFile() error = %v, want containing %q", err, tt.wantError)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("loadLocalConfigFile() error = %v", err)
-			}
-			if !got.DefaultProfile.Review["review-risk"].Inherit || got.Profiles[0].JudgmentDay["jd-fix-agent"].Model != "openai/fix" {
-				t.Fatalf("actor families were not parsed: %#v %#v", got.DefaultProfile.Review, got.Profiles[0].JudgmentDay)
-			}
-			if got.DefaultProfile.Review["review-validator"].Model != "openai/validator" {
-				t.Fatalf("review-validator assignment was not parsed: %#v", got.DefaultProfile.Review)
-			}
-		})
+func TestValidateAgentOverridesRejectsLegacySDDRoles(t *testing.T) {
+	if _, err := validateAgentOverrides([]any{map[string]any{"key": "sdd-apply", "model": "openai/model"}}, "agent_overrides"); err == nil || !strings.Contains(err.Error(), "choose an appropriate ODD role") {
+		t.Fatalf("validateAgentOverrides() error = %v, want actionable SDD role refusal", err)
 	}
 }
 
@@ -270,13 +213,5 @@ func testPolicy() Policy {
 	policy.Upstream.RepoName = "gentle-ai"
 	policy.OpenCode.ConfigPath = "~/.config/opencode/opencode.json"
 	policy.OpenCode.LocalConfigPath = "~/.config/gentle-ai-custom/opencode-local-config.json"
-	policy.OpenCode.SDDPhases = []string{"sdd-init", "sdd-apply"}
 	return policy
-}
-
-func testPhasesSet() map[string]bool {
-	return map[string]bool{
-		"sdd-init":  true,
-		"sdd-apply": true,
-	}
 }

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 func init() {
@@ -91,7 +90,7 @@ func prepareCodexOverlay(repoRoot string, options applyPolicyOptions) (*applyPol
 		verbose:       options.verbose,
 		recorder:      options.recorder,
 	}
-	if err := validateCodexSDDInstructionAnchor(filepath.Join(basePath, "AGENTS.md")); err != nil {
+	if err := validateCodexInstructionFile(filepath.Join(basePath, "AGENTS.md")); err != nil {
 		return nil, "", err
 	}
 	if err := state.prepareRuntimePatches(repoRoot); err != nil {
@@ -100,22 +99,9 @@ func prepareCodexOverlay(repoRoot string, options applyPolicyOptions) (*applyPol
 	return &state, basePath, nil
 }
 
-func validateCodexSDDInstructionAnchor(path string) error {
-	raw, err := os.ReadFile(path)
-	if err != nil {
+func validateCodexInstructionFile(path string) error {
+	if _, err := os.ReadFile(path); err != nil {
 		return fmt.Errorf("Codex upstream instruction file is required at %s: %w", path, err)
-	}
-	content := strings.ReplaceAll(string(raw), "\r\n", "\n")
-	const opening = "<!-- gentle-ai:sdd-orchestrator -->"
-	const closing = "<!-- /gentle-ai:sdd-orchestrator -->"
-	if strings.Count(content, opening) != 1 || strings.Count(content, closing) != 1 {
-		return fmt.Errorf("Codex AGENTS.md must contain one upstream SDD opening and closing marker")
-	}
-	openingIndex := strings.Index(content, opening)
-	contentStart := openingIndex + len(opening)
-	closingIndex := strings.Index(content, closing)
-	if closingIndex < contentStart || !strings.HasPrefix(strings.TrimSpace(content[contentStart:closingIndex]), "# SDD Orchestrator for Codex") {
-		return fmt.Errorf("Codex AGENTS.md upstream SDD markers are malformed or incompatible")
 	}
 	return nil
 }

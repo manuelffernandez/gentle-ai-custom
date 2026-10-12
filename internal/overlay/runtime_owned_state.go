@@ -73,6 +73,11 @@ func collectUpstreamRuntimeProtectionPaths(basePath, repoRoot string, target Man
 			}
 		}
 	}
+	for _, runtimeTarget := range target.ProtectedRuntimeTargets {
+		if err := add(expandUser(runtimeTarget)); err != nil {
+			return nil, fmt.Errorf("unsafe explicitly protected upstream runtime target %q: %w", runtimeTarget, err)
+		}
+	}
 	for _, skill := range target.RetainedUpstreamSkills {
 		if err := add(filepath.Join(basePath, "skills", skill.Key)); err != nil {
 			return nil, fmt.Errorf("unsafe retained upstream skill path for %q: %w", skill.Key, err)

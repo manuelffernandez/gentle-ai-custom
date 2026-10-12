@@ -4,6 +4,18 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-10-12 | Adopted Gentle AI v4.0.0 repository snapshots
+
+- **Date**: `2026-10-12`
+- **Title**: Adopted Gentle AI v4.0.0 repository snapshots
+- **Type**: `adoption`
+- **Upstream scope/range**: Maintained v3.7.0 boundary `6dee8f833aec9e46015759c5065a9035795d9af1` -> exact v4.0.0 commit `ff77164d4f56f1665b22fb6fac51c2ccbb769400`.
+- **Decision**: `Adquirir` the approved v4.0.0 repository snapshots and current ODD baseline. Remove SDD skill names from the current OpenCode keep list and prune legacy names if present; retain migration blockers for user-owned legacy configuration. Do not treat snapshot adoption as runtime refresh, apply, or permission to remove machine-local SDD items.
+- **Why it mattered**: The maintained repository boundary and audit baseline now reflect v4 ODD without SDD, while upstream remains the owner of runtime materialization and machine-local settings remain user-owned.
+- **Affected artifacts**: `overlay/gentle-ai/state/upstream-state.json`; approved snapshots under `overlay/gentle-ai/assets/upstream/opencode/`; `overlay/gentle-ai/policy/{gentle-ai-policy.json,maintenance-intent.md}`; test fixtures in `internal/overlay/{codex_agent_test.go,runtime_owned_state_test.go}`; and live guidance in `AGENTS.md`, `README.md`, `overlay/gentle-ai/README.md`, `overlay/gentle-ai/maintenance.md`, and `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`.
+- **Verification**: The authorized snapshot sync reported 11 new, 13 changed, 31 unchanged, and 35 deleted snapshots across 19 directories. The post-sync `bash audit-gentle-ai-upstream.sh` passed with no managed or watched-unmanaged drift and all structural flags `ok`. Full and focused Go tests plus `git diff --check` passed after updating stale test fixtures to simulate installed Gentle AI 4.0.0; the advisory apply preflight was not weakened. This verifies repository state only. No runtime refresh, reinstall, overlay apply, commit, push, or PR was performed.
+- **Follow-up**: Runtime refresh and overlay apply remain separate actions requiring their own explicit authorization. Existing machine-local SDD settings or runtime files were not changed.
+
 ## 2026-10-04 | Removed remote authorization rule from maintained prompts
 
 - **Date**: `2026-10-04`

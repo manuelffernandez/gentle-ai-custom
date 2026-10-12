@@ -47,7 +47,7 @@ func (s *applyPolicyState) prepareRemoteAuthorizationRemoval() error {
 		}
 		maintained := maintainedPromptKeys[key]
 		if !maintained {
-			if s.isNamedProfileAgentKey(key) {
+			if isLegacyNamedAgentKey(key) {
 				contains, err := s.namedProfileHasRemoteAuthorization(prompt, filepath.Dir(s.configPath))
 				if err != nil {
 					return upstreamRuntimeError("cannot assess unmanaged named profile agent %q: %v", key, err)
@@ -56,9 +56,6 @@ func (s *applyPolicyState) prepareRemoteAuthorizationRemoval() error {
 					return upstreamRuntimeError("unmanaged named profile agent %q contains remote-authorization instructions; declare or remove that profile before retrying", key)
 				}
 			}
-			continue
-		}
-		if s.isManagedNamedProfileAgent(key) && strings.Contains(prompt, ".overlay.md") {
 			continue
 		}
 		path, isFile, err := s.runtimePromptFilePath(prompt)
@@ -120,51 +117,19 @@ func (s *applyPolicyState) maintainedRemoteAuthorizationAgentKeys() map[string]b
 		"general":                             true,
 		"explore":                             true,
 	}
-	for _, phase := range s.policy.OpenCode.SDDPhases {
-		keys[phase] = true
-	}
 	for _, actor := range append(append([]string{}, judgmentDayActorKeys...), reviewActorKeys...) {
 		keys[actor] = true
-	}
-	for key := range s.agents {
-		if s.isNamedProfileAgentKey(key) {
-			keys[key] = s.isManagedNamedProfileAgent(key)
-		}
 	}
 	return keys
 }
 
-func (s *applyPolicyState) isNamedProfileAgentKey(key string) bool {
-	if strings.HasPrefix(key, s.policy.OpenCode.ProfileOrchestratorPrefix) && len(key) > len(s.policy.OpenCode.ProfileOrchestratorPrefix) {
+func isLegacyNamedAgentKey(key string) bool {
+	if isLegacySDDAgentKey(key) {
 		return true
-	}
-	for _, phase := range s.policy.OpenCode.SDDPhases {
-		if strings.HasPrefix(key, phase+"-") && len(key) > len(phase)+1 {
-			return true
-		}
 	}
 	for _, actor := range judgmentDayActorKeys {
 		if strings.HasPrefix(key, actor+"-") && len(key) > len(actor)+1 {
 			return true
-		}
-	}
-	return false
-}
-
-func (s *applyPolicyState) isManagedNamedProfileAgent(key string) bool {
-	for _, profile := range s.resolvedProfiles {
-		if key == s.policy.OpenCode.ProfileOrchestratorPrefix+profile.Name {
-			return true
-		}
-		for _, phase := range s.policy.OpenCode.SDDPhases {
-			if key == phase+"-"+profile.Name {
-				return true
-			}
-		}
-		for _, actor := range judgmentDayActorKeys {
-			if key == actor+"-"+profile.Name {
-				return true
-			}
 		}
 	}
 	return false

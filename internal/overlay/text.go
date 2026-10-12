@@ -16,5 +16,3 @@ func normalizeLFTerminated(text string) string {
 	}
 	return normalized + "\n"
 }
-
-

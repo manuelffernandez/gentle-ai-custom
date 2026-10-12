@@ -30,7 +30,6 @@ type Policy struct {
 		BaseOrchestratorKey       string   `json:"base_orchestrator_key"`
 		OrchestratorAgentKeys     []string `json:"orchestrator_agent_keys"`
 		OrchestratorAgentPrefixes []string `json:"orchestrator_agent_prefixes"`
-		ProfileOrchestratorPrefix string   `json:"profile_orchestrator_prefix"`
 		SDDPhases                 []string `json:"sdd_phases"`
 	} `json:"opencode"`
 	Codex struct {

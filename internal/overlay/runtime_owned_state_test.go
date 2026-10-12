@@ -301,20 +301,21 @@ func TestReconcileOwnedRuntimeOutputsMigrationPreservesUpstreamAndTracksOwnedFil
 	judgmentSkill := filepath.Join(basePath, "skills", "judgment-day", "SKILL.md")
 	judgmentPrompt := filepath.Join(basePath, "skills", "judgment-day", "references", "prompts-and-formats.md")
 	agentsPath := filepath.Join(basePath, "AGENTS.md")
-	phasePrompt := filepath.Join(basePath, "prompts", "sdd", "sdd-init.md")
+	upstreamPrompt := filepath.Join(basePath, "prompts", "sdd", "sdd-init.md")
 	sharedContract := filepath.Join(basePath, "skills", "_shared", "review-ledger-contract.md")
-	phaseSkill := filepath.Join(basePath, "skills", "sdd-init", "SKILL.md")
+	upstreamSkill := filepath.Join(basePath, "skills", "_shared", "research-lifecycle.md")
 	obsoleteCustom := filepath.Join(basePath, "legacy-custom", "obsolete.md")
 	mustWriteFile(t, agentsPath, []byte("stale agents\n"))
-	mustWriteFile(t, phaseSkill, []byte("upstream phase skill\n"))
+	mustWriteFile(t, upstreamPrompt, []byte("upstream prompt snapshot\n"))
+	mustWriteFile(t, upstreamSkill, []byte("upstream retained skill\n"))
 	mustWriteFile(t, obsoleteCustom, []byte("obsolete custom output\n"))
 	writeOwnedRuntimeStateFixture(t, basePath, []string{
 		judgmentSkill,
 		judgmentPrompt,
 		agentsPath,
-		phasePrompt,
+		upstreamPrompt,
 		sharedContract,
-		phaseSkill,
+		upstreamSkill,
 		obsoleteCustom,
 	})
 
@@ -344,7 +345,7 @@ func TestReconcileOwnedRuntimeOutputsMigrationPreservesUpstreamAndTracksOwnedFil
 			t.Fatalf("patched upstream file %s did not survive stale reconciliation", path)
 		}
 	}
-	for _, path := range []string{phasePrompt, sharedContract, phaseSkill} {
+	for _, path := range []string{upstreamPrompt, sharedContract, upstreamSkill} {
 		if !pathExists(path) {
 			t.Fatalf("upstream-returned runtime path was deleted: %s", path)
 		}
@@ -362,7 +363,7 @@ func TestReconcileOwnedRuntimeOutputsMigrationPreservesUpstreamAndTracksOwnedFil
 	if !stringSliceContains(state.Paths, agentsPath) {
 		t.Fatal("current state does not record repo-owned AGENTS.md")
 	}
-	for _, upstreamPath := range []string{judgmentSkill, judgmentPrompt, phasePrompt, sharedContract, phaseSkill} {
+	for _, upstreamPath := range []string{judgmentSkill, judgmentPrompt, upstreamPrompt, sharedContract, upstreamSkill} {
 		if stringSliceContains(state.Paths, upstreamPath) {
 			t.Fatalf("current state incorrectly claims upstream-owned path %s", upstreamPath)
 		}

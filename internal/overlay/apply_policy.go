@@ -13,29 +13,24 @@ import (
 // applyPolicyState holds all mutable state accumulated while running the apply
 // pipeline. It is created once in RunApplyPolicy and threaded through each phase.
 type applyPolicyState struct {
-	policy                  Policy
-	managedTarget           ManagedAssetsTarget
-	verbose                 bool
-	recorder                *verboseRecorder
-	configPath              string
-	resolvedAgentOverrides  []AgentOverride
-	resolvedDefaultProfile  *validatedProfile
-	resolvedProfiles        []validatedProfile
-	profileConfigSourcePath string
-	profilesDefined         bool
-	agents                  map[string]any
-	configData              map[string]any
-	configChanged           bool
-	metrics                 applyMetrics
-	managedProfiles         map[string]bool
-	skillTargets            []string
-	originalAgentKeys       map[string]bool
-	sddPhasesSet            map[string]bool
-	expectedPromptRefs      map[string]string
-	runtimePatches          []preparedRuntimePatch
-	obsoletePromptPaths     []string
-	preservedUpstreamFiles  []runtimeFileSnapshot
-	effectiveSkillDenies    []string
+	policy                 Policy
+	managedTarget          ManagedAssetsTarget
+	verbose                bool
+	recorder               *verboseRecorder
+	configPath             string
+	resolvedAgentOverrides []AgentOverride
+	resolvedGlobalActors   map[string]actorAssignment
+	agents                 map[string]any
+	configData             map[string]any
+	configChanged          bool
+	metrics                applyMetrics
+	skillTargets           []string
+	originalAgentKeys      map[string]bool
+	expectedPromptRefs     map[string]string
+	runtimePatches         []preparedRuntimePatch
+	obsoletePromptPaths    []string
+	preservedUpstreamFiles []runtimeFileSnapshot
+	effectiveSkillDenies   []string
 }
 
 type applyPolicyOptions struct {
@@ -82,9 +77,7 @@ func runApplyPolicyWithOptions(repoRoot string, options applyPolicyOptions) int 
 		recorder:           options.recorder,
 		configPath:         expandUser(policy.OpenCode.ConfigPath),
 		skillTargets:       append([]string(nil), options.skillTargets...),
-		managedProfiles:    map[string]bool{},
 		originalAgentKeys:  map[string]bool{},
-		sddPhasesSet:       map[string]bool{},
 		expectedPromptRefs: map[string]string{},
 	}
 	// options.recorder must be initialized by the caller before invoking this
@@ -101,9 +94,6 @@ func runApplyPolicyWithOptions(repoRoot string, options applyPolicyOptions) int 
 	}
 	if len(state.skillTargets) == 0 {
 		return fail(fmt.Errorf("no registered skill targets resolved for prune scope"))
-	}
-	for _, phase := range policy.OpenCode.SDDPhases {
-		state.sddPhasesSet[phase] = true
 	}
 	if err := state.loadLocalRuntimeConfig(); err != nil {
 		return fail(err)
@@ -133,9 +123,7 @@ func runApplyPolicyWithOptions(repoRoot string, options applyPolicyOptions) int 
 	}
 
 	state.applyAgentOverrides()
-	if err := state.reconcileProfiles(); err != nil {
-		return fail(err)
-	}
+	state.reconcileGlobalActors()
 	if err := state.reconcilePrunedSkillPermissions(); err != nil {
 		return fail(err)
 	}
@@ -233,13 +221,16 @@ func (s *applyPolicyState) loadOpenCodeConfig() error {
 	}
 	s.agents = agents
 	for key := range agents {
+		if isLegacySDDAgentKey(key) {
+			return fmt.Errorf("OpenCode config at %s contains legacy SDD agent %q; remove that user-owned key manually, then re-apply. Its settings will not be deleted or migrated", s.configPath, key)
+		}
 		s.originalAgentKeys[key] = true
 	}
 	return nil
 }
 
 func (s *applyPolicyState) loadLocalRuntimeConfig() error {
-	resolved, err := resolveLocalRuntimeConfig(s.policy, s.sddPhasesSet)
+	resolved, err := resolveLocalRuntimeConfig(s.policy)
 	if err != nil {
 		return err
 	}
@@ -248,10 +239,7 @@ func (s *applyPolicyState) loadLocalRuntimeConfig() error {
 		fmt.Printf("  opencode config path overridden by local config: %s\n", s.configPath)
 	}
 	s.resolvedAgentOverrides = resolved.AgentOverrides
-	s.resolvedDefaultProfile = resolved.DefaultProfile
-	s.resolvedProfiles = resolved.Profiles
-	s.profileConfigSourcePath = resolved.ProfilesSourcePath
-	s.profilesDefined = resolved.ProfilesDefined
+	s.resolvedGlobalActors = resolved.GlobalActors
 	return nil
 }
 
@@ -310,7 +298,7 @@ func (s *applyPolicyState) detectTopologyDrift() {
 
 	var unknown []string
 	for key := range orchestratorsInConfig {
-		if !known[key] && !s.isProfileOrchestrator(key) {
+		if !known[key] {
 			unknown = append(unknown, key)
 		}
 	}
@@ -354,11 +342,6 @@ func (s *applyPolicyState) isOrchestrator(key string) bool {
 		}
 	}
 	return false
-}
-
-func (s *applyPolicyState) isProfileOrchestrator(key string) bool {
-	prefix := s.policy.OpenCode.ProfileOrchestratorPrefix
-	return prefix != "" && strings.HasPrefix(key, prefix)
 }
 
 // --- Persistence and verification ---
@@ -430,22 +413,9 @@ func (s *applyPolicyState) verifyPersistedState() error {
 		}
 	}
 
-	if s.resolvedDefaultProfile != nil {
-		baseKey := s.policy.OpenCode.BaseOrchestratorKey
-		if err := verifyProfileAssignment(verifyAgents, baseKey, s.resolvedDefaultProfile.Orchestrator); err != nil {
-			return fmt.Errorf("post-write verification failed for default profile orchestrator %q: %w", baseKey, err)
-		}
-		for _, phase := range s.policy.OpenCode.SDDPhases {
-			if err := verifyProfileAssignment(verifyAgents, phase, s.resolvedDefaultProfile.Phases[phase]); err != nil {
-				return fmt.Errorf("post-write verification failed for default profile phase %q: %w", phase, err)
-			}
-		}
-		for _, family := range []map[string]actorAssignment{s.resolvedDefaultProfile.JudgmentDay, s.resolvedDefaultProfile.Review} {
-			for key, assignment := range family {
-				if err := verifyActorAssignment(verifyAgents, key, assignment); err != nil {
-					return fmt.Errorf("post-write verification failed for global actor %q: %w", key, err)
-				}
-			}
+	for key, assignment := range s.resolvedGlobalActors {
+		if err := verifyActorAssignment(verifyAgents, key, assignment); err != nil {
+			return fmt.Errorf("post-write verification failed for global actor %q: %w", key, err)
 		}
 	}
 
@@ -462,39 +432,6 @@ func (s *applyPolicyState) verifyPersistedState() error {
 		}
 		if _, err := s.resolveRuntimePrompt(expectedRef); err != nil {
 			return fmt.Errorf("post-write verification failed: prompt for %q is unavailable: %w", key, err)
-		}
-	}
-
-	var profiles []string
-	for name := range s.managedProfiles {
-		profiles = append(profiles, name)
-	}
-	sort.Strings(profiles)
-	for _, name := range profiles {
-		profile, ok := s.managedProfileAssignment(name)
-		if !ok {
-			return fmt.Errorf("post-write verification failed: managed profile %q missing from resolved profiles", name)
-		}
-		orchKey := s.policy.OpenCode.ProfileOrchestratorPrefix + name
-		if err := verifyProfileAssignment(verifyAgents, orchKey, profile.Orchestrator); err != nil {
-			return fmt.Errorf("post-write verification failed for profile %q orchestrator agent %q: %w", name, orchKey, err)
-		}
-		for _, phase := range s.policy.OpenCode.SDDPhases {
-			phaseKey := phase + "-" + name
-			if err := verifyProfileAssignment(verifyAgents, phaseKey, profile.Phases[phase]); err != nil {
-				return fmt.Errorf("post-write verification failed for profile %q phase agent %q: %w", name, phaseKey, err)
-			}
-		}
-		for _, key := range judgmentDayActorKeys {
-			suffixedKey := key + "-" + name
-			assignment, configured := profile.JudgmentDay[key]
-			if configured {
-				if err := verifyActorAssignment(verifyAgents, suffixedKey, assignment); err != nil {
-					return fmt.Errorf("post-write verification failed for profile %q Judgment Day actor %q: %w", name, suffixedKey, err)
-				}
-			} else if _, exists := verifyAgents[suffixedKey]; exists {
-				return fmt.Errorf("post-write verification failed: stale profile Judgment Day actor %q remains", suffixedKey)
-			}
 		}
 	}
 
@@ -517,48 +454,4 @@ func (s *applyPolicyState) verifyEffectiveSkillPermissionOrder() error {
 		return fmt.Errorf("persisted config is not in canonical effective-deny order")
 	}
 	return nil
-}
-
-func verifyActorAssignment(agents map[string]any, key string, assignment actorAssignment) error {
-	actual, ok := jsonObject(agents[key])
-	if !ok {
-		return fmt.Errorf("agent missing from OpenCode config after write")
-	}
-	if assignment.Inherit {
-		if _, exists := actual["model"]; exists {
-			return fmt.Errorf("model remains after inheritance reconciliation")
-		}
-		if _, exists := actual["variant"]; exists {
-			return fmt.Errorf("variant remains after inheritance reconciliation")
-		}
-		return nil
-	}
-	return verifyProfileAssignment(agents, key, profileAssignment{Model: assignment.Model, Variant: assignment.Variant})
-}
-
-func verifyProfileAssignment(agents map[string]any, key string, assignment profileAssignment) error {
-	actual, ok := jsonObject(agents[key])
-	if !ok {
-		return fmt.Errorf("agent missing from OpenCode config after write")
-	}
-	if jsonString(actual["model"]) != assignment.Model {
-		return fmt.Errorf("model is %q after write, expected %q", jsonString(actual["model"]), assignment.Model)
-	}
-	if assignment.Variant != "" {
-		if jsonString(actual["variant"]) != assignment.Variant {
-			return fmt.Errorf("variant is %q after write, expected %q", jsonString(actual["variant"]), assignment.Variant)
-		}
-	} else if jsonString(actual["variant"]) != "" {
-		return fmt.Errorf("variant is %q after write, expected empty", jsonString(actual["variant"]))
-	}
-	return nil
-}
-
-func (s *applyPolicyState) managedProfileAssignment(name string) (validatedProfile, bool) {
-	for _, profile := range s.resolvedProfiles {
-		if profile.Name == name {
-			return profile, true
-		}
-	}
-	return validatedProfile{}, false
 }

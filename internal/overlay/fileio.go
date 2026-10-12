@@ -89,4 +89,3 @@ func pathExists(path string) bool {
 func ensureDir(path string) error {
 	return os.MkdirAll(path, 0o755)
 }
-

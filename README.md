@@ -6,7 +6,7 @@ Una capa de customización mantenida con IA para [Gentle AI](https://github.com/
 
 ## Qué es Gentle AI
 
-[Gentle AI](https://github.com/Gentleman-Programming/gentle-ai) es el proyecto original de Gentleman Programming para mejorar de forma MUY fuerte la experiencia de desarrollo con IA: agentes, skills, orquestación SDD, perfiles y tooling real para trabajar mejor con asistentes en el código.
+[Gentle AI](https://github.com/Gentleman-Programming/gentle-ai) es el proyecto original de Gentleman Programming para mejorar la experiencia de desarrollo con IA mediante agentes, skills, orquestación y herramientas para trabajar con asistentes en el código.
 
 Este repo existe sobre esa base, no en reemplazo. La idea es dar el crédito que corresponde al proyecto upstream y, al mismo tiempo, construir una capa más mantenible para workflows concretos.
 
@@ -106,27 +106,35 @@ El mantenimiento en este repositorio sigue siempre los mismos pasos. Lo único q
 
 Es normal no haber ejecutado todavía `gentle-ai sync` ni una reinstalación: esos pasos vienen después de la auditoría y de tu aprobación. La opción `--release v<V>` no actualiza el ejecutable ni el runtime; solo elige qué tag exacto se revisa. El tag debe existir, estar limpio y coincidir con `HEAD`. El modo habitual sin esa opción sigue exigiendo que coincida con la versión instalada.
 
-### Estado actual: snapshots del repo v3.7.0; runtime sin verificar
+### Estado actual: snapshots v4 adoptados; runtime sin verificar
 
-El repo ya adoptó Gentle AI v3.7.0 para sus snapshots y su frontera mantenida: `6dee8f833aec9e46015759c5065a9035795d9af1`. La sincronización autorizada informó 36 cambios administrados: 5 archivos nuevos, 31 actualizados, 43 sin cambios, ninguno eliminado y 19 carpetas sincronizadas. También actualizó `upstream-state.json`.
+La frontera de snapshots de este repo ya está en Gentle AI v4.0.0, commit `ff77164d4f56f1665b22fb6fac51c2ccbb769400`. La sincronización aprobada informó 11 archivos nuevos, 13 actualizados, 31 sin cambios y 35 retirados, en 19 carpetas. OpenCode y Codex no se actualizaron: sus versiones de runtime siguen sin verificar.
 
-La auditoría posterior pasó para ese mismo commit, sin diferencias administradas ni cambios no administrados vigilados; todos los controles estructurales informaron `ok`. La auditoría verificó que el binario instalado es v3.7.0 para la base administrada por OpenCode. No verificó el runtime materializado ni el runtime de Codex.
+La auditoría posterior a la sincronización pasó: no detectó diferencias administradas ni no administradas vigiladas, y todos los controles estructurales informaron `ok`. La limpieza afectó solo a los snapshots declarados por el repo; no cambió archivos ni configuración del runtime.
+
+El estado de snapshots v3.7.0 que aparece a continuación es histórico. La versión mantenida actualmente es v4.0.0; cualquier refresh o apply del runtime necesita autorización separada.
+
+#### Estado histórico de snapshots v3.7.0
+
+En una adopción anterior, el repo avanzó sus snapshots a Gentle AI v3.7.0, commit `6dee8f833aec9e46015759c5065a9035795d9af1`. La sincronización informó 5 archivos nuevos, 31 actualizados, 43 sin cambios y ninguno eliminado, en 19 carpetas.
+
+La auditoría posterior pasó para ese commit. Esa evidencia corresponde a la adopción histórica de snapshots; no describe la frontera actual ni verifica el runtime materializado o Codex.
 
 No se verificó la versión del runtime materializado ni la de Codex. La versión 2.9.1 corresponde a evidencia histórica, no a un estado actual confirmado. OpenCode 1.18.32 fue la versión en una verificación anterior; los cinco plugins V2 siguen siendo solo snapshots de auditoría y sincronización, y este repo no declara soporte para instalarlos. No se autorizó ni ejecutó `gentle-ai sync`, reinstalación ni `apply` como parte de la adopción.
 
-#### Seguridad de commits ODD pendiente en runtime
+#### Commits ODD pendientes de propagación al runtime
 
-El snapshot v3.7.0 de `work-unit-commits` exige cerrar cada tarea ODD con un commit. Los parches locales para OpenCode y Codex ya están preparados en el repo, pero su aplicación en el runtime no está verificada. No des por protegida una sesión que use ese skill hasta que autorices el `apply` del target correspondiente y revises el resultado. La evidencia histórica indica que el `apply` de OpenCode con binario 2.9.1 no acepta el anchor v3.7.0; no infieras cuál es el runtime actual. Mientras tanto, no hagas commits sin autorización explícita.
+El workflow upstream `work-unit-commits` exige cerrar cada tarea ODD con un commit. Los parches locales que anulaban esa regla ya se quitaron del repo para OpenCode y Codex. El runtime no se actualizó ni verificó: todavía hace falta autorizar por separado el refresh correspondiente y el `apply` del target. Esta regla de cierre no autoriza push ni PR.
 
-La copia de v3.7.0 incorpora el contrato output-only de `sdd-research`; por eso se retiró su parche local redundante. El handoff local de Judgment Day se mantiene.
+El snapshot v3.7.0 incorporaba el contrato output-only de `sdd-research`; esa evidencia y el retiro de su parche local son históricos. El handoff local de Judgment Day se mantiene.
 
 #### Target Codex
 
-`apply-gentle-ai-custom.sh codex` instala las siete skills propias reutilizando sus fuentes en `shared/skills/`; reemplaza solo las skills con el mismo nombre que estén en esa lista y no poda otras skills upstream. También agrega reglas locales puntuales después de la sección SDD upstream en `~/.codex/AGENTS.md` y aplica parches exactos a Judgment Day y `work-unit-commits` cuando los anchors coinciden.
+`apply-gentle-ai-custom.sh codex` instala las siete skills propias reutilizando sus fuentes en `shared/skills/`; reemplaza solo las skills con el mismo nombre que estén en esa lista y no poda otras skills upstream. También agrega reglas locales puntuales después del marcador de Engram en `~/.codex/AGENTS.md` y aplica el parche exacto de retrospectiva de Judgment Day.
 
-La capa no reemplaza el archivo completo `AGENTS.md`, no poda skills upstream ajenas a la lista local, no genera comandos y no cambia `config.toml`, Engram, prompts SDD ni perfiles/modelos. Si falta o cambió un anchor, se detiene antes de escribir. La auditoría actual no verifica el runtime de Codex; su comportamiento queda sin confirmar hasta que se autorice y revise un apply de Codex.
+La capa no reemplaza el archivo completo `AGENTS.md`, no poda skills upstream ajenas a la lista local, no genera comandos y no cambia `config.toml`, Engram ni perfiles/modelos. Si falta o cambió un anchor, se detiene antes de escribir. La auditoría actual no verifica el runtime de Codex; su comportamiento queda sin confirmar hasta que se autorice y revise un apply de Codex.
 
-El repo también acepta de forma consciente que una solicitud explícita de archivo SDD pueda guardar specs aplicables aunque queden tareas sin marcar. Es una decisión local: no confirma la intención de upstream ni demuestra que la implementación esté completa. Tampoco cambia la revisión RDD escalada por separado. La guía de mantenimiento incluye qué revisar en futuras auditorías.
+El repo aceptó de forma consciente una conducta de archivo SDD en v3.7.0. Esa decisión es histórica: el baseline actual es ODD sin SDD y esto no prueba ni cambia el estado de la revisión RDD escalada por separado.
 
 #### Retiro de la regla de autorización remota
 
@@ -140,21 +148,21 @@ En el cierre anterior de v2.9.1, la auditoría pasó para `9ec0cf443622f20fe5118
 
 #### Evidencia histórica del runtime v2.5.0
 
-La policy y la auditoría de este repositorio incorporan la fase real `sdd-research`, ubicada después de `sdd-explore`, y validan perfiles con 11 fases. Históricamente, la instalación completa del componente SDD v2.5.0 realizada manualmente y la posterior ejecución autorizada por separado de `bash apply-gentle-ai-custom.sh opencode` terminaron correctamente.
+En la etapa histórica v2.5.0, la policy y la auditoría incorporaban la fase `sdd-research` y perfiles de 11 fases. La instalación completa del componente SDD y la posterior ejecución autorizada de `bash apply-gentle-ai-custom.sh opencode` terminaron correctamente entonces; esa no es la policy actual.
 
 El `apply` actualizó la configuración, podó 2 skills, cambió y verificó 1 asset propio, no informó warnings de topología y administró 4 perfiles. En los agentes informó 3 creados, 4 actualizados y 49 sin cambios, sin perfiles no administrados. La verificación final pasó la auditoría canónica, `go test ./...`, `git diff --check` y la carga resuelta de los agentes `sdd-research`.
 
-La copia sanitizada y propia de `branch-pr` está instalada. La copia conflictiva upstream de `branch-pr`, `issue-creation` y Hermes no están. Las 7 skills propias, los 5 wrappers, el `AGENTS.md` propio, los overrides y los 4 perfiles administrados coinciden con sus fuentes o con la configuración local. `general` usa `openai/gpt-5.6-terra` / `high`; `explore` usa `openai/gpt-5.6-sol` / `medium`. Los cuatro perfiles tienen 11 fases en orden y existen los 3 actores nombrados de `sdd-research`. Los actores de review siguen siendo globales, sin copias con sufijo, y Judgment Day difiere del upstream solo por el parche de retrospectiva.
+En esa verificación histórica, la copia sanitizada y propia de `branch-pr` estaba instalada; las copias conflictivas upstream de `branch-pr`, `issue-creation` y Hermes no estaban. Las 7 skills propias, los 5 wrappers, el `AGENTS.md` propio, los overrides y los 4 perfiles administrados coincidían con sus fuentes o con la configuración local. `general` usaba `openai/gpt-5.6-terra` / `high` y `explore` usaba `openai/gpt-5.6-sol` / `medium`. Los cuatro perfiles tenían 11 fases en orden y existían los 3 actores nombrados de `sdd-research`. Los actores de review eran globales, sin copias con sufijo, y Judgment Day difería del upstream solo por el parche de retrospectiva. Esto no verifica el runtime actual.
 
 En esa verificación histórica del runtime v2.5.0, la intención y la política efectiva de background estaban en `on`, y el launcher era `~/.gentle-ai/bin/opencode`. Los procesos abiertos desde Desktop o con `opencode` normal seguían en foreground. También se observó que `~/.gentle-ai/state.json` informaba `installed_binary_version: 2.4.0`; no se conoce la causa y no se modificó ese estado externo.
 
 La política del repositorio considera RDD activo y funcional por decisión explícita del propietario, basada en validaciones operativas realizadas en otros repositorios. Esta decisión no cambia el runtime: en esta máquina se observó el modo global en `on` y sin ajuste local para este clon. El usuario excluyó de forma explícita este mantenimiento de v2.9.1 de RDD. No se autorizó ni realizó ningún commit, push o PR para este cierre documental.
 
-### Adaptación del repositorio para v2.9
+### Historial: adaptación del repositorio para v2.9
 
 La auditoría entiende la nueva composición del orchestrator sin depender del número de versión: sigue la cadena real desde la asignación del prompt hasta el asset OpenCode y rechaza asignaciones sueltas o señuelos. También vigila el contrato upstream de autorización remota y comprueba que llegue a los prompts de OpenCode que este repo mantiene.
 
-El skill upstream `sdd-research` sigue siendo la fuente del runtime. En los snapshots adoptados de v3.7.0, tanto el skill como el comando de investigación indican que la recolección es output-only y que el orchestrator se ocupa de la persistencia. Por eso se retiró el parche local de precedencia. El runtime instalado sigue en 2.9.1 y no se afirma que ya use ese contrato.
+En los snapshots v3.7.0, el skill y el comando `sdd-research` indicaban que la recolección era output-only y que el orchestrator se ocupaba de la persistencia. Esta evidencia es histórica; no describe el runtime actual.
 
 La adopción de v2.9.1 incorpora desde upstream el consentimiento de revisión compatible y la migración de prompts preservados para OpenCode. Los cambios de autoridad de despacho derivados de transcripciones de Claude Code quedan fuera del alcance OpenCode mantenido por este repo. No fue necesario cambiar la política, los parches, los perfiles ni la topología.
 
@@ -220,14 +228,14 @@ La actualización del runtime sigue siendo tuya por defecto. Aprobar la auditor�
 
 El comando `apply-gentle-ai-custom` sigue siendo independiente de la carpeta original: compara la versión instalada con la versión mantenida por este overlay y no necesita encontrar el clon de upstream.
 
-El `AGENTS.md` propio de OpenCode sigue siendo un archivo completo que instala este repo. Su persona y el protocolo completo de Engram para OpenCode deben coincidir con los snapshots aprobados. Codex mantiene su archivo completo bajo control de upstream y recibe solo un bloque local delimitado; ese bloque incluye alcance de implementación, comunicación clara, estándar de Markdown para agentes, seguridad de credenciales, regla de no hacer commits automáticamente y el ajuste condicional para Gemini. Ninguno de los dos archivos propios incorpora la regla upstream de autorización remota.
+El `AGENTS.md` propio de OpenCode sigue siendo un archivo completo que instala este repo. Su persona y el protocolo completo de Engram para OpenCode deben coincidir con los snapshots aprobados. Codex mantiene su archivo completo bajo control de upstream y recibe solo un bloque local delimitado; ese bloque incluye alcance de implementación, comunicación clara, estándar de Markdown para agentes, seguridad de credenciales y el ajuste condicional para Gemini. Ninguno de los dos archivos propios incorpora la regla upstream de autorización remota.
 
 ### Cuándo usar `gentle-ai sync` y cuándo reinstalar
 
-- Es preferible usar `gentle-ai sync` si los cambios que adoptamos sirven, pero no rompen de forma profunda cómo están configurados los agentes y perfiles.
-- Conviene hacer una reinstalación completa cuando los cambios del proyecto original afectan la estructura básica de los perfiles que usamos, o cuando un simple `gentle-ai sync` ya no alcanza para armar bien la configuración.
+- Es preferible usar `gentle-ai sync` si los cambios que adoptamos sirven y el target mantenido conserva una estructura compatible.
+- Conviene hacer una reinstalación completa cuando los cambios del proyecto original afectan la topología o materialización del target mantenido, o cuando un simple `gentle-ai sync` ya no alcanza para prepararlo.
 - Si el proyecto original agrega soporte para un nuevo agente o plataforma que no usamos, no hace falta reinstalar.
-- Las reglas del proyecto original sobre estrategia de PR, PRs encadenadas y presupuesto de revisión se adoptan por defecto. Solo se sanitizan si chocan con una personalización local explícita. En v3.7.0, ODD pide cerrar cada tarea con un commit. Los parches exactos de OpenCode y Codex ya están en el repo, pero no se afirma que estén instalados. No se debe afirmar que esa protección está activa hasta un `apply` autorizado para el target y una verificación posterior. Hasta entonces, no hagas commits sin autorización explícita.
+- Las reglas upstream sobre estrategia de PR, PRs encadenadas, presupuesto de revisión y commit ODD al cierre de tarea se adoptan por defecto. Los parches locales que anulaban el commit se quitaron del repo para ambos targets. El runtime todavía no se actualizó ni verificó; el commit de cierre no autoriza push ni PR.
 
 ### Qué hace el comando `apply-gentle-ai-custom`
 
@@ -235,12 +243,12 @@ El `AGENTS.md` propio de OpenCode sigue siendo un archivo completo que instala e
 - borra las skills que no queremos usar solo en OpenCode y únicamente para los targets seleccionados; Codex conserva sus skills upstream.
 - bloquea en OpenCode cada skill podada que no tenga un reemplazo propio con el mismo nombre mediante `permission.skill`, incluso si OpenCode encuentra una copia en `~/.agents/skills` o `~/.claude/skills`. No borra ni modifica esas copias externas, y conserva los permisos de skills no podadas ni de reemplazos propios como `branch-pr`.
 - aplica nuestras preferencias de modelos de IA si las configuramos.
-- comprueba solo los archivos, referencias y anchors que necesita para aplicar perfiles o los parches locales declarados.
-- aplica el parche puntual de Judgment Day y, cuando el runtime contenga el anchor v3.7.0 compatible, el parche ODD que deja el commit optativo. Si el anchor no coincide, `apply` se detiene antes de escribir. El parche de `sdd-research` se retiró de los snapshots adoptados por estar cubierto por el contrato upstream v3.7.0.
-- conserva los prompts y plugins preparados por Gentle AI; no los reemplaza con plantillas fuente. El binario v3.7.0 está verificado, pero la auditoría no confirma el runtime materializado. La política acepta RDD como activo y funcional, pero su estado efectivo se consulta por máquina o clon.
-- ajusta modelos y perfiles reutilizando los prompts base ya instalados.
+- comprueba solo los archivos, referencias y anchors que necesita para las operaciones solicitadas o los parches locales declarados.
+- aplica solo el parche puntual de retrospectiva de Judgment Day. Los parches que anulaban el commit ODD se quitaron para ambos targets; el runtime aún no se actualizó ni verificó.
+- conserva los prompts y plugins preparados por Gentle AI; no los reemplaza con plantillas fuente. Los snapshots mantenidos están en v4.0.0, pero el runtime materializado no está verificado. La política acepta RDD como activo y funcional, pero su estado efectivo se consulta por máquina o clon.
+- aplica overrides compatibles sin crear perfiles o agentes SDD. Si encuentra opciones SDD heredadas, se detiene antes de escribir y las deja intactas para revisión manual.
 - agrega de forma puntual el handoff de `judgment-retrospective` al skill `judgment-day` compatible.
-- conserva el contrato upstream output-only de `sdd-research`; no instala un parche local redundante.
+- mantiene los nombres SDD fuera de la lista de skills conservadas y los poda en OpenCode si aún existen. No borra ni migra configuración o archivos locales por esta actualización documental; cualquier runtime apply requiere autorización independiente.
 - registra todos los archivos que instala como propios. Al limpiar registros viejos, conserva los archivos devueltos a Gentle AI y los targets de parches puntuales sin declararlos como propios.
 
 `opencode` y `codex` limitan el apply a un target. `all` selecciona los dos. Codex no altera permisos, configuración, pruning ni comandos de OpenCode.
@@ -265,13 +273,13 @@ gentle-ai review mode enable --cwd .
 - Si el valor global o el del clon está en `off`, RDD queda apagado. Un clon no puede encenderlo por encima de un `off` global y su ajuste no pasa a otros clones.
 - Volver a habilitarlo se aplica a candidatos nuevos desde ese momento. No aprueba, repara ni reanuda automáticamente una autoridad vieja inválida o pendiente. El contenido creado mientras RDD estaba apagado no queda varado: después de habilitarlo, el contenido actual puede convertirse en un candidato nuevo y pasar por una revisión nueva.
 
-SDD y RDD cumplen funciones distintas. SDD organiza la planificación, implementación, tests y verificación. RDD cruza ese flujo al final: cuando está activo, puede revisar el candidato inmutable después de `apply` y aportar el recibo usado en la entrega. Si RDD está apagado, no debe lanzar revisores; SDD sigue funcionando, incluidos tests y verificación, y el cierre usa la ruta `disabled/unmanaged` bajo la política normal del repositorio sin inventar un recibo.
+SDD y RDD son conceptos distintos. En general, SDD organiza la planificación y la implementación, mientras RDD revisa el candidato terminado. Este repo mantiene el flujo ODD de v4 sin SDD; si RDD está apagado, no se deben lanzar revisores y la entrega sigue la política normal sin inventar un recibo.
 
 RDD está aceptado como activo y funcional por decisión explícita del propietario, basada en validaciones operativas realizadas en otros repositorios. El estado efectivo pertenece al usuario y a cada máquina o clon; Gentle AI upstream no lo controla de forma remota. Consúltalo siempre con `gentle-ai review mode status --cwd .`. En esta máquina se observó `on` por la configuración global y ningún ajuste local para este clon.
 
 Como contexto histórico, Gentle AI v2.2.2 tuvo un bug confirmado en la entrega del alcance de una corrección. El código y los tests de v2.5.0 aportaron el plan previo a la edición, y este repositorio evaluó pero aplazó un parche local. Ese análisis se conserva en `overlay/gentle-ai/maintenance.md`. El canary con corrección puede seguir usándose para diagnosticar regresiones, pero ya no bloquea la activación. Siguen siendo obligatorios el interruptor controlado por el usuario, los recibos ligados al candidato exacto, los límites de corrección y la política normal de entrega.
 
-El runtime actual de v2.5.0 ya pasó la instalación completa del componente SDD y el `apply` autorizado por separado. La intención y la política efectiva de background están en `on`; para una sesión CLI con background usa `~/.gentle-ai/bin/opencode`. Desktop y el comando `opencode` normal siguen iniciando procesos en foreground. Un futuro `gentle-ai sync` o una reinstalación volverá a requerir un `apply` autorizado por separado. La aceptación de RDD no autoriza esas acciones ni modifica la configuración.
+En la verificación histórica de v2.5.0, el runtime pasó la instalación completa del componente SDD y el `apply` autorizado por separado. En ese momento, la intención y la política efectiva de background estaban en `on`, y `~/.gentle-ai/bin/opencode` era el launcher observado para sesiones CLI con background; Desktop y el comando `opencode` normal iniciaban procesos en foreground. Estos datos no describen el runtime, el modo de background ni el launcher actuales, que no están verificados. Un futuro `gentle-ai sync` o una reinstalación requeriría un `apply` autorizado por separado. La aceptación de RDD no autoriza esas acciones ni modifica la configuración.
 
 ### Chequeo previo de versiones
 
@@ -293,9 +301,8 @@ Dónde busca el proyecto original:
 
 Si falta algo en tu configuración:
 
-- si no ponés `profiles`, no agrega perfiles especiales.
 - si no ponés `agent_overrides`, no cambia los modelos que vienen por defecto.
-- si no ponés `default_profile`, no altera la familia base de perfiles SDD.
+- no se generan agentes ni perfiles SDD; las configuraciones SDD locales anteriores se rechazan sin modificarlas.
 - si omitís un actor dentro de `judgment_day` o `review`, conserva la asignación que ya tenga el runtime. Para heredar dinámicamente el modelo y variant del orchestrator que delega, usá `{"inherit": true}`.
 
 ### Archivos clave del mantenimiento
@@ -334,13 +341,13 @@ Toda la guía para humanos está en `overlay/gentle-ai/maintenance.md`. El compo
 
 Esta sección resume la policy en lenguaje humano. El detalle más preciso, técnico y normativo vive en `overlay/gentle-ai/policy/maintenance-intent.md`.
 
-La idea general ahora es **upstream-first**: esta capa arranca desde el comportamiento actual de Gentle AI v2+, conserva unas pocas personalizaciones locales explícitas y evita seguir cargando parches viejos si ya no hacen falta. El foco está en mantener un overlay chico y entendible.
+La idea general ahora es **upstream-first**: esta capa arranca desde el comportamiento actual de Gentle AI v4, conserva unas pocas personalizaciones locales explícitas y evita seguir cargando parches viejos si ya no hacen falta. El foco está en mantener un overlay chico y entendible.
 
 ### Skills del overlay
 
 | Skill                  | Estado      | Qué hace                                                                       | Por qué se queda / se va                                                                                                                     |
 | ---------------------- | ----------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `_shared`              | Se conserva | Expone referencias compartidas para skills SDD.                                | Sostiene el resto del flujo sin imponer proceso extra.                                                                                       |
+| `_shared`              | Se conserva | Expone referencias compartidas para skills upstream.                            | Sostiene las skills conservadas sin imponer proceso extra.                                                                                  |
 | `cognitive-doc-design` | Se conserva | Ayuda a escribir documentación más clara y escaneable.                         | Mejora la calidad de los artifacts sin meter gobernanza de repo.                                                                             |
 | `comment-writer`       | Se conserva | Ayuda a redactar comentarios de colaboración.                                  | Suma claridad comunicacional sin forzar una estrategia de PR.                                                                                |
 | `gentle-ai-bench`      | Snapshot retenido | Documenta cómo crear y verificar journeys del bench upstream.              | Se guarda para auditoría, pero este repo no la instala como propia ni obliga a usarla.                                                        |
@@ -348,17 +355,7 @@ La idea general ahora es **upstream-first**: esta capa arranca desde el comporta
 | `judgment-day`         | Se conserva | Hace revisión adversarial/dual review y dispara la retrospectiva automática al cerrar desde el hook runtime del overlay. | Refuerza criterio técnico, valida de verdad y deja aprendizaje reutilizable.                                                                |
 | `judgment-retrospective` | Se agrega   | Resume el juicio, guarda patrones reutilizables e historial de intervenciones.  | Diseñada para ser invocada por el hook runtime de `judgment-day`; también se puede cargar manualmente. Evita guardar el output crudo y ayuda a ver si una corrección realmente funcionó. |
 | `rdd-defect-workflow`  | Snapshot retenido | Describe el trabajo upstream sobre defectos RDD.                           | Se guarda para auditoría y no se instala como skill propia; el modo efectivo de RDD se decide fuera de este snapshot.                         |
-| `sdd-init`             | Se conserva | Inicializa contexto, testing y capacidades SDD.                                | Es parte del núcleo útil del flujo SDD.                                                                                                      |
-| `sdd-explore`          | Se conserva | Explora ideas antes de proponer cambios.                                       | Mejora análisis y reduce implementación impulsiva.                                                                                           |
-| `sdd-research`         | Se adquiere | Reúne evidencia externa auditable antes de la propuesta cuando el orchestrator la solicita. | Agrega una fase real y separa investigación con fuentes de las decisiones de producto.                                                       |
-| `sdd-propose`          | Se conserva | Convierte exploración en propuesta concreta.                                   | Mantiene trazabilidad y foco de cambio.                                                                                                      |
-| `sdd-spec`             | Se conserva | Escribe requisitos y escenarios.                                               | Conserva la disciplina del flujo SDD.                                                                                                        |
-| `sdd-design`           | Se conserva | Desarrolla el diseño técnico del cambio.                                       | Aporta arquitectura y decisiones explícitas.                                                                                                 |
-| `sdd-tasks`            | Se conserva | Baja diseño/especificación a tareas ejecutables.                               | Hace operativo el trabajo sin perder estructura.                                                                                             |
-| `sdd-apply`            | Se conserva | Implementa tareas definidas por SDD.                                           | Conserva la parte más útil del flujo técnico.                                                                                                |
-| `sdd-verify`           | Se conserva | Verifica que lo aplicado cumpla con spec y tasks.                              | Mantiene validación técnica al final del ciclo.                                                                                              |
-| `sdd-archive`          | Se conserva | Cierra el cambio y deja persistencia final.                                    | Completa el circuito SDD con trazabilidad.                                                                                                   |
-| `sdd-onboard`          | Se conserva | Guía un uso completo del flujo SDD.                                            | Facilita adopción sin tocar gobernanza de repo.                                                                                              |
+| Skills SDD             | Se podan   | Los nombres SDD ya no forman parte de la superficie mantenida para OpenCode.   | El baseline v4 usa ODD; las opciones y archivos SDD de la máquina siguen siendo propiedad del usuario.                                      |
 | `skill-creator`        | Se conserva | Ayuda a crear nuevas skills.                                                   | Hace extensible la capa custom.                                                                                                              |
 | `skill-improver`       | Se conserva | Ayuda a revisar y mejorar skills existentes.                                   | Permite evolucionar tooling propio con criterio.                                                                                             |
 | `skill-registry`       | Se conserva | Indexa las skills disponibles y sus triggers.                                  | Hace mantenible el ecosistema de skills.                                                                                                     |
@@ -375,7 +372,7 @@ La idea general ahora es **upstream-first**: esta capa arranca desde el comporta
 
 ### Comportamiento del orchestrator upstream
 
-Gentle AI instala el orchestrator SDD ya preparado con su contrato nativo de review. Esta capa no mantiene una copia ejecutable del template fuente ni certifica su semántica: lo conserva y solo reutiliza sus valores cuando configura perfiles.
+Gentle AI instala el orchestrator ODD ya preparado con su contrato nativo de review. Esta capa no mantiene una copia ejecutable del template fuente ni certifica su semántica: lo conserva y aplica solo las personalizaciones locales declaradas.
 
 Se mantiene localmente:
 
@@ -383,12 +380,12 @@ Se mantiene localmente:
 - las skills repo-owned `code-design`, `package-security`, `commit-planner` y la `branch-pr` sanitizada, con `pr-finalizer` como compatibilidad temporal
 - la copia repo-owned sanitizada de `chained-pr` para runtime, mientras su snapshot upstream sigue retenido para auditoría
 - el parche puntual que conecta `judgment-day` con `judgment-retrospective`
-- las reglas `no-auto-commit`, Agent-Readable Markdown Standard, Gemini anti-sycophancy y alcance de implementación; el detalle global está en `overlay/gentle-ai/assets/owned/opencode/AGENTS.md`
+- Agent-Readable Markdown Standard, Gemini anti-sycophancy y alcance de implementación; el detalle global está en `overlay/gentle-ai/assets/owned/opencode/AGENTS.md`. El runtime adopta el commit ODD de work-unit al cierre de tarea; esto no autoriza push ni PR.
 - la regla global que evita que el agente principal, los subagentes y las herramientas accedan a archivos de credenciales; su detalle vive en `overlay/gentle-ai/assets/owned/opencode/AGENTS.md`
 
 Se adquiere desde upstream por defecto:
 
-- el comportamiento SDD/orchestrator
+- la orquestación ODD y el ciclo de review/remediation
 - el lifecycle moderno de review y remediation
 - los conceptos de PR/chained/work-unit/review-budget, salvo conflicto concreto con la capa local
 
@@ -408,25 +405,22 @@ La guía canónica está en `shared/skills/package-security/SKILL.md` y sus plan
 
 ### Overrides de agentes
 
-Estos overrides existen por cómo OpenCode delega trabajo. Verificado contra la documentación oficial de OpenCode: el sistema trae agentes built-in propios (`Build`, `Plan`, `General`, `Explore`, `Scout`) y, si un subagente no tiene modelo explícito, usa el modelo del agente primario que lo invocó. Esta capa agrega overrides porque, en este setup, quiero fijar de forma explícita qué modelo usan algunos agentes built-in de OpenCode cuando entran en juego fuera del sistema de perfiles SDD.
+Estos overrides existen por cómo OpenCode delega trabajo. Verificado contra la documentación oficial de OpenCode: el sistema trae agentes built-in propios (`Build`, `Plan`, `General`, `Explore`, `Scout`) y, si un subagente no tiene modelo explícito, usa el modelo del agente primario que lo invocó. Esta capa permite fijar de forma explícita los modelos de agentes ajenos a SDD.
 
 Tabla operativa:
 
 | Caso                            | Qué agentes intervienen                                                                                                                                         | Cómo se resuelve el modelo                                                                                                                   | Dónde se cambia                                         |
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| Delegación built-in de OpenCode | `general`, `explore`                                                                                                                                            | Este overlay les fija modelo/variant explícitos mediante `agent_overrides`, en vez de dejar que hereden el modelo del agente que los invoca. | `~/.config/gentle-ai-custom/opencode-local-config.json` |
-| Familia base SDD                | `gentle-orchestrator`, fases SDD, tres actores de Judgment Day y seis actores de review globales                                                                 | Se resuelve por `default_profile`, no por `agent_overrides`. Los actores pueden fijar modelo o usar herencia explícita.                      | `~/.config/gentle-ai-custom/opencode-local-config.json` |
-| Perfiles SDD nombrados          | `sdd-orchestrator-<name>` + `sdd-<phase>-<name>` y, solo si se configuran, actores JD con sufijo                                                                 | Se resuelve por `profiles`. Los seis actores de review siempre son globales y no reciben sufijo.                                             | `~/.config/gentle-ai-custom/opencode-local-config.json` |
+| Delegación built-in de OpenCode | `general`, `explore` | Se asignan modelos explícitos mediante `agent_overrides`. | `~/.config/gentle-ai-custom/opencode-local-config.json` |
+| Actores globales | Judgment Day y review | Se asignan por `global_actors`; se admite `{ "inherit": true }`. | `~/.config/gentle-ai-custom/opencode-local-config.json` |
 
-En otras palabras: estos overrides no duplican la configuración SDD. Cubren una capa distinta: los agentes built-in de OpenCode que el orchestrator puede usar al delegar fuera del sistema de perfiles SDD.
+El overlay no crea ni administra perfiles SDD. Las opciones SDD de configuraciones anteriores deben revisarse y quitarse manualmente; los modelos SDD no se reasignan automáticamente a otros agentes.
 
 Si querés fijar modelos para `general` o `explore`, declaralos explícitamente en `agent_overrides` dentro del config local canónico.
 
-En la máquina verificada actualmente, `general` usa `openai/gpt-5.6-terra` / `high` y `explore` usa `openai/gpt-5.6-sol` / `medium`.
+En la verificación histórica de v2.5.0, `general` usaba `openai/gpt-5.6-terra` / `high` y `explore` usaba `openai/gpt-5.6-sol` / `medium`. Las asignaciones actuales del runtime no fueron verificadas en esta adopción de snapshots.
 
-### Configuración avanzada
-
-Si necesitás ir más allá de los overrides básicos y querés configurar familias enteras de perfiles SDD, este es el esquema completo que soporta el archivo:
+### Configuración local
 
 ```json
 {
@@ -435,71 +429,18 @@ Si necesitás ir más allá de los overrides básicos y querés configurar famil
   "opencode_config_path": "/path/to/opencode.json",
   "agent_overrides": [
     { "key": "general", "model": "openai/gpt-5.4", "variant": "high" },
-    {
-      "key": "explore",
-      "model": "google-vertex/gemini-3.1-pro-preview",
-      "variant": "high"
-    }
+    { "key": "explore", "model": "google-vertex/gemini-3.1-pro-preview", "variant": "high" }
   ],
-  "default_profile": {
-    "orchestrator": { "model": "openai/gpt-5.4", "variant": "high" },
-    "phases": {
-      "sdd-init": { "model": "openai/gpt-5.4", "variant": "medium" },
-      "sdd-explore": { "model": "openai/gpt-5.3-codex", "variant": "high" },
-      "sdd-research": { "model": "openai/gpt-5.4", "variant": "high" },
-      "sdd-propose": { "model": "openai/gpt-5.5", "variant": "xhigh" },
-      "sdd-spec": { "model": "openai/gpt-5.3-codex", "variant": "high" },
-      "sdd-design": { "model": "openai/gpt-5.5", "variant": "high" },
-      "sdd-tasks": { "model": "openai/gpt-5.3-codex", "variant": "high" },
-      "sdd-apply": { "model": "openai/gpt-5.3-codex", "variant": "high" },
-      "sdd-verify": { "model": "openai/gpt-5.4", "variant": "xhigh" },
-      "sdd-archive": { "model": "openai/gpt-5.4-mini", "variant": "medium" },
-      "sdd-onboard": { "model": "openai/gpt-5.4", "variant": "medium" }
-    },
-    "judgment_day": {
-      "jd-judge-a": { "model": "openai/gpt-5.4", "variant": "medium" },
-      "jd-judge-b": { "inherit": true },
-      "jd-fix-agent": { "model": "openai/gpt-5.4-mini" }
-    },
-    "review": {
-      "review-risk": { "inherit": true },
-      "review-readability": { "inherit": true },
-      "review-reliability": { "inherit": true },
-      "review-resilience": { "inherit": true },
-      "review-refuter": { "inherit": true },
-      "review-validator": { "inherit": true }
-    }
-  },
-  "profiles": [
-    {
-      "name": "cheap",
-      "orchestrator": { "model": "openai/gpt-5.4-mini", "variant": "low" },
-      "phases": {
-        "sdd-init": { "model": "openai/gpt-5.4-mini", "variant": "low" },
-        "sdd-explore": { "model": "openai/gpt-5.4-mini", "variant": "low" },
-        "sdd-research": { "model": "openai/gpt-5.4-mini", "variant": "low" },
-        "sdd-propose": { "model": "openai/gpt-5.4-mini", "variant": "low" },
-        "sdd-spec": { "model": "openai/gpt-5.4-mini", "variant": "low" },
-        "sdd-design": { "model": "openai/gpt-5.4-mini", "variant": "low" },
-        "sdd-tasks": { "model": "openai/gpt-5.4-mini", "variant": "low" },
-        "sdd-apply": { "model": "openai/gpt-5.4-mini", "variant": "low" },
-        "sdd-verify": { "model": "openai/gpt-5.4-mini", "variant": "low" },
-        "sdd-archive": { "model": "openai/gpt-5.4-mini", "variant": "low" },
-        "sdd-onboard": { "model": "openai/gpt-5.4-mini", "variant": "low" }
-      },
-      "judgment_day": {
-        "jd-judge-a": { "model": "openai/gpt-5.4-mini", "variant": "low" }
-      }
-    }
-  ]
+  "global_actors": {
+    "jd-judge-a": { "model": "openai/gpt-5.4", "variant": "medium" },
+    "review-risk": { "inherit": true }
+  }
 }
 ```
 
-- **`agent_overrides`:** Fija modelos para agentes específicos fuera de SDD (como `general` o `explore`).
-- **`default_profile`:** Fija los modelos base para toda la familia de SDD por defecto.
-- **`default_profile.judgment_day`:** Acepta solo `jd-judge-a`, `jd-judge-b` y `jd-fix-agent`.
-- **`default_profile.review`:** Acepta solo los seis actores globales de review, incluido `review-validator`. `{"inherit": true}` elimina su modelo y variant para que OpenCode herede ambos al delegar.
-- **`profiles`:** Crea perfiles SDD con nombres personalizados. `judgment_day` es opcional y solo crea los actores JD declarados con sufijo; los omitidos usan el actor JD global. `review` no está permitido acá.
+- **`agent_overrides`:** Acepta agentes no-SDD. No reasigna opciones SDD a roles ODD.
+- **`global_actors`:** Acepta los tres actores globales de Judgment Day y los seis de review, incluido `review-validator`. La omisión conserva el valor actual y `{ "inherit": true }` elimina modelo y variante.
+- Si existen `default_profile`, `profiles`, overrides para claves `sdd-*` o claves de agente `sdd-*` en OpenCode, apply se detiene antes de escribir. Revise y elimine esos valores manualmente; apply no los borra ni migra.
 
 ## Comandos custom disponibles
 

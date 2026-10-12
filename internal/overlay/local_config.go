@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 )
 
@@ -16,22 +15,16 @@ type localConfigFile struct {
 	OpenCodeConfigPath    string
 	AgentOverrides        []AgentOverride
 	AgentOverridesDefined bool
-	DefaultProfile        *validatedProfile
-	DefaultProfileDefined bool
-	Profiles              []validatedProfile
-	ProfilesDefined       bool
+	GlobalActors          map[string]actorAssignment
 }
 
 type resolvedLocalRuntimeConfig struct {
-	ConfigPath         string
-	AgentOverrides     []AgentOverride
-	DefaultProfile     *validatedProfile
-	Profiles           []validatedProfile
-	ProfilesSourcePath string
-	ProfilesDefined    bool
+	ConfigPath     string
+	AgentOverrides []AgentOverride
+	GlobalActors   map[string]actorAssignment
 }
 
-func loadLocalConfigFile(path string, sddPhases []string, sddPhasesSet map[string]bool) (localConfigFile, error) {
+func loadLocalConfigFile(path string) (localConfigFile, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return localConfigFile{}, fmt.Errorf("cannot read local OpenCode overlay config at %s: %v", path, err)
@@ -48,9 +41,14 @@ func loadLocalConfigFile(path string, sddPhases []string, sddPhasesSet map[strin
 	if !ok || version != 1 {
 		return localConfigFile{}, fmt.Errorf("local OpenCode overlay config at %s has unsupported \"version\" %v; expected 1", path, top["version"])
 	}
+	for _, key := range []string{"default_profile", "profiles"} {
+		if _, exists := top[key]; exists {
+			return localConfigFile{}, fmt.Errorf("local OpenCode overlay config at %s still contains legacy %q SDD configuration; remove that key manually and reassign any SDD model choices yourself. Global Judgment Day/review assignments can be configured under \"global_actors\"", path, key)
+		}
+	}
 	for key := range top {
-		if key != "version" && key != "upstream_repo_path" && key != "opencode_config_path" && key != "agent_overrides" && key != "default_profile" && key != "profiles" {
-			return localConfigFile{}, fmt.Errorf("local OpenCode overlay config at %s has unexpected top-level fields [%s]; only \"version\", \"upstream_repo_path\", \"opencode_config_path\", \"agent_overrides\", \"default_profile\", and \"profiles\" are allowed", path, strings.Join(sortedStringKeys(top, "version", "upstream_repo_path", "opencode_config_path", "agent_overrides", "default_profile", "profiles"), ", "))
+		if key != "version" && key != "upstream_repo_path" && key != "opencode_config_path" && key != "agent_overrides" && key != "global_actors" {
+			return localConfigFile{}, fmt.Errorf("local OpenCode overlay config at %s has unexpected top-level fields [%s]; only \"version\", \"upstream_repo_path\", \"opencode_config_path\", \"agent_overrides\", and \"global_actors\" are allowed", path, strings.Join(sortedStringKeys(top, "version", "upstream_repo_path", "opencode_config_path", "agent_overrides", "global_actors"), ", "))
 		}
 	}
 
@@ -77,34 +75,25 @@ func loadLocalConfigFile(path string, sddPhases []string, sddPhasesSet map[strin
 		config.AgentOverrides = agentOverrides
 		config.AgentOverridesDefined = true
 	}
-	if value, ok := top["default_profile"]; ok {
-		defaultProfile, err := validateDefaultProfileValue(value, path+".default_profile", sddPhases, sddPhasesSet)
+	if value, ok := top["global_actors"]; ok {
+		actors, err := validateGlobalActors(value, path+".global_actors")
 		if err != nil {
 			return localConfigFile{}, err
 		}
-		config.DefaultProfile = defaultProfile
-		config.DefaultProfileDefined = true
-	}
-	if value, ok := top["profiles"]; ok {
-		profiles, err := validateProfilesValue(value, path+".profiles", sddPhases, sddPhasesSet)
-		if err != nil {
-			return localConfigFile{}, err
-		}
-		config.Profiles = profiles
-		config.ProfilesDefined = true
+		config.GlobalActors = actors
 	}
 
 	return config, nil
 }
 
-func resolveLocalRuntimeConfig(policy Policy, sddPhasesSet map[string]bool) (resolvedLocalRuntimeConfig, error) {
+func resolveLocalRuntimeConfig(policy Policy) (resolvedLocalRuntimeConfig, error) {
 	resolved := resolvedLocalRuntimeConfig{
 		ConfigPath: expandUser(policy.OpenCode.ConfigPath),
 	}
 	localConfigPath := expandUser(policy.OpenCode.LocalConfigPath)
 
 	if pathExists(localConfigPath) {
-		config, err := loadLocalConfigFile(localConfigPath, policy.OpenCode.SDDPhases, sddPhasesSet)
+		config, err := loadLocalConfigFile(localConfigPath)
 		if err != nil {
 			return resolvedLocalRuntimeConfig{}, err
 		}
@@ -114,14 +103,7 @@ func resolveLocalRuntimeConfig(policy Policy, sddPhasesSet map[string]bool) (res
 		if config.AgentOverridesDefined {
 			resolved.AgentOverrides = config.AgentOverrides
 		}
-		if config.DefaultProfileDefined {
-			resolved.DefaultProfile = config.DefaultProfile
-		}
-		if config.ProfilesDefined {
-			resolved.Profiles = config.Profiles
-			resolved.ProfilesDefined = true
-			resolved.ProfilesSourcePath = localConfigPath
-		}
+		resolved.GlobalActors = config.GlobalActors
 	}
 
 	return resolved, nil
@@ -218,6 +200,9 @@ func validateAgentOverrides(value any, label string) ([]AgentOverride, error) {
 			return nil, fmt.Errorf("%s: field \"key\" must be a non-empty string", prefix)
 		}
 		key := strings.TrimSpace(keyRaw)
+		if isLegacySDDAgentKey(key) {
+			return nil, fmt.Errorf("%s[%d] targets legacy SDD agent %q; remove that override and choose an appropriate ODD role manually", label, idx, key)
+		}
 		modelRaw, ok := override["model"].(string)
 		if !ok || strings.TrimSpace(modelRaw) == "" {
 			return nil, fmt.Errorf("%s: field \"model\" must be a non-empty string", prefix)
@@ -240,63 +225,34 @@ func validateAgentOverrides(value any, label string) ([]AgentOverride, error) {
 	return validated, nil
 }
 
-func validateDefaultProfileValue(value any, label string, sddPhases []string, sddPhasesSet map[string]bool) (*validatedProfile, error) {
-	profile, ok := value.(map[string]any)
+func validateGlobalActors(value any, label string) (map[string]actorAssignment, error) {
+	actors, ok := value.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("%s: must be an object with \"orchestrator\" and \"phases\"", label)
+		return nil, fmt.Errorf("%s: must be an object keyed by global Judgment Day or review actor name", label)
 	}
-	for key := range profile {
-		if key != "orchestrator" && key != "phases" && key != "judgment_day" && key != "review" {
-			return nil, fmt.Errorf("%s: unexpected fields [%s]; only \"orchestrator\", \"phases\", \"judgment_day\", and \"review\" are allowed", label, strings.Join(sortedStringKeys(profile, "orchestrator", "phases", "judgment_day", "review"), ", "))
+	validated := make(map[string]actorAssignment, len(actors))
+	for key, value := range actors {
+		if !containsString(judgmentDayActorKeys, key) && !containsString(reviewActorKeys, key) {
+			return nil, fmt.Errorf("%s: unsupported global actor %q", label, key)
 		}
-	}
-	orchestrator, err := validateAssignment(profile["orchestrator"], label+".orchestrator")
-	if err != nil {
-		return nil, err
-	}
-	phasesObj, ok := profile["phases"].(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("%s.phases: must be an object keyed by SDD phase name", label)
-	}
-	phaseKeys := map[string]bool{}
-	for phaseName := range phasesObj {
-		phaseKeys[phaseName] = true
-	}
-	var missing []string
-	for _, phaseName := range sddPhases {
-		if !phaseKeys[phaseName] {
-			missing = append(missing, phaseName)
-		}
-	}
-	if len(missing) > 0 {
-		return nil, fmt.Errorf("%s.phases: missing required phases %v (no defaults are inherited)", label, missing)
-	}
-	var unknown []string
-	for phaseName := range phaseKeys {
-		if !sddPhasesSet[phaseName] {
-			unknown = append(unknown, phaseName)
-		}
-	}
-	sort.Strings(unknown)
-	if len(unknown) > 0 {
-		return nil, fmt.Errorf("%s.phases: unknown phases %v; allowed: %v", label, unknown, sddPhases)
-	}
-	validatedPhases := map[string]profileAssignment{}
-	for _, phaseName := range sddPhases {
-		assignment, err := validateAssignment(phasesObj[phaseName], label+".phases."+phaseName)
+		assignment, err := validateActorAssignment(value, label+"."+key, true)
 		if err != nil {
 			return nil, err
 		}
-		validatedPhases[phaseName] = assignment
+		validated[key] = assignment
 	}
-	judgmentDay, err := validateOptionalActorMap(profile, "judgment_day", label, judgmentDayActorKeys, true)
-	if err != nil {
-		return nil, err
+	return validated, nil
+}
+
+func isLegacySDDAgentKey(key string) bool {
+	return strings.HasPrefix(key, "sdd-")
+}
+
+func containsString(values []string, value string) bool {
+	for _, candidate := range values {
+		if candidate == value {
+			return true
+		}
 	}
-	review, err := validateOptionalActorMap(profile, "review", label, reviewActorKeys, true)
-	if err != nil {
-		return nil, err
-	}
-	profileValue := &validatedProfile{Name: "default", Orchestrator: orchestrator, Phases: validatedPhases, JudgmentDay: judgmentDay, Review: review}
-	return profileValue, nil
+	return false
 }

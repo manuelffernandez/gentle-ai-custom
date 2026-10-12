@@ -16,6 +16,7 @@ const opaqueUpstreamOrchestratorFixture = "opaque upstream orchestrator material
 var opaquePluginFixture = []byte{0x00, 0xff, 0x10, 'o', 'p', 'a', 'q', 'u', 'e'}
 
 func TestApplyPreservesUpstreamRuntimeAndReusesBasePromptsForProfiles(t *testing.T) {
+	t.Skip("SDD profile generation has been removed; remote-authorization and upstream-preservation coverage lives in non-profile tests")
 	repoRoot := repoRootForTest(t)
 	home, configPath := writeCompatibleRuntimeFixture(t, repoRoot)
 	runtimePatchBaselines := snapshotRuntimePatchTargets(t, repoRoot, home)
@@ -97,24 +98,26 @@ func TestApplyPreservesUpstreamRuntimeAndReusesBasePromptsForProfiles(t *testing
 	judgmentSkill := filepath.Join(home, ".config", "opencode", "skills", "judgment-day", "SKILL.md")
 	judgmentPrompt := filepath.Join(home, ".config", "opencode", "skills", "judgment-day", "references", "prompts-and-formats.md")
 	workUnitSkill := filepath.Join(home, ".config", "opencode", "skills", "work-unit-commits", "SKILL.md")
+	workUnitBefore := mustReadFile(t, workUnitSkill)
 	for path, marker := range map[string]string{
 		judgmentSkill:  "invoke the repo-owned `judgment-retrospective` skill",
 		judgmentPrompt: "## Terminal Retrospective Handoff",
-		workUnitSkill:  "Every ODD task closes with verified work-unit evidence; create a work-unit commit only when the user explicitly requests committing.",
 	} {
 		if count := strings.Count(mustReadFile(t, path), marker); count != 1 {
 			t.Fatalf("patched %s marker count = %d, want 1", path, count)
 		}
 	}
+	if got := mustReadFile(t, workUnitSkill); got != workUnitBefore {
+		t.Fatalf("upstream work-unit skill changed without a declared patch: %q", got)
+	}
 	firstSkill := mustReadFile(t, judgmentSkill)
 	firstPrompt := mustReadFile(t, judgmentPrompt)
-	firstWorkUnitSkill := mustReadFile(t, workUnitSkill)
 	firstConfig := mustReadFile(t, configPath)
 	assertRuntimePatchIsExactDelta(t, repoRoot, home, runtimePatchBaselines)
 	if code := runApplyPolicyWithOptions(repoRoot, options); code != 0 {
 		t.Fatalf("idempotent run code = %d, want 0", code)
 	}
-	if mustReadFile(t, judgmentSkill) != firstSkill || mustReadFile(t, judgmentPrompt) != firstPrompt || mustReadFile(t, workUnitSkill) != firstWorkUnitSkill {
+	if mustReadFile(t, judgmentSkill) != firstSkill || mustReadFile(t, judgmentPrompt) != firstPrompt || mustReadFile(t, workUnitSkill) != workUnitBefore {
 		t.Fatal("runtime patches are not byte-idempotent")
 	}
 	if mustReadFile(t, configPath) != firstConfig {
@@ -123,6 +126,7 @@ func TestApplyPreservesUpstreamRuntimeAndReusesBasePromptsForProfiles(t *testing
 }
 
 func TestReconcileNamedProfileCreatesUpstreamTaskPermissionContract(t *testing.T) {
+	t.Skip("named SDD profile generation has been removed")
 	repoRoot := repoRootForTest(t)
 	home, configPath := writeCompatibleRuntimeFixture(t, repoRoot)
 	data, err := readJSONAny(configPath)
@@ -158,11 +162,8 @@ func TestApplyReconcilesGlobalActorAssignments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defaultProfile := localConfig["default_profile"].(map[string]any)
-	defaultProfile["judgment_day"] = map[string]any{
-		"jd-judge-a": map[string]any{"model": "custom/judge"},
-	}
-	defaultProfile["review"] = map[string]any{
+	localConfig["global_actors"] = map[string]any{
+		"jd-judge-a":         map[string]any{"model": "custom/judge"},
 		"review-risk":        map[string]any{"inherit": true},
 		"review-readability": map[string]any{"inherit": true},
 		"review-validator":   map[string]any{"inherit": true},
@@ -205,6 +206,7 @@ func TestApplyReconcilesGlobalActorAssignments(t *testing.T) {
 }
 
 func TestApplyReconcilesNamedJudgmentDayActorsAndPreservesUnmanagedAgents(t *testing.T) {
+	t.Skip("named profile actor generation has been removed")
 	repoRoot := repoRootForTest(t)
 	home, configPath := writeCompatibleRuntimeFixture(t, repoRoot)
 	localConfigPath := filepath.Join(home, ".config", "gentle-ai-custom", "opencode-local-config.json")
@@ -267,6 +269,7 @@ func TestApplyReconcilesNamedJudgmentDayActorsAndPreservesUnmanagedAgents(t *tes
 }
 
 func TestApplyNamedJudgmentDayOmissionDelegatesToGlobal(t *testing.T) {
+	t.Skip("named profile actor generation has been removed")
 	repoRoot := repoRootForTest(t)
 	home, configPath := writeCompatibleRuntimeFixture(t, repoRoot)
 	options := applyPolicyOptions{recorder: newVerboseRecorder(false), skillTargets: []string{filepath.Join(home, ".config", "opencode", "skills")}}
@@ -283,6 +286,7 @@ func TestApplyNamedJudgmentDayOmissionDelegatesToGlobal(t *testing.T) {
 }
 
 func TestApplyMissingOmissionDelegatedJudgmentDayActorFailsBeforeWrites(t *testing.T) {
+	t.Skip("named profile actor generation has been removed")
 	repoRoot := repoRootForTest(t)
 	home, configPath := writeCompatibleRuntimeFixture(t, repoRoot)
 	runtimeConfig, err := readJSONAny(configPath)
@@ -310,8 +314,7 @@ func TestApplyMissingReferencedActorFailsBeforeWrites(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defaultProfile := localConfig["default_profile"].(map[string]any)
-	defaultProfile["review"] = map[string]any{"review-risk": map[string]any{"inherit": true}}
+	localConfig["global_actors"] = map[string]any{"review-risk": map[string]any{"inherit": true}}
 	writeJSONFixture(t, localConfigPath, localConfig)
 	runtimeConfig, err := readJSONAny(configPath)
 	if err != nil {
@@ -710,14 +713,6 @@ func TestApplyPreflightFailureLeavesRuntimeUnchanged(t *testing.T) {
 			},
 		},
 		{
-			name: "incompatible ODD work-unit commit anchor",
-			breakRuntime: func(t *testing.T, home string) {
-				t.Helper()
-				path := filepath.Join(home, ".config", "opencode", "skills", "work-unit-commits", "SKILL.md")
-				mustWriteFile(t, path, []byte("incompatible upstream work-unit skill\n"))
-			},
-		},
-		{
 			name: "duplicate remote authorization section",
 			breakRuntime: func(t *testing.T, home string) {
 				t.Helper()
@@ -809,6 +804,9 @@ func TestApplyPreflightFailureLeavesRuntimeUnchanged(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if strings.Contains(tt.name, "profile base") || strings.Contains(tt.name, "base orchestrator permission") || strings.Contains(tt.name, "permission wildcard") || tt.name == "malformed remote authorization marker pair" || strings.Contains(tt.name, "symlink prompt") || strings.Contains(tt.name, "out-of-root prompt") {
+				t.Skip("SDD profile and phase-agent preflights were removed")
+			}
 			repoRoot := repoRootForTest(t)
 			home, _ := writeCompatibleRuntimeFixture(t, repoRoot)
 			tt.breakRuntime(t, home)
@@ -826,6 +824,84 @@ func TestApplyPreflightFailureLeavesRuntimeUnchanged(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestApplyRefusesLegacySDDConfigBeforeWrites(t *testing.T) {
+	tests := []struct {
+		name   string
+		legacy func(t *testing.T, home, configPath string)
+	}{
+		{name: "default profile", legacy: func(t *testing.T, home, _ string) {
+			writeJSONFixture(t, filepath.Join(home, ".config", "gentle-ai-custom", "opencode-local-config.json"), map[string]any{"version": 1, "default_profile": map[string]any{}})
+		}},
+		{name: "named profiles", legacy: func(t *testing.T, home, _ string) {
+			writeJSONFixture(t, filepath.Join(home, ".config", "gentle-ai-custom", "opencode-local-config.json"), map[string]any{"version": 1, "profiles": []any{}})
+		}},
+		{name: "SDD runtime agent key", legacy: func(t *testing.T, _, configPath string) {
+			data, err := readJSONAny(configPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			data["agent"].(map[string]any)["sdd-orchestrator-user"] = map[string]any{"model": "user/model", "sentinel": "preserve"}
+			writeJSONFixture(t, configPath, data)
+		}},
+		{name: "SDD agent override", legacy: func(t *testing.T, home, _ string) {
+			writeJSONFixture(t, filepath.Join(home, ".config", "gentle-ai-custom", "opencode-local-config.json"), map[string]any{"version": 1, "agent_overrides": []any{map[string]any{"key": "sdd-apply", "model": "user/model"}}})
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repoRoot := repoRootForTest(t)
+			home, configPath := writeCompatibleRuntimeFixture(t, repoRoot)
+			tt.legacy(t, home, configPath)
+			before := snapshotTree(t, home)
+			options := applyPolicyOptions{recorder: newVerboseRecorder(false), skillTargets: []string{filepath.Join(home, ".config", "opencode", "skills")}}
+			if code := runApplyPolicyWithOptions(repoRoot, options); code == 0 {
+				t.Fatal("runApplyPolicyWithOptions() code = 0, want legacy SDD refusal")
+			}
+			if after := snapshotTree(t, home); !reflect.DeepEqual(after, before) {
+				t.Fatalf("runtime changed after legacy SDD refusal\nbefore: %v\nafter: %v", before, after)
+			}
+			if tt.name == "SDD runtime agent key" {
+				if got := jsonString(mustAgent(t, readFixtureAgents(t, configPath), "sdd-orchestrator-user")["sentinel"]); got != "preserve" {
+					t.Fatalf("user-owned legacy key changed: %q", got)
+				}
+			}
+		})
+	}
+}
+
+func TestApplyDoesNotCreateSDDAgents(t *testing.T) {
+	repoRoot := repoRootForTest(t)
+	home, configPath := writeCompatibleRuntimeFixture(t, repoRoot)
+	options := applyPolicyOptions{recorder: newVerboseRecorder(false), skillTargets: []string{filepath.Join(home, ".config", "opencode", "skills")}}
+	if code := runApplyPolicyWithOptions(repoRoot, options); code != 0 {
+		t.Fatalf("runApplyPolicyWithOptions() code = %d, want 0", code)
+	}
+	for key := range readFixtureAgents(t, configPath) {
+		if isLegacySDDAgentKey(key) {
+			t.Errorf("custom apply created legacy SDD agent %q", key)
+		}
+	}
+}
+
+func TestApplyPreservesUpstreamWorkUnitCommitsSkill(t *testing.T) {
+	repoRoot := repoRootForTest(t)
+	home, _ := writeCompatibleRuntimeFixture(t, repoRoot)
+	workUnitSkill := filepath.Join(home, ".config", "opencode", "skills", "work-unit-commits", "SKILL.md")
+	if err := os.Chmod(workUnitSkill, 0o640); err != nil {
+		t.Fatal(err)
+	}
+	before := snapshotTestFile(t, workUnitSkill)
+
+	options := applyPolicyOptions{
+		recorder:     newVerboseRecorder(false),
+		skillTargets: []string{filepath.Join(home, ".config", "opencode", "skills")},
+	}
+	if code := runApplyPolicyWithOptions(repoRoot, options); code != 0 {
+		t.Fatalf("runApplyPolicyWithOptions() code = %d, want 0", code)
+	}
+	assertTestFileSnapshot(t, workUnitSkill, before)
 }
 
 func mutateFixtureBaseOrchestrator(t *testing.T, home string, mutate func(map[string]any)) {
@@ -849,12 +925,7 @@ func writeCompatibleRuntimeFixture(t *testing.T, repoRoot string) (string, strin
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	policy, _, err := loadPolicy(repoRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
 	configPath := filepath.Join(home, ".config", "opencode", "opencode.json")
-	promptDir := filepath.Join(home, ".config", "opencode", "prompts", "sdd")
 	agents := map[string]any{
 		"gentle-orchestrator": map[string]any{
 			"mode": "primary", "prompt": remoteAuthorizationFixturePrompt(t, opaqueUpstreamOrchestratorFixture),
@@ -862,22 +933,6 @@ func writeCompatibleRuntimeFixture(t *testing.T, repoRoot string) (string, strin
 		},
 	}
 	baseTaskPermissions := map[string]any{"*": "deny", "general": "allow", "explore": "allow"}
-	defaultPhases := map[string]any{}
-	profilePhases := map[string]any{}
-	for _, phase := range policy.OpenCode.SDDPhases {
-		promptPath := filepath.Join(promptDir, phase+".md")
-		mustWriteFile(t, promptPath, []byte(remoteAuthorizationFixturePrompt(t, "upstream rendered phase prompt for "+phase+"\n")))
-		if err := os.Chmod(promptPath, 0o640); err != nil {
-			t.Fatal(err)
-		}
-		agents[phase] = map[string]any{
-			"mode": "subagent", "prompt": "{file:" + filepath.ToSlash(promptPath) + "}",
-			"tools": map[string]any{"read": true}, "model": "upstream/phase",
-		}
-		baseTaskPermissions[phase] = "allow"
-		defaultPhases[phase] = map[string]any{"model": "default/" + phase, "variant": "high"}
-		profilePhases[phase] = map[string]any{"model": "profile/" + phase, "variant": "low"}
-	}
 	for _, key := range []string{"general", "explore"} {
 		agents[key] = map[string]any{"mode": "subagent", "prompt": remoteAuthorizationFixturePrompt(t, "upstream "+key)}
 	}
@@ -891,23 +946,10 @@ func writeCompatibleRuntimeFixture(t *testing.T, repoRoot string) (string, strin
 		"question": "allow",
 		"task":     map[string]any{"__replace__": baseTaskPermissions},
 	}
-	obsoletePath := filepath.Join(home, ".config", "opencode", "prompts", "sdd", "orchestrators", "gentle-orchestrator.overlay.md")
-	mustWriteFile(t, obsoletePath, []byte("#### Review Execution Contract\n\n**Sweep budget.** obsolete raw section\n"))
-	agents["sdd-orchestrator-cheap"] = map[string]any{"prompt": "{file:" + filepath.ToSlash(obsoletePath) + "}", "model": "old"}
 	writeJSONFixture(t, configPath, map[string]any{"agent": agents})
 
 	localConfigPath := filepath.Join(home, ".config", "gentle-ai-custom", "opencode-local-config.json")
-	writeJSONFixture(t, localConfigPath, map[string]any{
-		"version": 1,
-		"default_profile": map[string]any{
-			"orchestrator": map[string]any{"model": "default/orchestrator", "variant": "high"},
-			"phases":       defaultPhases,
-		},
-		"profiles": []any{map[string]any{
-			"name": "cheap", "orchestrator": map[string]any{"model": "profile/orchestrator", "variant": "low"},
-			"phases": profilePhases,
-		}},
-	})
+	writeJSONFixture(t, localConfigPath, map[string]any{"version": 1, "global_actors": map[string]any{}})
 	writeReviewPluginFixture(t, home, opaquePluginFixture)
 	pluginPath := filepath.Join(home, ".config", "opencode", "plugins", "review-result-artifacts.ts")
 	if err := os.Chmod(pluginPath, 0o600); err != nil {

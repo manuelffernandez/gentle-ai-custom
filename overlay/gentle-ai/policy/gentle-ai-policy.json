@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "gentle-ai-overlay-baseline",
-  "description": "Runtime policy: OpenCode keep/prune baseline and SDD profile reconciliation, plus Codex preservation and command-surface constraints.",
+  "description": "Runtime policy: OpenCode keep/prune baseline and global actor assignments, plus Codex preservation and command-surface constraints.",
   "maintenance": {
     "intent_file": "overlay/gentle-ai/policy/maintenance-intent.md",
     "state_file": "overlay/gentle-ai/state/upstream-state.json",
@@ -19,6 +19,15 @@
       "comment-writer",
       "go-testing",
       "judgment-day",
+      "skill-creator",
+      "skill-improver",
+      "skill-registry",
+      "work-unit-commits"
+    ],
+    "prune": [
+      "branch-pr",
+      "issue-creation",
+      "hermes-ephemeral-delegation",
       "sdd-apply",
       "sdd-archive",
       "sdd-design",
@@ -29,16 +38,7 @@
       "sdd-research",
       "sdd-spec",
       "sdd-tasks",
-      "sdd-verify",
-      "skill-creator",
-      "skill-improver",
-      "skill-registry",
-      "work-unit-commits"
-    ],
-    "prune": [
-      "branch-pr",
-      "issue-creation",
-      "hermes-ephemeral-delegation"
+      "sdd-verify"
     ]
   },
   "opencode": {
@@ -50,20 +50,6 @@
     ],
     "orchestrator_agent_prefixes": [
       "sdd-orchestrator"
-    ],
-    "profile_orchestrator_prefix": "sdd-orchestrator-",
-    "sdd_phases": [
-      "sdd-init",
-      "sdd-explore",
-      "sdd-research",
-      "sdd-propose",
-      "sdd-spec",
-      "sdd-design",
-      "sdd-tasks",
-      "sdd-apply",
-      "sdd-verify",
-      "sdd-archive",
-      "sdd-onboard"
     ]
   },
   "codex": {

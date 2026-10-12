@@ -14,13 +14,8 @@ type applyMetrics struct {
 	promptRefsUnchanged         int
 	ownedRuntimeTargetsVerified int
 	topologyWarnings            []string
-	profilesManagedCount        int
 	prunedSkillPermissionNames  int
 	prunedSkillPermissionScopes int
-	profileAgentsCreated        int
-	profileAgentsUpdated        int
-	profileAgentsSame           int
-	unmanagedProfiles           []string
 }
 
 // printSummary prints the full apply-policy run summary, including counters,
@@ -40,19 +35,6 @@ func (s *applyPolicyState) printSummary() {
 	fmt.Printf("  prompt references unchanged: %d\n", s.metrics.promptRefsUnchanged)
 	fmt.Printf("  owned runtime targets verified: %d\n", s.metrics.ownedRuntimeTargetsVerified)
 	fmt.Printf("  topology warnings: %d\n", len(s.metrics.topologyWarnings))
-	fmt.Printf("  SDD profiles managed this run: %d\n", s.metrics.profilesManagedCount)
-	fmt.Printf("  SDD profile agents created: %d\n", s.metrics.profileAgentsCreated)
-	fmt.Printf("  SDD profile agents updated: %d\n", s.metrics.profileAgentsUpdated)
-	fmt.Printf("  SDD profile agents unchanged: %d\n", s.metrics.profileAgentsSame)
-	fmt.Printf("  SDD profiles unmanaged (present in opencode.json, absent from local config): %d\n", len(s.metrics.unmanagedProfiles))
-
-	if len(s.metrics.unmanagedProfiles) > 0 {
-		fmt.Println()
-		fmt.Println("WARNING - unmanaged SDD profiles left untouched (add them to profiles[] in the local OpenCode overlay config to manage):")
-		for _, entry := range s.metrics.unmanagedProfiles {
-			fmt.Printf("  - %s\n", entry)
-		}
-	}
 	if len(s.metrics.missingKeepSummary) > 0 {
 		fmt.Println()
 		fmt.Println("WARNING - keep skills missing (expected but absent):")

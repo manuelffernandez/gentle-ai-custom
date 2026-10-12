@@ -257,7 +257,7 @@ func inject() {
 	_ = ok
 }
 `))
-	writeStructuralRoleFixture(t, upstreamRepo)
+	writeV4StructuralFixture(t, upstreamRepo, "assigned", true)
 	mustInitGitRepo(t, upstreamRepo)
 
 	previousCommit, err := runGit(upstreamRepo, false, "rev-parse", "HEAD")
@@ -293,13 +293,12 @@ func inject() {
 	policy.Maintenance.StateFile = "overlay/gentle-ai/state/upstream-state.json"
 	policy.Maintenance.LogFile = "overlay/gentle-ai/logs/update-log.md"
 	policy.Upstream.RepoName = "gentle-ai"
-	policy.Upstream.OrchestratorPromptPath = "internal/assets/opencode/sdd-orchestrator.md"
+	policy.Upstream.OrchestratorPromptPath = "internal/assets/opencode/orchestrator.md"
 	policy.OpenCode.ConfigPath = "~/.config/opencode/opencode.json"
 	policy.OpenCode.LocalConfigPath = "~/.config/gentle-ai-custom/opencode-local-config.json"
 	policy.OpenCode.BaseOrchestratorKey = "gentle-orchestrator"
 	policy.OpenCode.OrchestratorAgentKeys = []string{"gentle-orchestrator"}
 	policy.OpenCode.OrchestratorAgentPrefixes = []string{"sdd-orchestrator"}
-	policy.OpenCode.ProfileOrchestratorPrefix = "sdd-orchestrator-"
 	policy.OpenCode.SDDPhases = []string{"sdd-init", "sdd-apply"}
 	writeJSONFixture(t, filepath.Join(repoRoot, "overlay", "gentle-ai", "policy", "gentle-ai-policy.json"), policy)
 
@@ -309,13 +308,19 @@ func inject() {
 		Description: "test manifest",
 		Targets: map[string]ManagedAssetsTarget{
 			"opencode": {
-				WatchRoots:                 testOpenCodeAgentsTarget().WatchRoots,
-				StructuralInvariantSources: []string{"internal/components/sdd/profiles.go", "internal/components/sdd/inject.go", "internal/models.go"},
-				OwnedOverlayAssets:         testOpenCodeAgentsTarget().OwnedOverlayAssets,
+				StructuralInvariantSources: v4StructuralFixtureTarget().StructuralInvariantSources,
+				RetiredUpstreamSnapshots:   []string{"retired/item.md"},
+				OwnedOverlayAssets: []OwnedOverlayAsset{{
+					Key: "persona", Class: "upstream_source", Kind: "upstream_source_file",
+					UpstreamPath:     "internal/assets/opencode/persona-gentleman.md",
+					RepoUpstreamPath: "overlay/gentle-ai/assets/upstream/opencode/persona-gentleman.md",
+				}},
 			},
 		},
 	}
 	writeJSONFixture(t, filepath.Join(repoRoot, "overlay", "gentle-ai", "policy", "managed-assets.json"), manifest)
+	retiredSnapshot := filepath.Join(repoRoot, filepath.FromSlash(upstreamSnapshotRoot), "retired", "item.md")
+	mustWriteFile(t, retiredSnapshot, []byte("retired snapshot"))
 
 	statePath := filepath.Join(repoRoot, "overlay", "gentle-ai", "state", "upstream-state.json")
 	writeJSONFixture(t, statePath, UpstreamState{
@@ -327,6 +332,9 @@ func inject() {
 
 	if exitCode := RunSyncUpstreamAssets(repoRoot, nil); exitCode != 0 {
 		t.Fatalf("RunSyncUpstreamAssets() exit code = %d, want 0", exitCode)
+	}
+	if _, err := os.Lstat(retiredSnapshot); !os.IsNotExist(err) {
+		t.Fatalf("approved sync left retired snapshot in place, lstat error = %v", err)
 	}
 
 	var updatedState UpstreamState
@@ -429,7 +437,7 @@ func TestValidateOwnedAgentsCompositionRejectsAmbiguousOrExtraBlocks(t *testing.
 		},
 		{
 			name:    "inherited blocks out of order",
-			content: renderMarkdownBlocks([]markdownBlock{blocks[3], blocks[0], blocks[1], blocks[2], blocks[4], blocks[5], blocks[6], blocks[7]}),
+			content: renderMarkdownBlocks([]markdownBlock{blocks[3], blocks[0], blocks[1], blocks[2], blocks[3], blocks[4], blocks[5], blocks[6]}),
 		},
 		{
 			name:    "closing marker before opening marker",
@@ -459,7 +467,6 @@ func ownedAgentsBlocks() []markdownBlock {
 		{name: "Agent-Readable Markdown Standard", opening: "<!-- gentle-ai-custom:agent-readable-markdown -->", closing: "<!-- /gentle-ai-custom:agent-readable-markdown -->", overlayH2Heading: "Agent-Readable Markdown Standard"},
 		{name: "Credential-File Safety", opening: "<!-- gentle-ai-custom:credential-file-safety -->", closing: "<!-- /gentle-ai-custom:credential-file-safety -->", overlayH2Heading: "Credential-File Safety"},
 		{name: "OpenCode full Engram", opening: "<!-- gentle-ai:engram-protocol -->", closing: "<!-- /gentle-ai:engram-protocol -->"},
-		{name: "no-auto-commit", opening: "<!-- gentle-ai-custom:no-auto-commit -->", closing: "<!-- /gentle-ai-custom:no-auto-commit -->"},
 		{name: "Implementation Scope", opening: "<!-- gentle-ai-custom:implementation-scope -->", closing: "<!-- /gentle-ai-custom:implementation-scope -->", overlayH2Heading: "Implementation Scope"},
 		{name: "Plain-Language Communication", opening: "<!-- gentle-ai-custom:plain-language-communication -->", closing: "<!-- /gentle-ai-custom:plain-language-communication -->", overlayH2Heading: "Plain-Language Communication"},
 		{name: "Gemini Anti-Sycophancy Override", opening: "<!-- gentle-ai-custom:gemini-override -->", closing: "<!-- /gentle-ai-custom:gemini-override -->", overlayH2Heading: "Gemini Anti-Sycophancy Override"},
@@ -597,8 +604,8 @@ func TestUpstreamRuntimeSnapshotsAreNeverOwnedInstallSources(t *testing.T) {
 	if foundSnapshots == 0 {
 		t.Fatal("managed-assets does not declare upstream runtime snapshots")
 	}
-	if len(target.RuntimePatches) != 2 || target.RuntimePatches[0].Key != "judgment-retrospective-handoff" || target.RuntimePatches[1].Key != "work-unit-commits-authorization" {
-		t.Fatalf("runtime patches = %#v, want only Judgment Day and work-unit patches", target.RuntimePatches)
+	if len(target.RuntimePatches) != 1 || target.RuntimePatches[0].Key != "judgment-retrospective-handoff" {
+		t.Fatalf("runtime patches = %#v, want only the Judgment Day patch", target.RuntimePatches)
 	}
 	ownedRoot := filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "owned", "opencode")
 	var ownedFiles []string
@@ -618,16 +625,16 @@ func TestUpstreamRuntimeSnapshotsAreNeverOwnedInstallSources(t *testing.T) {
 	}
 }
 
-func TestOwnedAgentInstructionsOverrideODDCommitMandate(t *testing.T) {
+func TestOwnedAgentInstructionsDoNotOverrideODDCommitMandate(t *testing.T) {
 	path := filepath.Join(repoRootForTest(t), "overlay", "gentle-ai", "assets", "owned", "opencode", "AGENTS.md")
 	content := mustReadFile(t, path)
-	for _, required := range []string{
-		"This rule overrides any upstream Gentle AI ODD routing or retained `work-unit-commits` instruction",
-		"An implementation request, substantial ODD work, task completion, feature branch, or review workflow does not authorize `git commit`",
-		"Leave the work unit uncommitted and report that delivery remains pending unless the user explicitly requests a commit",
+	for _, forbidden := range []string{
+		"gentle-ai-custom:no-auto-commit",
+		"NEVER commit, push, or create pull requests unless explicitly requested",
+		"overrides any upstream Gentle AI ODD",
 	} {
-		if !strings.Contains(content, required) {
-			t.Errorf("owned AGENTS.md is missing the ODD commit-authorization safeguard %q", required)
+		if strings.Contains(content, forbidden) {
+			t.Errorf("owned AGENTS.md still contains retired ODD commit override %q", forbidden)
 		}
 	}
 }
@@ -666,7 +673,7 @@ func TestCodexTargetUsesSharedSkillsAndKeepsUpstreamRuntimeUnowned(t *testing.T)
 	if len(target.OwnedOverlayAssets) != 0 || len(target.RetainedUpstreamSkills) != 0 || len(target.PrunedUpstreamSkills) != 0 {
 		t.Fatalf("Codex target claims upstream runtime ownership or pruning: assets=%v retained=%v pruned=%v", target.OwnedOverlayAssets, target.RetainedUpstreamSkills, target.PrunedUpstreamSkills)
 	}
-	wantPatches := []string{"codex-local-instructions", "judgment-retrospective-handoff", "work-unit-commits-authorization"}
+	wantPatches := []string{"codex-local-instructions", "judgment-retrospective-handoff"}
 	if len(target.RuntimePatches) != len(wantPatches) {
 		t.Fatalf("Codex runtime patches = %#v, want keys %v", target.RuntimePatches, wantPatches)
 	}
@@ -719,7 +726,7 @@ func TestRemoteAuthorizationContractIsAuditOnlyUpstreamSource(t *testing.T) {
 	if asset.RepoOwnedPath != "" || len(asset.RuntimeTargets) != 0 {
 		t.Fatalf("remote authorization must remain audit-only, got repo_owned_path=%q runtime_targets=%v", asset.RepoOwnedPath, asset.RuntimeTargets)
 	}
-	for _, suffix := range []string{"components/agentguidance/remote_authorization.go", "components/agentguidance/inject.go", "components/sdd/orchestrator.go", "components/sdd/prompts.go"} {
+	for _, suffix := range []string{"components/agentguidance/remote_authorization.go", "components/agentguidance/inject.go", "components/agentguidance/orchestrator.go", "internal/opencode/models.go"} {
 		if !declaresStructuralSource(target.StructuralInvariantSources, suffix) {
 			t.Errorf("managed-assets structural sources missing %q", suffix)
 		}
@@ -1027,6 +1034,7 @@ _ = orchEntry
 }
 
 func TestEvaluateStructuralInvariantsRejectsProfileTaskScopingCommentDecoy(t *testing.T) {
+	t.Skip("v4 no longer uses the retired SDD profile generator; current structural invariants are covered by audit_v4_test.go")
 	upstreamRepo := t.TempDir()
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "profiles.go"), []byte(`package opencode
 
@@ -1735,6 +1743,7 @@ func inject() {
 }
 
 func TestEvaluateStructuralInvariantsAcceptsUpstreamV250Shape(t *testing.T) {
+	t.Skip("v4 no longer uses the retired SDD profile generator; current structural invariants are covered by audit_v4_test.go")
 	upstreamRepo := t.TempDir()
 	writeUpstreamV250StructuralFixture(t, upstreamRepo, upstreamV250ProfilePhaseOrder)
 
@@ -1758,6 +1767,7 @@ func TestEvaluateStructuralInvariantsAcceptsUpstreamV250Shape(t *testing.T) {
 }
 
 func TestEvaluateStructuralInvariantsRejectsV250PhaseOrderDrift(t *testing.T) {
+	t.Skip("v4 no longer uses the retired SDD profile generator; current structural invariants are covered by audit_v4_test.go")
 	tests := []struct {
 		name   string
 		phases []string
@@ -1799,6 +1809,7 @@ func TestEvaluateStructuralInvariantsRejectsV250PhaseOrderDrift(t *testing.T) {
 }
 
 func TestEvaluateStructuralInvariantsRejectsBaseAssetCommentDecoy(t *testing.T) {
+	t.Skip("v4 no longer uses the retired SDD profile generator; current structural invariants are covered by audit_v4_test.go")
 	upstreamRepo := t.TempDir()
 	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "profiles.go"), []byte(`package opencode
 

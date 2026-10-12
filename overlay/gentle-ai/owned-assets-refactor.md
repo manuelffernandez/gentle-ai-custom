@@ -50,7 +50,8 @@ The owned-assets cutover is complete.
 - tracks every custom-installed output and protects upstream-returned or patch-target paths during stale-state migration without claiming upstream files as custom-owned
 - prunes rejected upstream skills in the selected registered targets
 - applies built-in `agent_overrides`
-- reconciles `default_profile` plus named `profiles`, including local JD/review assignment wiring
+- applies local global Judgment Day/review assignments independently of SDD profiles
+- refuses legacy SDD profile settings, overrides, and agent keys before writes without deleting or migrating user-owned values
 - installs repo-owned portable skills from `shared/skills/`
 - renders repo-owned custom wrappers from `shared/commands/`
 
@@ -64,5 +65,4 @@ The owned-assets cutover is complete.
 
 - Required SDD phase assets, `_shared/`, and strict-TDD references remain in the managed audit set, but are installed by upstream.
 - The repo-owned OpenCode `AGENTS.md` encodes the local depuration of PR/review governance directly in the owned prompt file; apply no longer derives that behavior dynamically from upstream runtime state.
-- Managed named profiles clone installed base agents and then change only local model/variant assignments while reusing the available base prompt values required by the profile family.
-- Optional named Judgment Day actors clone their unsuffixed upstream structural actor. Native review actors remain global; explicit inheritance removes only assignment fields and never fabricates upstream structure.
+- Custom apply does not create SDD agents or named profiles. Global actor assignments update only explicit actor `model` / `variant` values; explicit inheritance removes those fields and never fabricates upstream actor structure.

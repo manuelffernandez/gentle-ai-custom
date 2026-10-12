@@ -19,6 +19,8 @@ type ManagedAssetsTarget struct {
 	WatchRoots                 []string               `json:"watch_roots"`
 	UpstreamPathInterpretation string                 `json:"upstream_path_interpretation"`
 	StructuralInvariantSources []string               `json:"structural_invariant_sources"`
+	RetiredUpstreamSnapshots   []string               `json:"retired_upstream_snapshots"`
+	ProtectedRuntimeTargets    []string               `json:"protected_runtime_targets"`
 	OwnedOverlayAssets         []OwnedOverlayAsset    `json:"owned_overlay_assets"`
 	RuntimePatches             []RuntimePatchRef      `json:"runtime_patches"`
 	RetainedUpstreamSkills     []UpstreamSkillRef     `json:"retained_upstream_skills"`

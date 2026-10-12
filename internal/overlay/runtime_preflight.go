@@ -46,17 +46,6 @@ func (s *applyPolicyState) preflightCustomRuntimePrerequisites(repoRoot string) 
 	if err := s.rejectUnmanagedObsoletePromptRefs(); err != nil {
 		return err
 	}
-	if s.resolvedDefaultProfile != nil || len(s.resolvedProfiles) > 0 {
-		if err := s.requireProfileBasePrompts(); err != nil {
-			return err
-		}
-	}
-	if len(s.resolvedProfiles) > 0 {
-		base, _ := jsonObject(s.agents[s.policy.OpenCode.BaseOrchestratorKey])
-		if _, _, err := namedOrchestratorPermissionContract(base); err != nil {
-			return upstreamRuntimeError("profile reconciliation requires valid base orchestrator permissions: %v", err)
-		}
-	}
 	if err := s.requireConfiguredActorBases(); err != nil {
 		return err
 	}
@@ -71,18 +60,8 @@ func (s *applyPolicyState) preflightCustomRuntimePrerequisites(repoRoot string) 
 
 func (s *applyPolicyState) requireConfiguredActorBases() error {
 	required := map[string]string{}
-	if s.resolvedDefaultProfile != nil {
-		for key := range s.resolvedDefaultProfile.JudgmentDay {
-			required[key] = "default_profile.judgment_day"
-		}
-		for key := range s.resolvedDefaultProfile.Review {
-			required[key] = "default_profile.review"
-		}
-	}
-	for _, profile := range s.resolvedProfiles {
-		for _, key := range judgmentDayActorKeys {
-			required[key] = fmt.Sprintf("profiles[%q].judgment_day", profile.Name)
-		}
+	for key := range s.resolvedGlobalActors {
+		required[key] = "global_actors"
 	}
 	keys := make([]string, 0, len(required))
 	for key := range required {
@@ -93,25 +72,6 @@ func (s *applyPolicyState) requireConfiguredActorBases() error {
 		if _, ok := jsonObject(s.agents[key]); !ok {
 			return upstreamRuntimeError("%s references missing upstream base actor %q", required[key], key)
 		}
-	}
-	return nil
-}
-
-func (s *applyPolicyState) requireProfileBasePrompts() error {
-	keys := append([]string{s.policy.OpenCode.BaseOrchestratorKey}, s.policy.OpenCode.SDDPhases...)
-	for _, key := range keys {
-		agent, ok := jsonObject(s.agents[key])
-		if !ok {
-			return upstreamRuntimeError("profile reconciliation requires installed base agent %q", key)
-		}
-		prompt := jsonString(agent["prompt"])
-		if strings.TrimSpace(prompt) == "" || strings.Contains(prompt, ".overlay.md") {
-			return upstreamRuntimeError("profile reconciliation requires a safe upstream base prompt for %q", key)
-		}
-		if err := s.snapshotPromptFile(prompt); err != nil {
-			return upstreamRuntimeError("profile reconciliation requires prompt for %q: %v", key, err)
-		}
-		s.expectedPromptRefs[key] = prompt
 	}
 	return nil
 }
@@ -184,12 +144,6 @@ func (s *applyPolicyState) runtimePromptFilePath(prompt string) (string, bool, e
 
 func (s *applyPolicyState) rejectUnmanagedObsoletePromptRefs() error {
 	managed := map[string]bool{s.policy.OpenCode.BaseOrchestratorKey: true}
-	for _, profile := range s.resolvedProfiles {
-		managed[s.policy.OpenCode.ProfileOrchestratorPrefix+profile.Name] = true
-		for _, phase := range s.policy.OpenCode.SDDPhases {
-			managed[phase+"-"+profile.Name] = true
-		}
-	}
 	for key, raw := range s.agents {
 		agent, ok := jsonObject(raw)
 		if !ok {

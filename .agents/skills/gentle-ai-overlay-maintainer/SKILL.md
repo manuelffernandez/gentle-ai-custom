@@ -20,6 +20,8 @@ Use this skill when:
 ## Hard Rules
 
 - Work from `gentle-ai-custom`, not from the upstream repo.
+- The maintained repository snapshot boundary is v4.0.0 / `ff77164d4f56f1665b22fb6fac51c2ccbb769400`. The authorized sync reported 11 new, 13 changed, 31 unchanged, and 35 deleted snapshots across 19 directories; the post-sync audit passed with no drift and every structural flag `ok`.
+- Snapshot adoption verifies repository sources only. OpenCode and Codex runtime versions remain unverified until their respective separately authorized runtime actions and checks.
 - Treat the resolved upstream `gentle-ai` clone as input only. Resolution order: `~/.config/gentle-ai-custom/opencode-local-config.json` (`upstream_repo_path`) -> `$GENTLE_AI_CUSTOM_UPSTREAM_REPO` -> `../gentle-ai` fallback.
 - Follow this order for maintainer updates: update `gentle-ai` binary -> update tags/checkout in the upstream clone -> immediate audit from `gentle-ai-custom` -> decision/approval gate -> separately approved repo sync via `sync-gentle-ai-upstream-assets` when a new boundary was accepted -> human-owned runtime refresh (`gentle-ai sync` or reinstall) -> separately authorized `apply-gentle-ai-custom`.
 - Immediately after loading this skill and the minimal context needed to invoke it, run the canonical audit synchronously. Run nothing that performs broad repository exploration, repository-reading delegation, or drift-analysis delegation first. By default use `bash audit-gentle-ai-upstream.sh`; when the user has selected a different release from the installed binary, use `bash audit-gentle-ai-upstream.sh --release v<V>`. If selected-release verification fails, STOP immediately and delegate nothing.
@@ -29,11 +31,11 @@ Use this skill when:
 - Treat `last_maintained_commit` only as the drift-range boundary after parity succeeds. It is never release parity proof.
 - `audit-gentle-ai-upstream` discovers drift from `git diff --name-status --find-renames <last_maintained_commit>..<verified-release-commit>`, filtered through `overlay/gentle-ai/policy/managed-assets.json`, while still checking structural invariants from upstream integration code. An audit selected with `--release` is preview evidence only; it does not adopt the release or authorize repo snapshot sync.
 - `sync-gentle-ai-upstream-assets` refreshes `overlay/gentle-ai/assets/upstream/...` plus the maintained boundary only after the drift has been reviewed and accepted and repo sync is separately authorized. Pass the same `--release v<V>` selector to sync only after that approval.
-- `apply-gentle-ai-custom` installs true repo-owned assets and portable skills, renders wrappers, prunes rejected skills, applies overrides, and reconciles profiles while preserving upstream-materialized SDD/review runtime assets.
+- `apply-gentle-ai-custom` installs true repo-owned assets and portable skills, renders wrappers, prunes rejected skills, and applies supported overrides. It does not create SDD profiles or agents and preserves legacy user-owned SDD settings by refusing before writes.
 - Codex is a separate apply target: it installs the allowlisted shared portable skills, leaves unrelated upstream skills and configuration untouched, inserts only the marker-bounded local instruction block, and applies declared exact skill deltas. It does not prune Codex skills, render commands, or run OpenCode permission/model/profile reconciliation. The current upstream audit does not verify installed Codex runtime materialization.
 - For OpenCode, derive external-skill denies from policy-pruned names minus repo-owned same-name skills intentionally installed by the managed target. Apply them globally and to configured agents. Always persist the canonical permission order when effective denies exist: OpenCode uses the last matching rule, and parsed JSON loses the original order needed to detect an exact deny before a matching wildcard allow.
-- Before any runtime write, apply validates only its own prerequisites: ownership boundaries, base prompts consumed by configured profiles, safe obsolete-reference migration, and compatible declared runtime-patch anchors.
-- Apply preflights maintained inline prompts, referenced files, and installed shared SDD prompt files before the first write; it removes only the exact recognized upstream or previously relaxed remote-authorization section. Missing referenced files, duplicate/malformed/unknown sections, unsafe paths, and remote-bearing unmanaged named profiles fail closed. Keep the upstream snapshot audit-only and its structural projection audit intact.
+- Before any runtime write, apply validates only its own prerequisites: ownership boundaries, base prompts consumed by the requested operation, safe obsolete-reference migration, and compatible declared runtime-patch anchors.
+- Apply preflights maintained inline prompts and referenced files before the first write; it removes only the exact recognized upstream or previously relaxed remote-authorization section. Missing referenced files, duplicate/malformed/unknown sections, and unsafe paths fail closed. Legacy SDD agent or profile settings are rejected before writes and remain user-owned. Keep the upstream snapshot audit-only and its structural projection audit intact.
 - The repo-owned global `AGENTS.md` intentionally omits the remote-operation authorization section. This removal does not alter credential-file safety or unrelated runtime/tool permission guards.
 - Apply must not inspect or certify upstream plugin, contract, prompt, or review semantics. Opaque or absent upstream plugins do not block unrelated custom operations.
 - Owned-state cleanup must track every custom-installed output while protecting upstream runtime targets, retained upstream skill trees, and surgical patch targets without claiming whole-file ownership.
@@ -45,21 +47,23 @@ Use this skill when:
 - Runtime refresh is human-owned by default. Recommend the correct path and print exact instructions, but never run `gentle-ai sync` or a reinstall unless the human explicitly requests that specific runtime action. Approval of audit findings, upstream adoption, repo snapshot sync, or overlay edits is not runtime-refresh authorization.
 - Overlay apply is separately authorized. Never infer apply permission from approval of findings, repo sync, runtime refresh, or other maintenance edits.
 - Preserve the local keep/prune baseline and upstream/runtime ownership boundaries defined in `maintenance-intent.md`.
-- Treat v3.7.0 explicit partial SDD archive as a conscious local acceptance, not confirmed upstream intent or proof of completed implementation; apply the future-audit watchpoint in `overlay/gentle-ai/maintenance.md` and do not imply an RDD escalation was retroactively approved.
+- Current v4 OpenCode policy does not keep SDD skills and prunes legacy SDD skill names if present. Codex apply preserves unrelated upstream skills. Do not remove or migrate machine-local SDD settings or files; apply refuses legacy profile/agent settings before writes.
+- Treat the v3.7.0 partial-SDD-archive decision as historical only. The v4 structural audit no longer checks deleted SDD profile-generation paths; do not present the historical watchpoint as a current v4 invariant.
 - Distinguish preview, repository snapshot adoption, and runtime state. An explicit-release audit alone is preview only; after an authorized snapshot sync, report the new maintained boundary without implying a runtime refresh or apply.
 - OpenCode V2 plugin snapshots are audit/sync inputs only, not custom apply install sources. OpenCode 1.18.32 uses the V1 plugin path; V2 materialization requires custom apply schema work and must not be claimed as supported.
-- Upstream ODD work-unit commit wording does not override local `no-auto-commit`; never create a commit without explicit user authorization. A prepared or declared `work-unit-commits` patch is not active runtime protection until the relevant target receives a separately authorized apply and verification. Current runtime versions are unverified. If a target's installed skill does not match the exact patch anchor, its apply must fail closed; do not claim the safeguard is active.
+- Follow upstream ODD's required work-unit commit at task close. This does not authorize pushes or PRs, which remain subject to explicit user authorization and their existing workflow gates. The local OpenCode and Codex opt-out patches have been removed from repo sources; runtime changes remain unverified until separately authorized refresh/apply and verification.
 - Treat upstream PR strategy, chained PR, review-budget, and review-workload governance as adopt-by-default under the current upstream-first intent; sanitize only when a concrete conflict with explicit local customizations is confirmed.
 - Keep bash and PowerShell scripts behaviorally equivalent.
 - Update `AGENTS.md`, `README.md`, `overlay/gentle-ai/maintenance.md`, and `overlay/gentle-ai/logs/update-log.md` when the workflow changes, but write to the log only for eligible closed maintenance events under `AGENTS.md` rule 4.
 - Do not change intent, keep/prune, runtime ownership, or local patch behavior for new upstream changes without explicit user approval.
 - After approved maintenance work, return a closing summary of what was actually `Adquirir`, `Sanitizar`, or `Ignorar`, and why.
 - After maintenance edits, run one fresh-context reviewer/subagent consistency pass over the changed maintainer artifacts before closing.
-- The versioned policy MUST NOT carry per-profile orchestrator/phase model+variant choices. Those live in the per-machine local config at `~/.config/gentle-ai-custom/opencode-local-config.json` under `default_profile` and `profiles`.
-- The same local config may manage the three global Judgment Day actors, all six global review actors (including `review-validator`), and optional named-profile JD actors. Review actors are always global; never invent suffixed review topology.
-- Omitted JD/review slots preserve runtime assignment. Only explicit `{"inherit": true}` removes both `model` and `variant` for OpenCode Task inheritance.
+- The local config no longer supports `default_profile` or `profiles`; apply rejects either legacy key before writes and leaves it untouched for manual review. Do not direct users to configure those keys.
+- `global_actors` is the only supported actor-assignment surface: it may configure the three global Judgment Day actors and six global review actors, including `review-validator`. Named-profile actors and suffixed JD/review actors are not supported.
+- Omitted global actor slots preserve runtime assignment. Only explicit `{"inherit": true}` removes both `model` and `variant` for OpenCode Task inheritance.
 - Treat RDD as maintainer-approved, active, and functional based on the owner's cross-repository operational validation. Effective mode remains user- and machine-owned: check it with `gentle-ai review mode status --cwd .` and never infer it from repository policy or upstream control. The correction-required canary is an optional regression diagnostic, not an activation gate. Preserve the kill switch, candidate-bound receipts, bounded correction lifecycle, and ordinary delivery policy.
-- Treat `sdd-research` as the phase immediately after `sdd-explore`. Profile audits must validate all 11 phases, semantic managed-profile detection, and deny-by-default `permission.task` delegation without requiring deprecated agent-local `tools.task`.
+- For v4, verify the current `agentguidance` orchestrator/routing injection and remote-authorization projection, plus exact ODD/JD/review agent sets. Do not require SDD phase ordering, profile naming, or task-permission checks from removed source files.
+- During a separately approved snapshot sync, remove exact files declared in `retired_upstream_snapshots` after release parity, watched-drift mapping, and every structural gate pass. Also prune stale files inside still-declared synced directory assets; this is separate from manifest retirement and stays within those declared directories. Manifest retirement rejects traversal, active-path overlap, symlink parents, and directory targets. Never remove snapshots during audit or repo-only adaptation, and never recursively delete a retired path.
 
 ## Audit report contract
 
@@ -115,16 +119,17 @@ Re-apply is mandatory after `gentle-ai sync` or reinstall because upstream rewri
 | Exact tag is missing or stale | STOP. Fetch tags manually, verify the exact tag, and check it out manually; do not fetch or switch revisions for the user. |
 | Upstream checkout has staged, unstaged, untracked, or submodule dirt | STOP. Require a completely clean checkout before audit or sync. |
 | The user has not run `gentle-ai sync` or reinstalled yet | Treat this as the normal pre-audit state. Audit first; recommend runtime refresh only after audit and repo sync when required. Do not execute it without a specific request. |
-| User updated upstream (`git pull`) but has NOT run `gentle-ai sync` yet | Run `bash audit-gentle-ai-upstream.sh` immediately after skill load and before broad reads or delegation. Use it to detect managed-asset drift + profile invariants before recommending repo sync + runtime refresh. |
+| User updated upstream (`git pull`) but has NOT run `gentle-ai sync` yet | Run `bash audit-gentle-ai-upstream.sh` immediately after skill load and before broad reads or delegation. Use it to detect managed-asset drift + current ODD/routing/actor invariants before recommending repo sync + runtime refresh. |
 | User just ran `gentle-ai sync` | Recommend `bash apply-gentle-ai-custom.sh opencode` (minimum) or `all`, but run it only with separate explicit authorization; if runtime preflight fails, explain that reinstall/sync must restore the missing upstream surface first. |
 | User just ran TUI reinstall | Audit topology BEFORE re-applying. |
 | Script printed `topology: ...` warnings | Investigate each warning. STOP and ask before mutating policy/intent. |
-| Script printed `WARNING - unmanaged SDD profiles left untouched` | Ask whether to add the profile(s) to the local config or remove those agent keys manually. NEVER delete them automatically. |
+| Apply rejects legacy SDD profile settings or agent keys | Explain which user-owned settings block apply and require manual review; never delete or map them to ODD roles automatically. |
 | `bash audit-gentle-ai-upstream.sh` reports `base prompt drift: yes` | Review `Drift summary:` first, then inspect the upstream delta before updating approved upstream snapshots/state. |
-| `bash audit-gentle-ai-upstream.sh` reports profile/base invariant mismatch | STOP and review before recommending `sync`; the overlay assumptions may be stale even if prompt drift looks small. |
+| `bash audit-gentle-ai-upstream.sh` reports a v4 structural mismatch | STOP and review the current source/injection path before recommending snapshot sync. |
+| The audit reports managed drift but all current v4 structural flags are `ok` | Report snapshot drift as pending adoption, separate from structural failures; sync still requires explicit authorization. |
 | Audit is complete and repo/runtime state is still unchanged | Return the decision summary (`new upstream`, `Scope`, `Impact`, `Decision`, `why`, `repo sync`, refresh recommendation) and STOP for approval before any mutation. |
 | Adopted change affects topology, presets, or materialization for the maintained runtime target | STOP, summarize the impact, and explicitly recommend a full reinstall before re-applying the overlay. |
-| Accepted Gentle AI v2.5.0 adoption | Because `sdd-research` changes maintained OpenCode profile topology, recommend a full SDD component reinstall after separately authorized repo snapshot sync. Keep runtime reinstall and overlay apply separately authorized. |
+| Reviewing historical v2.5.0 evidence | Treat its SDD profile topology and reinstall recommendation as historical; do not apply it to the current v4 ODD target. |
 | Upstream only added a new agent/platform outside the maintained runtime target/materialized state | Note it in the audit, but do NOT recommend reinstall for that reason alone. |
 | Upstream added new skills or workflow behavior without maintained-target topology drift | STOP, summarize the impact, and recommend `gentle-ai sync` after the repo is updated. |
 | Upstream changes PR strategy, chained/stacked PR governance, review budget, or review workload behavior | Compare against explicit local customizations in `maintenance-intent.md`; recommend `Sanitizar` only for concrete conflicts, otherwise recommend `Adquirir`. |
@@ -145,7 +150,7 @@ Re-apply is mandatory after `gentle-ai sync` or reinstall because upstream rewri
 10. Review the upstream range from `last_maintained_commit` to the verified release commit.
 11. Classify findings into:
     - base prompt drift (`gentle-orchestrator`)
-    - profile-generation invariant drift
+     - current orchestrator/routing injection and ODD/JD/review actor-topology drift
     - behavior/workflow changes relevant to the overlay
     - topology/preset/materialization changes for the maintained runtime target
     - upstream additions outside the maintained runtime target/materialized state
@@ -170,16 +175,15 @@ Re-apply is mandatory after `gentle-ai sync` or reinstall because upstream rewri
      - owned runtime targets declared in `managed-assets.json` exist on disk
      - `agent_overrides` resolve to the configured `model` / `variant`
      - configured global JD assignments resolve exactly; inherited review actors have neither `model` nor `variant`
-     - named profiles create only explicitly configured suffixed JD actors, delegate omitted JD slots globally, and have no suffixed review actors
+     - no SDD profiles or agents were generated; existing legacy SDD settings remain untouched when apply blocks
      - `agent.gentle-orchestrator.prompt` remains the upstream-owned prompt or reference
-     - each managed named profile orchestrator reuses the upstream base orchestrator prompt
-     - each of the 11 unsuffixed and managed suffixed SDD phase agents, including `sdd-research`, reuses its upstream base phase prompt/reference
+     - the v4 orchestrator and routing instructions use the upstream always-loaded carrier
      - representative upstream-owned prompt, plugin, and contract files remain byte- and mode-unchanged by custom apply
      - no managed agent references an obsolete `.overlay.md` prompt
      - Judgment Day differs from its compatible installed upstream baseline only by the declared retrospective handoff
      - maintained inline prompt values and reachable prompt files contain no recognized upstream or previously relaxed remote-authorization section; unrelated bytes and file modes are preserved
-     - upstream `sdd-research` remains output-only and orchestrator-persisted; the retired local precedence patch is not reapplied
-     - default/named profile assignments still match the local config
+       - v3.7.0 `sdd-research` evidence is reported only as historical; it is not treated as a current v4 runtime contract
+      - configured global actor assignments still match the local config
      - `overlay/gentle-ai/assets/upstream/opencode/prompts/orchestrators/gentle-orchestrator.md` and related upstream metadata remain consistent with `upstream-state.json`
 19. Run one fresh-context consistency pass against the changed maintainer artifacts and the final maintenance diff. Use a reviewer/subagent when delegation is authorized; otherwise perform the pass directly.
 20. Return a closing summary that states what was actually `Adquirir`, `Sanitizar`, or `Ignorar`, and why.
@@ -196,7 +200,7 @@ Return:
 - `Follow-up` is optional; leave it empty when no further action is needed.
 - recommended upstream adoption path (`gentle-ai sync` or full reinstall) and why
 - whether a newly accepted upstream boundary requires `bash sync-gentle-ai-upstream-assets.sh`
-- apply summary counts for the selected target (owned asset writes, prompt ref updates, topology warnings, and OpenCode profile counts where applicable)
+- apply summary counts for the selected target (owned asset writes, prompt ref updates, and topology warnings where applicable)
 - post-state verification result (what passed / failed)
 - fresh-context reviewer/subagent result (what it checked and whether it found inconsistencies)
 - whether keep/prune, runtime ownership, or local patch behavior changed

@@ -87,14 +87,22 @@ func RunSyncUpstreamAssets(repoRoot string, args []string) int {
 		}
 		return 1
 	}
-	if !structuralResult.PhaseOrderOK || !structuralResult.ProfileNamingOK || !structuralResult.TaskScopingOK || !structuralResult.BaseAssetInjectionOK {
+	if !structuralResult.OrchestratorAssetOK || !structuralResult.RoutingInjectionOK || !structuralResult.RemoteAuthorizationOK || !structuralResult.RoleTopologyOK || !structuralResult.ODDTopologyOK || !structuralResult.ODDRegistrationOK {
 		fmt.Fprintln(os.Stderr, "ERROR: sync-upstream-assets refused to advance the maintained boundary because structural invariants are not all ok.")
+		return 1
+	}
+	if err := validateRetiredUpstreamSnapshots(repoRoot, target); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: sync-upstream-assets refused unsafe retired snapshot cleanup: %v\n", err)
 		return 1
 	}
 
 	stats := &syncUpstreamAssetsStats{}
 	if err := syncManagedTarget(repoRoot, upstreamRepo, target, options.recorder, stats); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		return 1
+	}
+	if err := removeRetiredUpstreamSnapshots(repoRoot, target, options.recorder, stats); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: cannot remove retired upstream snapshots: %v\n", err)
 		return 1
 	}
 
@@ -214,6 +222,119 @@ func syncManagedTarget(repoRoot, upstreamRepo string, target ManagedAssetsTarget
 	for _, asset := range target.PrunedUpstreamSkills {
 		if err := syncReferencedUpstreamSkill(repoRoot, upstreamRepo, asset, recorder, stats); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+const upstreamSnapshotRoot = "overlay/gentle-ai/assets/upstream/opencode"
+
+func removeRetiredUpstreamSnapshots(repoRoot string, target ManagedAssetsTarget, recorder *verboseRecorder, stats *syncUpstreamAssetsStats) error {
+	paths, err := retiredUpstreamSnapshotFiles(repoRoot, target)
+	if err != nil {
+		return err
+	}
+	for _, full := range paths {
+		if err := os.Remove(full); os.IsNotExist(err) {
+			continue
+		} else if err != nil {
+			return err
+		}
+		stats.FilesDeleted++
+		recorder.record(full, "removed manifest-retired upstream snapshot file")
+	}
+	return nil
+}
+
+func validateRetiredUpstreamSnapshots(repoRoot string, target ManagedAssetsTarget) error {
+	_, err := retiredUpstreamSnapshotFiles(repoRoot, target)
+	return err
+}
+
+func retiredUpstreamSnapshotFiles(repoRoot string, target ManagedAssetsTarget) ([]string, error) {
+	active := make([]string, 0, len(target.OwnedOverlayAssets)+len(target.RetainedUpstreamSkills)+len(target.PrunedUpstreamSkills))
+	var files []string
+	for _, asset := range target.OwnedOverlayAssets {
+		active = append(active, snapshotRelativePath(asset.RepoUpstreamPath))
+	}
+	for _, asset := range target.RetainedUpstreamSkills {
+		active = append(active, snapshotRelativePath(asset.RepoUpstreamPath))
+	}
+	for _, asset := range target.PrunedUpstreamSkills {
+		active = append(active, snapshotRelativePath(asset.RepoUpstreamPath))
+	}
+
+	for _, retired := range target.RetiredUpstreamSnapshots {
+		raw := filepath.ToSlash(strings.TrimSpace(retired))
+		invalidSegment := false
+		for _, segment := range strings.Split(raw, "/") {
+			if segment == "" || segment == "." || segment == ".." {
+				invalidSegment = true
+				break
+			}
+		}
+		if raw == "" || strings.HasPrefix(raw, "/") || filepath.IsAbs(retired) || invalidSegment {
+			return nil, fmt.Errorf("unsafe retired snapshot path %q", retired)
+		}
+		clean := filepath.ToSlash(filepath.Clean(filepath.FromSlash(raw)))
+		for _, activePath := range active {
+			activeClean := filepath.ToSlash(filepath.Clean(filepath.FromSlash(activePath)))
+			if activeClean == clean || strings.HasPrefix(activeClean, clean+"/") || strings.HasPrefix(clean, activeClean+"/") {
+				return nil, fmt.Errorf("retired snapshot path %q overlaps active snapshot path %q", clean, activeClean)
+			}
+		}
+		full := filepath.Join(repoRoot, filepath.FromSlash(upstreamSnapshotRoot), filepath.FromSlash(clean))
+		if err := ensureNoSymlinkParents(repoRoot, full); err != nil {
+			return nil, fmt.Errorf("retired snapshot path %q: %w", clean, err)
+		}
+		info, err := os.Lstat(full)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if info.IsDir() {
+			return nil, fmt.Errorf("retired snapshot path %q resolves to a directory; refusing recursive deletion", clean)
+		}
+		files = append(files, full)
+	}
+	return files, nil
+}
+
+func snapshotRelativePath(path string) string {
+	path = filepath.ToSlash(filepath.Clean(filepath.FromSlash(path)))
+	return strings.TrimPrefix(path, upstreamSnapshotRoot+"/")
+}
+
+func ensureNoSymlinkParents(root, target string) error {
+	rootInfo, err := os.Lstat(root)
+	if err == nil && rootInfo.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("snapshot root %q is a symlink", root)
+	}
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	rel, err := filepath.Rel(root, target)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return fmt.Errorf("target is outside snapshot root")
+	}
+	current := root
+	parts := strings.Split(filepath.Dir(rel), string(filepath.Separator))
+	for _, part := range parts {
+		if part == "." || part == "" {
+			continue
+		}
+		current = filepath.Join(current, part)
+		info, err := os.Lstat(current)
+		if os.IsNotExist(err) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("parent %q is a symlink", current)
 		}
 	}
 	return nil
