@@ -190,8 +190,6 @@ func (s *applyPolicyState) pruneSkills() error {
 				s.metrics.prunedCount++
 				s.recordVerbose(skillPath, fmt.Sprintf("removed pruned skill directory %q", skill))
 				fmt.Printf("  removed %s\n", skill)
-			} else {
-				fmt.Printf("  already absent %s\n", skill)
 			}
 		}
 

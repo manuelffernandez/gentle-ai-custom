@@ -244,6 +244,7 @@ Runtime refresh, repo snapshot sync, and overlay apply are separate actions. App
 - preserves upstream-owned prompt, contract, and plugin bytes and file modes
 - migrates managed obsolete `.overlay.md` references only when an upstream base prompt is available
 - prunes only explicitly rejected upstream skills in the selected registered targets
+- reports only skills actually removed during pruning; already-absent skills produce no no-op line. The SDD prune and effective permission-deny policy remains protective on later applies even when no SDD skill is present.
 - denies policy-pruned skills that lack a repo-owned same-name replacement through global and configured-agent OpenCode `permission.skill` rules. This covers native external-skill discovery from `~/.agents/skills` and `~/.claude/skills` without deleting or changing those externally owned copies; non-pruned rules and replacements such as `branch-pr` are preserved. Because OpenCode uses the last matching rule, apply canonically persists effective exact denies after matching wildcard rules even when parsed values already equal `deny`
 - applies `agent_overrides`
 - reconciles explicit global Judgment Day/review assignments from `global_actors`

@@ -249,6 +249,7 @@ El `AGENTS.md` propio de OpenCode sigue siendo un archivo completo que instala e
 - aplica overrides compatibles sin crear perfiles o agentes SDD. Si encuentra opciones SDD heredadas, se detiene antes de escribir y las deja intactas para revisión manual.
 - agrega de forma puntual el handoff de `judgment-retrospective` al skill `judgment-day` compatible.
 - mantiene los nombres SDD fuera de la lista de skills conservadas y los poda en OpenCode si aún existen. No borra ni migra configuración o archivos locales por esta actualización documental; cualquier runtime apply requiere autorización independiente.
+- al podar skills, muestra solo las que eliminó en esta ejecución; si una ya no estaba, no la menciona. La poda y el bloqueo de permisos para las skills SDD siguen activos aunque no haya nada que eliminar.
 - registra todos los archivos que instala como propios. Al limpiar registros viejos, conserva los archivos devueltos a Gentle AI y los targets de parches puntuales sin declararlos como propios.
 
 `opencode` y `codex` limitan el apply a un target. `all` selecciona los dos. Codex no altera permisos, configuración, pruning ni comandos de OpenCode.

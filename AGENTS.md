@@ -342,6 +342,8 @@ The `Keep` list below is the retained upstream-skill baseline only. Repo-owned s
 
 `chained-pr` is dual-tracked on purpose: its approved upstream snapshot stays retained for audit/sync, while `shared/skills/` provides the sanitized runtime copy that apply installs. `issue-creation` and legacy SDD skill names stay pruned from the default OpenCode runtime surface. No apply has run as part of the v4 snapshot adoption; runtime files and user-owned SDD settings were not changed.
 
+Apply reports only skills actually removed during pruning; already-absent names are silent. SDD pruning and applicable OpenCode skill permission denies remain persistent protective policy, including when no SDD skills are currently installed.
+
 Keep:
 - `_shared`
 - `chained-pr`

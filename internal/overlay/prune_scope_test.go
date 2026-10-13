@@ -1,6 +1,8 @@
 package overlay
 
 import (
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -95,6 +97,85 @@ func TestPruneSkillsUsesSelectedRegisteredTargetsOnly(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPruneSkillsReportsOnlyActualRemovals(t *testing.T) {
+	tests := []struct {
+		name    string
+		present []string
+	}{
+		{name: "all pruned skills absent"},
+		{name: "one present and two absent", present: []string{"branch-pr"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			target := filepath.Join(t.TempDir(), "skills")
+			if err := os.MkdirAll(target, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			for _, skill := range tc.present {
+				if err := os.MkdirAll(filepath.Join(target, skill), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			policy := Policy{}
+			policy.Skills.Prune = []string{"branch-pr", "sdd-init", "issue-creation"}
+			policy.Skills.Keep = []string{"retained-skill"}
+			state := applyPolicyState{
+				policy:       policy,
+				recorder:     newVerboseRecorder(false),
+				skillTargets: []string{target},
+			}
+			output := capturePruneSkillsOutput(t, func() {
+				if err := state.pruneSkills(); err != nil {
+					t.Fatalf("pruneSkills() error = %v", err)
+				}
+			})
+			wantOutput := fmt.Sprintf("- pruning unwanted skills in %s\n", target)
+			if len(tc.present) > 0 {
+				wantOutput += "  removed branch-pr\n"
+			}
+			if output != wantOutput {
+				t.Errorf("pruneSkills() output = %q, want %q", output, wantOutput)
+			}
+			if state.metrics.prunedCount != len(tc.present) {
+				t.Errorf("skills pruned = %d, want %d", state.metrics.prunedCount, len(tc.present))
+			}
+			if want := []string{target + " -> retained-skill"}; !reflect.DeepEqual(state.metrics.missingKeepSummary, want) {
+				t.Errorf("missing keep summary = %v, want %v", state.metrics.missingKeepSummary, want)
+			}
+			for _, skill := range policy.Skills.Prune {
+				if pathExists(filepath.Join(target, skill)) {
+					t.Errorf("pruned skill %q remains in selected target", skill)
+				}
+			}
+		})
+	}
+}
+
+func capturePruneSkillsOutput(t *testing.T, run func()) string {
+	t.Helper()
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous := os.Stdout
+	os.Stdout = writer
+	t.Cleanup(func() {
+		os.Stdout = previous
+		reader.Close()
+		writer.Close()
+	})
+	run()
+	os.Stdout = previous
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(output)
 }
 
 func setTestAgentRegistry(t *testing.T, registry map[string]registeredAgent) {
