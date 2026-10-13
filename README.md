@@ -240,6 +240,8 @@ El `AGENTS.md` propio de OpenCode sigue siendo un archivo completo que instala e
 
 La skill `notion-project-knowledge` se instala para ambos targets desde `shared/skills/notion-project-knowledge/SKILL.md`. Consulta las guías actuales de Notion cuando necesita ese conocimiento y ayuda al agente principal a conservar conocimiento útil del proyecto y evidencia de actividad personal en Me, dentro del alcance autorizado. Ambos targets reciben un bloque de activación separado. Agregarlo al repo no actualiza el runtime ni escribe en Notion; hace falta un apply autorizado por separado. El registro nativo no busca en `shared/skills/`, por lo que la nueva skill no aparece allí antes de instalarla. La búsqueda por identidad del repositorio y la creación de proyectos solicitada explícitamente siguen el índice global vigente de Notion; sus reglas detalladas permanecen allí.
 
+Para usar Notion desde OpenCode **en este repo**, `opencode.json` habilita el MCP remoto oficial de Notion. No contiene tokens: reiniciá OpenCode y completá el acceso con `opencode mcp auth notion` desde esta carpeta. La autorización se hace en el navegador con tu cuenta y espacio de Notion; la configuración del repo limita dónde está disponible la conexión, pero no restringe por sí sola qué páginas puede consultar esa cuenta. La skill guía el uso de Notion; el MCP proporciona la conexión.
+
 ### Cuándo usar `gentle-ai sync` y cuándo reinstalar
 
 - Es preferible usar `gentle-ai sync` si los cambios que adoptamos sirven y el target mantenido conserva una estructura compatible.

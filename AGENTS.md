@@ -210,10 +210,12 @@ Files that take effect when OpenCode is open in this project. Never installed gl
 |---|---|
 | `.agents/skills/<name>/SKILL.md` | Skills loaded automatically when OpenCode is in this project |
 | `.opencode/commands/<name>.md` | Slash commands available only in this project |
+| `opencode.json` | Project-local OpenCode configuration for the official Notion MCP; OAuth remains user-owned |
 
 Current repo-local assets:
 - `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md` — maintainer workflow skill
 - `.opencode/commands/maintain.md` — `/maintain` slash command
+- `opencode.json` — project-local Notion MCP endpoint; no credentials are stored in the repository
 
 ### Layer 2 — Installer output (what this repo installs globally)
 
@@ -238,6 +240,7 @@ Files that `apply-gentle-ai-custom.sh` installs into the global OpenCode runtime
 
 - `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md` — project-only maintainer workflow skill (loaded automatically when OpenCode is in this project).
 - `.opencode/commands/maintain.md` — `/maintain` slash command, available only in this project.
+- `opencode.json` — repo-local Notion MCP connection for OpenCode; authentication remains outside the repository.
 
 ### Layer 2 — Installer output (canonical sources)
 
