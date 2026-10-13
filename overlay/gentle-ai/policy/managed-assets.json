@@ -139,10 +139,28 @@
       }
     },
     "codex": {
-      "watch_roots": [],
+      "watch_roots": [
+        "internal/assets/codex/orchestrator.md",
+        "internal/assets/generic/remote-authorization-contract.md",
+        "internal/agents/codex",
+        "internal/components/agentguidance/orchestrator.go",
+        "internal/components/agentguidance/inject.go",
+        "internal/components/agentguidance/remote_authorization.go",
+        "internal/cli/run.go",
+        "internal/cli/sync.go"
+      ],
       "upstream_path_interpretation": "Codex AGENTS.md, skills, Engram files, config.toml, and model profiles are materialized and owned by Gentle AI. Apply copies repo-owned portable skills and applies only exact declared local patches; it does not install upstream snapshots or alter Codex configuration.",
-      "structural_invariant_sources": [],
-      "owned_overlay_assets": [],
+      "structural_invariant_sources": [
+        "internal/components/agentguidance/orchestrator.go",
+        "internal/components/agentguidance/inject.go",
+        "internal/agents/codex/adapter.go",
+        "internal/cli/run.go",
+        "internal/cli/sync.go"
+      ],
+      "owned_overlay_assets": [
+        {"key":"codex-orchestrator-source","class":"upstream_source","kind":"upstream_source_file","upstream_path":"internal/assets/codex/orchestrator.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/codex/orchestrator.md"},
+        {"key":"codex-remote-authorization-source","class":"upstream_source","kind":"upstream_source_file","upstream_path":"internal/assets/generic/remote-authorization-contract.md","repo_upstream_path":"overlay/gentle-ai/assets/upstream/codex/remote-authorization-contract.md"}
+      ],
       "runtime_patches": [
         {"key":"codex-local-instructions","patch_path":"overlay/gentle-ai/patches/codex/local-instructions.json"},
         {"key":"judgment-retrospective-handoff","patch_path":"overlay/gentle-ai/patches/codex/judgment-retrospective.json"}

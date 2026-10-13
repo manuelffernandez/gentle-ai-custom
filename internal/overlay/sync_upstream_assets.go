@@ -58,11 +58,14 @@ func RunSyncUpstreamAssets(repoRoot string, args []string) int {
 		return 1
 	}
 
-	target, ok := manifest.Targets["opencode"]
-	if !ok {
-		fmt.Fprintf(os.Stderr, "ERROR: managed-assets manifest at %s does not define target %q\n", manifestPath, "opencode")
-		return 1
+	for _, name := range []string{"opencode", "codex"} {
+		if _, ok := manifest.Targets[name]; !ok {
+			fmt.Fprintf(os.Stderr, "ERROR: managed-assets manifest at %s does not define target %q\n", manifestPath, name)
+			return 1
+		}
 	}
+	target := manifest.Targets["opencode"]
+	codex := manifest.Targets["codex"]
 
 	upstreamHead := release.Commit
 	diffEntries, err := runGitDiff(upstreamRepo, state.LastMaintainedCommit)
@@ -71,6 +74,8 @@ func RunSyncUpstreamAssets(repoRoot string, args []string) int {
 		return 1
 	}
 	managedEntries, unmanagedEntries := categorizeGitDiff(diffEntries, buildManagedAssetCatalog(target))
+	codexManaged, codexUnmanaged := categorizeGitDiff(diffEntries, buildManagedAssetCatalog(codex))
+	unmanagedEntries = append(unmanagedEntries, codexUnmanaged...)
 	if len(unmanagedEntries) > 0 {
 		fmt.Fprintln(os.Stderr, "ERROR: sync-upstream-assets refused to advance the maintained boundary because watched upstream drift is still unmapped.")
 		for _, entry := range unmanagedEntries {
@@ -80,6 +85,9 @@ func RunSyncUpstreamAssets(repoRoot string, args []string) int {
 		return 1
 	}
 	structuralResult, structuralFailures := evaluateStructuralInvariants(upstreamRepo, target, policy)
+	for _, failure := range evaluateCodexStructuralInvariants(upstreamRepo, codex) {
+		structuralFailures = append(structuralFailures, "Codex: "+failure)
+	}
 	if len(structuralFailures) > 0 {
 		fmt.Fprintln(os.Stderr, "ERROR: sync-upstream-assets refused to advance the maintained boundary because structural invariants failed.")
 		for _, failure := range structuralFailures {
@@ -95,9 +103,28 @@ func RunSyncUpstreamAssets(repoRoot string, args []string) int {
 		fmt.Fprintf(os.Stderr, "ERROR: sync-upstream-assets refused unsafe retired snapshot cleanup: %v\n", err)
 		return 1
 	}
+	if !codexSnapshotMappingsComplete(codex) {
+		fmt.Fprintln(os.Stderr, "ERROR: Codex approved snapshot mappings incomplete; orchestrator and remote-authorization sources are required")
+		return 1
+	}
+	for _, asset := range codex.OwnedOverlayAssets {
+		if !validCodexSnapshotMapping(asset) {
+			fmt.Fprintf(os.Stderr, "ERROR: unsafe Codex approved snapshot mapping %q\n", asset.Key)
+			return 1
+		}
+		if _, err := runGitShow(upstreamRepo, "HEAD", asset.UpstreamPath); err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: Codex approved source %s cannot be read before sync writes: %v\n", asset.UpstreamPath, err)
+			return 1
+		}
+	}
 
 	stats := &syncUpstreamAssetsStats{}
+	// Both targets must pass all read-only gates before the first snapshot write.
 	if err := syncManagedTarget(repoRoot, upstreamRepo, target, options.recorder, stats); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		return 1
+	}
+	if err := syncManagedTarget(repoRoot, upstreamRepo, codex, options.recorder, stats); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		return 1
 	}
@@ -136,6 +163,7 @@ func RunSyncUpstreamAssets(repoRoot string, args []string) int {
 	fmt.Println()
 	fmt.Println("Summary:")
 	fmt.Printf("  managed files changed in range: %d\n", len(managedEntries))
+	fmt.Printf("  Codex managed files changed in range: %d\n", len(codexManaged))
 	fmt.Printf("  files new: %d\n", stats.FilesNew)
 	fmt.Printf("  files changed: %d\n", stats.FilesChanged)
 	fmt.Printf("  files unchanged: %d\n", stats.FilesUnchanged)

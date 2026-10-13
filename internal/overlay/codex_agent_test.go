@@ -530,6 +530,156 @@ func TestRunApplyCustomAllAppliesBothTargetsWithoutCrossTargetCommands(t *testin
 	}
 }
 
+func chainedCleanupApplyFixture(t *testing.T) (string, string, map[string]string) {
+	t.Helper()
+	repo := repoRootForTest(t)
+	home, _ := writeCompatibleRuntimeFixture(t, repo)
+	codexRoot := filepath.Join(home, ".codex")
+	mustWriteFile(t, filepath.Join(codexRoot, "AGENTS.md"), []byte(codexODDAssignmentTable+"<!-- gentle-ai:engram-protocol -->\nupstream Codex Engram\n<!-- /gentle-ai:engram-protocol -->\n"))
+	writeCodexMigrationPrerequisites(t, codexRoot)
+	binDir := filepath.Join(t.TempDir(), "bin")
+	mustWriteFile(t, filepath.Join(binDir, "gentle-ai"), []byte("#!/bin/sh\nprintf 'gentle-ai 4.1.1\\n'\n"))
+	if err := os.Chmod(filepath.Join(binDir, "gentle-ai"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	paths := map[string]string{
+		"opencode": filepath.Join(home, ".config", "opencode", "skills", "chained-pr", "references", "chaining-details.md"),
+		"codex":    filepath.Join(codexRoot, "skills", "chained-pr", "references", "chaining-details.md"),
+		"shared":   filepath.Join(home, ".agents", "skills", "chained-pr", "references", "chaining-details.md"),
+	}
+	return repo, home, paths
+}
+
+func TestApplyChainedReferenceCleanupSelectedTargets(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		selected  []string
+		populated []string
+	}{
+		{"opencode only", []string{"opencode"}, []string{"opencode", "codex"}},
+		{"codex only", []string{"codex"}, []string{"opencode", "codex"}},
+		{"both", []string{"all"}, []string{"opencode", "codex"}},
+		{"absent", []string{"all"}, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo, home, paths := chainedCleanupApplyFixture(t)
+			approved := mustReadFile(t, filepath.Join(repo, "overlay", "gentle-ai", "assets", "upstream", "opencode", "skills", "chained-pr", "references", "chaining-details.md"))
+			for _, name := range tc.populated {
+				mustWriteFile(t, paths[name], []byte(approved))
+			}
+			mustWriteFile(t, paths["shared"], []byte(approved))
+			sharedSkill := filepath.Join(home, ".agents", "skills", "chained-pr", "SKILL.md")
+			mustWriteFile(t, sharedSkill, []byte("[references/chaining-details.md](references/chaining-details.md)\n"))
+			if code := RunApplyCustom(repo, tc.selected); code != 0 {
+				t.Fatalf("apply %v = %d", tc.selected, code)
+			}
+			for _, name := range []string{"opencode", "codex"} {
+				selected := tc.selected[0] == "all" || tc.selected[0] == name
+				if selected {
+					if _, err := os.Lstat(paths[name]); !os.IsNotExist(err) {
+						t.Errorf("selected %s legacy file still present: %v", name, err)
+					}
+					base := filepath.Join(home, ".codex")
+					if name == "opencode" {
+						base = filepath.Join(home, ".config", "opencode")
+					}
+					state, err := loadOwnedRuntimeState(filepath.Join(base, ".gentle-ai-custom-owned-state.json"))
+					if err != nil {
+						t.Fatal(err)
+					}
+					if stringSliceContains(state.Paths, paths[name]) {
+						t.Errorf("obsolete upstream reference claimed as repo-owned for %s", name)
+					}
+				} else if len(tc.populated) > 0 && mustReadFile(t, paths[name]) != approved {
+					t.Errorf("unselected %s reference changed", name)
+				}
+			}
+			if got := mustReadFile(t, paths["shared"]); got != approved {
+				t.Fatal("shared source modified")
+			}
+			if got := mustReadFile(t, sharedSkill); got != "[references/chaining-details.md](references/chaining-details.md)\n" {
+				t.Fatal("shared upstream skill changed")
+			}
+			if code := RunApplyCustom(repo, tc.selected); code != 0 {
+				t.Fatalf("repeat apply %v = %d", tc.selected, code)
+			}
+		})
+	}
+}
+
+func TestApplyChainedReferenceCleanupRejectsUnsafeFilesBeforeWrites(t *testing.T) {
+	for _, tc := range []struct {
+		name, target string
+		selected     []string
+		seed         func(*testing.T, string, string)
+	}{
+		{"changed OpenCode file", "opencode", []string{"opencode"}, func(t *testing.T, path, _ string) { mustWriteFile(t, path, []byte("user-authored details\n")) }},
+		{"changed Codex file before both", "codex", []string{"all"}, func(t *testing.T, path, _ string) { mustWriteFile(t, path, []byte("user-authored details\n")) }},
+		{"symlinked OpenCode file", "opencode", []string{"opencode"}, func(t *testing.T, path, outside string) {
+			mustWriteFile(t, outside, []byte("protected user file\n"))
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(outside, path); err != nil {
+				t.Skipf("symlink unavailable: %v", err)
+			}
+		}},
+		{"directory at Codex path", "codex", []string{"codex"}, func(t *testing.T, path, _ string) {
+			if err := os.MkdirAll(path, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			mustWriteFile(t, filepath.Join(path, "user.txt"), []byte("protected user file\n"))
+		}},
+		{"symlinked Codex parent", "codex", []string{"all"}, func(t *testing.T, path, outside string) {
+			mustWriteFile(t, outside, []byte("protected user file\n"))
+			if err := os.MkdirAll(filepath.Dir(filepath.Dir(path)), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(filepath.Dir(outside), filepath.Dir(path)); err != nil {
+				t.Skipf("symlink unavailable: %v", err)
+			}
+		}},
+		{"symlinked selected skill", "codex", []string{"codex"}, func(t *testing.T, path, outside string) {
+			mustWriteFile(t, path, []byte(mustReadFile(t, filepath.Join(repoRootForTest(t), filepath.FromSlash(chainedApprovedReference)))))
+			mustWriteFile(t, outside, []byte("protected user skill\n"))
+			if err := os.Symlink(outside, filepath.Join(filepath.Dir(filepath.Dir(path)), "SKILL.md")); err != nil {
+				t.Skipf("symlink unavailable: %v", err)
+			}
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo, home, paths := chainedCleanupApplyFixture(t)
+			outside := filepath.Join(t.TempDir(), "chaining-details.md")
+			tc.seed(t, paths[tc.target], outside)
+			configPath := filepath.Join(home, ".config", "opencode", "opencode.json")
+			codexPath := filepath.Join(home, ".codex", "AGENTS.md")
+			beforeConfig, beforeCodex := mustReadFile(t, configPath), mustReadFile(t, codexPath)
+			if code := RunApplyCustom(repo, tc.selected); code == 0 {
+				t.Fatal("unsafe residue accepted by apply")
+			}
+			if got := mustReadFile(t, configPath); got != beforeConfig {
+				t.Fatal("OpenCode config changed before cleanup refusal")
+			}
+			if got := mustReadFile(t, codexPath); got != beforeCodex {
+				t.Fatal("Codex AGENTS changed before cleanup refusal")
+			}
+			if _, err := os.Lstat(paths[tc.target]); err != nil {
+				t.Fatalf("unsafe path was removed: %v", err)
+			}
+			if tc.name == "symlinked OpenCode file" || tc.name == "symlinked Codex parent" || tc.name == "symlinked selected skill" {
+				want := "protected user file\n"
+				if tc.name == "symlinked selected skill" {
+					want = "protected user skill\n"
+				}
+				if got := mustReadFile(t, outside); got != want {
+					t.Fatalf("outside user file changed: %q", got)
+				}
+			}
+		})
+	}
+}
+
 func equalStringMaps(left, right map[string]string) bool {
 	if len(left) != len(right) {
 		return false

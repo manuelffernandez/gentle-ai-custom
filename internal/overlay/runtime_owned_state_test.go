@@ -157,6 +157,28 @@ func TestCollectOwnedRuntimePathsTracksEveryRepoOwnedAsset(t *testing.T) {
 	}
 }
 
+func TestApplyChainedReferenceCleanupRequiresSanitizedSource(t *testing.T) {
+	repo := t.TempDir()
+	source := filepath.Join(repo, "shared", "skills", "chained-pr", "SKILL.md")
+	asset := filepath.Join(repo, "shared", "skills", "chained-pr", "assets", "chaining-details.md")
+	target := ManagedAssetsTarget{RepoOwnedSharedSkills: RepoOwnedSharedSkills{
+		Root: "shared/skills", RuntimeRoot: "~/.codex/skills", Allowlist: []string{"chained-pr"},
+	}}
+	mustWriteFile(t, source, []byte("[references/chaining-details.md](references/chaining-details.md)\n"))
+	mustWriteFile(t, asset, []byte("sanitized asset\n"))
+	if err := requireSanitizedChainedSkill(repo, "codex", target); err == nil {
+		t.Fatal("upstream-binding source accepted")
+	}
+	mustWriteFile(t, source, []byte("[assets/chaining-details.md](assets/chaining-details.md)\n"))
+	if err := requireSanitizedChainedSkill(repo, "codex", target); err != nil {
+		t.Fatalf("sanitized source rejected: %v", err)
+	}
+	target.RepoOwnedSharedSkills.Allowlist = nil
+	if err := requireSanitizedChainedSkill(repo, "codex", target); err == nil {
+		t.Fatal("missing sanitized skill selection accepted")
+	}
+}
+
 func TestReconcileOwnedRuntimeOutputsDeletesMissingCustomOutputs(t *testing.T) {
 	repoRoot := t.TempDir()
 	homeDir := t.TempDir()

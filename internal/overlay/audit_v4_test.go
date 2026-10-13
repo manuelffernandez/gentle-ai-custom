@@ -43,6 +43,42 @@ func TestV4OpenCodeOrchestratorAndAgentAssetsAreAuditOnly(t *testing.T) {
 	}
 }
 
+func TestV4CodexManifestWatchesSourceAndKeepsSnapshotsAuditOnly(t *testing.T) {
+	target, _, err := loadManagedAssetsTarget(repoRootForTest(t), "codex")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"internal/assets/codex/orchestrator.md", "internal/agents/codex/adapter.go", "internal/components/agentguidance/inject.go", "internal/cli/run.go", "internal/cli/sync.go"} {
+		if !pathMatchesWatchRoots(path, target.WatchRoots) {
+			t.Errorf("Codex source %q not watched", path)
+		}
+	}
+	if len(target.StructuralInvariantSources) == 0 || len(target.OwnedOverlayAssets) == 0 {
+		t.Fatal("Codex audit cannot have an empty baseline")
+	}
+	for _, asset := range target.OwnedOverlayAssets {
+		if !validCodexSnapshotMapping(asset) {
+			t.Errorf("Codex asset %q is not an audit-only snapshot", asset.Key)
+		}
+	}
+	managed, unmapped := categorizeGitDiff([]GitDiffEntry{{Status: "M", Path: "internal/agents/codex/adapter.go"}, {Status: "A", Path: "internal/agents/codex/unmapped.go"}}, buildManagedAssetCatalog(target))
+	if len(managed) != 1 || len(unmapped) != 1 {
+		t.Fatalf("Codex source mapping = %v, unmapped = %v", managed, unmapped)
+	}
+}
+
+func TestV4CodexAuditRequiresBothSnapshotMappings(t *testing.T) {
+	target := ManagedAssetsTarget{OwnedOverlayAssets: []OwnedOverlayAsset{{
+		Key: "codex-orchestrator-source", Class: "upstream_source", Kind: "upstream_source_file",
+		UpstreamPath:     "internal/assets/codex/orchestrator.md",
+		RepoUpstreamPath: "overlay/gentle-ai/assets/upstream/codex/orchestrator.md",
+	}}}
+	failures := checkCodexApprovedSnapshots(t.TempDir(), t.TempDir(), target)
+	if len(failures) == 0 || !strings.Contains(strings.Join(failures, "\n"), "Codex approved snapshot mappings incomplete") {
+		t.Fatalf("one mapped Codex input must fail as incomplete: %v", failures)
+	}
+}
+
 func TestV4ManifestDropsObsoleteSDDInputsButProtectsLegacyRuntimeFiles(t *testing.T) {
 	target, _, err := loadManagedAssetsTarget(repoRootForTest(t), "opencode")
 	if err != nil {
@@ -84,6 +120,111 @@ func TestV4StructuralInvariantsFollowCurrentAgentGuidanceInjection(t *testing.T)
 	}
 	if !result.OrchestratorAssetOK || !result.RoutingInjectionOK || !result.RemoteAuthorizationOK || !result.RoleTopologyOK || !result.ODDTopologyOK || !result.ODDRegistrationOK {
 		t.Fatalf("v4 structural result = %#v, want every current invariant true", result)
+	}
+}
+
+func TestV4CodexSourceToDelivery(t *testing.T) {
+	orchestrator := strings.Replace(v411OrchestratorFixture(), `case AgentOpenCode: return "opencode/orchestrator.md"`, `case AgentCodex: return "codex/orchestrator.md"`, 1)
+	injection := `package agentguidance
+func InjectRoutingWithOptions(targetDir string, agent AgentID, options RoutingOptions) (Result, error) {
+ rendered, err := RenderRouting(agent)
+ if err != nil { return Result{}, err }
+ rendered = InjectRemoteAuthorization(rendered)
+ delivery, err := resolveRoutingDelivery(targetDir, agent, options)
+ if err != nil { return Result{}, err }
+ orchestrator, err := RenderOrchestratorWithSource(agent, options.ReviewContract, options.OrchestratorCapability)
+ if err != nil { return Result{}, err }
+ merge := func(existing string) string {
+  existing = injectOrchestratorSection(existing, orchestrator)
+  return filemerge.InjectMarkdownSection(existing, RoutingSectionID, rendered)
+ }
+ return injectPromptSection(delivery, merge)
+}
+func resolveRoutingDelivery(targetDir string, agent AgentID, options RoutingOptions) (routingDelivery, error) {
+ adapter, err := agents.NewAdapter(agent)
+ if err != nil { return routingDelivery{}, err }
+ switch {
+ case DeliversThroughOrchestratorPrompt(agent): return routingDelivery{kind: deliveryOrchestratorPrompt}, nil
+ default: return routingDelivery{kind: deliveryPromptSection, adapter: adapter, paths: []string{adapter.SystemPromptFile(targetDir)}}, nil
+ }
+}
+func DeliversThroughOrchestratorPrompt(agent AgentID) bool { return agent == AgentOpenCode }
+func injectPromptSection(delivery routingDelivery, merge guidanceMerge) (Result, error) {
+ promptPath := delivery.paths[0]
+ existing, err := readFileOrEmpty(promptPath)
+ if err != nil { return Result{}, err }
+ updated := merge(existing)
+ writeResult, err := filemerge.WriteFileAtomic(promptPath, []byte(updated), filemerge.ExistingFileMode(promptPath, 0644))
+ return Result{Changed: writeResult.Changed}, err
+}`
+	adapter := `package codex
+func (a *Adapter) Agent() model.AgentID { return model.AgentCodex }
+func (a *Adapter) SystemPromptFile(homeDir string) string { return filepath.Join(homeDir, ".codex", "AGENTS.md") }`
+	run := `package cli
+func (s agentRoutingGuidanceStep) Run() error {
+ adapter, err := agents.NewAdapter(s.agent)
+ if err != nil { return err }
+ targetDir := routingGuidanceDir(s.homeDir, s.workspaceDir, s.scope, adapter)
+ injected, err := agentguidance.InjectRoutingWithOptions(targetDir, s.agent, options)
+ return err
+}
+func (r *installRuntime) stagePlan() StagePlan {
+ for _, agent := range r.resolved.Agents { apply = append(apply, agentRoutingGuidanceStep{agent: agent}) }
+ return StagePlan{Apply: apply}
+}`
+	sync := `package cli
+func (r *syncRuntime) stagePlan() StagePlan {
+ for _, agent := range r.agentIDs { apply = append(apply, agentRoutingGuidanceStep{agent: agent}) }
+ return StagePlan{Apply: apply}
+}`
+	if !codexSourceToDeliveryInvariantOK(orchestrator, injection, adapter, run, sync) {
+		t.Fatal("connected Codex source and delivery rejected")
+	}
+	for _, tc := range []struct{ name, source, old, replacement string }{
+		{"wrong asset", "orchestrator", `"codex/orchestrator.md"`, `"generic/orchestrator.md"`},
+		{"wrong adapter path", "adapter", `"AGENTS.md"`, `"other.md"`},
+		{"disconnected injection", "inject", `return injectPromptSection(delivery, merge)`, `return Result{}, nil`},
+		{"remote projection discarded", "inject", `rendered = InjectRemoteAuthorization(rendered)`, `_ = InjectRemoteAuthorization(rendered)`},
+		{"orchestrator projection discarded", "inject", `existing = injectOrchestratorSection(existing, orchestrator)`, `_ = injectOrchestratorSection(existing, orchestrator)`},
+		{"wrong prompt writer", "inject", `updated := merge(existing)`, `updated := existing`},
+		{"install unscheduled", "run", `apply = append(apply, agentRoutingGuidanceStep{agent: agent})`, `apply = append(apply, unrelatedStep{})`},
+		{"sync unscheduled", "sync", `apply = append(apply, agentRoutingGuidanceStep{agent: agent})`, `apply = append(apply, unrelatedStep{})`},
+		{"install skips Codex", "run", `apply = append(apply, agentRoutingGuidanceStep{agent: agent})`, `if agent == model.AgentCodex { continue }; apply = append(apply, agentRoutingGuidanceStep{agent: agent})`},
+		{"sync skips Codex", "sync", `apply = append(apply, agentRoutingGuidanceStep{agent: agent})`, `if agent == model.AgentCodex { continue }; apply = append(apply, agentRoutingGuidanceStep{agent: agent})`},
+		{"sync skips Codex with reversed comparison", "sync", `apply = append(apply, agentRoutingGuidanceStep{agent: agent})`, `if model.AgentCodex == agent { continue }; apply = append(apply, agentRoutingGuidanceStep{agent: agent})`},
+		{"install skips Codex in else", "run", `apply = append(apply, agentRoutingGuidanceStep{agent: agent})`, `if agent != model.AgentCodex {} else { continue }; apply = append(apply, agentRoutingGuidanceStep{agent: agent})`},
+		{"sync skips Codex in switch", "sync", `apply = append(apply, agentRoutingGuidanceStep{agent: agent})`, `switch agent { case model.AgentCodex: continue }; apply = append(apply, agentRoutingGuidanceStep{agent: agent})`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			sources := map[string]string{"orchestrator": orchestrator, "inject": injection, "adapter": adapter, "run": run, "sync": sync}
+			sources[tc.source] = strings.Replace(sources[tc.source], tc.old, tc.replacement, 1)
+			if sources[tc.source] == map[string]string{"orchestrator": orchestrator, "inject": injection, "adapter": adapter, "run": run, "sync": sync}[tc.source] {
+				t.Fatal("fixture not changed")
+			}
+			if codexSourceToDeliveryInvariantOK(sources["orchestrator"], sources["inject"], sources["adapter"], sources["run"], sources["sync"]) {
+				t.Fatal("disconnected Codex delivery passed")
+			}
+		})
+	}
+	for _, candidate := range []struct{ name, source string }{
+		{"install skips a different agent", run},
+		{"sync skips a different agent", sync},
+	} {
+		t.Run(candidate.name, func(t *testing.T) {
+			changed := strings.Replace(candidate.source, `apply = append(apply, agentRoutingGuidanceStep{agent: agent})`, `if agent == model.AgentPi { continue }; apply = append(apply, agentRoutingGuidanceStep{agent: agent})`, 1)
+			if changed == candidate.source {
+				t.Fatal("fixture not changed")
+			}
+			checkedRun, checkedSync := run, sync
+			if candidate.name == "install skips a different agent" {
+				checkedRun = changed
+			} else {
+				checkedSync = changed
+			}
+			if !codexSourceToDeliveryInvariantOK(orchestrator, injection, adapter, checkedRun, checkedSync) {
+				t.Fatal("a guard excluding only a non-Codex agent rejected the Codex route")
+			}
+		})
 	}
 }
 
@@ -284,17 +425,38 @@ func writeV4StructuralFixtureWithModes(t *testing.T, root, remoteProjection, reg
 	}
 	write("internal/components/agentguidance/inject.go", `package agentguidance
 import "github.com/gentleman-programming/gentle-ai/v4/internal/components/filemerge"
-func InjectRoutingWithOptions() {
-	rendered := RenderRouting()
+func InjectRoutingWithOptions(targetDir string, agent AgentID, options RoutingOptions) (Result, error) {
+	rendered := RenderRouting(agent)
 	`+remoteCall+`
-	orchestrator, err := RenderOrchestratorWithSource()
+	delivery, err := resolveRoutingDelivery(targetDir, agent, options)
+	if err != nil { return Result{}, err }
+	orchestrator, err := RenderOrchestratorWithSource(agent, options.ReviewContract, options.OrchestratorCapability)
 	if err != nil { return }
 	merge := func(existing string) string {
 		existing = injectOrchestratorSection(existing, orchestrator)
 		return filemerge.InjectMarkdownSection(existing, "agent-routing", rendered)
 	}
-	injectOrchestratorPrompt(delivery, agent, merge)
-	_ = merge
+	switch delivery.kind {
+	case deliveryOrchestratorPrompt: return injectOrchestratorPrompt(delivery, agent, merge)
+	default: return injectPromptSection(delivery, merge)
+	}
+}
+func resolveRoutingDelivery(targetDir string, agent AgentID, options RoutingOptions) (routingDelivery, error) {
+ adapter, err := agents.NewAdapter(agent)
+ if err != nil { return routingDelivery{}, err }
+ switch {
+ case DeliversThroughOrchestratorPrompt(agent): return routingDelivery{kind: deliveryOrchestratorPrompt}, nil
+ default: return routingDelivery{kind: deliveryPromptSection, adapter: adapter, paths: []string{adapter.SystemPromptFile(targetDir)}}, nil
+ }
+}
+func DeliversThroughOrchestratorPrompt(agent AgentID) bool { return agent == AgentOpenCode }
+func injectPromptSection(delivery routingDelivery, merge guidanceMerge) (Result, error) {
+ promptPath := delivery.paths[0]
+ existing, err := readFileOrEmpty(promptPath)
+ if err != nil { return Result{}, err }
+ updated := merge(existing)
+ writeResult, err := filemerge.WriteFileAtomic(promptPath, []byte(updated), 0644)
+ return Result{Changed: writeResult.Changed}, err
 }
 `)
 	write("internal/components/agentguidance/remote_authorization.go", `package agentguidance
@@ -341,6 +503,7 @@ type StagePlan struct { Apply []any }
 func (r *syncRuntime) stagePlan() StagePlan {
 	apply := []any{}
 	`+scheduledRoute+`
+	for _, agent := range r.agentIDs { apply = append(apply, agentRoutingGuidanceStep{agent: agent}) }
 	return StagePlan{Apply: apply}
 }
 `)
@@ -350,7 +513,7 @@ func v411OrchestratorFixture() string {
 	return `package agentguidance
 import "github.com/gentleman-programming/gentle-ai/v4/internal/assets"
 func orchestratorAsset(agent AgentID) string {
-	switch agent { case AgentOpenCode: return "opencode/orchestrator.md" }
+	switch agent { case AgentOpenCode: return "opencode/orchestrator.md"; case AgentCodex: return "codex/orchestrator.md" }
 	return "generic/orchestrator.md"
 }
 func RenderOrchestratorWithSource(agent AgentID, source ReviewContractSource, capability string) (string, error) {
@@ -386,9 +549,21 @@ import (
 type agentRoutingGuidanceStep struct { agent model.AgentID }
 type syncOptions struct { SettingsPath string }
 func (s agentRoutingGuidanceStep) Run(options syncOptions) {
+	adapter, err := agents.NewAdapter(s.agent)
+	if err != nil { return }
+	targetDir := routingGuidanceDir(s.homeDir, s.workspaceDir, s.scope, adapter)
+	injected, err := agentguidance.InjectRoutingWithOptions(targetDir, s.agent, options)
+	_ = injected
 	if s.agent == model.AgentOpenCode {
 	` + installCall + `
 	}
+}
+type installRuntime struct{}
+type StagePlan struct { Apply []any }
+func (r *installRuntime) stagePlan() StagePlan {
+	apply := []any{}
+	for _, agent := range r.resolved.Agents { apply = append(apply, agentRoutingGuidanceStep{agent: agent}) }
+	return StagePlan{Apply: apply}
 }
 func installOpenCodeODDParityAgents(settingsPath string) (bool, error) {
 	return installOpenCodeFamilyParityAgents(settingsPath, model.AgentOpenCode)

@@ -108,11 +108,13 @@ Es normal no haber ejecutado todavía `gentle-ai sync` ni una reinstalación: es
 
 ### Estado actual: snapshots v4 adoptados; runtime sin verificar
 
-La frontera de snapshots de este repo ya está en Gentle AI v4.1.1, commit `898d3976e8049a7238eaa7de60bff325c30d2b3d`. La sincronización aprobada actualizó 22 archivos y dejó 33 sin cambios; no agregó ni retiró archivos, en 19 carpetas. No se actualizó el runtime de OpenCode ni Codex: sus versiones instaladas siguen sin verificar.
+La frontera de snapshots de este repo ya está en Gentle AI v4.1.1, commit `898d3976e8049a7238eaa7de60bff325c30d2b3d`. Una sincronización anterior actualizó 22 archivos y dejó 33 sin cambios; no agregó ni retiró archivos, en 19 carpetas. No se actualizó el runtime de OpenCode ni Codex: sus versiones instaladas siguen sin verificar.
 
-La auditoría posterior a la sincronización pasó: no detectó diferencias administradas ni no administradas vigiladas, y los seis controles estructurales informaron `ok`. La sincronización afectó solo a los snapshots declarados por el repo y al registro de la versión mantenida; no cambió archivos ni configuración del runtime.
+La auditoría posterior a esa sincronización pasó: no detectó diferencias administradas ni no administradas vigiladas, y los seis controles estructurales informaron `ok`. Esa sincronización afectó solo a los snapshots declarados por el repo y al registro de la versión mantenida; no cambió archivos ni configuración del runtime.
 
 La auditoría reconoce la ruta de v4.1.1: sigue el archivo fuente de OpenCode hasta el renderizador que prepara el orquestador, incluso si usa una función intermedia. También comprueba que los agentes ODD se guarden en la configuración mediante la combinación de JSON que usa la ruta del archivo y que la autorización remota llegue al prompt cargado por OpenCode. Las llamadas sueltas o desconectadas no pasan estos controles. Los snapshots v4.1.1 ya fueron adoptados en el repo.
+
+Ahora la misma auditoría revisa por separado las fuentes de OpenCode y Codex, y un error en cualquiera de los dos impide aprobar una nueva copia de snapshots. Para Codex, verifica que el orquestador llegue al archivo `AGENTS.md` mediante la ruta de instalación y sincronización. Otra sincronización, autorizada por separado, agregó las dos copias de auditoría de Codex y dejó 55 archivos sin cambios, sin modificar la versión mantenida. La auditoría actual pasó: ambos targets tienen cero diferencias; los seis controles de OpenCode y la conexión de Codex informaron `ok`. Esto no comprueba los archivos instalados en tu equipo ni implica que se haya aplicado allí el nuevo código de limpieza.
 
 El estado de snapshots v3.7.0 que aparece a continuación es histórico. La versión mantenida actualmente es v4.1.1; cualquier actualización o aplicación del overlay al runtime necesita autorización separada.
 
@@ -137,6 +139,8 @@ El snapshot v3.7.0 incorporaba el contrato output-only de `sdd-research`; esa ev
 La capa no reemplaza el archivo completo `AGENTS.md` ni modifica las otras filas ODD, Judgment Day o review. Tampoco poda skills upstream ajenas a la lista local, genera comandos ni cambia `config.toml`, Engram o perfiles de modelos. Si falta, cambia o se duplica una fila esperada, se detiene antes de escribir. Este ajuste está solo en el repo: no se ejecutó `apply`, y no se comprobó si `gpt-6.1-sol` está disponible en la cuenta. La auditoría actual no verifica el runtime de Codex; su comportamiento queda sin confirmar hasta que se autorice y revise un apply de Codex.
 
 Si quedó una segunda copia antigua del bloque local entre el final del orquestador y el inicio de CodeGraph, el próximo `apply` autorizado quitará solo esa copia exacta con la regla que prohibía commits automáticos. Conserva el bloque actual junto a Engram y el resto del archivo. Si la copia antigua está incompleta, cambiada, duplicada o fuera de lugar, se detiene antes de escribir en cualquiera de los targets seleccionados. Esta migración también está solo en el repo: no cambia el Codex instalado hasta que se autorice `apply` por separado.
+
+Cuando autorices `apply` para OpenCode o Codex, también podrá quitar de ese target únicamente el archivo viejo `skills/chained-pr/references/chaining-details.md`, que nuestra skill adaptada ya no usa. Antes de hacerlo compara el archivo con la copia upstream aprobada; si cambió, es un enlace o su ruta es insegura, se detiene sin tocarlo. La copia de `~/.agents/skills/chained-pr/` sigue en uso y no se toca. Este cambio todavía no se aplicó a tus archivos instalados.
 
 El repo aceptó de forma consciente una conducta de archivo SDD en v3.7.0. Esa decisión es histórica: el baseline actual es ODD sin SDD y esto no prueba ni cambia el estado de la revisión RDD escalada por separado.
 

@@ -1,6 +1,7 @@
 package overlay
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -44,11 +45,14 @@ func RunAuditUpstream(repoRoot string, args []string) int {
 		fmt.Fprintf(os.Stderr, "ERROR: upstream release parity preflight failed: %v\n", err)
 		return 1
 	}
-	target, ok := manifest.Targets["opencode"]
-	if !ok {
-		fmt.Fprintf(os.Stderr, "ERROR: managed-assets manifest at %s does not define target %q\n", manifestPath, "opencode")
-		return 1
+	for _, name := range []string{"opencode", "codex"} {
+		if _, ok := manifest.Targets[name]; !ok {
+			fmt.Fprintf(os.Stderr, "ERROR: managed-assets manifest at %s does not define target %q\n", manifestPath, name)
+			return 1
+		}
 	}
+	target := manifest.Targets["opencode"]
+	codex := manifest.Targets["codex"]
 	var state UpstreamState
 	statePath := filepath.Join(repoRoot, policy.Maintenance.StateFile)
 	if err := readJSONFile(statePath, &state); err != nil {
@@ -98,6 +102,25 @@ func RunAuditUpstream(repoRoot string, args []string) int {
 	if len(unmanagedEntries) > 0 {
 		failures = append(failures, fmt.Sprintf("unmapped watched upstream drift detected in %d file(s); review managed-assets.json before adopting this upstream state", len(unmanagedEntries)))
 	}
+	codexManaged, codexUnmanaged := categorizeGitDiff(diffEntries, buildManagedAssetCatalog(codex))
+	for _, entry := range summarizeManagedDiffEntries(codexManaged) {
+		driftSummary = append(driftSummary, "Codex: "+entry)
+	}
+	for _, entry := range summarizeUnmanagedDiffEntries(codexUnmanaged) {
+		driftSummary = append(driftSummary, "Codex: "+entry)
+	}
+	if len(codexManaged) > 0 {
+		failures = append(failures, fmt.Sprintf("Codex managed asset drift detected in %d upstream file(s) since %s", len(codexManaged), state.LastMaintainedCommit))
+	}
+	if len(codexUnmanaged) > 0 {
+		failures = append(failures, fmt.Sprintf("Codex unmapped watched upstream drift detected in %d file(s)", len(codexUnmanaged)))
+	}
+	codexSnapshots := checkCodexApprovedSnapshots(repoRoot, upstreamRepo, codex)
+	failures = append(failures, codexSnapshots...)
+	codexStructural := evaluateCodexStructuralInvariants(upstreamRepo, codex)
+	for _, failure := range codexStructural {
+		failures = append(failures, "Codex structural invariant failure: "+failure)
+	}
 
 	structuralResult, structuralFailures := evaluateStructuralInvariants(upstreamRepo, target, policy)
 	for _, failure := range structuralFailures {
@@ -120,6 +143,7 @@ func RunAuditUpstream(repoRoot string, args []string) int {
 	fmt.Printf("- Managed assets manifest: %s\n", manifestPath)
 	fmt.Println()
 	fmt.Println("Summary:")
+	fmt.Println("  OpenCode (repository source; installed runtime not verified):")
 	fmt.Printf("  managed assets drift: %s\n", managedDriftStatus(len(managedEntries)))
 	fmt.Printf("  watched but unmanaged drift: %s\n", unmanagedDriftStatus(len(unmanagedEntries)))
 	if !basePromptDrift {
@@ -133,6 +157,11 @@ func RunAuditUpstream(repoRoot string, args []string) int {
 	fmt.Printf("  ODD agent topology invariant: %s\n", statusWord(oddTopologyOK))
 	fmt.Printf("  ODD agent registration invariant: %s\n", statusWord(oddRegistrationOK))
 	fmt.Printf("  JD/review actor topology invariant: %s\n", statusWord(roleTopologyOK))
+	fmt.Println("  Codex (repository source; installed runtime not verified):")
+	fmt.Printf("  Codex managed assets drift: %s\n", managedDriftStatus(len(codexManaged)))
+	fmt.Printf("  Codex watched but unmanaged drift: %s\n", unmanagedDriftStatus(len(codexUnmanaged)))
+	fmt.Printf("  Codex approved snapshots: %s\n", statusWord(len(codexSnapshots) == 0))
+	fmt.Printf("  Codex source-to-delivery invariant: %s\n", statusWord(len(codexStructural) == 0))
 	fmt.Println("  snapshot drift is reported separately from structural invariant failures")
 	if len(driftSummary) > 0 {
 		fmt.Println()
@@ -257,6 +286,11 @@ type managedDiffEntry struct {
 
 func buildManagedAssetCatalog(target ManagedAssetsTarget) managedAssetCatalog {
 	var records []managedAssetRecord
+	for _, path := range target.StructuralInvariantSources {
+		if pathMatchesWatchRoots(path, target.WatchRoots) {
+			records = append(records, managedAssetRecord{Key: path, Class: "structural_source", Kind: "go_source", UpstreamPath: path})
+		}
+	}
 	for _, asset := range target.OwnedOverlayAssets {
 		paths := ownedAssetUpstreamPaths(asset)
 		records = append(records, managedAssetRecord{
@@ -466,6 +500,487 @@ func readStructuralSource(upstreamRepo string, paths []string, suffix string) (s
 		}
 	}
 	return "", fmt.Errorf("structural invariant source matching %q is not declared in managed-assets.json", suffix)
+}
+
+// Snapshot parity is explicit for the newly introduced Codex target: a zero
+// commit-range diff cannot approve snapshots that have never been adopted.
+func checkCodexApprovedSnapshots(repoRoot, upstreamRepo string, target ManagedAssetsTarget) []string {
+	var failures []string
+	if !codexSnapshotMappingsComplete(target) {
+		return []string{"Codex approved snapshot mappings incomplete: both orchestrator and remote-authorization source snapshots are required"}
+	}
+	for _, asset := range target.OwnedOverlayAssets {
+		if !validCodexSnapshotMapping(asset) {
+			failures = append(failures, fmt.Sprintf("Codex snapshot mapping %q is not audit-only or is incomplete", asset.Key))
+			continue
+		}
+		upstream, err := runGitShow(upstreamRepo, "HEAD", asset.UpstreamPath)
+		if err != nil {
+			failures = append(failures, fmt.Sprintf("Codex source %s cannot be read: %v", asset.UpstreamPath, err))
+			continue
+		}
+		approved, err := os.ReadFile(filepath.Join(repoRoot, filepath.FromSlash(asset.RepoUpstreamPath)))
+		if err != nil {
+			failures = append(failures, fmt.Sprintf("Codex approved snapshot %s missing or unreadable (pending separately authorized repository sync): %v", asset.RepoUpstreamPath, err))
+		} else if !bytes.Equal(approved, []byte(upstream)) {
+			failures = append(failures, fmt.Sprintf("Codex approved snapshot %s differs from verified upstream source", asset.RepoUpstreamPath))
+		}
+	}
+	return failures
+}
+
+func codexSnapshotMappingsComplete(target ManagedAssetsTarget) bool {
+	if len(target.OwnedOverlayAssets) != 2 {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, asset := range target.OwnedOverlayAssets {
+		if !validCodexSnapshotMapping(asset) || seen[asset.UpstreamPath] {
+			return false
+		}
+		seen[asset.UpstreamPath] = true
+	}
+	return seen["internal/assets/codex/orchestrator.md"] && seen["internal/assets/generic/remote-authorization-contract.md"]
+}
+
+func validCodexSnapshotMapping(asset OwnedOverlayAsset) bool {
+	if asset.Class != "upstream_source" || asset.Kind != "upstream_source_file" || asset.RepoOwnedPath != "" ||
+		len(asset.RuntimeTargets) != 0 || asset.RuntimeSyncMode != "" || asset.MaterializedMarkdown != nil {
+		return false
+	}
+	switch asset.UpstreamPath {
+	case "internal/assets/codex/orchestrator.md":
+		return asset.RepoUpstreamPath == "overlay/gentle-ai/assets/upstream/codex/orchestrator.md"
+	case "internal/assets/generic/remote-authorization-contract.md":
+		return asset.RepoUpstreamPath == "overlay/gentle-ai/assets/upstream/codex/remote-authorization-contract.md"
+	default:
+		return false
+	}
+}
+
+func evaluateCodexStructuralInvariants(upstreamRepo string, target ManagedAssetsTarget) []string {
+	suffixes := []string{"components/agentguidance/orchestrator.go", "components/agentguidance/inject.go", "internal/agents/codex/adapter.go", "internal/cli/run.go", "internal/cli/sync.go"}
+	sources := make([]string, len(suffixes))
+	var failures []string
+	for i, suffix := range suffixes {
+		text, err := readStructuralSource(upstreamRepo, target.StructuralInvariantSources, suffix)
+		if err != nil {
+			failures = append(failures, err.Error())
+		}
+		sources[i] = text
+	}
+	if !codexSourceToDeliveryInvariantOK(sources[0], sources[1], sources[2], sources[3], sources[4]) {
+		failures = append(failures, fmt.Sprintf("Codex source-to-delivery mismatch (orchestrator=%t routing=%t adapter=%t install=%t sync=%t)",
+			orchestratorAssetSelects(findFunction(parseInvariantSource(sources[0]), "orchestratorAsset"), "AgentCodex", "codex/orchestrator.md"),
+			codexPromptDeliveryInvariantOK(sources[1]), codexAdapterPromptInvariantOK(sources[2]),
+			codexRoutingStepInvariantOK(sources[3]) && codexRoutingScheduledInvariantOK(sources[3], "installRuntime", "resolved"),
+			codexRoutingScheduledInvariantOK(sources[4], "syncRuntime", "agentIDs")))
+	}
+	return failures
+}
+
+func codexSourceToDeliveryInvariantOK(orchestratorText, injectText, adapterText, runText, syncText string) bool {
+	asset := findFunction(parseInvariantSource(orchestratorText), "orchestratorAsset")
+	render := findFunction(parseInvariantSource(orchestratorText), "RenderOrchestratorWithSource")
+	if !orchestratorAssetSelects(asset, "AgentCodex", "codex/orchestrator.md") || render == nil ||
+		!rendererReadsSelectedAsset(findCodexRenderer(parseInvariantSource(orchestratorText), render)) {
+		return false
+	}
+	return codexPromptDeliveryInvariantOK(injectText) && codexAdapterPromptInvariantOK(adapterText) &&
+		codexRoutingStepInvariantOK(runText) && codexRoutingScheduledInvariantOK(runText, "installRuntime", "resolved") &&
+		codexRoutingScheduledInvariantOK(syncText, "syncRuntime", "agentIDs")
+}
+
+func codexPromptDeliveryInvariantOK(text string) bool {
+	file := parseInvariantSource(text)
+	inject := findFunction(file, "InjectRoutingWithOptions")
+	resolve := findFunction(file, "resolveRoutingDelivery")
+	dispatch := findFunction(file, "DeliversThroughOrchestratorPrompt")
+	writer := findFunction(file, "injectPromptSection")
+	if inject == nil || resolve == nil || dispatch == nil || writer == nil ||
+		!functionCalls(inject, "RenderRouting", "InjectRemoteAuthorization", "resolveRoutingDelivery", "RenderOrchestratorWithSource", "injectOrchestratorSection", "InjectMarkdownSection", "injectPromptSection") ||
+		!functionCalls(resolve, "NewAdapter", "SystemPromptFile") ||
+		!functionCalls(writer, "readFileOrEmpty", "merge", "WriteFileAtomic") {
+		return false
+	}
+	// The resolved Codex delivery is the default prompt-section path, not the
+	// OpenCode settings path. Its adapter supplies the file the writer uses.
+	if !codexExcludedFromOrchestratorDelivery(dispatch) || !functionReturnsDelivery(resolve, "deliveryPromptSection", "SystemPromptFile") ||
+		!functionReturnsCall(inject, "injectPromptSection") || !functionReturnsWrittenMerge(writer) || !codexPromptProjectionBound(inject) {
+		return false
+	}
+	return true
+}
+
+func codexPromptProjectionBound(fn *ast.FuncDecl) bool {
+	if fn == nil || fn.Body == nil {
+		return false
+	}
+	for index, stmt := range fn.Body.List {
+		projected, ok := remoteAuthorizationAssignment(stmt)
+		if !ok {
+			continue
+		}
+		for _, next := range fn.Body.List[index+1:] {
+			assign, ok := next.(*ast.AssignStmt)
+			if !ok || len(assign.Lhs) != 1 || !isIdent(assign.Lhs[0], "merge") || len(assign.Rhs) != 1 {
+				continue
+			}
+			closure, ok := assign.Rhs[0].(*ast.FuncLit)
+			if !ok || !routingMergeUsesProjection(closure.Body, projected) {
+				return false
+			}
+			bound := false
+			ast.Inspect(closure.Body, func(node ast.Node) bool {
+				if branch, ok := node.(*ast.IfStmt); ok && isBoolLiteral(branch.Cond, false) {
+					return false
+				}
+				binding, ok := node.(*ast.AssignStmt)
+				if !ok || len(binding.Lhs) != 1 || !isIdent(binding.Lhs[0], "existing") || len(binding.Rhs) != 1 {
+					return true
+				}
+				call, ok := binding.Rhs[0].(*ast.CallExpr)
+				bound = bound || ok && isIdent(call.Fun, "injectOrchestratorSection") && len(call.Args) == 2 && isIdent(call.Args[0], "existing") && isIdent(call.Args[1], "orchestrator")
+				return true
+			})
+			return bound && !statementAssignsObject(next, projected)
+		}
+		return false
+	}
+	return false
+}
+
+func codexExcludedFromOrchestratorDelivery(fn *ast.FuncDecl) bool {
+	ret := finalTopLevelReturn(fn)
+	if ret == nil || len(ret.Results) != 1 {
+		return false
+	}
+	var onlyOpenCode func(ast.Expr) bool
+	onlyOpenCode = func(expr ast.Expr) bool {
+		binary, ok := expr.(*ast.BinaryExpr)
+		if !ok {
+			return false
+		}
+		if binary.Op == token.LOR {
+			return onlyOpenCode(binary.X) && onlyOpenCode(binary.Y)
+		}
+		return binary.Op == token.EQL && isIdent(binary.X, "agent") &&
+			(isSelector(binary.Y, "model", "AgentOpenCode") || isSelector(binary.Y, "model", "AgentKilocode") ||
+				isIdent(binary.Y, "AgentOpenCode") || isIdent(binary.Y, "AgentKilocode"))
+	}
+	return onlyOpenCode(ret.Results[0])
+}
+
+func codexAdapterPromptInvariantOK(text string) bool {
+	file := parseInvariantSource(text)
+	agent := findFunction(file, "Agent")
+	prompt := findFunction(file, "SystemPromptFile")
+	if agent == nil || prompt == nil || !functionReturnsIdent(agent, "AgentCodex") {
+		return false
+	}
+	ret := finalTopLevelReturn(prompt)
+	if ret == nil || len(ret.Results) != 1 {
+		return false
+	}
+	call, ok := ret.Results[0].(*ast.CallExpr)
+	return ok && isSelector(call.Fun, "filepath", "Join") && len(call.Args) == 3 &&
+		isIdent(call.Args[0], "homeDir") && isStringLiteral(call.Args[1], ".codex") && isStringLiteral(call.Args[2], "AGENTS.md")
+}
+
+func codexRoutingStepInvariantOK(text string) bool {
+	file := parseInvariantSource(text)
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Name.Name != "Run" || fn.Recv == nil || !receiverHasType(fn.Recv, "agentRoutingGuidanceStep") {
+			continue
+		}
+		return functionCalls(fn, "NewAdapter", "routingGuidanceDir", "InjectRoutingWithOptions") &&
+			functionCallWithArgs(fn, "InjectRoutingWithOptions", "targetDir", "s.agent", "options")
+	}
+	return false
+}
+
+func codexRoutingScheduledInvariantOK(text, receiver, agentList string) bool {
+	file := parseInvariantSource(text)
+	for _, decl := range file.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Name.Name != "stagePlan" || fn.Recv == nil || !receiverHasType(fn.Recv, receiver) || fn.Body == nil {
+			continue
+		}
+		for _, stmt := range fn.Body.List {
+			loop, ok := stmt.(*ast.RangeStmt)
+			if !ok || !(isSelector(loop.X, "r", agentList) || agentList == "resolved" && isNestedSelector(loop.X, "r", "resolved", "Agents")) || loop.Body == nil {
+				continue
+			}
+			for _, item := range loop.Body.List {
+				if skipsCodexBeforeRoutingAppend(item) {
+					return false
+				}
+				assign, ok := item.(*ast.AssignStmt)
+				if !ok || len(assign.Rhs) != 1 || !isIdent(assign.Lhs[0], "apply") {
+					continue
+				}
+				call, ok := assign.Rhs[0].(*ast.CallExpr)
+				if !ok || !isIdent(call.Fun, "append") || len(call.Args) != 2 || !isIdent(call.Args[0], "apply") {
+					continue
+				}
+				lit, ok := call.Args[1].(*ast.CompositeLit)
+				if ok && isIdent(lit.Type, "agentRoutingGuidanceStep") && compositeLitHasAgentField(lit) && functionReturnsPlanApply(fn) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// A routing append inside the agent range does not prove Codex is scheduled
+// when an earlier guard exits that iteration specifically for Codex.
+func skipsCodexBeforeRoutingAppend(stmt ast.Stmt) bool {
+	if branch, ok := stmt.(*ast.IfStmt); ok {
+		codexEqual, codexNotEqual := false, false
+		ast.Inspect(branch.Cond, func(node ast.Node) bool {
+			binary, ok := node.(*ast.BinaryExpr)
+			if !ok || !((isIdent(binary.X, "agent") && codexAgentID(binary.Y)) ||
+				(codexAgentID(binary.X) && isIdent(binary.Y, "agent"))) {
+				return true
+			}
+			codexEqual = codexEqual || binary.Op == token.EQL
+			codexNotEqual = codexNotEqual || binary.Op == token.NEQ
+			return true
+		})
+		return codexEqual && codexRoutingBypass(branch.Body) || codexNotEqual && codexRoutingBypass(branch.Else)
+	}
+	if branch, ok := stmt.(*ast.SwitchStmt); ok && isIdent(branch.Tag, "agent") && branch.Body != nil {
+		for _, raw := range branch.Body.List {
+			clause, ok := raw.(*ast.CaseClause)
+			if ok && (expressionsContainSelector(clause.List, "model", "AgentCodex") || expressionsContainIdent(clause.List, "AgentCodex")) &&
+				codexRoutingBypass(&ast.BlockStmt{List: clause.Body}) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func codexAgentID(expr ast.Expr) bool {
+	return isSelector(expr, "model", "AgentCodex") || isIdent(expr, "AgentCodex")
+}
+
+func codexRoutingBypass(node ast.Node) bool {
+	if node == nil {
+		return false
+	}
+	bypass := false
+	ast.Inspect(node, func(current ast.Node) bool {
+		if branch, ok := current.(*ast.BranchStmt); ok && (branch.Tok == token.CONTINUE || branch.Tok == token.BREAK) {
+			bypass = true
+		}
+		if _, ok := current.(*ast.ReturnStmt); ok {
+			bypass = true
+		}
+		return !bypass
+	})
+	return bypass
+}
+
+func isNestedSelector(expr ast.Expr, root, middle, leaf string) bool {
+	sel, ok := expr.(*ast.SelectorExpr)
+	return ok && sel.Sel.Name == leaf && isSelector(sel.X, root, middle)
+}
+
+func compositeLitHasAgentField(lit *ast.CompositeLit) bool {
+	for _, element := range lit.Elts {
+		kv, ok := element.(*ast.KeyValueExpr)
+		if ok && isIdent(kv.Key, "agent") && isIdent(kv.Value, "agent") {
+			return true
+		}
+	}
+	return false
+}
+
+func functionReturnsPlanApply(fn *ast.FuncDecl) bool {
+	ret := finalTopLevelReturn(fn)
+	if ret == nil || len(ret.Results) != 1 {
+		return false
+	}
+	lit, ok := ret.Results[0].(*ast.CompositeLit)
+	if !ok {
+		return false
+	}
+	for _, element := range lit.Elts {
+		kv, ok := element.(*ast.KeyValueExpr)
+		if ok && isIdent(kv.Key, "Apply") && isIdent(kv.Value, "apply") {
+			return true
+		}
+	}
+	return false
+}
+
+func functionReturnsIdent(fn *ast.FuncDecl, name string) bool {
+	ret := finalTopLevelReturn(fn)
+	if ret == nil || len(ret.Results) != 1 {
+		return false
+	}
+	if isIdent(ret.Results[0], name) || isSelector(ret.Results[0], "model", name) {
+		return true
+	}
+	binary, ok := ret.Results[0].(*ast.BinaryExpr)
+	return ok && binary.Op == token.EQL && (isIdent(binary.Y, name) || isSelector(binary.Y, "model", name)) && isIdent(binary.X, "agent")
+}
+
+func functionReturnsDelivery(fn *ast.FuncDecl, kind, method string) bool {
+	boundPromptPath := false
+	ast.Inspect(fn.Body, func(node ast.Node) bool {
+		assign, ok := node.(*ast.AssignStmt)
+		if !ok || len(assign.Lhs) != 1 || len(assign.Rhs) != 1 || !isIdent(assign.Lhs[0], "promptPath") {
+			return true
+		}
+		call, ok := assign.Rhs[0].(*ast.CallExpr)
+		boundPromptPath = boundPromptPath || ok && isSelector(call.Fun, "adapter", method) && len(call.Args) == 1 && isIdent(call.Args[0], "targetDir")
+		return true
+	})
+	found := false
+	ast.Inspect(fn.Body, func(node ast.Node) bool {
+		ret, ok := node.(*ast.ReturnStmt)
+		if !ok || len(ret.Results) == 0 {
+			return true
+		}
+		lit, ok := ret.Results[0].(*ast.CompositeLit)
+		if !ok {
+			return true
+		}
+		hasKind, hasPath := false, false
+		for _, raw := range lit.Elts {
+			kv, ok := raw.(*ast.KeyValueExpr)
+			if !ok {
+				continue
+			}
+			hasKind = hasKind || isIdent(kv.Key, "kind") && isIdent(kv.Value, kind)
+			if isIdent(kv.Key, "paths") {
+				if boundPromptPath {
+					ast.Inspect(kv.Value, func(n ast.Node) bool {
+						ident, ok := n.(*ast.Ident)
+						hasPath = hasPath || ok && ident.Name == "promptPath"
+						return true
+					})
+				}
+				ast.Inspect(kv.Value, func(n ast.Node) bool {
+					call, ok := n.(*ast.CallExpr)
+					hasPath = hasPath || ok && isSelector(call.Fun, "adapter", method) && len(call.Args) == 1 && isIdent(call.Args[0], "targetDir")
+					return true
+				})
+			}
+		}
+		found = found || hasKind && hasPath
+		return true
+	})
+	return found
+}
+
+func functionCalls(fn *ast.FuncDecl, names ...string) bool {
+	if fn == nil || fn.Body == nil {
+		return false
+	}
+	found := make(map[string]bool)
+	ast.Inspect(fn.Body, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		for _, name := range names {
+			if isIdent(call.Fun, name) || func() bool { sel, ok := call.Fun.(*ast.SelectorExpr); return ok && sel.Sel.Name == name }() {
+				found[name] = true
+			}
+		}
+		return true
+	})
+	for _, name := range names {
+		if !found[name] {
+			return false
+		}
+	}
+	return true
+}
+
+func functionCallWithArgs(fn *ast.FuncDecl, name string, args ...string) bool {
+	match := false
+	ast.Inspect(fn.Body, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok || !isSelector(call.Fun, "agentguidance", name) || len(call.Args) != len(args) {
+			return true
+		}
+		for i, want := range args {
+			switch want {
+			case "s.agent":
+				if !isSelector(call.Args[i], "s", "agent") {
+					return true
+				}
+			default:
+				if !isIdent(call.Args[i], want) {
+					return true
+				}
+			}
+		}
+		match = true
+		return true
+	})
+	return match
+}
+
+func functionReturnsCall(fn *ast.FuncDecl, name string) bool {
+	if fn == nil || fn.Body == nil {
+		return false
+	}
+	returned := false
+	ast.Inspect(fn.Body, func(node ast.Node) bool {
+		ret, ok := node.(*ast.ReturnStmt)
+		if !ok || len(ret.Results) == 0 {
+			return true
+		}
+		call, ok := ret.Results[0].(*ast.CallExpr)
+		returned = returned || ok && isIdent(call.Fun, name) && len(call.Args) == 2 && isIdent(call.Args[0], "delivery") && isIdent(call.Args[1], "merge")
+		return true
+	})
+	return returned
+}
+
+func functionReturnsWrittenMerge(fn *ast.FuncDecl) bool {
+	if fn == nil || fn.Body == nil {
+		return false
+	}
+	var updated *ast.Object
+	for _, stmt := range fn.Body.List {
+		assign, ok := stmt.(*ast.AssignStmt)
+		if !ok || len(assign.Lhs) == 0 || len(assign.Rhs) != 1 {
+			continue
+		}
+		call, ok := assign.Rhs[0].(*ast.CallExpr)
+		if ok && isIdent(assign.Lhs[0], "updated") && isIdent(call.Fun, "merge") && len(call.Args) == 1 && isIdent(call.Args[0], "existing") {
+			updated = identifierObject(assign.Lhs[0])
+		}
+		if updated != nil && ok && isSelector(call.Fun, "filemerge", "WriteFileAtomic") && len(call.Args) >= 2 {
+			bytesCall, ok := call.Args[1].(*ast.CallExpr)
+			return ok && isSliceType(bytesCall, "byte") && len(bytesCall.Args) == 1 && isIdent(bytesCall.Args[0], "updated")
+		}
+	}
+	return false
+}
+
+func findCodexRenderer(file *ast.File, render *ast.FuncDecl) *ast.FuncDecl {
+	if rendererReadsSelectedAsset(render) {
+		return render
+	}
+	ret := finalTopLevelReturn(render)
+	if ret == nil || len(ret.Results) != 1 || len(render.Body.List) != 1 {
+		return nil
+	}
+	call, ok := ret.Results[0].(*ast.CallExpr)
+	if !ok || !isIdent(call.Fun, "renderOrchestrator") || len(call.Args) != 4 || !isIdent(call.Args[0], "agent") ||
+		!isIdent(call.Args[1], "source") || !isIdent(call.Args[2], "capability") || !isBoolLiteral(call.Args[3], false) {
+		return nil
+	}
+	return findFunction(file, "renderOrchestrator")
 }
 
 func declaresStructuralSource(paths []string, suffix string) bool {
@@ -945,6 +1460,13 @@ func orchestratorAssetBindingInvariantOK(text string) bool {
 }
 
 func orchestratorAssetSelectsOpenCode(fn *ast.FuncDecl) bool {
+	return orchestratorAssetSelects(fn, "AgentOpenCode", "opencode/orchestrator.md")
+}
+
+func orchestratorAssetSelects(fn *ast.FuncDecl, agentName, path string) bool {
+	if fn == nil {
+		return false
+	}
 	if fn.Body == nil {
 		return false
 	}
@@ -952,12 +1474,12 @@ func orchestratorAssetSelectsOpenCode(fn *ast.FuncDecl) bool {
 		if sw, ok := stmt.(*ast.SwitchStmt); ok && isIdent(sw.Tag, "agent") && sw.Body != nil {
 			for _, item := range sw.Body.List {
 				clause, ok := item.(*ast.CaseClause)
-				if !ok || !expressionsContainSelector(clause.List, "model", "AgentOpenCode") && !expressionsContainIdent(clause.List, "AgentOpenCode") {
+				if !ok || !expressionsContainSelector(clause.List, "model", agentName) && !expressionsContainIdent(clause.List, agentName) {
 					continue
 				}
 				for _, bodyStmt := range clause.Body {
 					if ret, ok := bodyStmt.(*ast.ReturnStmt); ok && len(ret.Results) == 1 {
-						return isStringLiteral(ret.Results[0], "opencode/orchestrator.md")
+						return isStringLiteral(ret.Results[0], path)
 					}
 					if statementTerminatesBlock(bodyStmt) {
 						return false

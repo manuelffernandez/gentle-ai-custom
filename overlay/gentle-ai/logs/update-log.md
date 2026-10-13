@@ -4,6 +4,18 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-10-13 | Balanced upstream audit coverage and retired selected skill residue
+
+- **Date**: `2026-10-13`
+- **Title**: Balanced upstream audit coverage and retired selected skill residue
+- **Type**: `tooling-change`
+- **Upstream scope/range**: Exact unchanged v4.1.1 release at `898d3976e8049a7238eaa7de60bff325c30d2b3d`; two additional Codex audit snapshots were separately approved and copied without advancing the maintained boundary.
+- **Decision**: `Adquirir` Codex source/snapshot and source-to-delivery audit coverage with the same blocking severity as OpenCode, preserving all existing OpenCode checks. `Sanitizar` selected OpenCode/Codex `chained-pr` installs by removing only the approved obsolete reference when safe; leave the actively referenced shared upstream skill untouched.
+- **Why it mattered**: A passing audit previously checked only OpenCode, while the sanitized skill left an upstream reference file containing outdated GitHub examples in two selected runtimes. Auditing both repository targets and preflighting narrow cleanup closes those maintenance gaps without claiming installed-runtime proof.
+- **Affected artifacts**: `internal/overlay/{audit_upstream.go,sync_upstream_assets.go,codex_agent.go,apply_custom.go,git_diff.go}` and focused tests; `overlay/gentle-ai/policy/managed-assets.json`; two approved snapshots under `overlay/gentle-ai/assets/upstream/codex/`; affected maintainer skill, intent and human guidance; exact selected installed Codex/OpenCode `chained-pr/references/chaining-details.md` files.
+- **Verification**: The separately approved repository sync added two Codex snapshots, left 55 files unchanged and did not change state. Byte comparison verified exact v4.1.1 Git blobs; a raw Git blob regression fixed a false mismatch. `go test ./...`, `git diff --check`, and the canonical upstream audit passed with zero drift for both targets, six OpenCode structural flags `ok`, and Codex snapshots and source-to-delivery `ok`. Exact regular-file, non-symlink parent, approved-byte and sanitized-skill checks preceded deletion of only the two orphaned installed references; the shared upstream reference remains. No installed runtime sync, reinstall, overlay apply, push, or PR was performed.
+- **Follow-up**: Repo-owned recurrence prevention takes effect only after a separately authorized overlay apply. Repository audit does not verify installed runtime behavior. The user approved a size exception for this cohesive work unit; local commit evidence belongs in the feature task document.
+
 ## 2026-10-13 | Adopted Gentle AI v4.1.1 repository snapshots
 
 - **Date**: `2026-10-13`

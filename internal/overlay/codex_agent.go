@@ -62,8 +62,8 @@ func prepareCodexOverlay(repoRoot string, options applyPolicyOptions) (*applyPol
 	if err != nil {
 		return nil, "", err
 	}
-	if len(target.OwnedOverlayAssets) != 0 || len(target.RetainedUpstreamSkills) != 0 || len(target.PrunedUpstreamSkills) != 0 {
-		return nil, "", fmt.Errorf("Codex target must not install, prune, or claim ownership of upstream runtime assets")
+	if err := validateCodexAuditOnlyAssets(target); err != nil {
+		return nil, "", err
 	}
 	if len(target.RepoOwnedCommandBodies.Entries) != 0 {
 		return nil, "", fmt.Errorf("Codex target must not render command wrappers")
@@ -97,6 +97,18 @@ func prepareCodexOverlay(repoRoot string, options applyPolicyOptions) (*applyPol
 		return nil, "", err
 	}
 	return &state, basePath, nil
+}
+
+func validateCodexAuditOnlyAssets(target ManagedAssetsTarget) error {
+	if len(target.RetainedUpstreamSkills) != 0 || len(target.PrunedUpstreamSkills) != 0 {
+		return fmt.Errorf("Codex target must not install, prune, or claim ownership of upstream runtime assets")
+	}
+	for _, asset := range target.OwnedOverlayAssets {
+		if !validCodexSnapshotMapping(asset) {
+			return fmt.Errorf("Codex asset %q must be an audit-only upstream source without a runtime target", asset.Key)
+		}
+	}
+	return nil
 }
 
 func validateCodexInstructionFile(path string) error {

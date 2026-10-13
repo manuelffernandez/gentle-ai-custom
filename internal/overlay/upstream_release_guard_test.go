@@ -2,6 +2,7 @@ package overlay
 
 import (
 	"bytes"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -45,6 +46,80 @@ func TestVerifyUpstreamReleaseParity(t *testing.T) {
 				t.Fatalf("release commit = %q, HEAD = %q, error = %v", got.Commit, head, gitErr)
 			}
 		})
+	}
+}
+
+func TestRunSyncUpstreamAssetsRejectsCodexInvariantBeforeWrites(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	upstream := t.TempDir()
+	writeV4StructuralFixtureWithModes(t, upstream, "assigned", "connected")
+	// Preserve all OpenCode invariants while disconnecting only Codex's adapter.
+	mustWriteFile(t, filepath.Join(upstream, "internal", "agents", "codex", "adapter.go"), []byte(`package codex
+func (a *Adapter) Agent() model.AgentID { return model.AgentCodex }
+func (a *Adapter) SystemPromptFile(homeDir string) string { return filepath.Join(homeDir, ".codex", "wrong.md") }
+`))
+	mustWriteFile(t, filepath.Join(upstream, "internal", "assets", "codex", "orchestrator.md"), []byte("codex upstream\n"))
+	mustWriteFile(t, filepath.Join(upstream, "internal", "assets", "generic", "remote-authorization-contract.md"), []byte("authorization contract\n"))
+	mustInitGitRepo(t, upstream)
+	if _, err := runGit(upstream, false, "tag", "v2.2.2"); err != nil {
+		t.Fatal(err)
+	}
+	installFakeGentleAI(t, "#!/bin/sh\necho 'gentle-ai 2.2.2'\n")
+	t.Setenv(upstreamRepoEnvVar, upstream)
+	repo := t.TempDir()
+	policy := Policy{Version: 1}
+	policy.Maintenance.StateFile = "overlay/gentle-ai/state/upstream-state.json"
+	writeJSONFixture(t, filepath.Join(repo, "overlay", "gentle-ai", "policy", "gentle-ai-policy.json"), policy)
+	writeJSONFixture(t, filepath.Join(repo, "overlay", "gentle-ai", "policy", "managed-assets.json"), ManagedAssetsManifest{Version: 1, Targets: map[string]ManagedAssetsTarget{
+		"opencode": v4StructuralFixtureTarget(),
+		"codex": {StructuralInvariantSources: []string{
+			"internal/components/agentguidance/orchestrator.go", "internal/components/agentguidance/inject.go",
+			"internal/agents/codex/adapter.go", "internal/cli/run.go", "internal/cli/sync.go",
+		}, OwnedOverlayAssets: []OwnedOverlayAsset{
+			{Key: "codex-orchestrator", Class: "upstream_source", Kind: "upstream_source_file", UpstreamPath: "internal/assets/codex/orchestrator.md", RepoUpstreamPath: "overlay/gentle-ai/assets/upstream/codex/orchestrator.md"},
+			{Key: "codex-remote-authorization", Class: "upstream_source", Kind: "upstream_source_file", UpstreamPath: "internal/assets/generic/remote-authorization-contract.md", RepoUpstreamPath: "overlay/gentle-ai/assets/upstream/codex/remote-authorization-contract.md"},
+		}},
+	}})
+	statePath := filepath.Join(repo, "overlay", "gentle-ai", "state", "upstream-state.json")
+	head, err := runGit(upstream, false, "rev-parse", "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeJSONFixture(t, statePath, UpstreamState{LastMaintainedCommit: head})
+	before := mustReadFile(t, statePath)
+	manifest, _, err := loadManagedAssetsManifest(repo)
+	if err != nil || !codexSnapshotMappingsComplete(manifest.Targets["codex"]) {
+		t.Fatalf("Codex refusal fixture lacks complete snapshot mappings: %v", err)
+	}
+	opencode, opencodeFailures := evaluateStructuralInvariants(upstream, manifest.Targets["opencode"], policy)
+	if len(opencodeFailures) != 0 || !opencode.OrchestratorAssetOK || !opencode.RoutingInjectionOK ||
+		!opencode.RemoteAuthorizationOK || !opencode.RoleTopologyOK || !opencode.ODDTopologyOK || !opencode.ODDRegistrationOK {
+		t.Fatalf("OpenCode refusal fixture must pass all six structural gates: %#v, failures=%v", opencode, opencodeFailures)
+	}
+	if failures := evaluateCodexStructuralInvariants(upstream, manifest.Targets["codex"]); len(failures) == 0 || !strings.Contains(strings.Join(failures, "\n"), "adapter=false") {
+		t.Fatalf("Codex refusal fixture must fail its adapter gate: %v", failures)
+	}
+	if got := RunSyncUpstreamAssets(repo, nil); got == 0 {
+		t.Fatal("sync advanced despite Codex invariant mismatch")
+	}
+	if got := mustReadFile(t, statePath); got != before {
+		t.Fatalf("state changed on refusal: %q", got)
+	}
+	if _, err := os.Lstat(filepath.Join(repo, "overlay", "gentle-ai", "assets", "upstream", "codex", "orchestrator.md")); !os.IsNotExist(err) {
+		t.Fatalf("Codex snapshot written on refusal: %v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(repo, "overlay", "gentle-ai", "assets", "upstream", "codex", "remote-authorization-contract.md")); !os.IsNotExist(err) {
+		t.Fatalf("Codex shared snapshot written on refusal: %v", err)
+	}
+	writeJSONFixture(t, filepath.Join(repo, "overlay", "gentle-ai", "policy", "managed-assets.json"), ManagedAssetsManifest{Version: 1, Targets: map[string]ManagedAssetsTarget{"opencode": v4StructuralFixtureTarget()}})
+	if got := RunAuditUpstream(repo, nil); got == 0 {
+		t.Fatal("audit accepted missing Codex manifest target")
+	}
+	if got := RunSyncUpstreamAssets(repo, nil); got == 0 {
+		t.Fatal("sync accepted missing Codex manifest target")
+	}
+	if got := mustReadFile(t, statePath); got != before {
+		t.Fatalf("state changed after missing target refusal: %q", got)
 	}
 }
 

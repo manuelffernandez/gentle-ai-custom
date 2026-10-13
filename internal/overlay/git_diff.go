@@ -1,7 +1,9 @@
 package overlay
 
 import (
+	"bytes"
 	"fmt"
+	"os/exec"
 	"strings"
 )
 
@@ -60,5 +62,41 @@ func runGitShow(repo, commit, path string) (string, error) {
 	if strings.TrimSpace(path) == "" {
 		return "", fmt.Errorf("git show path is empty")
 	}
-	return runGit(repo, false, "show", fmt.Sprintf("%s:%s", commit, path))
+	entry, err := rawGitBlobCommand(repo, "ls-tree", "-z", "--full-tree", commit, "--", path)
+	if err != nil {
+		return "", err
+	}
+	records := bytes.Split(entry, []byte{0})
+	if len(records) != 2 || len(records[1]) != 0 {
+		return "", fmt.Errorf("git show path is not a blob: %s", path)
+	}
+	fields := bytes.SplitN(records[0], []byte{'\t'}, 2)
+	if len(fields) != 2 || string(fields[1]) != path {
+		return "", fmt.Errorf("git show path is not a blob: %s", path)
+	}
+	metadata := strings.Fields(string(fields[0]))
+	if len(metadata) != 3 || metadata[1] != "blob" {
+		return "", fmt.Errorf("git show path is not a blob: %s", path)
+	}
+	if metadata[0] != "100644" && metadata[0] != "100755" {
+		return "", fmt.Errorf("git show path is not a regular blob: %s", path)
+	}
+	output, err := rawGitBlobCommand(repo, "show", fmt.Sprintf("%s:%s", commit, path))
+	if err != nil {
+		return "", err
+	}
+	return string(output), nil
+}
+
+func rawGitBlobCommand(repo string, args ...string) ([]byte, error) {
+	cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
+	output, err := cmd.Output()
+	if err != nil {
+		message := err.Error()
+		if exit, ok := err.(*exec.ExitError); ok && len(exit.Stderr) != 0 {
+			message = strings.TrimSpace(string(exit.Stderr))
+		}
+		return nil, fmt.Errorf("%s: %s", repo, message)
+	}
+	return output, nil
 }

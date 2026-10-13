@@ -1,9 +1,11 @@
 package overlay
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -53,6 +55,12 @@ func RunApplyCustom(repoRoot string, args []string) int {
 			return 1
 		}
 	}
+	chainedCleanup, err := preflightChainedReferenceCleanup(repoRoot, targets)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		options.recorder.print()
+		return 1
+	}
 
 	for _, targetName := range targets {
 		target, _, err := loadManagedAssetsTarget(repoRoot, targetName)
@@ -94,6 +102,18 @@ func RunApplyCustom(repoRoot string, args []string) int {
 			options.recorder.print()
 			return 1
 		}
+		if path := chainedCleanup[targetName]; path != "" {
+			if err := requireSanitizedChainedSkill(repoRoot, targetName, target); err != nil {
+				fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+				options.recorder.print()
+				return 1
+			}
+			if err := removeApprovedChainedReference(path, repoRoot, options.recorder); err != nil {
+				fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+				options.recorder.print()
+				return 1
+			}
+		}
 		if err := reconcileOwnedRuntimeOutputs(agent, repoRoot, target, sharedSkillsRoot, options.recorder); err != nil {
 			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 			options.recorder.print()
@@ -104,6 +124,151 @@ func RunApplyCustom(repoRoot string, args []string) int {
 	options.recorder.print()
 	fmt.Println("Reminder: run audit-gentle-ai-upstream before maintainer sync/reinstall work, and re-run this script after syncs, upgrades, or managed config refreshes.")
 	return 0
+}
+
+const chainedLegacyReference = "chained-pr/references/chaining-details.md"
+const chainedApprovedReference = "overlay/gentle-ai/assets/upstream/opencode/skills/chained-pr/references/chaining-details.md"
+
+// This is a one-file migration for the two selected sanitized skill copies,
+// not an owned-state claim or a generic upstream skill pruning rule.
+func preflightChainedReferenceCleanup(repoRoot string, targets []string) (map[string]string, error) {
+	result := map[string]string{}
+	for _, name := range targets {
+		if name != "opencode" && name != "codex" {
+			continue
+		}
+		agent := agentRegistry[name].agent
+		basePath, err := agent.BasePath()
+		if err != nil {
+			return nil, err
+		}
+		path := filepath.Join(basePath, "skills", filepath.FromSlash(chainedLegacyReference))
+		if err := inspectChainedReferencePath(path); err != nil {
+			return nil, err
+		}
+		info, err := os.Lstat(path)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("refusing unsafe chained-pr reference %s: not a regular file", path)
+		}
+		installedSkill := filepath.Join(basePath, "skills", "chained-pr", "SKILL.md")
+		installedInfo, err := os.Lstat(installedSkill)
+		if err != nil && !os.IsNotExist(err) {
+			return nil, err
+		}
+		if err == nil && !installedInfo.Mode().IsRegular() {
+			return nil, fmt.Errorf("refusing chained-pr reference cleanup: installed skill %s is not a regular file", installedSkill)
+		}
+		target, _, err := loadManagedAssetsTarget(repoRoot, name)
+		if err != nil {
+			return nil, err
+		}
+		if err := requireSanitizedChainedSkill(repoRoot, name, target); err != nil {
+			return nil, err
+		}
+		if err := verifyApprovedChainedReference(repoRoot, path); err != nil {
+			return nil, err
+		}
+		result[name] = path
+	}
+	return result, nil
+}
+
+func inspectChainedReferencePath(path string) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	if err := ensureNoSymlinkParents(home, path); err != nil {
+		return fmt.Errorf("refusing unsafe chained-pr reference %s: %w", path, err)
+	}
+	return nil
+}
+
+func requireSanitizedChainedSkill(repoRoot, name string, target ManagedAssetsTarget) error {
+	wantRoot := map[string]string{"opencode": "~/.config/opencode/skills", "codex": "~/.codex/skills"}[name]
+	if target.RepoOwnedSharedSkills.Root != "shared/skills" || target.RepoOwnedSharedSkills.RuntimeRoot != wantRoot ||
+		!slices.Contains(target.RepoOwnedSharedSkills.Allowlist, "chained-pr") {
+		return fmt.Errorf("refusing chained-pr reference cleanup: %s does not install the sanitized skill", name)
+	}
+	source := filepath.Join(repoRoot, "shared", "skills", "chained-pr", "SKILL.md")
+	asset := filepath.Join(repoRoot, "shared", "skills", "chained-pr", "assets", "chaining-details.md")
+	for _, path := range []string{source, asset} {
+		if err := ensureNoSymlinkParents(repoRoot, path); err != nil {
+			return err
+		}
+		info, err := os.Lstat(path)
+		if err != nil {
+			return err
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("sanitized chained-pr source %s is not a regular file", path)
+		}
+	}
+	content, err := os.ReadFile(source)
+	if err != nil {
+		return err
+	}
+	if !bytes.Contains(content, []byte("[assets/chaining-details.md](assets/chaining-details.md)")) ||
+		bytes.Contains(content, []byte("references/chaining-details.md")) {
+		return fmt.Errorf("refusing chained-pr reference cleanup: sanitized source no longer uses only its own asset")
+	}
+	return nil
+}
+
+func verifyApprovedChainedReference(repoRoot, path string) error {
+	approvedPath := filepath.Join(repoRoot, filepath.FromSlash(chainedApprovedReference))
+	if err := ensureNoSymlinkParents(repoRoot, approvedPath); err != nil {
+		return err
+	}
+	info, err := os.Lstat(approvedPath)
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("approved upstream chained-pr snapshot %s is not a regular file", approvedPath)
+	}
+	approved, err := os.ReadFile(approvedPath)
+	if err != nil {
+		return err
+	}
+	actual, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(actual, approved) {
+		return fmt.Errorf("refusing chained-pr reference cleanup: %s differs from approved upstream snapshot", path)
+	}
+	return nil
+}
+
+func removeApprovedChainedReference(path, repoRoot string, recorder *verboseRecorder) error {
+	if err := inspectChainedReferencePath(path); err != nil {
+		return err
+	}
+	info, err := os.Lstat(path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("refusing unsafe chained-pr reference %s: not a regular file", path)
+	}
+	if err := verifyApprovedChainedReference(repoRoot, path); err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil {
+		return err
+	}
+	recorder.record(path, "removed exact obsolete chained-pr reference after sanitized skill install")
+	return nil
 }
 
 func normalizeTargets(args []string) (applyCustomOptions, []string, int) {

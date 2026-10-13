@@ -12,8 +12,9 @@ Approved upstream runtime assets are adopted replacement-first: let upstream mat
 - The maintained repository snapshot boundary is v4.1.1 / `898d3976e8049a7238eaa7de60bff325c30d2b3d`, recorded in `state/upstream-state.json`.
 - The authorized v4.1.1 snapshot sync changed 22 files, left 33 unchanged, and added or deleted none across 19 directories. The post-sync audit passed with no managed or watched-unmanaged drift and all six structural flags `ok`.
 - OpenCode and Codex runtime versions remain unverified. No runtime refresh, reinstall, or overlay apply is implied.
+- Current audit also checks Codex upstream sources with equal failure severity. A later separately approved sync added the two Codex audit-only snapshots, left 55 files unchanged, and did not write state. The fresh v4.1.1 audit passed for both targets with zero drift, all six OpenCode structural flags `ok`, and Codex snapshots and source-to-delivery `ok`. The post-sync success above describes the earlier OpenCode-only manifest.
 - The earlier v4.0.0 sync added 11 upstream-only OpenCode orchestrator/agent snapshots and deleted 35 snapshots: 18 exact SDD paths declared by `retired_upstream_snapshots` and 17 stale files in still-declared synced directories (11 commands, 2 plugins, and 4 `_shared` files). Manifest removals target exact files only and reject traversal, overlap with active paths, symlink parents, and directories; directory pruning is bounded to declared synced assets. Neither mechanism changes runtime files.
-- Current OpenCode keep/prune policy no longer retains SDD skills and prunes legacy SDD skill names if found. This is repository policy only: no overlay apply ran, and machine-local SDD settings or runtime files were not removed.
+- Current OpenCode keep/prune policy no longer retains SDD skills and prunes legacy SDD skill names if found. This is repository policy only: no overlay apply ran, and machine-local SDD settings or SDD runtime files were not removed.
 
 ## What this file does not define
 
@@ -170,6 +171,8 @@ Package-install guidance lives in the canonical `shared/skills/package-security/
 - verifies that reachable OpenCode ODD parity registration writes the selected settings path through the existing JSON merge or v4.1.1's path-aware `MergeJSONObjectsForPath`; this is structural source verification, not evidence that runtime files were refreshed
 - verifies the remote-authorization helper and its projection into that routing carrier; if v4 adds or changes a projection that cannot be proven, sync fails closed
 - keeps the upstream remote-authorization snapshot audit-only and verifies projection into the current OpenCode routing prompt carrier
+- checks Codex's declared upstream orchestrator and remote-authorization snapshots against the verified release; missing snapshots fail the audit, even with no commit-range drift
+- checks Codex source-to-delivery from its orchestrator renderer and routing injection through the adapter's `AGENTS.md` path and install/sync routing steps; watched changes and mismatches for either target have the same blocking severity
 - validates the current ODD explore/verify/worker agent set and exact JD/review actor topology
 - does not require removed SDD profile-generator paths or SDD profile-order checks
 
@@ -251,6 +254,7 @@ Runtime refresh, repo snapshot sync, and overlay apply are separate actions. App
 - reconciles explicit global Judgment Day/review assignments from `global_actors`
 - installs repo-owned skills from `shared/skills/`
 - installs the sanitized repo-owned `chained-pr` copy while keeping its upstream snapshot retained for audit/sync, and keeps `issue-creation` pruned from the default OpenCode runtime surface
+- preflights the selected OpenCode/Codex `chained-pr/references/chaining-details.md` against the approved upstream snapshot and canonical sanitized-skill binding. After installing that skill, removes only a byte-identical regular file with no symlink parents; absent files are valid, unknown bytes and unsafe paths block before selected-target writes. It never removes or claims the actively referenced `~/.agents/skills/chained-pr/` copy. No real runtime cleanup has run as part of this repository change.
 - does not create SDD agents or profiles. It rejects legacy `default_profile`, `profiles`, SDD `agent_overrides`, and SDD agent keys before writes; user-owned values remain untouched for manual migration
 - keeps all six review actors global, including `review-validator`; no suffixed review actors are created
 - treats omission as preserve/delegate and `{"inherit": true}` as an explicit request to remove both `model` and `variant`
@@ -271,7 +275,7 @@ Runtime refresh, repo snapshot sync, and overlay apply are separate actions. App
 - Codex patch preflight recognizes an exact stale second local block containing the retired no-commit line only between the orchestrator and CodeGraph markers. It removes that block in memory before preparing the one `AGENTS.md` patch; an absent legacy block and an applied or unapplied current Engram-adjacent block are valid. Duplicate, incomplete, changed, or relocated local blocks fail before any selected-target write, including `all`. No full-file replacement or generic empty replacement is used.
 - Judgment Day uses an exact Codex patch definition; the ODD work-unit commit is no longer patched. Declared anchors are preflighted before the first selected-target write; missing or changed anchors fail closed.
 - Unrelated upstream instructions, untouched skills, and existing modes are preserved. Only copied repo-owned skill outputs are tracked as owned. Patched upstream targets are protected during owned-state cleanup but are never claimed as whole-file owned assets.
-- The canonical upstream audit currently covers OpenCode managed assets only. It does not verify the installed Codex runtime. Codex behavior must remain reported as unverified until the user separately authorizes a Codex apply and checks its result.
+- The canonical upstream audit covers OpenCode and Codex repository inputs independently. The two approved Codex snapshots were copied by a separately authorized repo sync and verified by the fresh passing v4.1.1 audit. This does not verify the installed Codex runtime or imply that the repo-owned cleanup logic has run there; refresh and apply remain separately authorized.
 
 Native skill-registry refresh does not scan canonical `shared/skills/`; it cannot prove discovery of the new Notion skill before a separately authorized runtime apply. Repository tests install into temporary homes only, not the machine runtime.
 
@@ -346,7 +350,7 @@ For a separately authorized Codex apply, also verify:
 - Judgment Day differs from its pre-apply bytes only by the declared Codex patch delta; the upstream work-unit skill remains unchanged and file modes are preserved
 - upstream Codex SDD skills, untouched skills, Engram files, `config.toml`, and model profile files remain byte- and mode-unchanged
 - Codex apply neither pruned skills nor rendered command wrappers, and its owned-state record claims only repo-owned skill outputs
-- this check verifies only the files inspected for that apply; the OpenCode upstream audit does not verify Codex runtime materialization
+- this check verifies only the files inspected for that apply; the upstream repository audit does not verify Codex runtime materialization
 - one fresh-context reviewer/subagent pass checked the changed maintainer artifacts and final summary for workflow consistency
 
 ## Local overlay config

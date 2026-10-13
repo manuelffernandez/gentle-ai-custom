@@ -258,6 +258,11 @@ func inject() {
 }
 `))
 	writeV4StructuralFixture(t, upstreamRepo, "assigned", true)
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "assets", "codex", "orchestrator.md"), []byte("Codex orchestrator\n"))
+	mustWriteFile(t, filepath.Join(upstreamRepo, "internal", "agents", "codex", "adapter.go"), []byte(`package codex
+func (a *Adapter) Agent() model.AgentID { return model.AgentCodex }
+func (a *Adapter) SystemPromptFile(homeDir string) string { return filepath.Join(homeDir, ".codex", "AGENTS.md") }
+`))
 	mustInitGitRepo(t, upstreamRepo)
 
 	previousCommit, err := runGit(upstreamRepo, false, "rev-parse", "HEAD")
@@ -307,6 +312,19 @@ func inject() {
 		Status:      "active_runtime_canonical",
 		Description: "test manifest",
 		Targets: map[string]ManagedAssetsTarget{
+			"codex": {
+				StructuralInvariantSources: []string{
+					"internal/components/agentguidance/orchestrator.go",
+					"internal/components/agentguidance/inject.go",
+					"internal/agents/codex/adapter.go",
+					"internal/cli/run.go",
+					"internal/cli/sync.go",
+				},
+				OwnedOverlayAssets: []OwnedOverlayAsset{
+					{Key: "codex-orchestrator-source", Class: "upstream_source", Kind: "upstream_source_file", UpstreamPath: "internal/assets/codex/orchestrator.md", RepoUpstreamPath: "overlay/gentle-ai/assets/upstream/codex/orchestrator.md"},
+					{Key: "codex-remote-authorization-source", Class: "upstream_source", Kind: "upstream_source_file", UpstreamPath: "internal/assets/generic/remote-authorization-contract.md", RepoUpstreamPath: "overlay/gentle-ai/assets/upstream/codex/remote-authorization-contract.md"},
+				},
+			},
 			"opencode": {
 				StructuralInvariantSources: v4StructuralFixtureTarget().StructuralInvariantSources,
 				RetiredUpstreamSnapshots:   []string{"retired/item.md"},
@@ -680,7 +698,7 @@ func TestCodexTargetUsesSharedSkillsAndKeepsUpstreamRuntimeUnowned(t *testing.T)
 	if len(target.RepoOwnedSharedSkills.Allowlist) != 8 || len(target.RepoOwnedCommandBodies.Entries) != 0 {
 		t.Fatalf("Codex install surface = %d skills and %d command bodies, want 8 and 0", len(target.RepoOwnedSharedSkills.Allowlist), len(target.RepoOwnedCommandBodies.Entries))
 	}
-	if len(target.OwnedOverlayAssets) != 0 || len(target.RetainedUpstreamSkills) != 0 || len(target.PrunedUpstreamSkills) != 0 {
+	if err := validateCodexAuditOnlyAssets(target); err != nil {
 		t.Fatalf("Codex target claims upstream runtime ownership or pruning: assets=%v retained=%v pruned=%v", target.OwnedOverlayAssets, target.RetainedUpstreamSkills, target.PrunedUpstreamSkills)
 	}
 	wantPatches := []string{"codex-local-instructions", "judgment-retrospective-handoff"}
@@ -698,6 +716,46 @@ func TestCodexTargetUsesSharedSkillsAndKeepsUpstreamRuntimeUnowned(t *testing.T)
 	}
 	if !policy.Codex.PreserveUnselectedSkills || policy.Codex.RenderCommands {
 		t.Fatalf("Codex policy = preserve_unselected_skills:%v render_commands:%v, want true/false", policy.Codex.PreserveUnselectedSkills, policy.Codex.RenderCommands)
+	}
+}
+
+func TestV4CodexApplyAcceptsOnlyAuditSnapshots(t *testing.T) {
+	valid := OwnedOverlayAsset{
+		Key: "codex-orchestrator-source", Class: "upstream_source", Kind: "upstream_source_file",
+		UpstreamPath:     "internal/assets/codex/orchestrator.md",
+		RepoUpstreamPath: "overlay/gentle-ai/assets/upstream/codex/orchestrator.md",
+	}
+	for _, tc := range []struct {
+		name   string
+		change func(*ManagedAssetsTarget)
+		accept bool
+	}{
+		{"approved audit-only source", func(*ManagedAssetsTarget) {}, true},
+		{"runtime-owned class", func(target *ManagedAssetsTarget) { target.OwnedOverlayAssets[0].Class = "repo_owned_runtime" }, false},
+		{"runtime snapshot class", func(target *ManagedAssetsTarget) { target.OwnedOverlayAssets[0].Class = "upstream_runtime_snapshot" }, false},
+		{"directory snapshot", func(target *ManagedAssetsTarget) { target.OwnedOverlayAssets[0].Kind = "upstream_source_directory" }, false},
+		{"runtime destination", func(target *ManagedAssetsTarget) {
+			target.OwnedOverlayAssets[0].RuntimeTargets = []string{"~/.codex/AGENTS.md"}
+		}, false},
+		{"owned source", func(target *ManagedAssetsTarget) { target.OwnedOverlayAssets[0].RepoOwnedPath = "shared/skills" }, false},
+		{"runtime sync mode", func(target *ManagedAssetsTarget) { target.OwnedOverlayAssets[0].RuntimeSyncMode = "copy" }, false},
+		{"materialized source", func(target *ManagedAssetsTarget) {
+			target.OwnedOverlayAssets[0].MaterializedMarkdown = &MaterializedMarkdownAsset{}
+		}, false},
+		{"outside snapshot root", func(target *ManagedAssetsTarget) {
+			target.OwnedOverlayAssets[0].RepoUpstreamPath = "overlay/gentle-ai/assets/upstream/opencode/orchestrator.md"
+		}, false},
+		{"path traversal", func(target *ManagedAssetsTarget) { target.OwnedOverlayAssets[0].RepoUpstreamPath += "/../other.md" }, false},
+		{"retained upstream skill", func(target *ManagedAssetsTarget) { target.RetainedUpstreamSkills = []UpstreamSkillRef{{Key: "other"}} }, false},
+		{"pruned upstream skill", func(target *ManagedAssetsTarget) { target.PrunedUpstreamSkills = []UpstreamSkillRef{{Key: "other"}} }, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			target := ManagedAssetsTarget{OwnedOverlayAssets: []OwnedOverlayAsset{valid}}
+			tc.change(&target)
+			if err := validateCodexAuditOnlyAssets(target); (err == nil) != tc.accept {
+				t.Fatalf("validateCodexAuditOnlyAssets() error = %v, want accepted = %v", err, tc.accept)
+			}
+		})
 	}
 }
 
