@@ -56,8 +56,9 @@ Remove inherited two-digit title prefixes from the global index, canonical proje
 - Remaining: EcoSport root still exports `02 — Historial del vehículo` in its native child database tag. One exact same-URL targeted correction returned HTTP 400 `validation_error`, `No matches found`, nonretryable. Fresh readbacks showed no mutation; no retry or structural workaround.
 - Software RED/tests and runtime harness: N/A for cloud title/copy edits and passive tracking only. No source-skill change or runtime installation.
 - Rollback boundary: this task document only in Git; live title changes would require separate explicit Notion reversal, not a Git revert.
-- Local evidence commit: pending.
+- Local evidence commit: `d4122097e774ef29928ddd37a7ccd99b0da0f6f5` (63 authored lines).
+- Native assessment against `91649a0`: `passive`, `review_due=false`, reason `passive`; structural readback is the proportional check. Prior feature review unchanged.
 
 ## Next step
 
-Record the local evidence commit and report the remaining exported EcoSport label honestly. Resolve that label only through a verified supported title-only operation; preserve the existing child database.
+Report the remaining exported EcoSport label honestly. Resolve that label only through a verified supported title-only operation; preserve the existing child database.
