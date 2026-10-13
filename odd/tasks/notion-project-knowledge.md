@@ -46,7 +46,7 @@ Install the approved Notion skill and activation through existing OpenCode and C
 
 ## Progress
 
-- T1 source implementation is complete; task closure awaits the commit and native review outcome.
+- T1 source implementation and functional proof are complete; native review remains unavailable pending a separately authorized runtime refresh.
 - Writer `gpt-6.1-sol` high observed focused RED (missing activation/install and inventory), then GREEN.
 - Focused normalized suite, `go test ./...` (both packages), skill validator and `git diff --check` passed.
 - Parent re-ran the skill validator successfully as the reported-command spot check.
@@ -55,8 +55,14 @@ Install the approved Notion skill and activation through existing OpenCode and C
 - Authored implementation: 148 additions + 21 deletions = 169 lines, excluding generated registry and this task document.
 - Native assessment of untracked working changes refused undeclared files; no lower risk was inferred.
 - Rollback boundary: remove this skill/allowlist entry and its Notion activation blocks while retaining existing local rules and other sources.
-- Commit identity and committed-candidate assessment are pending.
+- Work-unit commit: `84b66ef` (`feat(overlay): add modular Notion project knowledge contract`); 13 files, 210 additions + 21 deletions = 231 authored lines.
+- Committed-candidate assessment: high / `hot_path` for update-log; `review_due=true`.
+- Exact native STATUS returned `stop / managed_assets_outdated`. Forecast: horizon `terminal`, step 1, kind `stop`, reason_code `managed_assets_outdated`, description `managed assets outdated`.
+- No START, reviewers, consent choice or receipt occurred. RDD remains on; no runtime sync or mode change was performed.
+- Independent `gpt-6.1-sol` medium functional verification passed the focused suite, validator and working/committed diff checks; no source issues found.
+- The native continuation offers `/home/linuxbrew/.linuxbrew/Cellar/gentle-ai/4.0.0/bin/gentle-ai sync --agent codex`; it was not executed because runtime refresh is outside this request.
+- Retained STATUS: `gentle-ai review status --cwd=/home/manuel/Documentos/gentle-ai-custom --contract=gentle-ai.review-integration/v2 --agent=codex --next-transition=true --base-ref=8ca28e47847bd1710de752d083e04a61734e50c8 --committed-only=true`.
 
 ## Next step
 
-Commit the coherent work unit, assess that committed candidate and follow its exact native transition. Runtime apply and Notion mutations remain outside this request.
+User decides whether to authorize the offered Codex runtime refresh before resuming native review. The overlay source implementation is ready; custom runtime apply and Notion mutations remain separate.
