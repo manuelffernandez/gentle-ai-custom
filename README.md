@@ -130,9 +130,11 @@ El snapshot v3.7.0 incorporaba el contrato output-only de `sdd-research`; esa ev
 
 #### Target Codex
 
-`apply-gentle-ai-custom.sh codex` instala las siete skills propias reutilizando sus fuentes en `shared/skills/`; reemplaza solo las skills con el mismo nombre que estén en esa lista y no poda otras skills upstream. También agrega reglas locales puntuales después del marcador de Engram en `~/.codex/AGENTS.md` y aplica el parche exacto de retrospectiva de Judgment Day.
+`apply-gentle-ai-custom.sh codex` instala las siete skills propias reutilizando sus fuentes en `shared/skills/`; reemplaza solo las skills con el mismo nombre que estén en esa lista y no poda otras skills upstream. También agrega reglas locales puntuales después del marcador de Engram en `~/.codex/AGENTS.md`, cambia solo las filas de `odd-explorer` y `odd-worker` de `gpt-6.1-luna` a `gpt-6.1-sol` (ambas en `high`), y aplica el parche exacto de retrospectiva de Judgment Day.
 
-La capa no reemplaza el archivo completo `AGENTS.md`, no poda skills upstream ajenas a la lista local, no genera comandos y no cambia `config.toml`, Engram ni perfiles/modelos. Si falta o cambió un anchor, se detiene antes de escribir. La auditoría actual no verifica el runtime de Codex; su comportamiento queda sin confirmar hasta que se autorice y revise un apply de Codex.
+La capa no reemplaza el archivo completo `AGENTS.md` ni modifica las otras filas ODD, Judgment Day o review. Tampoco poda skills upstream ajenas a la lista local, genera comandos ni cambia `config.toml`, Engram o perfiles de modelos. Si falta, cambia o se duplica una fila esperada, se detiene antes de escribir. Este ajuste está solo en el repo: no se ejecutó `apply`, y no se comprobó si `gpt-6.1-sol` está disponible en la cuenta. La auditoría actual no verifica el runtime de Codex; su comportamiento queda sin confirmar hasta que se autorice y revise un apply de Codex.
+
+Si quedó una segunda copia antigua del bloque local entre el final del orquestador y el inicio de CodeGraph, el próximo `apply` autorizado quitará solo esa copia exacta con la regla que prohibía commits automáticos. Conserva el bloque actual junto a Engram y el resto del archivo. Si la copia antigua está incompleta, cambiada, duplicada o fuera de lugar, se detiene antes de escribir en cualquiera de los targets seleccionados. Esta migración también está solo en el repo: no cambia el Codex instalado hasta que se autorice `apply` por separado.
 
 El repo aceptó de forma consciente una conducta de archivo SDD en v3.7.0. Esa decisión es histórica: el baseline actual es ODD sin SDD y esto no prueba ni cambia el estado de la revisión RDD escalada por separado.
 
@@ -228,7 +230,7 @@ La actualización del runtime sigue siendo tuya por defecto. Aprobar la auditor�
 
 El comando `apply-gentle-ai-custom` sigue siendo independiente de la carpeta original: compara la versión instalada con la versión mantenida por este overlay y no necesita encontrar el clon de upstream.
 
-El `AGENTS.md` propio de OpenCode sigue siendo un archivo completo que instala este repo. Su persona y el protocolo completo de Engram para OpenCode deben coincidir con los snapshots aprobados. Codex mantiene su archivo completo bajo control de upstream y recibe solo un bloque local delimitado; ese bloque incluye alcance de implementación, comunicación clara, estándar de Markdown para agentes, seguridad de credenciales y el ajuste condicional para Gemini. Ninguno de los dos archivos propios incorpora la regla upstream de autorización remota.
+El `AGENTS.md` propio de OpenCode sigue siendo un archivo completo que instala este repo. Su persona y el protocolo completo de Engram para OpenCode deben coincidir con los snapshots aprobados. Codex mantiene su archivo completo bajo control de upstream y recibe un bloque local delimitado y el cambio exacto de dos filas ODD para `odd-explorer` y `odd-worker`; el bloque incluye alcance de implementación, comunicación clara, estándar de Markdown para agentes, seguridad de credenciales y el ajuste condicional para Gemini. Ninguno de los dos archivos propios incorpora la regla upstream de autorización remota.
 
 ### Cuándo usar `gentle-ai sync` y cuándo reinstalar
 
@@ -244,7 +246,7 @@ El `AGENTS.md` propio de OpenCode sigue siendo un archivo completo que instala e
 - bloquea en OpenCode cada skill podada que no tenga un reemplazo propio con el mismo nombre mediante `permission.skill`, incluso si OpenCode encuentra una copia en `~/.agents/skills` o `~/.claude/skills`. No borra ni modifica esas copias externas, y conserva los permisos de skills no podadas ni de reemplazos propios como `branch-pr`.
 - aplica nuestras preferencias de modelos de IA si las configuramos.
 - comprueba solo los archivos, referencias y anchors que necesita para las operaciones solicitadas o los parches locales declarados.
-- aplica solo el parche puntual de retrospectiva de Judgment Day. Los parches que anulaban el commit ODD se quitaron para ambos targets; el runtime aún no se actualizó ni verificó.
+- aplica el parche puntual de retrospectiva de Judgment Day y, solo en Codex, las dos filas ODD declaradas junto al bloque local de instrucciones. Los parches que anulaban el commit ODD se quitaron para ambos targets; el runtime aún no se actualizó ni verificó.
 - conserva los prompts y plugins preparados por Gentle AI; no los reemplaza con plantillas fuente. Los snapshots mantenidos están en v4.0.0, pero el runtime materializado no está verificado. La política acepta RDD como activo y funcional, pero su estado efectivo se consulta por máquina o clon.
 - aplica overrides compatibles sin crear perfiles o agentes SDD. Si encuentra opciones SDD heredadas, se detiene antes de escribir y las deja intactas para revisión manual.
 - agrega de forma puntual el handoff de `judgment-retrospective` al skill `judgment-day` compatible.

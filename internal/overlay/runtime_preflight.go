@@ -195,6 +195,12 @@ func (s *applyPolicyState) prepareRuntimePatches(repoRoot string) error {
 				return upstreamRuntimeError("runtime patch %q requires installed upstream file %s: %v", ref.Key, path, err)
 			}
 			content := string(raw)
+			if ref.Key == "codex-local-instructions" && target.Path == "AGENTS.md" {
+				content, err = prepareCodexLocalInstructionsMigration(content, target.Replacements)
+				if err != nil {
+					return upstreamRuntimeError("runtime patch %q target %s has incompatible local instructions: %v", ref.Key, path, err)
+				}
+			}
 			for index, replacement := range target.Replacements {
 				if replacement.Before == "" || replacement.After == "" || replacement.Before == replacement.After {
 					return fmt.Errorf("runtime patch %q target %s replacement %d is invalid", ref.Key, target.Path, index+1)
@@ -218,6 +224,43 @@ func (s *applyPolicyState) prepareRuntimePatches(repoRoot string) error {
 		}
 	}
 	return nil
+}
+
+func prepareCodexLocalInstructionsMigration(content string, replacements []runtimePatchReplacement) (string, error) {
+	const anchor = "<!-- /gentle-ai:engram-protocol -->\n"
+	const legacyLine = "- Never commit, push, or create a pull request unless the user explicitly asks. An implementation request, task completion, or review gate does not authorize delivery.\n"
+	const rule = "- When responding,"
+	const marker = "gentle-ai-custom:codex-local-instructions"
+	if len(replacements) == 0 || replacements[0].Before != anchor || !strings.HasPrefix(replacements[0].After, anchor+"\n") {
+		return "", fmt.Errorf("unrecognized Codex local instruction patch")
+	}
+	current := strings.TrimPrefix(replacements[0].After, anchor+"\n")
+	if strings.Count(current, marker) != 2 || strings.Count(current, rule) != 1 || strings.Contains(current, legacyLine) || !strings.HasSuffix(current, "<!-- /"+marker+" -->\n") {
+		return "", fmt.Errorf("unrecognized Codex local instruction block")
+	}
+	legacy := strings.Replace(current, rule, legacyLine+rule, 1)
+	const orchestratorStart = "<!-- gentle-ai:orchestrator -->"
+	const orchestratorEnd = "<!-- /gentle-ai:orchestrator -->"
+	const codegraphStart = "<!-- gentle-ai:codegraph-guidance -->"
+	gap := orchestratorEnd + "\n\n" + legacy + "\n" + codegraphStart
+	if gapIndex := strings.Index(content, gap); gapIndex >= 0 {
+		startIndex := strings.Index(content, orchestratorStart)
+		anchorIndex := strings.Index(content, anchor)
+		currentIndex := strings.Index(content, replacements[0].After)
+		if strings.Count(content, orchestratorStart) != 1 || strings.Count(content, orchestratorEnd) != 1 ||
+			strings.Count(content, codegraphStart) != 1 || strings.Count(content, anchor) != 1 ||
+			anchorIndex+len(anchor) > startIndex || startIndex+len(orchestratorStart) > gapIndex ||
+			(currentIndex >= 0 && currentIndex+len(replacements[0].After) > startIndex) {
+			return "", fmt.Errorf("ambiguous Codex orchestrator-to-CodeGraph boundary")
+		}
+		content = strings.Replace(content, gap, "<!-- /gentle-ai:orchestrator -->\n\n<!-- gentle-ai:codegraph-guidance -->", 1)
+	}
+	currentCount := strings.Count(content, replacements[0].After)
+	if currentCount > 1 || strings.Count(content, marker) != 2*currentCount || strings.Contains(content, legacyLine) ||
+		strings.Count(content, "gentle-ai-custom:codex-local") != 2*currentCount {
+		return "", fmt.Errorf("duplicate, misplaced, or unknown Codex local instruction block")
+	}
+	return content, nil
 }
 
 func resolveRuntimePatchTarget(runtimeRoot, target string) (string, error) {

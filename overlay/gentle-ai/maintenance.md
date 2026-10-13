@@ -264,10 +264,11 @@ Runtime refresh, repo snapshot sync, and overlay apply are separate actions. App
 
 `apply-gentle-ai-custom.sh codex` installs the seven allowlisted skills from the canonical `shared/skills/` directory into `~/.codex/skills/`; allowlisted same-name skills are repo-owned replacements. It does not run OpenCode policy/config reconciliation, prune unrelated Codex skills, render command wrappers, or modify `config.toml`, Engram, SDD model profiles, or the full Codex `AGENTS.md`.
 
-- Codex's full `AGENTS.md` remains upstream-owned. Apply inserts only the marker-bounded local instruction rules after `<!-- /gentle-ai:engram-protocol -->`; it does not require the removed SDD marker.
+- Codex's full `AGENTS.md` remains upstream-owned. Apply inserts the marker-bounded local instruction rules after `<!-- /gentle-ai:engram-protocol -->` and replaces exactly the `odd-explorer` and `odd-worker` table rows from `gpt-6.1-luna` / `high` to `gpt-6.1-sol` / `high` in the same declared target; it does not require the removed SDD marker. Other ODD, JD, and review rows remain unchanged. Actual account model availability is unverified.
 - The local rules cover implementation scope, plain-language responses, agent-readable Markdown, credential-file safety, and the conditional Gemini response rule. They do not override upstream ODD task-close commits or add the retired remote-operation authorization rule.
+- Codex patch preflight recognizes an exact stale second local block containing the retired no-commit line only between the orchestrator and CodeGraph markers. It removes that block in memory before preparing the one `AGENTS.md` patch; an absent legacy block and an applied or unapplied current Engram-adjacent block are valid. Duplicate, incomplete, changed, or relocated local blocks fail before any selected-target write, including `all`. No full-file replacement or generic empty replacement is used.
 - Judgment Day uses an exact Codex patch definition; the ODD work-unit commit is no longer patched. Declared anchors are preflighted before the first selected-target write; missing or changed anchors fail closed.
-- Upstream instructions, untouched skills, and existing modes are preserved. Only copied repo-owned skill outputs are tracked as owned. Patched upstream targets are protected during owned-state cleanup but are never claimed as whole-file owned assets.
+- Unrelated upstream instructions, untouched skills, and existing modes are preserved. Only copied repo-owned skill outputs are tracked as owned. Patched upstream targets are protected during owned-state cleanup but are never claimed as whole-file owned assets.
 - The canonical upstream audit currently covers OpenCode managed assets only. It does not verify the installed Codex runtime. Codex behavior must remain reported as unverified until the user separately authorizes a Codex apply and checks its result.
 
 `apply` never copies raw upstream source snapshots into runtime. A missing or incompatible prerequisite for a requested custom operation fails closed before pruning, config changes, patch writes, or owned asset installation.
@@ -334,8 +335,10 @@ After `apply`, confirm this:
 For a separately authorized Codex apply, also verify:
 
 - each installed portable Codex skill under `~/.codex/skills/` matches its canonical source in `shared/skills/`
-- the upstream Engram block and all unrelated bytes in `~/.codex/AGENTS.md` remain unchanged outside the declared local instruction block
+- the upstream Engram block and all unrelated bytes in `~/.codex/AGENTS.md` remain unchanged outside the declared local instruction block and two ODD table-row replacements
+- `odd-explorer` and `odd-worker` are each `gpt-6.1-sol` / `high` exactly once, while `odd-verify`, JD, review, and other rows retain their upstream assignments; no model profile or OpenCode assignment changes
 - the local block appears exactly once after the upstream Engram marker and contains no remote-operation authorization rule
+- the obsolete second local block and its no-commit line are absent from the orchestrator-to-CodeGraph gap; unrelated bytes and file mode remain unchanged
 - Judgment Day differs from its pre-apply bytes only by the declared Codex patch delta; the upstream work-unit skill remains unchanged and file modes are preserved
 - upstream Codex SDD skills, untouched skills, Engram files, `config.toml`, and model profile files remain byte- and mode-unchanged
 - Codex apply neither pruned skills nor rendered command wrappers, and its owned-state record claims only repo-owned skill outputs

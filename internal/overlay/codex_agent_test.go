@@ -7,6 +7,209 @@ import (
 	"testing"
 )
 
+const codexODDAssignmentTable = "| `odd-explorer` | `gpt-6.1-luna` | `high` |\n| `odd-worker` | `gpt-6.1-luna` | `high` |\n| `odd-verify` | `gpt-6.1-sol` | `medium` |\n| `jd-judge-a` | `gpt-6.1-luna` | `high` |\n| `review-risk` | `gpt-6.1-luna` | `high` |\n"
+
+const codexCurrentBlock = "<!-- gentle-ai-custom:codex-local-instructions -->\n## Local instructions\n\n- Implement only the requested outcome. Propose optional abstractions or infrastructure separately instead of adding them without approval.\n- When responding, use simple, natural language. Explain what changed, why, and any relevant limits without assuming implementation knowledge.\n- For agent-consumed Markdown, use the smallest clear structure, one H1, shallow headings, short paragraphs, precise paths, explicit stop conditions, and angle-bracket placeholders. Prefer bullets to wide tables.\n- Never read, search, copy, or expose credential files or secret-bearing configuration. Prefer documentation, schemas, examples, and redacted user-run output. If credential access seems necessary, stop and explain why before accessing it.\n- When a Gemini model is active, use skeptical, direct, evidence-first replies; challenge assumptions before validating them and state uncertainty plainly.\n<!-- /gentle-ai-custom:codex-local-instructions -->\n"
+const codexLegacyCommitLine = "- Never commit, push, or create a pull request unless the user explicitly asks. An implementation request, task completion, or review gate does not authorize delivery.\n"
+
+func codexLegacyBlock() string {
+	return strings.Replace(codexCurrentBlock, "- When responding,", codexLegacyCommitLine+"- When responding,", 1)
+}
+
+func codexMigrationFixture(current, legacy string) string {
+	return "upstream prefix\n" + codexODDAssignmentTable + "<!-- gentle-ai:engram-protocol -->\nupstream Engram\n<!-- /gentle-ai:engram-protocol -->\n" + current + "\n<!-- gentle-ai:orchestrator -->\nupstream orchestrator\n<!-- /gentle-ai:orchestrator -->\n\n" + legacy + "<!-- gentle-ai:codegraph-guidance -->\nupstream CodeGraph\n"
+}
+
+func writeCodexMigrationPrerequisites(t *testing.T, root string) {
+	t.Helper()
+	mustWriteFile(t, filepath.Join(root, "skills", "judgment-day", "SKILL.md"), []byte("- The only terminal verdicts are `APPROVED | ESCALATED`; never reset or extend an exhausted round budget.\n\n6. Repeat once at most, then run independent final verification and return the terminal verdict.\n\nartifact references, skill resolution, and exactly one final\n"))
+	mustWriteFile(t, filepath.Join(root, "skills", "judgment-day", "references", "prompts-and-formats.md"), []byte("Warnings and suggestions are informational. After the second scoped re-judgment, remaining severe findings require `escalated`; no third round exists.\n"))
+}
+
+func TestCodexApplyMigratesOnlyRecognizedSecondLocalBlock(t *testing.T) {
+	for _, tc := range []struct {
+		name, current, legacy string
+	}{
+		{"legacy and current", "\n" + codexCurrentBlock, codexLegacyBlock() + "\n"},
+		{"legacy without current", "", codexLegacyBlock() + "\n"},
+		{"current without legacy", "\n" + codexCurrentBlock, ""},
+		{"neither block", "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repoRoot := repoRootForTest(t)
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			root := filepath.Join(home, ".codex")
+			path := filepath.Join(root, "AGENTS.md")
+			before := codexMigrationFixture(tc.current, tc.legacy)
+			mustWriteFile(t, path, []byte(before))
+			if err := os.Chmod(path, 0o640); err != nil {
+				t.Fatal(err)
+			}
+			writeCodexMigrationPrerequisites(t, root)
+			if code := (&CodexAgent{}).ApplyOverlay(repoRoot, applyPolicyOptions{recorder: newVerboseRecorder(false)}); code != 0 {
+				t.Fatalf("Codex apply = %d, want success", code)
+			}
+			got := mustReadFile(t, path)
+			want := codexMigrationFixture("\n"+codexCurrentBlock, "")
+			want = strings.Replace(want, "| `odd-explorer` | `gpt-6.1-luna` | `high` |", "| `odd-explorer` | `gpt-6.1-sol` | `high` |", 1)
+			want = strings.Replace(want, "| `odd-worker` | `gpt-6.1-luna` | `high` |", "| `odd-worker` | `gpt-6.1-sol` | `high` |", 1)
+			if got != want {
+				t.Fatalf("Codex AGENTS.md differs beyond declared changes\ngot: %q\nwant: %q", got, want)
+			}
+			if mode := snapshotTestFile(t, path).mode.Perm(); mode != 0o640 {
+				t.Fatalf("Codex AGENTS.md mode = %o, want 640", mode)
+			}
+			first := snapshotTree(t, root)
+			if code := (&CodexAgent{}).ApplyOverlay(repoRoot, applyPolicyOptions{recorder: newVerboseRecorder(false)}); code != 0 {
+				t.Fatalf("repeat Codex apply = %d, want success", code)
+			}
+			if second := snapshotTree(t, root); !equalStringMaps(first, second) {
+				t.Fatal("repeat Codex apply changed bytes or modes")
+			}
+		})
+	}
+}
+
+func TestCodexApplyRejectsUnexpectedSecondLocalBlockBeforeWrites(t *testing.T) {
+	legacy := codexLegacyBlock()
+	for _, tc := range []struct{ name, content string }{
+		{"duplicate legacy", codexMigrationFixture("\n"+codexCurrentBlock, legacy+"\n"+legacy+"\n")},
+		{"partial legacy", codexMigrationFixture("\n"+codexCurrentBlock, strings.Replace(legacy, codexLegacyCommitLine, "", 1)+"\n")},
+		{"unknown legacy", codexMigrationFixture("\n"+codexCurrentBlock, strings.Replace(legacy, "- When responding,", "- When writing,", 1)+"\n")},
+		{"relocated legacy", codexMigrationFixture("\n"+codexCurrentBlock, "") + "\n" + legacy},
+		{"relocated current", codexMigrationFixture("", legacy+"\n") + "\n" + codexCurrentBlock},
+		{"incompatible model after legacy", strings.Replace(codexMigrationFixture("\n"+codexCurrentBlock, legacy+"\n"), "| `odd-worker` | `gpt-6.1-luna` | `high` |", "| `odd-worker` | `unknown` | `high` |", 1)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repoRoot := repoRootForTest(t)
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			root := filepath.Join(home, ".codex")
+			mustWriteFile(t, filepath.Join(root, "AGENTS.md"), []byte(tc.content))
+			writeCodexMigrationPrerequisites(t, root)
+			before := snapshotTree(t, root)
+			if code := (&CodexAgent{}).ApplyOverlay(repoRoot, applyPolicyOptions{recorder: newVerboseRecorder(false)}); code == 0 {
+				t.Fatal("Codex apply succeeded with incompatible instructions")
+			}
+			if after := snapshotTree(t, root); !equalStringMaps(before, after) {
+				t.Fatal("Codex apply wrote files after failed preflight")
+			}
+		})
+	}
+}
+
+func TestCodexApplyRejectsAmbiguousOrchestratorBoundariesBeforeWrites(t *testing.T) {
+	const start = "<!-- gentle-ai:orchestrator -->\n"
+	const end = "<!-- /gentle-ai:orchestrator -->\n"
+	const codegraph = "<!-- gentle-ai:codegraph-guidance -->\n"
+	legacy := codexLegacyBlock() + "\n"
+	base := codexMigrationFixture("\n"+codexCurrentBlock, legacy)
+	for _, tc := range []struct{ name, content string }{
+		{"duplicate orchestrator start", strings.Replace(base, start, start+start, 1)},
+		{"duplicate orchestrator end", strings.Replace(base, end, end+end, 1)},
+		{"duplicate CodeGraph start", strings.Replace(base, codegraph, codegraph+codegraph, 1)},
+		{"orchestrator start after legacy gap", strings.Replace(base, start, "", 1) + start},
+		{"decoy gap before real orchestrator", strings.Replace(codexMigrationFixture("\n"+codexCurrentBlock, ""), start, end+"\n"+legacy+codegraph+start, 1)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repoRoot := repoRootForTest(t)
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			root := filepath.Join(home, ".codex")
+			mustWriteFile(t, filepath.Join(root, "AGENTS.md"), []byte(tc.content))
+			writeCodexMigrationPrerequisites(t, root)
+			before := snapshotTree(t, root)
+			if code := (&CodexAgent{}).ApplyOverlay(repoRoot, applyPolicyOptions{recorder: newVerboseRecorder(false)}); code == 0 {
+				t.Fatal("Codex apply accepted ambiguous legacy block boundaries")
+			}
+			if after := snapshotTree(t, root); !equalStringMaps(before, after) {
+				t.Fatal("Codex apply wrote files after boundary preflight failure")
+			}
+		})
+	}
+}
+
+func TestCodexApplyMigratesV4ShapedInstructionsWithoutChangingOtherRows(t *testing.T) {
+	repoRoot := repoRootForTest(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	root := filepath.Join(home, ".codex")
+	path := filepath.Join(root, "AGENTS.md")
+	before := codexMigrationFixture("\n"+codexCurrentBlock, codexLegacyBlock()+"\n")
+	before = strings.Replace(before, "upstream orchestrator\n", "# ODD Orchestrator for Codex\n\n### ODD worker-class assignments\n\nUse the installed routing table for delegated work.\n", 1)
+	before = strings.Replace(before, "upstream CodeGraph\n", "## CodeGraph\n\nUse CodeGraph before broad repository searches.\n", 1)
+	before = strings.Replace(before, "| `odd-explorer` | `gpt-6.1-luna` | `high` |", "| `odd-explorer` | `gpt-6.1-sol` | `high` |", 1)
+	before = strings.Replace(before, "| `odd-worker` | `gpt-6.1-luna` | `high` |", "| `odd-worker` | `gpt-6.1-sol` | `high` |", 1)
+	mustWriteFile(t, path, []byte(before))
+	if err := os.Chmod(path, 0o640); err != nil {
+		t.Fatal(err)
+	}
+	writeCodexMigrationPrerequisites(t, root)
+	if code := (&CodexAgent{}).ApplyOverlay(repoRoot, applyPolicyOptions{recorder: newVerboseRecorder(false)}); code != 0 {
+		t.Fatalf("Codex apply = %d, want success", code)
+	}
+	want := strings.Replace(before, "<!-- /gentle-ai:orchestrator -->\n\n"+codexLegacyBlock()+"\n<!-- gentle-ai:codegraph-guidance -->", "<!-- /gentle-ai:orchestrator -->\n\n<!-- gentle-ai:codegraph-guidance -->", 1)
+	if got := mustReadFile(t, path); got != want {
+		t.Fatalf("v4-shaped Codex instructions differ beyond the legacy block\ngot: %q\nwant: %q", got, want)
+	}
+	if mode := snapshotTestFile(t, path).mode.Perm(); mode != 0o640 {
+		t.Fatalf("Codex AGENTS.md mode = %o, want 640", mode)
+	}
+	first := snapshotTree(t, root)
+	if code := (&CodexAgent{}).ApplyOverlay(repoRoot, applyPolicyOptions{recorder: newVerboseRecorder(false)}); code != 0 {
+		t.Fatalf("repeat Codex apply = %d, want success", code)
+	}
+	if second := snapshotTree(t, root); !equalStringMaps(first, second) {
+		t.Fatal("repeat Codex apply changed v4-shaped fixture bytes or modes")
+	}
+}
+
+func TestCodexApplyRejectsIncompatibleJudgmentDayAfterLegacyBeforeWrites(t *testing.T) {
+	repoRoot := repoRootForTest(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	root := filepath.Join(home, ".codex")
+	mustWriteFile(t, filepath.Join(root, "AGENTS.md"), []byte(codexMigrationFixture("\n"+codexCurrentBlock, codexLegacyBlock()+"\n")))
+	writeCodexMigrationPrerequisites(t, root)
+	judgment := filepath.Join(root, "skills", "judgment-day", "SKILL.md")
+	mustWriteFile(t, judgment, []byte("incompatible upstream Judgment Day\n"))
+	before := snapshotTree(t, root)
+	if code := (&CodexAgent{}).ApplyOverlay(repoRoot, applyPolicyOptions{recorder: newVerboseRecorder(false)}); code == 0 {
+		t.Fatal("Codex apply succeeded with incompatible Judgment Day anchor")
+	}
+	if after := snapshotTree(t, root); !equalStringMaps(before, after) {
+		t.Fatal("Codex apply wrote files after Judgment Day preflight failure")
+	}
+}
+
+func TestRunApplyCustomAllRejectsUnexpectedCodexBlockBeforeSelectedWrites(t *testing.T) {
+	repoRoot := repoRootForTest(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	binDir := filepath.Join(t.TempDir(), "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(binDir, "gentle-ai"), []byte("#!/bin/sh\nprintf 'gentle-ai 4.0.0\\n'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	openCodeSentinel := filepath.Join(home, ".config", "opencode", "skills", "branch-pr", "SKILL.md")
+	mustWriteFile(t, openCodeSentinel, []byte("unchanged OpenCode target\n"))
+	root := filepath.Join(home, ".codex")
+	legacy := strings.Replace(codexLegacyBlock(), "- When responding,", "- When writing,", 1)
+	mustWriteFile(t, filepath.Join(root, "AGENTS.md"), []byte(codexMigrationFixture("\n"+codexCurrentBlock, legacy+"\n")))
+	writeCodexMigrationPrerequisites(t, root)
+	before := snapshotTree(t, home)
+	if code := RunApplyCustom(repoRoot, []string{"all"}); code == 0 {
+		t.Fatal("RunApplyCustom(all) succeeded with unknown Codex legacy block")
+	}
+	if after := snapshotTree(t, home); !equalStringMaps(before, after) {
+		t.Fatal("selected targets changed after unknown Codex block preflight")
+	}
+}
+
 func TestNormalizeTargetsIncludesCodexAndAll(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -34,7 +237,7 @@ func TestCodexApplyPatchesOnlyDeclaredUpstreamSectionsAndIsIdempotent(t *testing
 	t.Setenv("HOME", home)
 	codexRoot := filepath.Join(home, ".codex")
 	agentsPath := filepath.Join(codexRoot, "AGENTS.md")
-	agentsBefore := "upstream ODD instructions\n<!-- gentle-ai:engram-protocol -->\nupstream Engram body\n<!-- /gentle-ai:engram-protocol -->\nupstream suffix\n"
+	agentsBefore := "upstream ODD instructions\n" + codexODDAssignmentTable + "<!-- gentle-ai:engram-protocol -->\nupstream Engram body\n<!-- /gentle-ai:engram-protocol -->\nupstream suffix\n"
 	mustWriteFile(t, agentsPath, []byte(agentsBefore))
 	if err := os.Chmod(agentsPath, 0o640); err != nil {
 		t.Fatal(err)
@@ -69,8 +272,11 @@ func TestCodexApplyPatchesOnlyDeclaredUpstreamSectionsAndIsIdempotent(t *testing
 		t.Fatalf("CodexAgent.ApplyOverlay() = %d, want 0", code)
 	}
 	agentsAfter := mustReadFile(t, agentsPath)
-	if !strings.HasPrefix(agentsAfter, "upstream ODD instructions\n<!-- gentle-ai:engram-protocol -->\nupstream Engram body\n<!-- /gentle-ai:engram-protocol -->") {
+	if !strings.HasPrefix(agentsAfter, "upstream ODD instructions\n| `odd-explorer` | `gpt-6.1-sol` | `high` |\n| `odd-worker` | `gpt-6.1-sol` | `high` |\n| `odd-verify` | `gpt-6.1-sol` | `medium` |\n| `jd-judge-a` | `gpt-6.1-luna` | `high` |\n| `review-risk` | `gpt-6.1-luna` | `high` |\n<!-- gentle-ai:engram-protocol -->\nupstream Engram body\n<!-- /gentle-ai:engram-protocol -->") {
 		t.Fatalf("upstream Codex instructions changed: %q", agentsAfter)
+	}
+	if strings.Contains(agentsAfter, "| `odd-explorer` | `gpt-6.1-luna` | `high` |") || strings.Contains(agentsAfter, "| `odd-worker` | `gpt-6.1-luna` | `high` |") {
+		t.Fatal("Codex ODD explorer or worker retained the upstream Luna assignment")
 	}
 	if !strings.HasSuffix(agentsAfter, "upstream suffix\n") {
 		t.Fatalf("upstream Codex suffix changed: %q", agentsAfter)
@@ -144,13 +350,41 @@ func TestCodexApplyRejectsIncompatibleAnchorBeforeAnyWrites(t *testing.T) {
 	}
 }
 
+func TestCodexApplyRejectsIncompatibleODDModelRowsBeforeAnyWrites(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		rows  string
+	}{
+		{name: "changed explorer", rows: strings.Replace(codexODDAssignmentTable, "| `odd-explorer` | `gpt-6.1-luna` | `high` |", "| `odd-explorer` | `gpt-6.1-other` | `high` |", 1)},
+		{name: "missing worker", rows: strings.Replace(codexODDAssignmentTable, "| `odd-worker` | `gpt-6.1-luna` | `high` |\n", "", 1)},
+		{name: "duplicate explorer", rows: codexODDAssignmentTable + "| `odd-explorer` | `gpt-6.1-luna` | `high` |\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repoRoot := repoRootForTest(t)
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			codexRoot := filepath.Join(home, ".codex")
+			mustWriteFile(t, filepath.Join(codexRoot, "AGENTS.md"), []byte(tc.rows+"<!-- /gentle-ai:engram-protocol -->\n"))
+			mustWriteFile(t, filepath.Join(codexRoot, "skills", "judgment-day", "SKILL.md"), []byte("- The only terminal verdicts are `APPROVED | ESCALATED`; never reset or extend an exhausted round budget.\n\n6. Repeat once at most, then run independent final verification and return the terminal verdict.\n\nartifact references, skill resolution, and exactly one final\n"))
+			mustWriteFile(t, filepath.Join(codexRoot, "skills", "judgment-day", "references", "prompts-and-formats.md"), []byte("Warnings and suggestions are informational. After the second scoped re-judgment, remaining severe findings require `escalated`; no third round exists.\n"))
+			before := snapshotTree(t, codexRoot)
+			if code := (&CodexAgent{}).ApplyOverlay(repoRoot, applyPolicyOptions{recorder: newVerboseRecorder(false)}); code == 0 {
+				t.Fatal("CodexAgent.ApplyOverlay() = 0, want incompatible model row failure")
+			}
+			if after := snapshotTree(t, codexRoot); !equalStringMaps(before, after) {
+				t.Fatalf("Codex files changed after incompatible model row preflight\nbefore: %v\nafter: %v", before, after)
+			}
+		})
+	}
+}
+
 func TestCodexApplyDoesNotRequireSDDMarker(t *testing.T) {
 	repoRoot := repoRootForTest(t)
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	codexRoot := filepath.Join(home, ".codex")
 	agentsPath := filepath.Join(codexRoot, "AGENTS.md")
-	mustWriteFile(t, agentsPath, []byte("upstream ODD instructions without an SDD marker\n<!-- /gentle-ai:engram-protocol -->\n"))
+	mustWriteFile(t, agentsPath, []byte("upstream ODD instructions without an SDD marker\n"+codexODDAssignmentTable+"<!-- /gentle-ai:engram-protocol -->\n"))
 	mustWriteFile(t, filepath.Join(codexRoot, "skills", "judgment-day", "SKILL.md"), []byte("- The only terminal verdicts are `APPROVED | ESCALATED`; never reset or extend an exhausted round budget.\n\n6. Repeat once at most, then run independent final verification and return the terminal verdict.\n\nartifact references, skill resolution, and exactly one final\n"))
 	mustWriteFile(t, filepath.Join(codexRoot, "skills", "judgment-day", "references", "prompts-and-formats.md"), []byte("Warnings and suggestions are informational. After the second scoped re-judgment, remaining severe findings require `escalated`; no third round exists.\n"))
 	mustWriteFile(t, filepath.Join(codexRoot, "skills", "work-unit-commits", "SKILL.md"), []byte("- Every ODD task closes with at least one work-unit commit, branch first when on the default branch, with tests and docs alongside the behavior and a Conventional Commit message.\n"))
@@ -203,7 +437,7 @@ func TestRunApplyCustomCodexInstallsSharedSkillsWithoutTouchingOtherTargets(t *t
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	codexRoot := filepath.Join(home, ".codex")
-	mustWriteFile(t, filepath.Join(codexRoot, "AGENTS.md"), []byte("<!-- gentle-ai:engram-protocol -->\nupstream Engram\n<!-- /gentle-ai:engram-protocol -->\n"))
+	mustWriteFile(t, filepath.Join(codexRoot, "AGENTS.md"), []byte(codexODDAssignmentTable+"<!-- gentle-ai:engram-protocol -->\nupstream Engram\n<!-- /gentle-ai:engram-protocol -->\n"))
 	mustWriteFile(t, filepath.Join(codexRoot, "skills", "judgment-day", "SKILL.md"), []byte("- The only terminal verdicts are `APPROVED | ESCALATED`; never reset or extend an exhausted round budget.\n\n6. Repeat once at most, then run independent final verification and return the terminal verdict.\n\nartifact references, skill resolution, and exactly one final\n"))
 	mustWriteFile(t, filepath.Join(codexRoot, "skills", "judgment-day", "references", "prompts-and-formats.md"), []byte("Warnings and suggestions are informational. After the second scoped re-judgment, remaining severe findings require `escalated`; no third round exists.\n"))
 	mustWriteFile(t, filepath.Join(codexRoot, "skills", "work-unit-commits", "SKILL.md"), []byte("- Every ODD task closes with at least one work-unit commit, branch first when on the default branch, with tests and docs alongside the behavior and a Conventional Commit message.\n"))
@@ -242,7 +476,7 @@ func TestRunApplyCustomAllAppliesBothTargetsWithoutCrossTargetCommands(t *testin
 	repoRoot := repoRootForTest(t)
 	home, openCodeConfig := writeCompatibleRuntimeFixture(t, repoRoot)
 	codexRoot := filepath.Join(home, ".codex")
-	mustWriteFile(t, filepath.Join(codexRoot, "AGENTS.md"), []byte("<!-- gentle-ai:engram-protocol -->\nupstream Codex Engram\n<!-- /gentle-ai:engram-protocol -->\n"))
+	mustWriteFile(t, filepath.Join(codexRoot, "AGENTS.md"), []byte(codexODDAssignmentTable+"<!-- gentle-ai:engram-protocol -->\nupstream Codex Engram\n<!-- /gentle-ai:engram-protocol -->\n"))
 	mustWriteFile(t, filepath.Join(codexRoot, "skills", "judgment-day", "SKILL.md"), []byte("- The only terminal verdicts are `APPROVED | ESCALATED`; never reset or extend an exhausted round budget.\n\n6. Repeat once at most, then run independent final verification and return the terminal verdict.\n\nartifact references, skill resolution, and exactly one final\n"))
 	mustWriteFile(t, filepath.Join(codexRoot, "skills", "judgment-day", "references", "prompts-and-formats.md"), []byte("Warnings and suggestions are informational. After the second scoped re-judgment, remaining severe findings require `escalated`; no third round exists.\n"))
 	mustWriteFile(t, filepath.Join(codexRoot, "skills", "work-unit-commits", "SKILL.md"), []byte("- Every ODD task closes with at least one work-unit commit, branch first when on the default branch, with tests and docs alongside the behavior and a Conventional Commit message.\n"))
