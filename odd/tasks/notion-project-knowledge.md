@@ -2,7 +2,7 @@
 
 ## Objective
 
-Install the approved Notion skill and activation through existing OpenCode and Codex overlay sources. Notion remains the authority for its project structures and operating procedures.
+Install the approved Notion skill and activation through existing OpenCode and Codex overlay sources. Notion remains the authority for its project structures and operating procedures. The authorized follow-up adds verified repository identity lookup and explicit-only project creation guidance.
 
 ## Scope
 
@@ -10,7 +10,7 @@ Install the approved Notion skill and activation through existing OpenCode and C
 - Add identical activation blocks to the owned OpenCode instructions and the declared Codex patch.
 - Register the skill for both targets and update installation tests and live documentation.
 - Preserve existing upstream sections and exact Codex migration anchors.
-- Repository changes only; runtime apply and Notion writes remain separate.
+- T1 authorized repository changes only. T2 additionally authorizes targeted Notion index/guide edits; runtime apply remains separate.
 
 ## Constraints
 
@@ -29,6 +29,18 @@ Install the approved Notion skill and activation through existing OpenCode and C
   - Update current inventory and supported customization documentation.
   - Close with one Conventional Commit on the feature branch after applicable verification/review.
 
+- [ ] **T2 — Refine identity lookup and canonical Notion metadata.**
+  - Route: delegated direct; one writer updates the compact skill, live guides and proportional documentation.
+  - Add optional `Repositorio` (`owner/name`) and `URL` metadata conventions, filling only confirmed associations.
+  - Resolve by targeted identity lookup and canonical-route validation; without a unique match, briefly report and continue independent work.
+  - Document explicit-only creation of new project roots with child guides in the global index; preserve existing topology and children.
+  - Local surfaces: the canonical skill, root AGENTS/README and overlay README/maintenance only.
+  - Live surfaces: global index `3dca58c3fefc815fb60ded077b5127d1`; guides `3e9a58c3fefc81db80bcefc42e64ef4f`, `3dca58c3fefc8161a750e8c54d99c0db`, `3f7a58c3fefc811b91bdf180d43c3736`, `3dca58c3fefc81f89064cc55729b7ec5`; existing Teleferico entry `909a58c3fefc828c872f81d2ed3b6d74`.
+  - Repository confirmed only for Teleferico governance: `TelefericoCerroOtto/TelefericoBariloche2024`, canonical backlog TB-120/TB-79 references and GitHub metadata.
+  - Other associations remain undocumented; absence of evidence is not proof of no repository.
+  - Wording/cloud-edit exception to RED: no meaningful deterministic failing test; use full installation comparisons, validator and targeted live readback.
+  - No new pages, moves, database changes, runtime changes or invented metadata.
+
 ## Checks
 
 - `go test ./internal/overlay -run 'Test(OpenCodeAgentsOwnedSourceMatchesApprovedInheritedSections|ValidateOwnedAgentsCompositionRejectsAmbiguousOrExtraBlocks|CodexTargetUsesSharedSkillsAndKeepsUpstreamRuntimeUnowned|CodexApply|RunApplyCustomCodexInstallsSharedSkillsWithoutTouchingOtherTargets|RunApplyCustomAllAppliesBothTargetsWithoutCrossTargetCommands|RunApplyCustom.*Preflight)' -count=1`
@@ -40,8 +52,8 @@ Install the approved Notion skill and activation through existing OpenCode and C
 ## Delivery
 
 - Feature branch: `codex/notion-project-knowledge`.
-- Strategy: ask-on-risk. Forecast: approximately 330 authored changed lines, generated registry excluded.
-- No push, pull request, runtime apply or Notion mutation.
+- Strategy: ask-on-risk. Current committed count: 243 authored lines. T2 forecast adds 35–65 source/documentation lines plus bounded task bookkeeping; total forecast remains below 400.
+- No push, pull request or runtime apply. T2 permits only the listed live Notion content edits.
 - Changes to the preserved customization inventory in maintenance intent require one consolidated policy-change ledger entry after verification; no upstream audit, snapshot adoption or release-parity claim.
 
 ## Progress
@@ -63,6 +75,19 @@ Install the approved Notion skill and activation through existing OpenCode and C
 - The native continuation offers `/home/linuxbrew/.linuxbrew/Cellar/gentle-ai/4.0.0/bin/gentle-ai sync --agent codex`; it was not executed because runtime refresh is outside this request.
 - Retained STATUS: `gentle-ai review status --cwd=/home/manuel/Documentos/gentle-ai-custom --contract=gentle-ai.review-integration/v2 --agent=codex --next-transition=true --base-ref=8ca28e47847bd1710de752d083e04a61734e50c8 --committed-only=true`.
 
+- T2 read-only mapping is complete; parent spot check verified TB-120's canonical ancestry and repository reference.
+- Teleferico has no separate exposed guide and is nested under the global index; use its existing entry page without moving it or creating a guide.
+- T2 source and six live-page edits are implemented and read back; task closure awaits the work-unit commit and native assessment.
+- Global index owns optional metadata and explicit-only creation; existing topology and child identities/order were preserved.
+- Only governance has a verified repository: `TelefericoCerroOtto/TelefericoBariloche2024`. EcoSport, E-commerce, Me and TCO business associations remain undocumented; no values were invented.
+- Independent checking found and resolved one routing regression: explicit project selection now precedes request-scoped repository identity. Named-project resolution works without repository metadata.
+- Validator, whole-skill temporary-runtime installation checks, full Go suite and diff-check passed after the scoped correction; parent diff-check spot check passed.
+- Native Notion serialization trimmed display-label whitespace; this did not change reference identity, order, ancestry or project locations.
+- Native registry refreshed/mirrored with 26 entries; canonical shared source remains outside its scan until separately authorized installation.
+- T2 source/docs diff: 25 additions + 9 deletions = 34 authored lines, excluding generated registry and task bookkeeping.
+- Prospective T2 working-change assessment: medium, `executable_change` at AGENTS.md, `review_due=false / under_budget`. The original T1 high-risk review remains unavailable.
+- No deterministic RED was invented for the wording/cloud change; no new pages, database edits or runtime operations occurred.
+
 ## Next step
 
-User decides whether to authorize the offered Codex runtime refresh before resuming native review. The overlay source implementation is ready; custom runtime apply and Notion mutations remain separate.
+Commit the coherent T2 work unit and assess from the unresolved reviewed boundary. Preserve the existing native-review stop; runtime refresh/apply remain separately authorized.

@@ -36,7 +36,7 @@ This directory contains the operational assets for the Gentle AI overlay.
 - The owned global `AGENTS.md` intentionally omits that section. Credential-file safety and unrelated runtime/tool permission guards are unchanged.
 - Runtime refresh, repo snapshot sync, and overlay apply are separate authorization boundaries.
 
-`shared/skills/notion-project-knowledge/SKILL.md` is the canonical Notion module for both targets. Its matching activation blocks route requests needing Notion knowledge and parent-agent preservation of useful project knowledge and personal activity evidence to current Notion guides. This repository change does not install the skill or write to Notion. Native registry refresh does not scan `shared/skills/`; runtime discovery remains pending a separately authorized apply.
+`shared/skills/notion-project-knowledge/SKILL.md` is the canonical Notion module for both targets. Its matching activation blocks route requests needing Notion knowledge and parent-agent preservation of useful project knowledge and personal activity evidence to current Notion guides. This repository change does not install the skill or write to Notion. Native registry refresh does not scan `shared/skills/`; runtime discovery remains pending a separately authorized apply. Repository identity lookup and explicitly requested project creation follow the current global Notion index; detailed metadata and structure rules remain in Notion.
 
 ## Current adoption status
 

@@ -1,6 +1,6 @@
 ---
 name: notion-project-knowledge
-description: Retrieve relevant Notion project knowledge and proactively preserve useful knowledge and activity evidence during parent-agent work.
+description: Retrieve Notion project knowledge, preserve useful knowledge and activity during parent-agent work, and follow explicit project-creation requests.
 ---
 
 # Notion Project Knowledge
@@ -10,13 +10,29 @@ structure and operating procedures.
 
 ## Resolve the context
 
-Identify the applicable project from the user's request, a verified
-link to the active repository, or clear conversational context.
+Resolve a project named by the user first through its canonical
+route. Otherwise use verified repository identity when the
+request concerns it, then clear Notion or conversational context.
 
-Follow its known canonical guide. When the route is unknown, locate
-it through the global project index:
+For repository-based resolution, identify its exact `owner/name`
+or canonical URL from safe available context.
+
+Use that identity within the request's scope for targeted lookup
+of optional `Repositorio` or `URL` metadata in relevant Notion
+indices and guides. Confirm a unique matching project's canonical
+root and guide through the global project index:
 
 https://app.notion.com/p/3dca58c3fefc815fb60ded077b5127d1
+
+Without a unique verified match, mention the limitation briefly
+and continue independent work. Unavailable access or search does
+not establish that a page is absent.
+
+Use explicit project selection or clear current context to resolve
+the canonical route without requiring repository metadata.
+
+Create a project only when the user explicitly requests it,
+following the creation procedure in the global project index.
 
 Apply the relevant guide's current scope and instructions to each
 operation.
