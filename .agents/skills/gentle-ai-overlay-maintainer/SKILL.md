@@ -20,7 +20,7 @@ Use this skill when:
 ## Hard Rules
 
 - Work from `gentle-ai-custom`, not from the upstream repo.
-- The maintained repository snapshot boundary is v4.0.0 / `ff77164d4f56f1665b22fb6fac51c2ccbb769400`. The authorized sync reported 11 new, 13 changed, 31 unchanged, and 35 deleted snapshots across 19 directories; the post-sync audit passed with no drift and every structural flag `ok`.
+- The maintained repository snapshot boundary is v4.1.1 / `898d3976e8049a7238eaa7de60bff325c30d2b3d`. The authorized sync changed 22 snapshots, left 33 unchanged, and added or deleted none across 19 directories; the post-sync audit passed with zero drift and six structural flags `ok`.
 - Snapshot adoption verifies repository sources only. OpenCode and Codex runtime versions remain unverified until their respective separately authorized runtime actions and checks.
 - Treat the resolved upstream `gentle-ai` clone as input only. Resolution order: `~/.config/gentle-ai-custom/opencode-local-config.json` (`upstream_repo_path`) -> `$GENTLE_AI_CUSTOM_UPSTREAM_REPO` -> `../gentle-ai` fallback.
 - Follow this order for maintainer updates: update `gentle-ai` binary -> update tags/checkout in the upstream clone -> immediate audit from `gentle-ai-custom` -> decision/approval gate -> separately approved repo sync via `sync-gentle-ai-upstream-assets` when a new boundary was accepted -> human-owned runtime refresh (`gentle-ai sync` or reinstall) -> separately authorized `apply-gentle-ai-custom`.

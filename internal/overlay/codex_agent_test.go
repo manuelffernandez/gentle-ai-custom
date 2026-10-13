@@ -436,7 +436,7 @@ func TestRunApplyCustomCodexInstallsSharedSkillsWithoutTouchingOtherTargets(t *t
 		t.Fatal(err)
 	}
 	fakeVersion := filepath.Join(binDir, "gentle-ai")
-	if err := os.WriteFile(fakeVersion, []byte("#!/bin/sh\nprintf 'gentle-ai 4.0.0\\n'\n"), 0o755); err != nil {
+	if err := os.WriteFile(fakeVersion, []byte("#!/bin/sh\nprintf 'gentle-ai 4.1.1\\n'\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
@@ -489,7 +489,7 @@ func TestRunApplyCustomAllAppliesBothTargetsWithoutCrossTargetCommands(t *testin
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(binDir, "gentle-ai"), []byte("#!/bin/sh\nprintf 'gentle-ai 4.0.0\\n'\n"), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(binDir, "gentle-ai"), []byte("#!/bin/sh\nprintf 'gentle-ai 4.1.1\\n'\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))

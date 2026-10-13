@@ -4,6 +4,18 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-10-13 | Adopted Gentle AI v4.1.1 repository snapshots
+
+- **Date**: `2026-10-13`
+- **Title**: Adopted Gentle AI v4.1.1 repository snapshots
+- **Type**: `adoption`
+- **Upstream scope/range**: Maintained v4.0.0 boundary `ff77164d4f56f1665b22fb6fac51c2ccbb769400` -> exact v4.1.1 commit `898d3976e8049a7238eaa7de60bff325c30d2b3d`.
+- **Decision**: `Adquirir` the approved v4.1.1 audit snapshots and full OpenCode Engram projection. Keep the six local-only instruction sections, keep/prune behavior, and runtime ownership boundaries unchanged. No runtime refresh or overlay apply was authorized.
+- **Why it mattered**: Repository audit sources and the owned OpenCode installation source now agree with the adopted upstream boundary; temporary-home Codex success fixtures match the advisory version preflight without weakening negative tests.
+- **Affected artifacts**: `overlay/gentle-ai/state/upstream-state.json`; 22 approved snapshots under `overlay/gentle-ai/assets/upstream/opencode/`; `overlay/gentle-ai/assets/owned/opencode/AGENTS.md`; two success fixtures in `internal/overlay/codex_agent_test.go`; and current-status guidance in `AGENTS.md`, `README.md`, `overlay/gentle-ai/{README.md,maintenance.md,policy/maintenance-intent.md}`, and `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md`.
+- **Verification**: The separately authorized sync reported 22 changed, 33 unchanged, none added or deleted across 19 directories. The three baseline RED assertions passed after the owned Engram and fixture updates; `go test ./...`, `bash audit-gentle-ai-upstream.sh`, and `git diff --check` passed before this log entry. The canonical audit verified installed binary and clean exact tag v4.1.1 at `898d3976e8049a7238eaa7de60bff325c30d2b3d`, zero managed or watched-unmanaged drift, and six structural flags `ok`. Repository verification does not prove installed OpenCode or Codex runtime materialization.
+- **Follow-up**: Runtime refresh and overlay apply require separate explicit authorization and verification.
+
 ## 2026-10-13 | Added the Notion knowledge customization
 
 - **Date**: `2026-10-13`

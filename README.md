@@ -108,13 +108,13 @@ Es normal no haber ejecutado todavía `gentle-ai sync` ni una reinstalación: es
 
 ### Estado actual: snapshots v4 adoptados; runtime sin verificar
 
-La frontera de snapshots de este repo ya está en Gentle AI v4.0.0, commit `ff77164d4f56f1665b22fb6fac51c2ccbb769400`. La sincronización aprobada informó 11 archivos nuevos, 13 actualizados, 31 sin cambios y 35 retirados, en 19 carpetas. OpenCode y Codex no se actualizaron: sus versiones de runtime siguen sin verificar.
+La frontera de snapshots de este repo ya está en Gentle AI v4.1.1, commit `898d3976e8049a7238eaa7de60bff325c30d2b3d`. La sincronización aprobada actualizó 22 archivos y dejó 33 sin cambios; no agregó ni retiró archivos, en 19 carpetas. No se actualizó el runtime de OpenCode ni Codex: sus versiones instaladas siguen sin verificar.
 
-La auditoría posterior a la sincronización pasó: no detectó diferencias administradas ni no administradas vigiladas, y todos los controles estructurales informaron `ok`. La limpieza afectó solo a los snapshots declarados por el repo; no cambió archivos ni configuración del runtime.
+La auditoría posterior a la sincronización pasó: no detectó diferencias administradas ni no administradas vigiladas, y los seis controles estructurales informaron `ok`. La sincronización afectó solo a los snapshots declarados por el repo y al registro de la versión mantenida; no cambió archivos ni configuración del runtime.
 
-La auditoría reconoce la ruta de v4.1.1: sigue el asset OpenCode hasta el renderizador que prepara el orchestrator, incluso si usa una función intermedia. También comprueba que los agentes ODD se guarden en la configuración mediante la combinación de JSON que usa la ruta del archivo y que la autorización remota llegue al prompt cargado por OpenCode. Las llamadas sueltas o desconectadas no pasan estos controles. Esto no adopta los snapshots v4.1.1: las diferencias con la frontera v4.0.0 se informan por separado.
+La auditoría reconoce la ruta de v4.1.1: sigue el archivo fuente de OpenCode hasta el renderizador que prepara el orquestador, incluso si usa una función intermedia. También comprueba que los agentes ODD se guarden en la configuración mediante la combinación de JSON que usa la ruta del archivo y que la autorización remota llegue al prompt cargado por OpenCode. Las llamadas sueltas o desconectadas no pasan estos controles. Los snapshots v4.1.1 ya fueron adoptados en el repo.
 
-El estado de snapshots v3.7.0 que aparece a continuación es histórico. La versión mantenida actualmente es v4.0.0; cualquier refresh o apply del runtime necesita autorización separada.
+El estado de snapshots v3.7.0 que aparece a continuación es histórico. La versión mantenida actualmente es v4.1.1; cualquier actualización o aplicación del overlay al runtime necesita autorización separada.
 
 #### Estado histórico de snapshots v3.7.0
 
@@ -132,7 +132,7 @@ El snapshot v3.7.0 incorporaba el contrato output-only de `sdd-research`; esa ev
 
 #### Target Codex
 
-`apply-gentle-ai-custom.sh codex` instala las siete skills propias reutilizando sus fuentes en `shared/skills/`; reemplaza solo las skills con el mismo nombre que estén en esa lista y no poda otras skills upstream. También agrega reglas locales puntuales después del marcador de Engram en `~/.codex/AGENTS.md`, cambia solo las filas de `odd-explorer` y `odd-worker` de `gpt-6.1-luna` a `gpt-6.1-sol` (ambas en `high`), y aplica el parche exacto de retrospectiva de Judgment Day.
+`apply-gentle-ai-custom.sh codex` instala las ocho skills propias reutilizando sus fuentes en `shared/skills/`; reemplaza solo las skills con el mismo nombre que estén en esa lista y no poda otras skills upstream. También agrega reglas locales puntuales después del marcador de Engram en `~/.codex/AGENTS.md`, cambia solo las filas de `odd-explorer` y `odd-worker` de `gpt-6.1-luna` a `gpt-6.1-sol` (ambas en `high`), y aplica el parche exacto de retrospectiva de Judgment Day.
 
 La capa no reemplaza el archivo completo `AGENTS.md` ni modifica las otras filas ODD, Judgment Day o review. Tampoco poda skills upstream ajenas a la lista local, genera comandos ni cambia `config.toml`, Engram o perfiles de modelos. Si falta, cambia o se duplica una fila esperada, se detiene antes de escribir. Este ajuste está solo en el repo: no se ejecutó `apply`, y no se comprobó si `gpt-6.1-sol` está disponible en la cuenta. La auditoría actual no verifica el runtime de Codex; su comportamiento queda sin confirmar hasta que se autorice y revise un apply de Codex.
 
@@ -251,7 +251,7 @@ La skill `notion-project-knowledge` se instala para ambos targets desde `shared/
 - aplica nuestras preferencias de modelos de IA si las configuramos.
 - comprueba solo los archivos, referencias y anchors que necesita para las operaciones solicitadas o los parches locales declarados.
 - aplica el parche puntual de retrospectiva de Judgment Day y, solo en Codex, las dos filas ODD declaradas junto al bloque local de instrucciones. Los parches que anulaban el commit ODD se quitaron para ambos targets; el runtime aún no se actualizó ni verificó.
-- conserva los prompts y plugins preparados por Gentle AI; no los reemplaza con plantillas fuente. Los snapshots mantenidos están en v4.0.0, pero el runtime materializado no está verificado. La política acepta RDD como activo y funcional, pero su estado efectivo se consulta por máquina o clon.
+- conserva los prompts y plugins preparados por Gentle AI; no los reemplaza con plantillas fuente. Los snapshots mantenidos están en v4.1.1, pero el runtime materializado no está verificado. La política acepta RDD como activo y funcional, pero su estado efectivo se consulta por máquina o clon.
 - aplica overrides compatibles sin crear perfiles o agentes SDD. Si encuentra opciones SDD heredadas, se detiene antes de escribir y las deja intactas para revisión manual.
 - agrega de forma puntual el handoff de `judgment-retrospective` al skill `judgment-day` compatible.
 - mantiene los nombres SDD fuera de la lista de skills conservadas y los poda en OpenCode si aún existen. No borra ni migra configuración o archivos locales por esta actualización documental; cualquier runtime apply requiere autorización independiente.

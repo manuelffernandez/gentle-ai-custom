@@ -8,11 +8,11 @@ Approved upstream runtime assets are adopted replacement-first: let upstream mat
 
 ## Current v4 repository and runtime status
 
-- The installed binary and clean upstream checkout were verified at v4.0.0 / `ff77164d4f56f1665b22fb6fac51c2ccbb769400`.
-- The maintained repository snapshot boundary is v4.0.0 / `ff77164d4f56f1665b22fb6fac51c2ccbb769400`, recorded in `state/upstream-state.json`.
-- The authorized snapshot sync reported 11 new, 13 changed, 31 unchanged, and 35 deleted snapshots across 19 directories. The post-sync audit passed with no managed or watched-unmanaged drift and every current structural flag `ok`.
+- The installed binary and clean upstream checkout were verified at v4.1.1 / `898d3976e8049a7238eaa7de60bff325c30d2b3d`.
+- The maintained repository snapshot boundary is v4.1.1 / `898d3976e8049a7238eaa7de60bff325c30d2b3d`, recorded in `state/upstream-state.json`.
+- The authorized v4.1.1 snapshot sync changed 22 files, left 33 unchanged, and added or deleted none across 19 directories. The post-sync audit passed with no managed or watched-unmanaged drift and all six structural flags `ok`.
 - OpenCode and Codex runtime versions remain unverified. No runtime refresh, reinstall, or overlay apply is implied.
-- The 11 new OpenCode orchestrator/agent assets are upstream-only snapshots, not custom runtime sources. Of the 35 deleted snapshots, 18 were exact SDD paths declared by `retired_upstream_snapshots`; the other 17 were stale files pruned inside still-declared synced directories (11 commands, 2 plugins, and 4 `_shared` files). Manifest removals target exact files only and reject traversal, overlap with active paths, symlink parents, and directories; directory pruning is bounded to declared synced assets. Neither mechanism changes runtime files.
+- The earlier v4.0.0 sync added 11 upstream-only OpenCode orchestrator/agent snapshots and deleted 35 snapshots: 18 exact SDD paths declared by `retired_upstream_snapshots` and 17 stale files in still-declared synced directories (11 commands, 2 plugins, and 4 `_shared` files). Manifest removals target exact files only and reject traversal, overlap with active paths, symlink parents, and directories; directory pruning is bounded to declared synced assets. Neither mechanism changes runtime files.
 - Current OpenCode keep/prune policy no longer retains SDD skills and prunes legacy SDD skill names if found. This is repository policy only: no overlay apply ran, and machine-local SDD settings or runtime files were not removed.
 
 ## What this file does not define
@@ -144,7 +144,7 @@ If this diagnostic exposes a regression, record the evidence and reassess the af
 | `policy/maintenance-intent.md` | Human intent: upstream-first baseline plus the small local layer to keep |
 | `policy/gentle-ai-policy.json` | Runtime policy consumed by the Go CLI and wrappers |
 | `policy/managed-assets.json` | Canonical map of approved upstream assets and installable owned assets |
-| `assets/upstream/` | Approved upstream copies currently on disk for review/diff, including `persona-gentleman.md`, `engram-protocol.md` (mirrors `internal/assets/engram/protocol.md`), `background-subagents.md`, the orchestrator prompt, overlay JSONs/plugins, retained `commands/` snapshots, and selected skill snapshots. The maintained boundary is v4.0.0 at `ff77164d4f56f1665b22fb6fac51c2ccbb769400`. The authorized sync reported 11 new, 13 changed, 31 unchanged, and 35 deleted snapshots across 19 directories; the post-sync audit passed with no drift and all structural flags `ok`. This verifies repository snapshots only, not either materialized runtime. |
+| `assets/upstream/` | Approved upstream copies for review/diff: persona, full Engram protocol, background subagents, orchestrator prompt, overlay JSONs/plugins, retained commands, and selected skills. The maintained v4.1.1 boundary is `898d3976e8049a7238eaa7de60bff325c30d2b3d`; the audit passed with zero drift and six structural flags `ok`. This verifies repository sources, not installed runtimes. |
 | `assets/owned/` | True repo-owned runtime assets installed by `apply`, currently the full-file local OpenCode `AGENTS.md` surface. Its inherited persona and OpenCode full Engram sections track the approved snapshots, with six explicit overlay-only additions. |
 | `patches/` | Exact-anchor local deltas applied only to compatible upstream runtime files |
 | `shared/skills/` | Portable repo-owned skills installed for OpenCode and Codex, including the sanitized `branch-pr` and `chained-pr`, the temporary `pr-finalizer` compatibility skill, and the Judgment Day retrospective companion skill |

@@ -40,10 +40,10 @@ This directory contains the operational assets for the Gentle AI overlay.
 
 ## Current adoption status
 
-- The maintained repository snapshot boundary is v4.0.0 at `ff77164d4f56f1665b22fb6fac51c2ccbb769400`.
-- The authorized snapshot sync reported 11 new, 13 changed, 31 unchanged, and 35 deleted snapshots across 19 directories. The canonical post-sync audit passed with no managed or watched-unmanaged drift and all structural flags `ok`.
+- The maintained repository snapshot boundary is v4.1.1 at `898d3976e8049a7238eaa7de60bff325c30d2b3d`.
+- The authorized v4.1.1 snapshot sync changed 22 files, left 33 unchanged, and added or deleted none across 19 directories. The canonical post-sync audit passed with no managed or watched-unmanaged drift and six structural flags `ok`.
 - The audit verifies repository snapshots and source structure only. OpenCode and Codex materialized runtime versions remain unverified; no runtime refresh, reinstall, or overlay apply is implied.
-- The 11 new OpenCode orchestrator and agent assets remain upstream audit snapshots, not custom runtime sources. Of the 35 deleted snapshots, 18 were exact SDD paths declared by `retired_upstream_snapshots`; the other 17 were stale files pruned inside still-declared synced directories (11 commands, 2 plugins, and 4 `_shared` files). The manifest removals are bounded to exact files and reject unsafe paths, active-path overlap, symlink parents, and directories; directory pruning applies only within declared synced assets. Neither mechanism changes runtime files.
+- The earlier v4.0.0 sync added 11 upstream-only OpenCode orchestrator and agent snapshots and deleted 35 snapshots: 18 exact SDD paths declared by `retired_upstream_snapshots` and 17 stale files in still-declared synced directories (11 commands, 2 plugins, and 4 `_shared` files). The manifest removals are bounded to exact files and reject unsafe paths, active-path overlap, symlink parents, and directories; directory pruning applies only within declared synced assets. Neither mechanism changes runtime files.
 - Current OpenCode policy no longer keeps SDD skills and prunes legacy SDD skill names if they remain in the selected runtime. Codex apply preserves unrelated upstream skills. No apply ran, and user-owned machine-local SDD settings or runtime files were not removed.
 - The v4 audit checks the current `agentguidance` orchestrator/routing injection path, remote-authorization projection into routing, and ODD/JD/review actor sets. Future sync still requires all structural gates to pass.
 - All five `plugins-v2` files are audit/sync-only. OpenCode 1.18.32 uses the V1 plugin path; this repository does not claim V2 runtime materialization support.

@@ -2,14 +2,14 @@
 
 This file is the semantic source of truth for how this repo maintains a small local layer on top of Gentle AI.
 
-The current strategy is **upstream-first migration**: keep only explicit local customizations and avoid carrying old overlay patches forward unless they still solve a confirmed problem. The maintained repository snapshot boundary is Gentle AI v4.0.0 at `ff77164d4f56f1665b22fb6fac51c2ccbb769400`. This is repository snapshot adoption only; the materialized OpenCode and Codex runtimes remain unverified.
+The current strategy is **upstream-first migration**: keep only explicit local customizations and avoid carrying old overlay patches forward unless they still solve a confirmed problem. The maintained repository snapshot boundary is Gentle AI v4.1.1 at `898d3976e8049a7238eaa7de60bff325c30d2b3d`. This is repository snapshot adoption only; the materialized OpenCode and Codex runtimes remain unverified.
 
 For an approved upstream asset, replacement-first means letting upstream Gentle AI materialize its finished runtime artifact. Keep the source snapshot for audit only, preserve the installed artifact, and apply only an explicit surgical customization documented in this file.
 
 ## Current baseline
 
-- Maintained repository snapshot boundary: Gentle AI `v4.0.0` at `ff77164d4f56f1665b22fb6fac51c2ccbb769400`.
-- The separately authorized v4 snapshot sync advanced `upstream-state.json` and refreshed approved audit snapshots. It did not refresh or apply either runtime; their current versions remain unverified.
+- Maintained repository snapshot boundary: Gentle AI `v4.1.1` at `898d3976e8049a7238eaa7de60bff325c30d2b3d`.
+- The separately authorized v4.1.1 snapshot sync advanced `upstream-state.json` and refreshed 22 approved audit snapshots, leaving 33 unchanged with none added or deleted across 19 directories. It did not refresh or apply either runtime; their current versions remain unverified.
 - Current v4 policy follows upstream ODD and does not retain SDD skills as current OpenCode runtime policy. The SDD names remain only as migration blockers for user-owned legacy settings and as explicitly historical evidence.
 - Continue acquiring compatible Gentle AI behavior upstream-first. Pin each accepted boundary in `upstream-state.json` only after its audit, explicit approval, and snapshot sync close.
 - The local overlay must be reduced while preserving the customizations listed in this file.
