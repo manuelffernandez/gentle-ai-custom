@@ -123,7 +123,7 @@
         "root": "shared/skills",
         "runtime_root": "~/.config/opencode/skills",
         "install_mode": "copy_skill_directory",
-        "allowlist": ["branch-pr","chained-pr","code-design","commit-planner","judgment-retrospective","package-security","pr-finalizer"]
+        "allowlist": ["branch-pr","chained-pr","code-design","commit-planner","judgment-retrospective","notion-project-knowledge","package-security","pr-finalizer"]
       },
       "repo_owned_command_bodies": {
         "root": "shared/commands",
@@ -153,7 +153,7 @@
         "root": "shared/skills",
         "runtime_root": "~/.codex/skills",
         "install_mode": "copy_skill_directory",
-        "allowlist": ["branch-pr","chained-pr","code-design","commit-planner","judgment-retrospective","package-security","pr-finalizer"]
+        "allowlist": ["branch-pr","chained-pr","code-design","commit-planner","judgment-retrospective","notion-project-knowledge","package-security","pr-finalizer"]
       },
       "repo_owned_command_bodies": {
         "root": "shared/commands",

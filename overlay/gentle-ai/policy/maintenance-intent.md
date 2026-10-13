@@ -17,9 +17,10 @@ For an approved upstream asset, replacement-first means letting upstream Gentle 
 
 ## Codex target boundary
 
-Codex apply installs the existing seven repo-owned portable skills from `shared/skills/` under `~/.codex/skills/`; allowlisted same-name skills are intentional repo-owned replacements. It does not prune unrelated upstream Codex skills, render command wrappers, replace the full `~/.codex/AGENTS.md`, or change `config.toml`, Engram files, SDD prompts, or model profiles.
+Codex apply installs the eight repo-owned portable skills from `shared/skills/` under `~/.codex/skills/`; allowlisted same-name skills are intentional repo-owned replacements. It does not prune unrelated upstream Codex skills, render command wrappers, replace the full `~/.codex/AGENTS.md`, or change `config.toml`, Engram files, SDD prompts, or model profiles.
 
 - Preserve unrelated upstream Codex instruction bytes. Insert the marker-bounded local rules after the unique upstream `<!-- /gentle-ai:engram-protocol -->` anchor and replace exactly the `odd-explorer` and `odd-worker` table rows from `gpt-6.1-luna` / `high` to `gpt-6.1-sol` / `high` in the same declared `AGENTS.md` patch. Leave `odd-verify`, Judgment Day, review, and all other rows unchanged. This is a Codex instruction-table exception, not a model profile or OpenCode override; actual account model availability is unverified.
+- Keep `notion-project-knowledge` activation in a separate marker-bounded block after the local-instructions closing marker, using a second sequential replacement. Preserve replacement zero unchanged because legacy-block migration derives its recognized content from that replacement.
 - Keep implementation scope, plain-language communication, Agent-Readable Markdown, credential-file safety, and the conditional Gemini response rule in that local block. Do not add the retired remote-operation authorization rule or a local no-auto-commit override.
 - A stale second copy of the local block may remain between the orchestrator closing marker and the CodeGraph opening marker. During Codex patch preflight, remove only the exact legacy block containing the retired no-commit line, whether the current Engram-adjacent block is already installed or not. Reject duplicate, partial, changed, or relocated local blocks before any selected-target write; do not relax generic patch matching or claim the whole file.
 - Apply only the Judgment Day retrospective delta when its exact Codex-installed skill anchor matches. Leave the upstream ODD work-unit commit instructions unchanged. Validate every declared patch before writing any target; preserve file modes and fail closed on missing, changed, or ambiguous anchors.
@@ -51,6 +52,7 @@ Keep these customizations unless the user explicitly changes this intent:
 - The `judgment-day` runtime hook that invokes `judgment-retrospective` at terminal completion.
 - `package-security` as a repo-owned shared skill.
 - `code-design` as a repo-owned shared skill.
+- `notion-project-knowledge` as a repo-owned shared skill with identical OpenCode and Codex activation. Current Notion guides own project structure and recording procedures; the parent retrieves progressively and proactively preserves useful project knowledge and personal activity evidence within their authorized scope.
 - `commit-planner` as the preferred local commit-planning workflow.
 - A sanitized repo-owned `branch-pr` as the preferred local PR finalization workflow.
 - A sanitized repo-owned runtime copy of `chained-pr` so GitHub CLI actions resolve an explicit `owner/repo`, avoid wrong-repo mutation, and keep automatic SDD/review-budget activation plan-only until the user explicitly requests branch/PR execution.

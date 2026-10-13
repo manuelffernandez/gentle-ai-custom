@@ -10,6 +10,8 @@ import (
 const codexODDAssignmentTable = "| `odd-explorer` | `gpt-6.1-luna` | `high` |\n| `odd-worker` | `gpt-6.1-luna` | `high` |\n| `odd-verify` | `gpt-6.1-sol` | `medium` |\n| `jd-judge-a` | `gpt-6.1-luna` | `high` |\n| `review-risk` | `gpt-6.1-luna` | `high` |\n"
 
 const codexCurrentBlock = "<!-- gentle-ai-custom:codex-local-instructions -->\n## Local instructions\n\n- Implement only the requested outcome. Propose optional abstractions or infrastructure separately instead of adding them without approval.\n- When responding, use simple, natural language. Explain what changed, why, and any relevant limits without assuming implementation knowledge.\n- For agent-consumed Markdown, use the smallest clear structure, one H1, shallow headings, short paragraphs, precise paths, explicit stop conditions, and angle-bracket placeholders. Prefer bullets to wide tables.\n- Never read, search, copy, or expose credential files or secret-bearing configuration. Prefer documentation, schemas, examples, and redacted user-run output. If credential access seems necessary, stop and explain why before accessing it.\n- When a Gemini model is active, use skeptical, direct, evidence-first replies; challenge assumptions before validating them and state uncertainty plainly.\n<!-- /gentle-ai-custom:codex-local-instructions -->\n"
+const notionKnowledgeBlock = "<!-- gentle-ai-custom:notion-knowledge -->\n## Notion Project Knowledge\n\nUse `notion-project-knowledge` when a request needs knowledge held\nin Notion.\n\nAs the parent agent, also use it to proactively preserve useful\nproject knowledge and personal activity evidence at appropriate\nprogress boundaries.\n<!-- /gentle-ai-custom:notion-knowledge -->\n"
+
 const codexLegacyCommitLine = "- Never commit, push, or create a pull request unless the user explicitly asks. An implementation request, task completion, or review gate does not authorize delivery.\n"
 
 func codexLegacyBlock() string {
@@ -33,6 +35,7 @@ func TestCodexApplyMigratesOnlyRecognizedSecondLocalBlock(t *testing.T) {
 		{"legacy and current", "\n" + codexCurrentBlock, codexLegacyBlock() + "\n"},
 		{"legacy without current", "", codexLegacyBlock() + "\n"},
 		{"current without legacy", "\n" + codexCurrentBlock, ""},
+		{"already activated", "\n" + codexCurrentBlock + "\n" + notionKnowledgeBlock, ""},
 		{"neither block", "", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -51,7 +54,7 @@ func TestCodexApplyMigratesOnlyRecognizedSecondLocalBlock(t *testing.T) {
 				t.Fatalf("Codex apply = %d, want success", code)
 			}
 			got := mustReadFile(t, path)
-			want := codexMigrationFixture("\n"+codexCurrentBlock, "")
+			want := codexMigrationFixture("\n"+codexCurrentBlock+"\n"+notionKnowledgeBlock, "")
 			want = strings.Replace(want, "| `odd-explorer` | `gpt-6.1-luna` | `high` |", "| `odd-explorer` | `gpt-6.1-sol` | `high` |", 1)
 			want = strings.Replace(want, "| `odd-worker` | `gpt-6.1-luna` | `high` |", "| `odd-worker` | `gpt-6.1-sol` | `high` |", 1)
 			if got != want {
@@ -150,6 +153,7 @@ func TestCodexApplyMigratesV4ShapedInstructionsWithoutChangingOtherRows(t *testi
 		t.Fatalf("Codex apply = %d, want success", code)
 	}
 	want := strings.Replace(before, "<!-- /gentle-ai:orchestrator -->\n\n"+codexLegacyBlock()+"\n<!-- gentle-ai:codegraph-guidance -->", "<!-- /gentle-ai:orchestrator -->\n\n<!-- gentle-ai:codegraph-guidance -->", 1)
+	want = strings.Replace(want, codexCurrentBlock, codexCurrentBlock+"\n"+notionKnowledgeBlock, 1)
 	if got := mustReadFile(t, path); got != want {
 		t.Fatalf("v4-shaped Codex instructions differ beyond the legacy block\ngot: %q\nwant: %q", got, want)
 	}
@@ -283,6 +287,7 @@ func TestCodexApplyPatchesOnlyDeclaredUpstreamSectionsAndIsIdempotent(t *testing
 	}
 	for _, marker := range []string{
 		"gentle-ai-custom:codex-local-instructions",
+		"gentle-ai-custom:notion-knowledge",
 		"Never read, search, copy, or expose credential files",
 	} {
 		if !strings.Contains(agentsAfter, marker) {
@@ -352,8 +357,8 @@ func TestCodexApplyRejectsIncompatibleAnchorBeforeAnyWrites(t *testing.T) {
 
 func TestCodexApplyRejectsIncompatibleODDModelRowsBeforeAnyWrites(t *testing.T) {
 	for _, tc := range []struct {
-		name  string
-		rows  string
+		name string
+		rows string
 	}{
 		{name: "changed explorer", rows: strings.Replace(codexODDAssignmentTable, "| `odd-explorer` | `gpt-6.1-luna` | `high` |", "| `odd-explorer` | `gpt-6.1-other` | `high` |", 1)},
 		{name: "missing worker", rows: strings.Replace(codexODDAssignmentTable, "| `odd-worker` | `gpt-6.1-luna` | `high` |\n", "", 1)},
@@ -451,7 +456,7 @@ func TestRunApplyCustomCodexInstallsSharedSkillsWithoutTouchingOtherTargets(t *t
 	if code := RunApplyCustom(repoRoot, []string{"codex"}); code != 0 {
 		t.Fatalf("RunApplyCustom(codex) = %d, want 0", code)
 	}
-	for _, skill := range []string{"branch-pr", "chained-pr", "code-design", "commit-planner", "judgment-retrospective", "package-security", "pr-finalizer"} {
+	for _, skill := range []string{"branch-pr", "chained-pr", "code-design", "commit-planner", "judgment-retrospective", "notion-project-knowledge", "package-security", "pr-finalizer"} {
 		installed := filepath.Join(codexRoot, "skills", skill, "SKILL.md")
 		source := filepath.Join(repoRoot, "shared", "skills", skill, "SKILL.md")
 		if got, want := mustReadFile(t, installed), mustReadFile(t, source); got != want {
@@ -493,10 +498,18 @@ func TestRunApplyCustomAllAppliesBothTargetsWithoutCrossTargetCommands(t *testin
 		t.Fatalf("RunApplyCustom(all) = %d, want 0", code)
 	}
 	for _, root := range []string{filepath.Join(home, ".codex"), filepath.Join(home, ".config", "opencode")} {
-		installed := filepath.Join(root, "skills", "branch-pr", "SKILL.md")
-		source := filepath.Join(repoRoot, "shared", "skills", "branch-pr", "SKILL.md")
-		if got, want := mustReadFile(t, installed), mustReadFile(t, source); got != want {
-			t.Errorf("branch-pr source mismatch under %s", root)
+		for _, skill := range []string{"branch-pr", "notion-project-knowledge"} {
+			installed := filepath.Join(root, "skills", skill, "SKILL.md")
+			source := filepath.Join(repoRoot, "shared", "skills", skill, "SKILL.md")
+			if got, want := mustReadFile(t, installed), mustReadFile(t, source); got != want {
+				t.Errorf("%s source mismatch under %s", skill, root)
+			}
+		}
+		content := mustReadFile(t, filepath.Join(root, "AGENTS.md"))
+		opening, closing := "<!-- gentle-ai-custom:notion-knowledge -->", "<!-- /gentle-ai-custom:notion-knowledge -->"
+		body := mustMarkdownBetweenUniqueMarkers(t, content, opening, closing)
+		if opening+body+closing+"\n" != notionKnowledgeBlock {
+			t.Errorf("Notion activation differs under %s", root)
 		}
 	}
 	if !strings.Contains(mustReadFile(t, filepath.Join(codexRoot, "AGENTS.md")), "gentle-ai-custom:codex-local-instructions") {
@@ -507,6 +520,13 @@ func TestRunApplyCustomAllAppliesBothTargetsWithoutCrossTargetCommands(t *testin
 	}
 	if pathExists(filepath.Join(codexRoot, "prompts", "commit-plan.md")) {
 		t.Fatal("all target rendered an OpenCode command wrapper for Codex")
+	}
+	first := snapshotTree(t, home)
+	if code := RunApplyCustom(repoRoot, []string{"all"}); code != 0 {
+		t.Fatalf("repeat RunApplyCustom(all) = %d, want 0", code)
+	}
+	if second := snapshotTree(t, home); !equalStringMaps(first, second) {
+		t.Fatal("repeat all-target apply changed bytes or modes")
 	}
 }
 

@@ -416,6 +416,7 @@ func TestValidateOwnedAgentsCompositionRejectsAmbiguousOrExtraBlocks(t *testing.
 	if err := validateOwnedAgentsComposition(strings.ReplaceAll(valid, "\n", "\r\n")); err != nil {
 		t.Fatalf("validateOwnedAgentsComposition() rejected valid CRLF composition: %v", err)
 	}
+	notion := renderMarkdownBlocks(blocks[7:8])
 	persona := renderMarkdownBlocks(blocks[:1])
 	personaClosingBeforeOpening := blocks[0].closing + "\ncontent\n" + blocks[0].opening + "\n"
 
@@ -423,6 +424,14 @@ func TestValidateOwnedAgentsCompositionRejectsAmbiguousOrExtraBlocks(t *testing.
 		name    string
 		content string
 	}{
+		{
+			name:    "duplicate Notion activation",
+			content: valid + notion,
+		},
+		{
+			name:    "missing Notion activation",
+			content: strings.Replace(valid, notion, "", 1),
+		},
 		{
 			name:    "duplicate persona",
 			content: valid + renderMarkdownBlocks(blocks[:1]),
@@ -470,6 +479,7 @@ func ownedAgentsBlocks() []markdownBlock {
 		{name: "Implementation Scope", opening: "<!-- gentle-ai-custom:implementation-scope -->", closing: "<!-- /gentle-ai-custom:implementation-scope -->", overlayH2Heading: "Implementation Scope"},
 		{name: "Plain-Language Communication", opening: "<!-- gentle-ai-custom:plain-language-communication -->", closing: "<!-- /gentle-ai-custom:plain-language-communication -->", overlayH2Heading: "Plain-Language Communication"},
 		{name: "Gemini Anti-Sycophancy Override", opening: "<!-- gentle-ai-custom:gemini-override -->", closing: "<!-- /gentle-ai-custom:gemini-override -->", overlayH2Heading: "Gemini Anti-Sycophancy Override"},
+		{name: "Notion Project Knowledge", opening: "<!-- gentle-ai-custom:notion-knowledge -->", closing: "<!-- /gentle-ai-custom:notion-knowledge -->", overlayH2Heading: "Notion Project Knowledge"},
 	}
 }
 
@@ -667,8 +677,8 @@ func TestCodexTargetUsesSharedSkillsAndKeepsUpstreamRuntimeUnowned(t *testing.T)
 	if target.RepoOwnedSharedSkills.Root != "shared/skills" || target.RepoOwnedSharedSkills.RuntimeRoot != "~/.codex/skills" {
 		t.Fatalf("Codex shared skill roots = %q -> %q", target.RepoOwnedSharedSkills.Root, target.RepoOwnedSharedSkills.RuntimeRoot)
 	}
-	if len(target.RepoOwnedSharedSkills.Allowlist) != 7 || len(target.RepoOwnedCommandBodies.Entries) != 0 {
-		t.Fatalf("Codex install surface = %d skills and %d command bodies, want 7 and 0", len(target.RepoOwnedSharedSkills.Allowlist), len(target.RepoOwnedCommandBodies.Entries))
+	if len(target.RepoOwnedSharedSkills.Allowlist) != 8 || len(target.RepoOwnedCommandBodies.Entries) != 0 {
+		t.Fatalf("Codex install surface = %d skills and %d command bodies, want 8 and 0", len(target.RepoOwnedSharedSkills.Allowlist), len(target.RepoOwnedCommandBodies.Entries))
 	}
 	if len(target.OwnedOverlayAssets) != 0 || len(target.RetainedUpstreamSkills) != 0 || len(target.PrunedUpstreamSkills) != 0 {
 		t.Fatalf("Codex target claims upstream runtime ownership or pruning: assets=%v retained=%v pruned=%v", target.OwnedOverlayAssets, target.RetainedUpstreamSkills, target.PrunedUpstreamSkills)

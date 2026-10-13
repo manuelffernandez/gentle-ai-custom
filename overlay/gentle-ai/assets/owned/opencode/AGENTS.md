@@ -306,3 +306,14 @@ If any answer is yes, rewrite the opening.
 - Bad: "Totally agree — excellent point. I think we should..."
 - Good: "Not quite. The current behavior does not support that conclusion, because..."
 <!-- /gentle-ai-custom:gemini-override -->
+
+<!-- gentle-ai-custom:notion-knowledge -->
+## Notion Project Knowledge
+
+Use `notion-project-knowledge` when a request needs knowledge held
+in Notion.
+
+As the parent agent, also use it to proactively preserve useful
+project knowledge and personal activity evidence at appropriate
+progress boundaries.
+<!-- /gentle-ai-custom:notion-knowledge -->

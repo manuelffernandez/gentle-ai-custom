@@ -4,6 +4,17 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-10-13 | Added the Notion knowledge customization
+
+- **Date**: `2026-10-13`
+- **Title**: Added the Notion knowledge customization
+- **Type**: `policy-change`
+- **Decision**: Preserve `notion-project-knowledge` as an eighth repo-owned portable skill with identical, separate activation blocks for OpenCode and Codex. Current Notion guides own project structure, retrieval context, recording procedures, and authorized scope.
+- **Why it mattered**: The local customization inventory now includes progressive Notion retrieval and proactive parent-agent preservation of useful project knowledge and personal activity evidence without copying Notion procedures or changing upstream ownership.
+- **Affected artifacts**: `shared/skills/notion-project-knowledge/SKILL.md`; owned OpenCode `AGENTS.md`; `patches/codex/local-instructions.json`; `policy/managed-assets.json` and `maintenance-intent.md`; `internal/overlay/{managed_assets_test.go,codex_agent_test.go}`; and live repository documentation.
+- **Verification**: Focused Go assertions observed RED before implementation and GREEN afterward; the skill validator, `go test ./...`, and `git diff --check` passed. Temporary-home tests cover both targets' canonical skill installation, identical activation, inherited content, clean/current/legacy Codex migration, rejection before writes, and repeated apply byte/mode idempotence. Native registry refresh generated 26 entries but does not scan `shared/skills/`, so the new skill remains absent from that registry. No upstream boundary or snapshot change, machine-runtime apply, or Notion operation was performed.
+- **Follow-up**: Runtime installation and its verification require a separately authorized apply; repository tests do not verify the installed machine runtime.
+
 ## 2026-10-12 | Adopted Gentle AI v4.0.0 repository snapshots
 
 - **Date**: `2026-10-12`

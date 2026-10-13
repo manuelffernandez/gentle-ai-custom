@@ -232,6 +232,8 @@ El comando `apply-gentle-ai-custom` sigue siendo independiente de la carpeta ori
 
 El `AGENTS.md` propio de OpenCode sigue siendo un archivo completo que instala este repo. Su persona y el protocolo completo de Engram para OpenCode deben coincidir con los snapshots aprobados. Codex mantiene su archivo completo bajo control de upstream y recibe un bloque local delimitado y el cambio exacto de dos filas ODD para `odd-explorer` y `odd-worker`; el bloque incluye alcance de implementación, comunicación clara, estándar de Markdown para agentes, seguridad de credenciales y el ajuste condicional para Gemini. Ninguno de los dos archivos propios incorpora la regla upstream de autorización remota.
 
+La skill `notion-project-knowledge` se instala para ambos targets desde `shared/skills/notion-project-knowledge/SKILL.md`. Consulta las guías actuales de Notion cuando necesita ese conocimiento y ayuda al agente principal a conservar conocimiento útil del proyecto y evidencia de actividad personal en Me, dentro del alcance autorizado. Ambos targets reciben un bloque de activación separado. Agregarlo al repo no actualiza el runtime ni escribe en Notion; hace falta un apply autorizado por separado. El registro nativo no busca en `shared/skills/`, por lo que la nueva skill no aparece allí antes de instalarla.
+
 ### Cuándo usar `gentle-ai sync` y cuándo reinstalar
 
 - Es preferible usar `gentle-ai sync` si los cambios que adoptamos sirven y el target mantenido conserva una estructura compatible.
@@ -379,6 +381,7 @@ Gentle AI instala el orchestrator ODD ya preparado con su contrato nativo de rev
 
 Se mantiene localmente:
 
+- `notion-project-knowledge` y su activación para consultar y conservar conocimiento según las guías actuales de Notion
 - el hook `judgment-day` -> `judgment-retrospective`
 - las skills repo-owned `code-design`, `package-security`, `commit-planner` y la `branch-pr` sanitizada, con `pr-finalizer` como compatibilidad temporal
 - la copia repo-owned sanitizada de `chained-pr` para runtime, mientras su snapshot upstream sigue retenido para auditoría
