@@ -112,6 +112,8 @@ La frontera de snapshots de este repo ya está en Gentle AI v4.0.0, commit `ff77
 
 La auditoría posterior a la sincronización pasó: no detectó diferencias administradas ni no administradas vigiladas, y todos los controles estructurales informaron `ok`. La limpieza afectó solo a los snapshots declarados por el repo; no cambió archivos ni configuración del runtime.
 
+La auditoría reconoce la ruta de v4.1.1: sigue el asset OpenCode hasta el renderizador que prepara el orchestrator, incluso si usa una función intermedia. También comprueba que los agentes ODD se guarden en la configuración mediante la combinación de JSON que usa la ruta del archivo y que la autorización remota llegue al prompt cargado por OpenCode. Las llamadas sueltas o desconectadas no pasan estos controles. Esto no adopta los snapshots v4.1.1: las diferencias con la frontera v4.0.0 se informan por separado.
+
 El estado de snapshots v3.7.0 que aparece a continuación es histórico. La versión mantenida actualmente es v4.0.0; cualquier refresh o apply del runtime necesita autorización separada.
 
 #### Estado histórico de snapshots v3.7.0

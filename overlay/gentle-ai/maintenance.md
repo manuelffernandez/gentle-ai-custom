@@ -166,7 +166,8 @@ Package-install guidance lives in the canonical `shared/skills/package-security/
 - discovers drift with `git diff --name-status --find-renames <last_maintained_commit>..<verified-release-commit>`
 - filters that drift through `policy/managed-assets.json`
 - verifies the current v4 source and injection topology in `agentguidance/orchestrator.go`, `agentguidance/inject.go`, `agentguidance/remote_authorization.go`, and `internal/opencode/models.go`
-- verifies that OpenCode uses the canonical `opencode/orchestrator.md` asset and sends ODD routing into its always-loaded carrier; unbound or decoy source calls fail
+- verifies that OpenCode selects the canonical `opencode/orchestrator.md` asset and reads it through either the direct renderer or v4.1.1's delegated `renderOrchestrator`; routing and remote authorization must still reach its always-loaded carrier, and unbound or decoy source calls fail
+- verifies that reachable OpenCode ODD parity registration writes the selected settings path through the existing JSON merge or v4.1.1's path-aware `MergeJSONObjectsForPath`; this is structural source verification, not evidence that runtime files were refreshed
 - verifies the remote-authorization helper and its projection into that routing carrier; if v4 adds or changes a projection that cannot be proven, sync fails closed
 - keeps the upstream remote-authorization snapshot audit-only and verifies projection into the current OpenCode routing prompt carrier
 - validates the current ODD explore/verify/worker agent set and exact JD/review actor topology

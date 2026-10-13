@@ -708,18 +708,41 @@ func openCodeParityInstallerWritesSpecs(text string) bool {
 				iteratesParity = true
 			}
 		case *ast.CallExpr:
-			if isSelector(current.Fun, "filemerge", "MergeJSONObjects") && len(current.Args) == 2 && isIdent(current.Args[1], "overlay") {
-				merges = true
-			}
-			if isSelector(current.Fun, "filemerge", "WriteFileAtomic") && len(current.Args) >= 2 && isIdent(current.Args[0], "settingsPath") && isIdent(current.Args[1], "merged") {
-				persists = true
-			}
 			if isSelector(current.Fun, "json", "Marshal") && len(current.Args) == 1 && mapContainsAgentOverlay(current.Args[0]) {
 				marshalsAgentOverlay = true
 			}
 		}
 		return true
 	})
+	var mergedObject *ast.Object
+	for _, stmt := range installer.Body.List {
+		// A name match at the write is insufficient: a later assignment can
+		// replace the merged bytes, including inside a reachable branch.
+		if merges && statementAssignsObject(stmt, mergedObject) {
+			merges = false
+			mergedObject = nil
+		}
+		assign, ok := stmt.(*ast.AssignStmt)
+		if !ok || len(assign.Lhs) == 0 || len(assign.Rhs) != 1 {
+			if statementTerminatesBlock(stmt) {
+				break
+			}
+			continue
+		}
+		call, ok := assign.Rhs[0].(*ast.CallExpr)
+		if !ok {
+			continue
+		}
+		if isIdent(assign.Lhs[0], "merged") && identifierObject(assign.Lhs[0]) != nil &&
+			(isSelector(call.Fun, "filemerge", "MergeJSONObjects") && len(call.Args) == 2 && isIdent(call.Args[0], "raw") && isIdent(call.Args[1], "overlay") ||
+				isSelector(call.Fun, "filemerge", "MergeJSONObjectsForPath") && len(call.Args) == 3 && isIdent(call.Args[0], "settingsPath") && isIdent(call.Args[1], "raw") && isIdent(call.Args[2], "overlay")) {
+			merges = true
+			mergedObject = identifierObject(assign.Lhs[0])
+		}
+		if merges && isSelector(call.Fun, "filemerge", "WriteFileAtomic") && len(call.Args) >= 2 && isIdent(call.Args[0], "settingsPath") && identUsesObject(call.Args[1], mergedObject) {
+			persists = true
+		}
+	}
 	return delegatesOpenCode && usesParity && iteratesParity && usesEntry && writesNamedSpec && marshalsAgentOverlay && merges && persists
 }
 
@@ -902,28 +925,195 @@ func orchestratorAssetBindingInvariantOK(text string) bool {
 	file := parseInvariantSource(text)
 	asset := findFunction(file, "orchestratorAsset")
 	render := findFunction(file, "RenderOrchestratorWithSource")
-	if asset == nil || render == nil || render.Body == nil {
+	if asset == nil || render == nil || render.Body == nil || !orchestratorAssetSelectsOpenCode(asset) {
 		return false
 	}
-	openCodeAsset := false
-	ast.Inspect(asset.Body, func(node ast.Node) bool {
-		ret, ok := node.(*ast.ReturnStmt)
-		if !ok || len(ret.Results) != 1 {
+	// The public renderer may read directly (v4.0) or delegate to the single
+	// renderer (v4.1.1). A disconnected helper is not an asset binding.
+	if rendererReadsSelectedAsset(render) {
+		return true
+	}
+	ret := finalTopLevelReturn(render)
+	if ret == nil || len(ret.Results) != 1 || len(render.Body.List) != 1 {
+		return false
+	}
+	call, ok := ret.Results[0].(*ast.CallExpr)
+	return ok && isIdent(call.Fun, "renderOrchestrator") && len(call.Args) == 4 &&
+		isIdent(call.Args[0], "agent") && isIdent(call.Args[1], "source") &&
+		isIdent(call.Args[2], "capability") && isBoolLiteral(call.Args[3], false) &&
+		rendererReadsSelectedAsset(findFunction(file, "renderOrchestrator"))
+}
+
+func orchestratorAssetSelectsOpenCode(fn *ast.FuncDecl) bool {
+	if fn.Body == nil {
+		return false
+	}
+	for _, stmt := range fn.Body.List {
+		if sw, ok := stmt.(*ast.SwitchStmt); ok && isIdent(sw.Tag, "agent") && sw.Body != nil {
+			for _, item := range sw.Body.List {
+				clause, ok := item.(*ast.CaseClause)
+				if !ok || !expressionsContainSelector(clause.List, "model", "AgentOpenCode") && !expressionsContainIdent(clause.List, "AgentOpenCode") {
+					continue
+				}
+				for _, bodyStmt := range clause.Body {
+					if ret, ok := bodyStmt.(*ast.ReturnStmt); ok && len(ret.Results) == 1 {
+						return isStringLiteral(ret.Results[0], "opencode/orchestrator.md")
+					}
+					if statementTerminatesBlock(bodyStmt) {
+						return false
+					}
+				}
+			}
+		}
+		if statementTerminatesBlock(stmt) {
+			break
+		}
+	}
+	return false
+}
+
+func expressionsContainIdent(exprs []ast.Expr, name string) bool {
+	for _, expr := range exprs {
+		if isIdent(expr, name) {
 			return true
 		}
-		openCodeAsset = openCodeAsset || isStringLiteral(ret.Results[0], "opencode/orchestrator.md")
-		return true
-	})
-	readsSelected := false
-	ast.Inspect(render.Body, func(node ast.Node) bool {
-		call, ok := node.(*ast.CallExpr)
-		if !ok || !isSelector(call.Fun, "assets", "Read") || len(call.Args) != 1 {
-			return true
+	}
+	return false
+}
+
+func rendererReadsSelectedAsset(fn *ast.FuncDecl) bool {
+	if fn == nil || fn.Body == nil {
+		return false
+	}
+	var path, content *ast.Object
+	for index, stmt := range fn.Body.List {
+		if assign, ok := stmt.(*ast.AssignStmt); ok && len(assign.Rhs) == 1 && len(assign.Lhs) >= 1 {
+			lhs := identifierObject(assign.Lhs[0])
+			call, callOK := assign.Rhs[0].(*ast.CallExpr)
+			if lhs != nil && isIdent(assign.Lhs[0], "path") && callOK && isIdent(call.Fun, "orchestratorAsset") && len(call.Args) == 1 && isIdent(call.Args[0], "agent") {
+				path = lhs
+			} else if path != nil && lhs == path {
+				return false
+			}
+			if lhs != nil && isIdent(assign.Lhs[0], "content") && path != nil && callOK && isSelector(call.Fun, "assets", "Read") && len(call.Args) == 1 && identUsesObject(call.Args[0], path) {
+				content = lhs
+			} else if content != nil && lhs == content && !selectedContentDerivation(assign.Rhs[0], content) {
+				return false
+			}
 		}
-		readsSelected = readsSelected || isIdent(call.Args[0], "path")
+		for _, child := range rendererReachableChildBlocks(stmt) {
+			if path != nil && rendererBlockAssignsObject(child, path) {
+				return false
+			}
+			if content != nil && !blockPreservesSelectedContent(child, content) {
+				return false
+			}
+		}
+		if statementTerminatesBlock(stmt) {
+			if index != len(fn.Body.List)-1 {
+				return false
+			}
+			break
+		}
+	}
+	ret := finalTopLevelReturn(fn)
+	return content != nil && ret != nil && len(ret.Results) == 2 && rendererReturnsSelectedContent(ret.Results[0], content)
+}
+
+func rendererReturnsSelectedContent(expr ast.Expr, content *ast.Object) bool {
+	if identUsesObject(expr, content) {
 		return true
-	})
-	return openCodeAsset && readsSelected
+	}
+	line, ok := expr.(*ast.BinaryExpr)
+	if !ok || line.Op != token.ADD || !isStringLiteral(line.Y, "\n") {
+		return false
+	}
+	trim, ok := line.X.(*ast.CallExpr)
+	return ok && isSelector(trim.Fun, "strings", "TrimSpace") && len(trim.Args) == 1 && identUsesObject(trim.Args[0], content)
+}
+
+func blockPreservesSelectedContent(block *ast.BlockStmt, content *ast.Object) bool {
+	for _, stmt := range block.List {
+		if assign, ok := stmt.(*ast.AssignStmt); ok {
+			for index, lhs := range assign.Lhs {
+				if identifierObject(lhs) == content && !selectedContentDerivation(assignmentRHS(assign, index), content) {
+					return false
+				}
+			}
+		}
+		for _, child := range rendererReachableChildBlocks(stmt) {
+			if !blockPreservesSelectedContent(child, content) {
+				return false
+			}
+		}
+		if statementTerminatesBlock(stmt) {
+			break
+		}
+	}
+	return true
+}
+
+// The renderer's source shape may branch on the agent. Check every switch
+// case conservatively; ignoring case bodies would let a selected asset be
+// discarded while the final return still names its original variable.
+func rendererReachableChildBlocks(stmt ast.Stmt) []*ast.BlockStmt {
+	sw, ok := stmt.(*ast.SwitchStmt)
+	if !ok {
+		return reachableChildBlocks(stmt)
+	}
+	if sw.Body == nil {
+		return nil
+	}
+	var blocks []*ast.BlockStmt
+	for _, raw := range sw.Body.List {
+		if clause, ok := raw.(*ast.CaseClause); ok {
+			blocks = append(blocks, &ast.BlockStmt{List: clause.Body})
+		}
+	}
+	return blocks
+}
+
+func rendererBlockAssignsObject(block *ast.BlockStmt, object *ast.Object) bool {
+	for _, stmt := range block.List {
+		if assign, ok := stmt.(*ast.AssignStmt); ok {
+			for _, lhs := range assign.Lhs {
+				if identifierObject(lhs) == object {
+					return true
+				}
+			}
+		}
+		for _, child := range rendererReachableChildBlocks(stmt) {
+			if rendererBlockAssignsObject(child, object) {
+				return true
+			}
+		}
+		if statementTerminatesBlock(stmt) {
+			break
+		}
+	}
+	return false
+}
+
+// The current renderer transforms the selected text through a small set of
+// known calls. Merely mentioning content (for example content[:0]) does not
+// establish that the selected asset survives to the returned prompt.
+func selectedContentDerivation(expr ast.Expr, content *ast.Object) bool {
+	call, ok := expr.(*ast.CallExpr)
+	if !ok || len(call.Args) == 0 || !identUsesObject(call.Args[0], content) {
+		return false
+	}
+	switch {
+	case isIdent(call.Fun, "selectGenericOrchestrator") && len(call.Args) == 2,
+		isIdent(call.Fun, "expandSharedOrchestratorSections") && len(call.Args) == 3,
+		isIdent(call.Fun, "replaceOpenCodeConsentV3QuestionRoute") && len(call.Args) == 2,
+		isIdent(call.Fun, "replaceSectionBody") && len(call.Args) == 4,
+		isIdent(call.Fun, "removeSection") && len(call.Args) == 3,
+		isIdent(call.Fun, "stripReceiptDrivenDevelopment") && len(call.Args) == 1,
+		isSelector(call.Fun, "strings", "ReplaceAll") && len(call.Args) == 3:
+		return true
+	default:
+		return false
+	}
 }
 
 func routingInjectionInvariantOK(injectText, orchestratorText string) bool {

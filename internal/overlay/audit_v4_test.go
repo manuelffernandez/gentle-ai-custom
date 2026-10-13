@@ -87,6 +87,83 @@ func TestV4StructuralInvariantsFollowCurrentAgentGuidanceInjection(t *testing.T)
 	}
 }
 
+func TestV4OrchestratorBindingRejectsDisconnectedRenderer(t *testing.T) {
+	base := v411OrchestratorFixture()
+	for _, tt := range []struct {
+		name, old, replacement string
+	}{
+		{"public entrypoint bypasses renderer", "return renderOrchestrator(agent, source, capability, false)", "return \"unrelated\", nil"},
+		{"renderer reads decoy path", "content, err := assets.Read(path)", "content, err := assets.Read(\"generic/orchestrator.md\")"},
+		{"selected path overwritten", "content, err := assets.Read(path)", "path = \"generic/orchestrator.md\"\n content, err := assets.Read(path)"},
+		{"renderer read unreachable", "content, err := assets.Read(path)", "return \"unrelated\", nil\n content, err := assets.Read(path)"},
+		{"renderer discards selected content", "return content, nil", "return \"unrelated\", nil"},
+		{"renderer returns before selected content", "if err != nil { return \"\", err }", "return \"unrelated\", nil\n if err != nil { return \"\", err }"},
+		{"renderer empties selected content", "return content, nil", "content = content[:0]\n return content, nil"},
+		{"renderer conditionally empties selected content", "return content, nil", "if agent == AgentOpenCode { content = content[:0] }\n return content, nil"},
+		{"renderer switch empties selected content", "return content, nil", "switch agent { case AgentOpenCode: content = content[:0] }\n return content, nil"},
+		{"renderer nested switch empties selected content", "return content, nil", "if agent == AgentOpenCode { switch agent { case AgentOpenCode: content = content[:0] } }\n return content, nil"},
+		{"renderer returns empty selected content", "return content, nil", "return content[:0], nil"},
+		{"wrong OpenCode asset", "return \"opencode/orchestrator.md\"", "return \"generic/orchestrator.md\""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			changed := strings.Replace(base, tt.old, tt.replacement, 1)
+			if changed == base {
+				t.Fatal("test did not alter renderer fixture")
+			}
+			if orchestratorAssetBindingInvariantOK(changed) {
+				t.Fatal("unbound OpenCode orchestrator passed")
+			}
+		})
+	}
+}
+
+func TestV4OrchestratorBindingAcceptsKnownContentTransform(t *testing.T) {
+	base := v411OrchestratorFixture()
+	transformed := strings.Replace(base, "return content, nil", `content, err = expandSharedOrchestratorSections(content, true, false)
+ if err != nil { return "", err }
+ content = strings.ReplaceAll(content, "old", "new")
+ return strings.TrimSpace(content) + "\n", nil`, 1)
+	if transformed == base || !orchestratorAssetBindingInvariantOK(transformed) {
+		t.Fatal("known v4.1.1 renderer transforms must preserve selected content")
+	}
+}
+
+func TestV4OrchestratorBindingAcceptsDirectRenderer(t *testing.T) {
+	base := v411OrchestratorFixture()
+	direct := strings.Replace(base, `return renderOrchestrator(agent, source, capability, false)`, `path := orchestratorAsset(agent)
+ content, err := assets.Read(path)
+ if err != nil { return "", err }
+ return content, nil`, 1)
+	if direct == base || !orchestratorAssetBindingInvariantOK(direct) {
+		t.Fatal("direct v4 renderer must preserve the selected OpenCode asset binding")
+	}
+}
+
+func TestV4ODDRegistrationRejectsDisconnectedPathAwareMerge(t *testing.T) {
+	base := v411RunFixture("connected")
+	for _, tt := range []struct {
+		name, old, replacement string
+	}{
+		{"wrong settings path", "MergeJSONObjectsForPath(settingsPath, raw, overlay)", "MergeJSONObjectsForPath(otherPath, raw, overlay)"},
+		{"wrong source", "MergeJSONObjectsForPath(settingsPath, raw, overlay)", "MergeJSONObjectsForPath(settingsPath, otherRaw, overlay)"},
+		{"wrong overlay", "MergeJSONObjectsForPath(settingsPath, raw, overlay)", "MergeJSONObjectsForPath(settingsPath, raw, otherOverlay)"},
+		{"merge result discarded", "WriteFileAtomic(settingsPath, merged, 0644)", "WriteFileAtomic(settingsPath, otherMerged, 0644)"},
+		{"merge hidden in unreachable branch", "merged, err := filemerge.MergeJSONObjectsForPath(settingsPath, raw, overlay)", "merged := []byte{}; var err error; if false { merged, err = filemerge.MergeJSONObjectsForPath(settingsPath, raw, overlay) }"},
+		{"merged bytes replaced before write", "_, err = filemerge.WriteFileAtomic(settingsPath, merged, 0644)", "merged = []byte(`{}`)\n _, err = filemerge.WriteFileAtomic(settingsPath, merged, 0644)"},
+		{"merged bytes conditionally replaced before write", "_, err = filemerge.WriteFileAtomic(settingsPath, merged, 0644)", "if err == nil { merged = []byte(`{}`) }\n _, err = filemerge.WriteFileAtomic(settingsPath, merged, 0644)"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			changed := strings.Replace(base, tt.old, tt.replacement, 1)
+			if changed == base {
+				t.Fatal("test did not alter installer fixture")
+			}
+			if openCodeParityInstallerWritesSpecs(changed) {
+				t.Fatal("disconnected ODD parity settings write passed")
+			}
+		})
+	}
+}
+
 func TestV4StructuralInvariantsFailClosedWhenRemoteProjectionIsMissing(t *testing.T) {
 	upstream := t.TempDir()
 	writeV4StructuralFixtureWithModes(t, upstream, "missing", "connected")
@@ -194,19 +271,7 @@ func writeV4StructuralFixtureWithModes(t *testing.T, root, remoteProjection, reg
 	write := func(path, body string) {
 		mustWriteFile(t, filepath.Join(root, filepath.FromSlash(path)), []byte(body))
 	}
-	write("internal/components/agentguidance/orchestrator.go", `package agentguidance
-import "github.com/gentleman-programming/gentle-ai/v4/internal/assets"
-func orchestratorAsset(agent AgentID) string {
-	switch agent { case AgentOpenCode: return "opencode/orchestrator.md" }
-	return "generic/orchestrator.md"
-}
-func RenderOrchestratorWithSource(agent AgentID) (string, error) {
-	path := orchestratorAsset(agent)
-	content, err := assets.Read(path)
-	if err != nil { return "", err }
-	return content, nil
-}
-`)
+	write("internal/components/agentguidance/orchestrator.go", v411OrchestratorFixture())
 	remoteCall := "rendered = InjectRemoteAuthorization(rendered)"
 	if remoteProjection == "missing" {
 		remoteCall = "rendered = strings.TrimSpace(rendered)"
@@ -266,6 +331,41 @@ func Entry(spec Spec) (map[string]any, error) {
 	return map[string]any{"prompt": prompt}, err
 }
 `)
+	write("internal/cli/run.go", v411RunFixture(registrationMode))
+	scheduledRoute := `
+	apply = append(apply, agentRoutingGuidanceStep{})
+`
+	write("internal/cli/sync.go", `package cli
+type syncRuntime struct{}
+type StagePlan struct { Apply []any }
+func (r *syncRuntime) stagePlan() StagePlan {
+	apply := []any{}
+	`+scheduledRoute+`
+	return StagePlan{Apply: apply}
+}
+`)
+}
+
+func v411OrchestratorFixture() string {
+	return `package agentguidance
+import "github.com/gentleman-programming/gentle-ai/v4/internal/assets"
+func orchestratorAsset(agent AgentID) string {
+	switch agent { case AgentOpenCode: return "opencode/orchestrator.md" }
+	return "generic/orchestrator.md"
+}
+func RenderOrchestratorWithSource(agent AgentID, source ReviewContractSource, capability string) (string, error) {
+	return renderOrchestrator(agent, source, capability, false)
+}
+func renderOrchestrator(agent AgentID, source ReviewContractSource, capability string, annotate bool) (string, error) {
+	path := orchestratorAsset(agent)
+	content, err := assets.Read(path)
+	if err != nil { return "", err }
+	return content, nil
+}
+	`
+}
+
+func v411RunFixture(registrationMode string) string {
 	installCall := `
 	parityChanged, err := installOpenCodeODDParityAgents(options.SettingsPath)
 	_ = parityChanged
@@ -276,7 +376,7 @@ func Entry(spec Spec) (map[string]any, error) {
 	} else if registrationMode == "conditional" {
 		installCall = "\n\t\tif false {" + installCall + "\t\t}\n"
 	}
-	write("internal/cli/run.go", `package cli
+	return `package cli
 import (
 	"encoding/json"
 	"github.com/gentleman-programming/gentle-ai/v4/internal/components/filemerge"
@@ -287,7 +387,7 @@ type agentRoutingGuidanceStep struct { agent model.AgentID }
 type syncOptions struct { SettingsPath string }
 func (s agentRoutingGuidanceStep) Run(options syncOptions) {
 	if s.agent == model.AgentOpenCode {
-	`+installCall+`
+	` + installCall + `
 	}
 }
 func installOpenCodeODDParityAgents(settingsPath string) (bool, error) {
@@ -304,24 +404,12 @@ func installOpenCodeFamilyParityAgents(settingsPath string, agent model.AgentID)
 	}
 	overlay, err := json.Marshal(map[string]any{"agent": agentsOverlay})
 	if err != nil { return false, err }
-	merged, err := filemerge.MergeJSONObjects(raw, overlay)
+	merged, err := filemerge.MergeJSONObjectsForPath(settingsPath, raw, overlay)
 	if err != nil { return false, err }
 	_, err = filemerge.WriteFileAtomic(settingsPath, merged, 0644)
 	return true, err
 }
-`)
-	scheduledRoute := `
-	apply = append(apply, agentRoutingGuidanceStep{})
 `
-	write("internal/cli/sync.go", `package cli
-type syncRuntime struct{}
-type StagePlan struct { Apply []any }
-func (r *syncRuntime) stagePlan() StagePlan {
-	apply := []any{}
-	`+scheduledRoute+`
-	return StagePlan{Apply: apply}
-}
-`)
 }
 
 func TestRemoveRetiredUpstreamSnapshotsIsExactAndPreservesOtherFiles(t *testing.T) {
