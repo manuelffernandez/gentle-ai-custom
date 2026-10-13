@@ -77,7 +77,7 @@ Install the approved Notion skill and activation through existing OpenCode and C
 
 - T2 read-only mapping is complete; parent spot check verified TB-120's canonical ancestry and repository reference.
 - Teleferico has no separate exposed guide and is nested under the global index; use its existing entry page without moving it or creating a guide.
-- T2 source and six live-page edits are implemented and read back; task closure awaits the work-unit commit and native assessment.
+- T2 source and six live-page edits are implemented and read back; functional verification is complete. Native review of the pending feature range remains unavailable.
 - Global index owns optional metadata and explicit-only creation; existing topology and child identities/order were preserved.
 - Only governance has a verified repository: `TelefericoCerroOtto/TelefericoBariloche2024`. EcoSport, E-commerce, Me and TCO business associations remain undocumented; no values were invented.
 - Independent checking found and resolved one routing regression: explicit project selection now precedes request-scoped repository identity. Named-project resolution works without repository metadata.
@@ -87,7 +87,12 @@ Install the approved Notion skill and activation through existing OpenCode and C
 - T2 source/docs diff: 25 additions + 9 deletions = 34 authored lines, excluding generated registry and task bookkeeping.
 - Prospective T2 working-change assessment: medium, `executable_change` at AGENTS.md, `review_due=false / under_budget`. The original T1 high-risk review remains unavailable.
 - No deterministic RED was invented for the wording/cloud change; no new pages, database edits or runtime operations occurred.
+- T2 work-unit commit: `c3b16ec` (`feat(notion): resolve project identity through canonical metadata`), 6 files, 55 additions + 14 deletions = 69 authored lines including task bookkeeping.
+- Running committed authored count before final proof bookkeeping: 312 lines; source/runtime integration boundaries remain unchanged.
+- Committed pending feature assessment from `8ca28e4`: high because the original update-log path remains in scope, 13 paths/278 net changed lines; `review_due=true`.
+- Fresh exact STATUS again returned `stop / managed_assets_outdated`, horizon `terminal`, step 1, kind `stop`, description `managed assets outdated`. No START, consent or receipt; no sync executed.
+- Independent T2 verification fetched all six live pages and confirmed routing/identity behavior after one scoped priority correction. This is functional proof, not native review approval.
 
 ## Next step
 
-Commit the coherent T2 work unit and assess from the unresolved reviewed boundary. Preserve the existing native-review stop; runtime refresh/apply remain separately authorized.
+Runtime refresh/apply remain separately authorized. User may provide confirmed repository identities for currently undocumented associations; update only when evidence exists. Native review can resume only after its offered runtime refresh.
