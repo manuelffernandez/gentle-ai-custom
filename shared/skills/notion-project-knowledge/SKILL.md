@@ -53,6 +53,10 @@ Explain any material limitation in the available evidence.
 
 The parent agent proactively identifies useful new project
 knowledge and significant personal activity during the work.
+Consider substantive investigations, decisions, execution attempts,
+resolved blockers and verified progress as Me activity candidates,
+even when they add no new project knowledge and the user did not
+ask to record them.
 
 At an appropriate progress boundary, persist that knowledge in
 the applicable project and activity evidence in Me, following
