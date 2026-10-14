@@ -10,7 +10,9 @@ import (
 const codexODDAssignmentTable = "| `odd-explorer` | `gpt-6.1-luna` | `high` |\n| `odd-worker` | `gpt-6.1-luna` | `high` |\n| `odd-verify` | `gpt-6.1-sol` | `medium` |\n| `jd-judge-a` | `gpt-6.1-luna` | `high` |\n| `review-risk` | `gpt-6.1-luna` | `high` |\n"
 
 const codexCurrentBlock = "<!-- gentle-ai-custom:codex-local-instructions -->\n## Local instructions\n\n- Implement only the requested outcome. Propose optional abstractions or infrastructure separately instead of adding them without approval.\n- When responding, use simple, natural language. Explain what changed, why, and any relevant limits without assuming implementation knowledge.\n- For agent-consumed Markdown, use the smallest clear structure, one H1, shallow headings, short paragraphs, precise paths, explicit stop conditions, and angle-bracket placeholders. Prefer bullets to wide tables.\n- Never read, search, copy, or expose credential files or secret-bearing configuration. Prefer documentation, schemas, examples, and redacted user-run output. If credential access seems necessary, stop and explain why before accessing it.\n- When a Gemini model is active, use skeptical, direct, evidence-first replies; challenge assumptions before validating them and state uncertainty plainly.\n<!-- /gentle-ai-custom:codex-local-instructions -->\n"
-const notionKnowledgeBlock = "<!-- gentle-ai-custom:notion-knowledge -->\n## Notion Project Knowledge\n\nUse `notion-project-knowledge` when a request needs knowledge held\nin Notion.\n\nAs the parent agent, also use it to proactively preserve useful\nproject knowledge and personal activity evidence at appropriate\nprogress boundaries.\n<!-- /gentle-ai-custom:notion-knowledge -->\n"
+const notionKnowledgeBlock = "<!-- gentle-ai-custom:notion-knowledge -->\n## Notion Project Knowledge\n\nUse `notion-project-knowledge` when a request needs knowledge held\nin Notion.\n\nAs the parent agent, also use it to preserve useful project knowledge.\nAt natural progress boundaries, consider Me records for significant\nbehavioral or communicative insight, including subjective impressions\neven without a technical outcome. Technical milestones alone do not\ntrigger a Me record.\n<!-- /gentle-ai-custom:notion-knowledge -->\n"
+
+const legacyNotionKnowledgeBlock = "<!-- gentle-ai-custom:notion-knowledge -->\n## Notion Project Knowledge\n\nUse `notion-project-knowledge` when a request needs knowledge held\nin Notion.\n\nAs the parent agent, also use it to proactively preserve useful\nproject knowledge and personal activity evidence at appropriate\nprogress boundaries.\n<!-- /gentle-ai-custom:notion-knowledge -->\n"
 
 const codexLegacyCommitLine = "- Never commit, push, or create a pull request unless the user explicitly asks. An implementation request, task completion, or review gate does not authorize delivery.\n"
 
@@ -36,6 +38,7 @@ func TestCodexApplyMigratesOnlyRecognizedSecondLocalBlock(t *testing.T) {
 		{"legacy without current", "", codexLegacyBlock() + "\n"},
 		{"current without legacy", "\n" + codexCurrentBlock, ""},
 		{"already activated", "\n" + codexCurrentBlock + "\n" + notionKnowledgeBlock, ""},
+		{"previous Notion activation", "\n" + codexCurrentBlock + "\n" + legacyNotionKnowledgeBlock, ""},
 		{"neither block", "", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -82,6 +85,10 @@ func TestCodexApplyRejectsUnexpectedSecondLocalBlockBeforeWrites(t *testing.T) {
 		{"unknown legacy", codexMigrationFixture("\n"+codexCurrentBlock, strings.Replace(legacy, "- When responding,", "- When writing,", 1)+"\n")},
 		{"relocated legacy", codexMigrationFixture("\n"+codexCurrentBlock, "") + "\n" + legacy},
 		{"relocated current", codexMigrationFixture("", legacy+"\n") + "\n" + codexCurrentBlock},
+		{"unknown Notion activation", codexMigrationFixture("\n"+codexCurrentBlock+"\n"+strings.Replace(legacyNotionKnowledgeBlock, "personal activity evidence", "technical activity evidence", 1), "")},
+		{"duplicate Notion activation", codexMigrationFixture("\n"+codexCurrentBlock+"\n"+legacyNotionKnowledgeBlock+legacyNotionKnowledgeBlock, "")},
+		{"incomplete Notion activation", codexMigrationFixture("\n"+codexCurrentBlock+"\n"+strings.Replace(legacyNotionKnowledgeBlock, "<!-- /gentle-ai-custom:notion-knowledge -->", "", 1), "")},
+		{"relocated Notion activation", codexMigrationFixture("\n"+codexCurrentBlock, "") + "\n" + notionKnowledgeBlock},
 		{"incompatible model after legacy", strings.Replace(codexMigrationFixture("\n"+codexCurrentBlock, legacy+"\n"), "| `odd-worker` | `gpt-6.1-luna` | `high` |", "| `odd-worker` | `unknown` | `high` |", 1)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

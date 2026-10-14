@@ -49,18 +49,28 @@ requested outcome.
 Stop when sufficient evidence supports the response or action.
 Explain any material limitation in the available evidence.
 
-## Preserve useful knowledge and activity
+## Preserve project knowledge and interaction evidence
 
-The parent agent proactively identifies useful new project
-knowledge and significant personal activity during the work.
-Consider substantive investigations, decisions, execution attempts,
-resolved blockers and verified progress as Me activity candidates,
-even when they add no new project knowledge and the user did not
-ask to record them.
+The parent agent proactively identifies useful new project knowledge
+and significant interactions that reveal the user's behavior and
+communication. In Me, consider how the user expresses ideas, asks
+questions, reasons, prioritizes, revises requests, disagrees, and
+reacts to proposals or difficulties. Capture relevant tone and style,
+even without a technical outcome. A technical milestone alone is not
+a reason to create a Me record.
 
-At an appropriate progress boundary, persist that knowledge in
-the applicable project and activity evidence in Me, following
-their current guides and authorized scope.
+Allow subjective impressions of attitude or emotion from an episode;
+present them as the agent's reading of that interaction, not as a
+confirmed personal trait. Develop cross-episode patterns or broader
+personal hypotheses only on request.
+
+At a natural progress boundary, persist project knowledge in its
+applicable project and meaningful interaction evidence in Me, following
+their current guides and authorized scope. In Me, keep `Solicitud` and
+`Resultado` brief and focused on the user's intent and how the exchange
+evolved. Develop behavior, communication, and subjective impressions
+in `Lectura de la interacción`; leave thematic and technical detail in
+the relevant project. Do not force an entry without personal insight.
 
 Use those guides to determine the destination, evidence criteria,
 recording procedure and any required index maintenance.

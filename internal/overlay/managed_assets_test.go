@@ -501,6 +501,26 @@ func ownedAgentsBlocks() []markdownBlock {
 	}
 }
 
+func TestNotionSkillKeepsPersonalInteractionDistinctFromProjectWork(t *testing.T) {
+	skill := mustReadFile(t, filepath.Join(repoRootForTest(t), "shared", "skills", "notion-project-knowledge", "SKILL.md"))
+	for _, required := range []string{
+		"behavior and\ncommunication",
+		"subjective impressions",
+		"even without a technical outcome",
+		"Lectura de la interacción",
+		"Solicitud",
+		"Resultado",
+		"on request",
+	} {
+		if !strings.Contains(skill, required) {
+			t.Errorf("Notion skill missing interaction guidance %q", required)
+		}
+	}
+	if strings.Contains(skill, "execution attempts,\nresolved blockers and verified progress as Me activity candidates") {
+		t.Error("Notion skill still treats technical milestones as Me capture triggers")
+	}
+}
+
 func validateOwnedAgentsComposition(content string) error {
 	content = strings.ReplaceAll(content, "\r\n", "\n")
 	cursor := 0

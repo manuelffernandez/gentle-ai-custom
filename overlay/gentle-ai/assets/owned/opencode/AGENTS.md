@@ -320,7 +320,9 @@ If any answer is yes, rewrite the opening.
 Use `notion-project-knowledge` when a request needs knowledge held
 in Notion.
 
-As the parent agent, also use it to proactively preserve useful
-project knowledge and personal activity evidence at appropriate
-progress boundaries.
+As the parent agent, also use it to preserve useful project knowledge.
+At natural progress boundaries, consider Me records for significant
+behavioral or communicative insight, including subjective impressions
+even without a technical outcome. Technical milestones alone do not
+trigger a Me record.
 <!-- /gentle-ai-custom:notion-knowledge -->

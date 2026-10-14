@@ -10,7 +10,7 @@
         },
         {
           "before": "<!-- /gentle-ai-custom:codex-local-instructions -->\n",
-          "after": "<!-- /gentle-ai-custom:codex-local-instructions -->\n\n<!-- gentle-ai-custom:notion-knowledge -->\n## Notion Project Knowledge\n\nUse `notion-project-knowledge` when a request needs knowledge held\nin Notion.\n\nAs the parent agent, also use it to proactively preserve useful\nproject knowledge and personal activity evidence at appropriate\nprogress boundaries.\n<!-- /gentle-ai-custom:notion-knowledge -->\n"
+          "after": "<!-- /gentle-ai-custom:codex-local-instructions -->\n\n<!-- gentle-ai-custom:notion-knowledge -->\n## Notion Project Knowledge\n\nUse `notion-project-knowledge` when a request needs knowledge held\nin Notion.\n\nAs the parent agent, also use it to preserve useful project knowledge.\nAt natural progress boundaries, consider Me records for significant\nbehavioral or communicative insight, including subjective impressions\neven without a technical outcome. Technical milestones alone do not\ntrigger a Me record.\n<!-- /gentle-ai-custom:notion-knowledge -->\n"
         },
         {
           "before": "| `odd-explorer` | `gpt-6.1-luna` | `high` |\n",

@@ -4,6 +4,17 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-10-14 | Refocused Me capture on interaction evidence
+
+- **Date**: `2026-10-14`
+- **Title**: Refocused Me capture on interaction evidence
+- **Type**: `policy-change`
+- **Decision**: Keep project knowledge in its project; capture meaningful behavioral and communicative evidence, including situated subjective impressions, in Me rather than treating technical milestones as recording triggers. Preserve identical OpenCode/Codex activation and migrate only the exact previous Codex block on re-apply.
+- **Why it mattered**: Me now records what an interaction reveals about the user, even without an operational result. The exact Codex patch otherwise rejects an already-installed previous activation after its text changes.
+- **Affected artifacts**: `shared/skills/notion-project-knowledge/SKILL.md`; owned OpenCode `AGENTS.md`; Codex local-instructions patch and preflight; focused tests; `policy/maintenance-intent.md` and live documentation.
+- **Verification**: The focused behavioral and migration tests observed RED before the change and GREEN afterward. `go test ./...` and `git diff --check` passed. Independent read-only verification used isolated runtime copies to confirm activation parity, exact migration, rejection without writes, idempotence, and unchanged prior CLI output. No installed runtime or Notion content was changed.
+- **Follow-up**: Runtime installation and its verification require a separately authorized apply; repository tests do not verify actual agent recording decisions.
+
 ## 2026-10-13 | Balanced upstream audit coverage and retired selected skill residue
 
 - **Date**: `2026-10-13`

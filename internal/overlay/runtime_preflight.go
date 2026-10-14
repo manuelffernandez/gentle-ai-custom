@@ -260,6 +260,23 @@ func prepareCodexLocalInstructionsMigration(content string, replacements []runti
 		strings.Count(content, "gentle-ai-custom:codex-local") != 2*currentCount {
 		return "", fmt.Errorf("duplicate, misplaced, or unknown Codex local instruction block")
 	}
+	if len(replacements) < 2 || replacements[1].Before != "<!-- /gentle-ai-custom:codex-local-instructions -->\n" ||
+		!strings.HasPrefix(replacements[1].After, replacements[1].Before+"\n<!-- gentle-ai-custom:notion-knowledge -->\n") {
+		return "", fmt.Errorf("unrecognized Codex Notion activation patch")
+	}
+	const previousNotionBlock = "<!-- gentle-ai-custom:notion-knowledge -->\n## Notion Project Knowledge\n\nUse `notion-project-knowledge` when a request needs knowledge held\nin Notion.\n\nAs the parent agent, also use it to proactively preserve useful\nproject knowledge and personal activity evidence at appropriate\nprogress boundaries.\n<!-- /gentle-ai-custom:notion-knowledge -->\n"
+	currentNotionBlock := strings.TrimPrefix(replacements[1].After, replacements[1].Before+"\n")
+	if strings.Count(content, previousNotionBlock) == 1 &&
+		strings.Count(content, currentNotionBlock) == 0 &&
+		strings.Contains(content, replacements[0].After+"\n"+previousNotionBlock) {
+		content = strings.Replace(content, previousNotionBlock, currentNotionBlock, 1)
+	}
+	if strings.Count(content, "gentle-ai-custom:notion-knowledge") != 2*strings.Count(content, currentNotionBlock) ||
+		strings.Count(content, currentNotionBlock) > 1 ||
+		(strings.Count(content, currentNotionBlock) == 1 &&
+			!strings.Contains(content, replacements[0].After+"\n"+currentNotionBlock)) {
+		return "", fmt.Errorf("duplicate, misplaced, or unknown Codex Notion activation block")
+	}
 	return content, nil
 }
 
