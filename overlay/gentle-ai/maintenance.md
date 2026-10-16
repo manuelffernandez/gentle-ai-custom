@@ -233,7 +233,7 @@ Runtime refresh, repo snapshot sync, and overlay apply are separate actions. App
 - after exact release parity, watched-drift mapping, and all structural gates pass, removes exact files named by `retired_upstream_snapshots`; this manifest lists 18 retired SDD paths and rejects traversal, overlap with active snapshots, symlink parents, and directories
 - also prunes stale files from still-declared synced directory assets (the 17 other deletions in the v4 sync); this pruning stays inside those declared asset directories and is separate from manifest retirement
 - never removes retired snapshots during audit or repository-only adaptation; this cleanup runs only in an explicitly authorized snapshot sync
-- after a snapshot refresh, requires the owned `AGENTS.md` persona and OpenCode full Engram sections to be rebased when the focused semantic parity test reports drift; do not replace full-file ownership with runtime patching or marker merging
+- after a snapshot refresh, requires the owned `AGENTS.md` persona (apart from two exact local evidence-rule substitutions) and OpenCode full Engram sections to be rebased when the focused semantic parity test reports drift; do not replace full-file ownership with runtime patching or marker merging
 - stores the selected release version, exact tag, and release commit in `state/upstream-state.json` when the new upstream was accepted
 - does not touch local runtime under `~/.config/opencode/`
 - always runs after approval of a newly accepted upstream boundary; it is the repo sync step, not the runtime refresh step
@@ -269,7 +269,7 @@ Runtime refresh, repo snapshot sync, and overlay apply are separate actions. App
 
 `apply-gentle-ai-custom.sh codex` installs the eight allowlisted skills from the canonical `shared/skills/` directory into `~/.codex/skills/`; allowlisted same-name skills are repo-owned replacements. It does not run OpenCode policy/config reconciliation, prune unrelated Codex skills, render command wrappers, or modify `config.toml`, Engram, SDD model profiles, or the full Codex `AGENTS.md`.
 
-- Codex's full `AGENTS.md` remains upstream-owned. Apply inserts the marker-bounded local instruction rules after `<!-- /gentle-ai:engram-protocol -->` and replaces exactly the `odd-explorer` and `odd-worker` table rows from `gpt-6.1-luna` / `high` to `gpt-6.1-sol` / `high` in the same declared target; it does not require the removed SDD marker. Other ODD, JD, and review rows remain unchanged. Actual account model availability is unverified.
+- Codex's full `AGENTS.md` remains upstream-owned. Apply inserts the marker-bounded local instruction rules after `<!-- /gentle-ai:engram-protocol -->`, replaces exactly the `odd-explorer` and `odd-worker` table rows from `gpt-6.1-luna` / `high` to `gpt-6.1-sol` / `high`, and substitutes two inherited evidence rules with the same calibrated guidance as OpenCode. It does not require the removed SDD marker. Other ODD, JD, and review rows remain unchanged. Unknown or duplicated evidence-rule anchors block the selected apply before writes. Actual account model availability is unverified.
 - The separate Notion Project Knowledge activation follows the local-instructions closing marker through a second sequential replacement. Replacement zero stays unchanged so recognized legacy-block migration remains compatible. Preflight migrates only the exact previous Notion activation adjacent to the current local block; unknown, duplicated, or relocated activation fails before writes. The canonical `shared/skills/notion-project-knowledge/SKILL.md` follows current Notion guides for retrieval and parent-agent recording of useful project knowledge and meaningful behavioral and communicative interaction evidence in Me, including situated subjective impressions without a technical outcome. Technical milestones alone do not trigger Me records; thematic knowledge stays in its project. The current Me guide owns recording procedures and schema. Repository identity lookup and explicitly requested project creation follow the current global Notion index.
 - The local rules cover implementation scope, plain-language responses, agent-readable Markdown, credential-file safety, and the conditional Gemini response rule. They do not override upstream ODD task-close commits or add the retired remote-operation authorization rule.
 - Codex patch preflight recognizes an exact stale second local block containing the retired no-commit line only between the orchestrator and CodeGraph markers. It removes that block in memory before preparing the one `AGENTS.md` patch; an absent legacy block and an applied or unapplied current Engram-adjacent block are valid. Duplicate, incomplete, changed, or relocated local blocks fail before any selected-target write, including `all`. No full-file replacement or generic empty replacement is used.
@@ -343,7 +343,7 @@ After `apply`, confirm this:
 For a separately authorized Codex apply, also verify:
 
 - each installed portable Codex skill under `~/.codex/skills/` matches its canonical source in `shared/skills/`
-- the upstream Engram block and all unrelated bytes in `~/.codex/AGENTS.md` remain unchanged outside the declared local instruction block and two ODD table-row replacements
+- the upstream Engram block and all unrelated bytes in `~/.codex/AGENTS.md` remain unchanged outside the declared local instruction block, two ODD table-row replacements, and two evidence-rule substitutions
 - `odd-explorer` and `odd-worker` are each `gpt-6.1-sol` / `high` exactly once, while `odd-verify`, JD, review, and other rows retain their upstream assignments; no model profile or OpenCode assignment changes
 - the local block appears exactly once after the upstream Engram marker and contains no remote-operation authorization rule
 - the obsolete second local block and its no-commit line are absent from the orchestrator-to-CodeGraph gap; unrelated bytes and file mode remain unchanged
@@ -370,7 +370,7 @@ Operational rules:
 
 - [ ] `maintenance-intent.md` still reflects what to keep and depure
 - [ ] `managed-assets.json` still aligns with `assets/upstream/` and `assets/owned/`
-- [ ] the owned OpenCode `AGENTS.md` inherited persona and full Engram sections pass semantic parity against the approved snapshots, while the six overlay-only sections remain present
+- [ ] the owned OpenCode `AGENTS.md` persona matches the approved snapshot after the two declared evidence-rule substitutions; full Engram parity and the six overlay-only sections still pass
 - [ ] `upstream-state.json` still points to the last upstream boundary that was actually maintained
 - [ ] current v4 policy keeps SDD names out of the keep list and records them as pruned, without changing machine-local runtime state
 - [ ] `apply-gentle-ai-custom` still preserves upstream prompt refs and fails closed when a requested custom operation lacks its prerequisite

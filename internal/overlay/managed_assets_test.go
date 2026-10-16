@@ -412,8 +412,17 @@ func TestOpenCodeAgentsOwnedSourceMatchesApprovedInheritedSections(t *testing.T)
 
 	personaSnapshot := mustReadFile(t, filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "upstream", "opencode", "persona-gentleman.md"))
 	ownedPersona := mustMarkdownBetweenUniqueMarkers(t, ownedSnapshot, "<!-- gentle-ai:persona -->", "<!-- /gentle-ai:persona -->")
+	for _, rule := range []struct{ upstream, local string }{
+		{upstreamAgreementRule, localAgreementRule},
+		{upstreamTechnicalRule, localUncertaintyRule},
+	} {
+		if strings.Count(personaSnapshot, rule.upstream) != 1 {
+			t.Fatalf("approved upstream persona no longer has exactly one known rule %q", rule.upstream)
+		}
+		personaSnapshot = strings.Replace(personaSnapshot, rule.upstream, rule.local, 1)
+	}
 	if normalizeMarkdownSection(ownedPersona) != normalizeMarkdownSection(personaSnapshot) {
-		t.Fatal("owned AGENTS.md persona section is stale relative to the approved upstream snapshot")
+		t.Fatal("owned AGENTS.md persona differs from approved upstream beyond the two local evidence rules")
 	}
 
 	engramSnapshot := mustReadFile(t, filepath.Join(repoRoot, "overlay", "gentle-ai", "assets", "upstream", "opencode", "engram-protocol.md"))

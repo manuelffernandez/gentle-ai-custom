@@ -19,6 +19,14 @@
         {
           "before": "| `odd-worker` | `gpt-6.1-luna` | `high` |\n",
           "after": "| `odd-worker` | `gpt-6.1-sol` | `high` |\n"
+        },
+        {
+          "before": "- Never agree with user claims without verification. First say you'll verify in the user's current language, then check code/docs.\n",
+          "after": "- Check consequential factual or technical claims before endorsing them; do not agree merely to be agreeable. Use the available evidence to give a calibrated, actionable judgment, even when it is incomplete.\n"
+        },
+        {
+          "before": "- Verify technical claims before stating them. If unsure, investigate first.\n",
+          "after": "- Distinguish inference from established fact only when that distinction materially affects the decision. State material uncertainty once, briefly; do not repeat obvious caveats or narrate routine verification.\n"
         }
       ]
     }

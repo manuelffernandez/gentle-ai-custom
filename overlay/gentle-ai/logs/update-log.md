@@ -4,6 +4,30 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-10-16 | Recovered duplicated installed Codex persona
+
+- **Date**: `2026-10-16`
+- **Title**: Recovered duplicated installed Codex persona
+- **Type**: `incident`
+- **Upstream scope/range**: Unchanged v4.1.1 repository boundary; exact-release audit passed for both targets.
+- **Decision**: Remove only the confirmed duplicate unmarked persona from the installed Codex `AGENTS.md`, preserve the resource index and managed persona, and replace the two old evidence rules in the remaining persona with the already-approved local wording. Do not sync or re-apply either runtime.
+- **Why it mattered**: Two identical old rules made Codex replacement 5 ambiguous, so the user-run `apply all` stopped before any writes. Upstream's legacy cleanup preserves a pre-marker region containing other text; the exact run that originally introduced the unmarked copy is unknown.
+- **Affected artifacts**: Installed `~/.codex/AGENTS.md` only; this entry records the recovery. No upstream snapshots, source patches, or OpenCode runtime files were changed.
+- **Verification**: Independent read-only check found one complete marked persona, one occurrence of each new rule, zero old rules, preserved resource index and Engram block, and all six Codex patch replacements already in their applied forms. File mode remained `0644`; no actual apply, sync, or installed-agent behavior test ran.
+- **Follow-up**: A future upstream refresh may reset its managed persona; an authorized overlay apply would restore the local rules. OpenCode runtime installation remains separately authorized.
+
+## 2026-10-16 | Calibrated evidence guidance across Codex and OpenCode
+
+- **Date**: `2026-10-16`
+- **Title**: Calibrated evidence guidance across Codex and OpenCode
+- **Type**: `policy-change`
+- **Upstream scope/range**: Unchanged v4.1.1 boundary at `898d3976e8049a7238eaa7de60bff325c30d2b3d`; the exact-release audit passed with no drift in either target.
+- **Decision**: `Sanitizar` two inherited persona rules in both maintained targets. Check consequential claims while giving an actionable judgment from incomplete evidence; mention uncertainty once only when it changes the decision. Keep upstream snapshots unchanged. OpenCode owns its complete `AGENTS.md`; Codex receives two exact replacements in its existing surgical patch.
+- **Why it mattered**: The upstream rules prompted repetitive, obvious qualifications instead of helping the user decide. An installed-file edit alone would not survive a future upstream refresh.
+- **Affected artifacts**: Owned OpenCode `AGENTS.md`; Codex `local-instructions.json`; focused tests; `policy/maintenance-intent.md`, repository and maintainer guidance.
+- **Verification**: Three focused tests observed RED before source changes and GREEN afterward. `go test ./internal/overlay -count=1`, `gofmt -d`, and `git diff --check` passed. Independent read-only verification ran focused and `go test ./...` in a scratch copy, compared prior CLI help output, and probed Codex exact replacement, repeat apply, and rejection without writes for incompatible anchors. Extra duplicate and mixed-anchor cases passed in a final focused test. No runtime installation, sync, or apply was performed.
+- **Follow-up**: Installing and verifying the new guidance in either runtime requires a separately authorized apply. Repository tests cannot establish how an agent will respond in every conversation.
+
 ## 2026-10-14 | Refocused Me capture on interaction evidence
 
 - **Date**: `2026-10-14`

@@ -9,6 +9,72 @@ import (
 
 const codexODDAssignmentTable = "| `odd-explorer` | `gpt-6.1-luna` | `high` |\n| `odd-worker` | `gpt-6.1-luna` | `high` |\n| `odd-verify` | `gpt-6.1-sol` | `medium` |\n| `jd-judge-a` | `gpt-6.1-luna` | `high` |\n| `review-risk` | `gpt-6.1-luna` | `high` |\n"
 
+const upstreamAgreementRule = "- Never agree with user claims without verification. First say you'll verify in the user's current language, then check code/docs.\n"
+const localAgreementRule = "- Check consequential factual or technical claims before endorsing them; do not agree merely to be agreeable. Use the available evidence to give a calibrated, actionable judgment, even when it is incomplete.\n"
+const upstreamTechnicalRule = "- Verify technical claims before stating them. If unsure, investigate first.\n"
+const localUncertaintyRule = "- Distinguish inference from established fact only when that distinction materially affects the decision. State material uncertainty once, briefly; do not repeat obvious caveats or narrate routine verification.\n"
+const codexUpstreamPersona = upstreamAgreementRule + upstreamTechnicalRule
+
+func TestCodexApplyCalibratesEvidenceRulesWithoutChangingOtherInstructions(t *testing.T) {
+	repo := repoRootForTest(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	root := filepath.Join(home, ".codex")
+	path := filepath.Join(root, "AGENTS.md")
+	before := strings.Replace(codexMigrationFixture("", ""), upstreamAgreementRule, upstreamAgreementRule+"- If user is wrong, explain WHY with evidence.\n", 1)
+	mustWriteFile(t, path, []byte(before))
+	writeCodexMigrationPrerequisites(t, root)
+	if code := (&CodexAgent{}).ApplyOverlay(repo, applyPolicyOptions{recorder: newVerboseRecorder(false)}); code != 0 {
+		t.Fatalf("Codex apply = %d, want success", code)
+	}
+	got := mustReadFile(t, path)
+	if !strings.Contains(got, localAgreementRule) || !strings.Contains(got, localUncertaintyRule) {
+		t.Fatal("Codex apply did not install both calibrated evidence rules")
+	}
+	if strings.Contains(got, upstreamAgreementRule) || strings.Contains(got, upstreamTechnicalRule) ||
+		!strings.Contains(got, "- If user is wrong, explain WHY with evidence.\n") {
+		t.Fatal("Codex apply retained an obsolete rule or changed an unrelated instruction")
+	}
+	first := snapshotTree(t, root)
+	if code := (&CodexAgent{}).ApplyOverlay(repo, applyPolicyOptions{recorder: newVerboseRecorder(false)}); code != 0 {
+		t.Fatalf("repeat Codex apply = %d, want success", code)
+	}
+	if second := snapshotTree(t, root); !equalStringMaps(first, second) {
+		t.Fatal("repeat Codex apply changed bytes or modes")
+	}
+}
+
+func TestCodexApplyRejectsChangedEvidenceRuleBeforeWrites(t *testing.T) {
+	for _, tc := range []struct {
+		name, original, replacement string
+	}{
+		{"changed agreement", upstreamAgreementRule, strings.Replace(upstreamAgreementRule, "First say you'll verify", "Always say you'll verify", 1)},
+		{"duplicate agreement", upstreamAgreementRule, upstreamAgreementRule + upstreamAgreementRule},
+		{"mixed agreement", upstreamAgreementRule, upstreamAgreementRule + localAgreementRule},
+		{"changed technical rule", upstreamTechnicalRule, strings.Replace(upstreamTechnicalRule, "If unsure", "If uncertain", 1)},
+		{"duplicate technical rule", upstreamTechnicalRule, upstreamTechnicalRule + upstreamTechnicalRule},
+		{"mixed technical rule", upstreamTechnicalRule, upstreamTechnicalRule + localUncertaintyRule},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := repoRootForTest(t)
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			root := filepath.Join(home, ".codex")
+			path := filepath.Join(root, "AGENTS.md")
+			beforeRules := strings.Replace(codexMigrationFixture("", ""), tc.original, tc.replacement, 1)
+			mustWriteFile(t, path, []byte(beforeRules))
+			writeCodexMigrationPrerequisites(t, root)
+			before := snapshotTree(t, root)
+			if code := (&CodexAgent{}).ApplyOverlay(repo, applyPolicyOptions{recorder: newVerboseRecorder(false)}); code == 0 {
+				t.Fatal("Codex apply accepted an incompatible evidence rule")
+			}
+			if after := snapshotTree(t, root); !equalStringMaps(before, after) {
+				t.Fatal("Codex apply wrote files after evidence-rule preflight failure")
+			}
+		})
+	}
+}
+
 const codexCurrentBlock = "<!-- gentle-ai-custom:codex-local-instructions -->\n## Local instructions\n\n- Implement only the requested outcome. Propose optional abstractions or infrastructure separately instead of adding them without approval.\n- When responding, use simple, natural language. Explain what changed, why, and any relevant limits without assuming implementation knowledge.\n- For agent-consumed Markdown, use the smallest clear structure, one H1, shallow headings, short paragraphs, precise paths, explicit stop conditions, and angle-bracket placeholders. Prefer bullets to wide tables.\n- Never read, search, copy, or expose credential files or secret-bearing configuration. Prefer documentation, schemas, examples, and redacted user-run output. If credential access seems necessary, stop and explain why before accessing it.\n- When a Gemini model is active, use skeptical, direct, evidence-first replies; challenge assumptions before validating them and state uncertainty plainly.\n<!-- /gentle-ai-custom:codex-local-instructions -->\n"
 const notionKnowledgeBlock = "<!-- gentle-ai-custom:notion-knowledge -->\n## Notion Project Knowledge\n\nUse `notion-project-knowledge` when a request needs knowledge held\nin Notion.\n\nAs the parent agent, also use it to preserve useful project knowledge.\nAt natural progress boundaries, consider Me records for significant\nbehavioral or communicative insight, including subjective impressions\neven without a technical outcome. Technical milestones alone do not\ntrigger a Me record.\n<!-- /gentle-ai-custom:notion-knowledge -->\n"
 
@@ -21,7 +87,7 @@ func codexLegacyBlock() string {
 }
 
 func codexMigrationFixture(current, legacy string) string {
-	return "upstream prefix\n" + codexODDAssignmentTable + "<!-- gentle-ai:engram-protocol -->\nupstream Engram\n<!-- /gentle-ai:engram-protocol -->\n" + current + "\n<!-- gentle-ai:orchestrator -->\nupstream orchestrator\n<!-- /gentle-ai:orchestrator -->\n\n" + legacy + "<!-- gentle-ai:codegraph-guidance -->\nupstream CodeGraph\n"
+	return "upstream prefix\n" + codexODDAssignmentTable + codexUpstreamPersona + "<!-- gentle-ai:engram-protocol -->\nupstream Engram\n<!-- /gentle-ai:engram-protocol -->\n" + current + "\n<!-- gentle-ai:orchestrator -->\nupstream orchestrator\n<!-- /gentle-ai:orchestrator -->\n\n" + legacy + "<!-- gentle-ai:codegraph-guidance -->\nupstream CodeGraph\n"
 }
 
 func writeCodexMigrationPrerequisites(t *testing.T, root string) {
@@ -60,6 +126,8 @@ func TestCodexApplyMigratesOnlyRecognizedSecondLocalBlock(t *testing.T) {
 			want := codexMigrationFixture("\n"+codexCurrentBlock+"\n"+notionKnowledgeBlock, "")
 			want = strings.Replace(want, "| `odd-explorer` | `gpt-6.1-luna` | `high` |", "| `odd-explorer` | `gpt-6.1-sol` | `high` |", 1)
 			want = strings.Replace(want, "| `odd-worker` | `gpt-6.1-luna` | `high` |", "| `odd-worker` | `gpt-6.1-sol` | `high` |", 1)
+			want = strings.Replace(want, upstreamAgreementRule, localAgreementRule, 1)
+			want = strings.Replace(want, upstreamTechnicalRule, localUncertaintyRule, 1)
 			if got != want {
 				t.Fatalf("Codex AGENTS.md differs beyond declared changes\ngot: %q\nwant: %q", got, want)
 			}
@@ -161,6 +229,8 @@ func TestCodexApplyMigratesV4ShapedInstructionsWithoutChangingOtherRows(t *testi
 	}
 	want := strings.Replace(before, "<!-- /gentle-ai:orchestrator -->\n\n"+codexLegacyBlock()+"\n<!-- gentle-ai:codegraph-guidance -->", "<!-- /gentle-ai:orchestrator -->\n\n<!-- gentle-ai:codegraph-guidance -->", 1)
 	want = strings.Replace(want, codexCurrentBlock, codexCurrentBlock+"\n"+notionKnowledgeBlock, 1)
+	want = strings.Replace(want, upstreamAgreementRule, localAgreementRule, 1)
+	want = strings.Replace(want, upstreamTechnicalRule, localUncertaintyRule, 1)
 	if got := mustReadFile(t, path); got != want {
 		t.Fatalf("v4-shaped Codex instructions differ beyond the legacy block\ngot: %q\nwant: %q", got, want)
 	}
@@ -248,7 +318,7 @@ func TestCodexApplyPatchesOnlyDeclaredUpstreamSectionsAndIsIdempotent(t *testing
 	t.Setenv("HOME", home)
 	codexRoot := filepath.Join(home, ".codex")
 	agentsPath := filepath.Join(codexRoot, "AGENTS.md")
-	agentsBefore := "upstream ODD instructions\n" + codexODDAssignmentTable + "<!-- gentle-ai:engram-protocol -->\nupstream Engram body\n<!-- /gentle-ai:engram-protocol -->\nupstream suffix\n"
+	agentsBefore := "upstream ODD instructions\n" + codexODDAssignmentTable + codexUpstreamPersona + "<!-- gentle-ai:engram-protocol -->\nupstream Engram body\n<!-- /gentle-ai:engram-protocol -->\nupstream suffix\n"
 	mustWriteFile(t, agentsPath, []byte(agentsBefore))
 	if err := os.Chmod(agentsPath, 0o640); err != nil {
 		t.Fatal(err)
@@ -283,7 +353,7 @@ func TestCodexApplyPatchesOnlyDeclaredUpstreamSectionsAndIsIdempotent(t *testing
 		t.Fatalf("CodexAgent.ApplyOverlay() = %d, want 0", code)
 	}
 	agentsAfter := mustReadFile(t, agentsPath)
-	if !strings.HasPrefix(agentsAfter, "upstream ODD instructions\n| `odd-explorer` | `gpt-6.1-sol` | `high` |\n| `odd-worker` | `gpt-6.1-sol` | `high` |\n| `odd-verify` | `gpt-6.1-sol` | `medium` |\n| `jd-judge-a` | `gpt-6.1-luna` | `high` |\n| `review-risk` | `gpt-6.1-luna` | `high` |\n<!-- gentle-ai:engram-protocol -->\nupstream Engram body\n<!-- /gentle-ai:engram-protocol -->") {
+	if !strings.HasPrefix(agentsAfter, "upstream ODD instructions\n| `odd-explorer` | `gpt-6.1-sol` | `high` |\n| `odd-worker` | `gpt-6.1-sol` | `high` |\n| `odd-verify` | `gpt-6.1-sol` | `medium` |\n| `jd-judge-a` | `gpt-6.1-luna` | `high` |\n| `review-risk` | `gpt-6.1-luna` | `high` |\n"+localAgreementRule+localUncertaintyRule+"<!-- gentle-ai:engram-protocol -->\nupstream Engram body\n<!-- /gentle-ai:engram-protocol -->") {
 		t.Fatalf("upstream Codex instructions changed: %q", agentsAfter)
 	}
 	if strings.Contains(agentsAfter, "| `odd-explorer` | `gpt-6.1-luna` | `high` |") || strings.Contains(agentsAfter, "| `odd-worker` | `gpt-6.1-luna` | `high` |") {
@@ -376,7 +446,7 @@ func TestCodexApplyRejectsIncompatibleODDModelRowsBeforeAnyWrites(t *testing.T) 
 			home := t.TempDir()
 			t.Setenv("HOME", home)
 			codexRoot := filepath.Join(home, ".codex")
-			mustWriteFile(t, filepath.Join(codexRoot, "AGENTS.md"), []byte(tc.rows+"<!-- /gentle-ai:engram-protocol -->\n"))
+			mustWriteFile(t, filepath.Join(codexRoot, "AGENTS.md"), []byte(tc.rows+codexUpstreamPersona+"<!-- /gentle-ai:engram-protocol -->\n"))
 			mustWriteFile(t, filepath.Join(codexRoot, "skills", "judgment-day", "SKILL.md"), []byte("- The only terminal verdicts are `APPROVED | ESCALATED`; never reset or extend an exhausted round budget.\n\n6. Repeat once at most, then run independent final verification and return the terminal verdict.\n\nartifact references, skill resolution, and exactly one final\n"))
 			mustWriteFile(t, filepath.Join(codexRoot, "skills", "judgment-day", "references", "prompts-and-formats.md"), []byte("Warnings and suggestions are informational. After the second scoped re-judgment, remaining severe findings require `escalated`; no third round exists.\n"))
 			before := snapshotTree(t, codexRoot)
@@ -396,7 +466,7 @@ func TestCodexApplyDoesNotRequireSDDMarker(t *testing.T) {
 	t.Setenv("HOME", home)
 	codexRoot := filepath.Join(home, ".codex")
 	agentsPath := filepath.Join(codexRoot, "AGENTS.md")
-	mustWriteFile(t, agentsPath, []byte("upstream ODD instructions without an SDD marker\n"+codexODDAssignmentTable+"<!-- /gentle-ai:engram-protocol -->\n"))
+	mustWriteFile(t, agentsPath, []byte("upstream ODD instructions without an SDD marker\n"+codexODDAssignmentTable+codexUpstreamPersona+"<!-- /gentle-ai:engram-protocol -->\n"))
 	mustWriteFile(t, filepath.Join(codexRoot, "skills", "judgment-day", "SKILL.md"), []byte("- The only terminal verdicts are `APPROVED | ESCALATED`; never reset or extend an exhausted round budget.\n\n6. Repeat once at most, then run independent final verification and return the terminal verdict.\n\nartifact references, skill resolution, and exactly one final\n"))
 	mustWriteFile(t, filepath.Join(codexRoot, "skills", "judgment-day", "references", "prompts-and-formats.md"), []byte("Warnings and suggestions are informational. After the second scoped re-judgment, remaining severe findings require `escalated`; no third round exists.\n"))
 	mustWriteFile(t, filepath.Join(codexRoot, "skills", "work-unit-commits", "SKILL.md"), []byte("- Every ODD task closes with at least one work-unit commit, branch first when on the default branch, with tests and docs alongside the behavior and a Conventional Commit message.\n"))
@@ -449,7 +519,7 @@ func TestRunApplyCustomCodexInstallsSharedSkillsWithoutTouchingOtherTargets(t *t
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	codexRoot := filepath.Join(home, ".codex")
-	mustWriteFile(t, filepath.Join(codexRoot, "AGENTS.md"), []byte(codexODDAssignmentTable+"<!-- gentle-ai:engram-protocol -->\nupstream Engram\n<!-- /gentle-ai:engram-protocol -->\n"))
+	mustWriteFile(t, filepath.Join(codexRoot, "AGENTS.md"), []byte(codexODDAssignmentTable+codexUpstreamPersona+"<!-- gentle-ai:engram-protocol -->\nupstream Engram\n<!-- /gentle-ai:engram-protocol -->\n"))
 	mustWriteFile(t, filepath.Join(codexRoot, "skills", "judgment-day", "SKILL.md"), []byte("- The only terminal verdicts are `APPROVED | ESCALATED`; never reset or extend an exhausted round budget.\n\n6. Repeat once at most, then run independent final verification and return the terminal verdict.\n\nartifact references, skill resolution, and exactly one final\n"))
 	mustWriteFile(t, filepath.Join(codexRoot, "skills", "judgment-day", "references", "prompts-and-formats.md"), []byte("Warnings and suggestions are informational. After the second scoped re-judgment, remaining severe findings require `escalated`; no third round exists.\n"))
 	mustWriteFile(t, filepath.Join(codexRoot, "skills", "work-unit-commits", "SKILL.md"), []byte("- Every ODD task closes with at least one work-unit commit, branch first when on the default branch, with tests and docs alongside the behavior and a Conventional Commit message.\n"))
@@ -488,7 +558,7 @@ func TestRunApplyCustomAllAppliesBothTargetsWithoutCrossTargetCommands(t *testin
 	repoRoot := repoRootForTest(t)
 	home, openCodeConfig := writeCompatibleRuntimeFixture(t, repoRoot)
 	codexRoot := filepath.Join(home, ".codex")
-	mustWriteFile(t, filepath.Join(codexRoot, "AGENTS.md"), []byte(codexODDAssignmentTable+"<!-- gentle-ai:engram-protocol -->\nupstream Codex Engram\n<!-- /gentle-ai:engram-protocol -->\n"))
+	mustWriteFile(t, filepath.Join(codexRoot, "AGENTS.md"), []byte(codexODDAssignmentTable+codexUpstreamPersona+"<!-- gentle-ai:engram-protocol -->\nupstream Codex Engram\n<!-- /gentle-ai:engram-protocol -->\n"))
 	mustWriteFile(t, filepath.Join(codexRoot, "skills", "judgment-day", "SKILL.md"), []byte("- The only terminal verdicts are `APPROVED | ESCALATED`; never reset or extend an exhausted round budget.\n\n6. Repeat once at most, then run independent final verification and return the terminal verdict.\n\nartifact references, skill resolution, and exactly one final\n"))
 	mustWriteFile(t, filepath.Join(codexRoot, "skills", "judgment-day", "references", "prompts-and-formats.md"), []byte("Warnings and suggestions are informational. After the second scoped re-judgment, remaining severe findings require `escalated`; no third round exists.\n"))
 	mustWriteFile(t, filepath.Join(codexRoot, "skills", "work-unit-commits", "SKILL.md"), []byte("- Every ODD task closes with at least one work-unit commit, branch first when on the default branch, with tests and docs alongside the behavior and a Conventional Commit message.\n"))
@@ -542,7 +612,7 @@ func chainedCleanupApplyFixture(t *testing.T) (string, string, map[string]string
 	repo := repoRootForTest(t)
 	home, _ := writeCompatibleRuntimeFixture(t, repo)
 	codexRoot := filepath.Join(home, ".codex")
-	mustWriteFile(t, filepath.Join(codexRoot, "AGENTS.md"), []byte(codexODDAssignmentTable+"<!-- gentle-ai:engram-protocol -->\nupstream Codex Engram\n<!-- /gentle-ai:engram-protocol -->\n"))
+	mustWriteFile(t, filepath.Join(codexRoot, "AGENTS.md"), []byte(codexODDAssignmentTable+codexUpstreamPersona+"<!-- gentle-ai:engram-protocol -->\nupstream Codex Engram\n<!-- /gentle-ai:engram-protocol -->\n"))
 	writeCodexMigrationPrerequisites(t, codexRoot)
 	binDir := filepath.Join(t.TempDir(), "bin")
 	mustWriteFile(t, filepath.Join(binDir, "gentle-ai"), []byte("#!/bin/sh\nprintf 'gentle-ai 4.1.1\\n'\n"))
