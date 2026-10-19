@@ -16,6 +16,18 @@ It is not a mirror of every repo change. Git history carries implementation-leve
 - **Verification**: Observed RED/GREEN for Codex authorization removal, selected skill pruning, standalone policy scope, future-target coverage, and equal shared-skill omission. Focused and `go test ./... -count=1` passed; exact v4.1.1 canonical audit passed for both repository targets; `git diff --check` passed. Independent scratch-copy probes confirmed rejected paths leave data unchanged, repeat apply is idempotent, and prior output is preserved where unchanged. Four work-unit candidates received separate user-consented native reviews and exact acknowledgements; the third needed one bounded correction and targeted validation. No runtime apply, sync, push, or PR occurred.
 - **Follow-up**: The user must separately authorize applying this repository change to OpenCode or Codex; audit and temporary-home tests do not verify installed agent behavior.
 
+## 2026-10-16 | Added a Notion preservation closeout check
+
+- **Date**: `2026-10-16`
+- **Title**: Added a Notion preservation closeout check
+- **Type**: `policy-change`
+- **Upstream scope/range**: Unchanged v4.1.1 repository boundary; no upstream snapshots changed.
+- **Decision**: At the close of substantive project work, check whether project knowledge, meaningful Me interaction evidence, both, or neither merits preservation, even without a Notion read. Do not require a record. Keep OpenCode and Codex activation identical, and migrate only the exact recognized earlier Codex blocks on a future apply.
+- **Why it mattered**: The former natural-boundary wording was easy to overlook after work that never consulted Notion. Changing the Codex activation without recognizing its installed predecessor would also block future apply before writes.
+- **Affected artifacts**: Canonical Notion skill, owned OpenCode `AGENTS.md`, Codex activation patch and preflight, focused tests, maintenance intent, and live documentation.
+- **Verification**: The focused migration and activation tests observed RED before source changes and GREEN afterward. `go test ./...` and `git diff --check` passed. Independent scratch-copy verification confirmed exact migration, rejection without changing data, repeated-apply idempotence, activation parity, and unchanged prior CLI output. No runtime apply or Notion write occurred.
+- **Follow-up**: Updating installed OpenCode or Codex copies requires a separately authorized apply; repository tests cannot establish how an agent will act in every conversation.
+
 ## 2026-10-16 | Recovered duplicated installed Codex persona
 
 - **Date**: `2026-10-16`

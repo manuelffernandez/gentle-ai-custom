@@ -64,9 +64,13 @@ present them as the agent's reading of that interaction, not as a
 confirmed personal trait. Develop cross-episode patterns or broader
 personal hypotheses only on request.
 
-At a natural progress boundary, persist project knowledge in its
-applicable project and meaningful interaction evidence in Me, following
-their current guides and authorized scope. In Me, keep `Solicitud` and
+At a natural progress boundary and before closing substantive project
+work, decide whether there is useful project knowledge, meaningful Me
+interaction evidence, both, or neither to preserve. Make this check
+even when the work did not require a Notion read; it does not require
+writing a new record. For relevant knowledge, consult the current
+guides, look for an existing relevant record, and make the smallest
+authorized update or addition. In Me, keep `Solicitud` and
 `Resultado` brief and focused on the user's intent and how the exchange
 evolved. Develop behavior, communication, and subjective impressions
 in `Lectura de la interacción`; leave thematic and technical detail in
