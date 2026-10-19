@@ -15,6 +15,18 @@ For an approved upstream asset, replacement-first means letting upstream Gentle 
 - The local overlay must be reduced while preserving the customizations listed in this file.
 - Do not treat old v1.44-era owned runtime assets as authoritative just because they exist in the repo.
 
+## Supported target parity
+
+An overlay-owned customization applies to every registered agent that can support its effect. OpenCode and Codex currently share the portable skill allowlist, explicitly rejected skill names, remote-authorization sanitization, local instruction intent, Notion activation, Judgment Day retrospective, and selected `chained-pr` cleanup. A supported agent cannot silently inherit an unsanitized upstream rule or miss a shared skill decision.
+
+Host-specific delivery may differ without changing the shared outcome:
+
+- OpenCode renders five command wrappers; Codex exposes their workflows through the same installed owner skills rather than rendering OpenCode-specific commands.
+- OpenCode reconciles `permission.skill` and machine-local actor configuration; Codex does not expose those OpenCode configuration surfaces. Codex keeps upstream `config.toml` and receives only its declared ODD instruction-row deltas.
+- OpenCode installs its owned full `AGENTS.md`; Codex patches only compatible, declared sections in the upstream-owned file. Neither approach licenses an unreviewed behavior difference.
+
+Before adding another agent or customization, classify its shared effects and any host-specific delivery in this file, register the agent in both the runtime registry and `managed-assets.json`, extend `targetParityCapabilities`, and prove the outcome through the selected public apply path in an isolated home. `validateTargetParity` compares the exact inventory of custom runtime patches, repo-owned runtime assets, and command keys alongside shared skills and owner entrypoints; it rejects an unclassified target or customization before apply, audit analysis, or snapshot sync. It does not prove installed runtime behavior. A new exception needs explicit user approval and an observed host constraint, never an implicit omission.
+
 ## Codex target boundary
 
 Codex apply installs the eight repo-owned portable skills from `shared/skills/` under `~/.codex/skills/`; allowlisted same-name skills are intentional repo-owned replacements. It prunes only the shared policy's explicit rejected skill names after selected-target preflight and preserves every other upstream Codex skill. It does not render command wrappers, replace the full `~/.codex/AGENTS.md`, or change `config.toml`, Engram files, SDD prompts, or model profiles. Standalone `apply-policy` selects OpenCode only; Codex pruning occurs through `apply-custom codex` or `all`.

@@ -277,6 +277,12 @@ Runtime refresh, repo snapshot sync, and overlay apply are separate actions. App
 - Unrelated upstream instructions, untouched skills, and existing modes are preserved. Only copied repo-owned skill outputs are tracked as owned. Patched upstream targets are protected during owned-state cleanup but are never claimed as whole-file owned assets.
 - The canonical upstream audit covers OpenCode and Codex repository inputs independently. The two approved Codex snapshots were copied by a separately authorized repo sync and verified by the fresh passing v4.1.1 audit. This does not verify the installed Codex runtime or imply that the repo-owned cleanup logic has run there; refresh and apply remain separately authorized.
 
+### Target parity gate
+
+Treat a new overlay customization as shared across every supported agent unless the host cannot provide its interface. Document a host-specific route and its reason in `policy/maintenance-intent.md`; add public apply tests for its actual effect. The current exceptions are OpenCode command wrappers, `permission.skill`, config/model reconciliation, and full-file owned instructions. Codex reaches command workflows through shared skills and keeps upstream-owned config and full instructions outside exact declared patches.
+
+`validateTargetParity` requires every registered agent in `managed-assets.json` and in the explicit target capability inventory. It compares shared skill installation, exact custom runtime patch/owned asset/command inventories, the Judgment Day hook, and command-owner skill entrypoints. Run its negative tests for a missing future agent, an unpaired new customization, a shared skill mismatch, and a missing runtime hook. Apply, audit, and snapshot sync invoke the gate before selected-target writes or drift analysis. An upstream audit pass is not post-overlay runtime verification.
+
 Native skill-registry refresh does not scan canonical `shared/skills/`; it cannot prove discovery of the new Notion skill before a separately authorized runtime apply. Repository tests install into temporary homes only, not the machine runtime.
 
 `apply` never copies raw upstream source snapshots into runtime. A missing or incompatible prerequisite for a requested custom operation fails closed before pruning, config changes, patch writes, or owned asset installation.

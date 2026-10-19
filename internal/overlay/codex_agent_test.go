@@ -793,13 +793,24 @@ func TestCodexApplyRemovesKnownRemoteAuthorizationWithoutChangingOtherInstructio
 			writeCodexMigrationPrerequisites(t, root)
 			if code := (&CodexAgent{}).ApplyOverlay(repo, applyPolicyOptions{recorder: newVerboseRecorder(false)}); code != 0 {
 				t.Fatalf("Codex apply = %d, want success", code)
+			if err := os.Chmod(path, 0o640); err != nil {
+				t.Fatal(err)
+			}
 			}
 			got := mustReadFile(t, path)
 			if strings.Contains(got, "gentle-ai:remote-authorization") || strings.Contains(got, "## Remote operation authorization") {
 				t.Fatal("Codex retained remote authorization after apply")
 			}
-			if !strings.Contains(got, "upstream CodeGraph\n") || !strings.Contains(got, "upstream orchestrator\n") {
-				t.Fatal("Codex changed unrelated upstream instructions")
+			want := codexMigrationFixture("\n"+codexCurrentBlock+"\n"+notionKnowledgeBlock, "")
+			want = strings.Replace(want, "| `odd-explorer` | `gpt-6.1-luna` | `high` |", "| `odd-explorer` | `gpt-6.1-sol` | `high` |", 1)
+			want = strings.Replace(want, "| `odd-worker` | `gpt-6.1-luna` | `high` |", "| `odd-worker` | `gpt-6.1-sol` | `high` |", 1)
+			want = strings.Replace(want, upstreamAgreementRule, localAgreementRule, 1)
+			want = strings.Replace(want, upstreamTechnicalRule, localUncertaintyRule, 1)
+			if tc.section != "" {
+				want += "\n\n"
+			}
+			if got != want || snapshotTestFile(t, path).mode.Perm() != 0o640 {
+				t.Fatalf("Codex apply changed unrelated bytes or file mode\ngot: %q\nwant: %q", got, want)
 			}
 			first := snapshotTree(t, root)
 			if code := (&CodexAgent{}).ApplyOverlay(repo, applyPolicyOptions{recorder: newVerboseRecorder(false)}); code != 0 || !equalStringMaps(first, snapshotTree(t, root)) {

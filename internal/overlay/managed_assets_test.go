@@ -336,6 +336,27 @@ func (a *Adapter) SystemPromptFile(homeDir string) string { return filepath.Join
 			},
 		},
 	}
+	// This fixture exercises snapshot sync, not runtime installation. Declare
+	// the minimal shared target contract so the preflight reaches sync logic.
+	shared := RepoOwnedSharedSkills{Root: "shared/skills", InstallMode: "copy_skill_directory", Allowlist: []string{"branch-pr", "commit-planner"}}
+	for _, name := range []string{"opencode", "codex"} {
+		target := manifest.Targets[name]
+		target.RepoOwnedSharedSkills = shared
+		target.RuntimePatches = []RuntimePatchRef{{Key: "judgment-retrospective-handoff"}}
+		if name == "opencode" {
+			target.OwnedOverlayAssets = append(target.OwnedOverlayAssets, OwnedOverlayAsset{Key: "opencode-agents", Class: "repo_owned_runtime", RepoOwnedPath: "overlay/gentle-ai/assets/owned/opencode/AGENTS.md"})
+			target.RepoOwnedCommandBodies.Entries = []RepoOwnedCommandEntry{
+				{Key: "commit-plan", OwnerSkill: "commit-planner"},
+				{Key: "commit-apply", OwnerSkill: "commit-planner"},
+				{Key: "commit-fast", OwnerSkill: "commit-planner"},
+				{Key: "pr-create", OwnerSkill: "branch-pr"},
+				{Key: "pr-regenerate", OwnerSkill: "branch-pr"},
+			}
+		} else {
+			target.RuntimePatches = append(target.RuntimePatches, RuntimePatchRef{Key: "codex-local-instructions"})
+		}
+		manifest.Targets[name] = target
+	}
 	writeJSONFixture(t, filepath.Join(repoRoot, "overlay", "gentle-ai", "policy", "managed-assets.json"), manifest)
 	retiredSnapshot := filepath.Join(repoRoot, filepath.FromSlash(upstreamSnapshotRoot), "retired", "item.md")
 	mustWriteFile(t, retiredSnapshot, []byte("retired snapshot"))

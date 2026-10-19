@@ -45,6 +45,17 @@ func RunApplyCustom(repoRoot string, args []string) int {
 		options.recorder.print()
 		return 1
 	}
+	manifest, _, err := loadManagedAssetsManifest(repoRoot)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		options.recorder.print()
+		return 1
+	}
+	if err := validateTargetParity(manifest, registeredAgentNames()); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		options.recorder.print()
+		return 1
+	}
 	for _, targetName := range targets {
 		if targetName != "codex" {
 			continue

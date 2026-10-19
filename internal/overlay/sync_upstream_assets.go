@@ -51,6 +51,10 @@ func RunSyncUpstreamAssets(repoRoot string, args []string) int {
 		fmt.Fprintf(os.Stderr, "ERROR: upstream release parity preflight failed: %v\n", err)
 		return 1
 	}
+	if err := validateTargetParity(manifest, registeredAgentNames()); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		return 1
+	}
 	statePath := filepath.Join(repoRoot, policy.Maintenance.StateFile)
 	var state UpstreamState
 	if err := readJSONFile(statePath, &state); err != nil {

@@ -266,6 +266,7 @@ Files that `apply-gentle-ai-custom.sh` installs into the global OpenCode runtime
 - `cmd/gentle-ai-overlay/main.go` — shared Go CLI entrypoint for apply/audit commands.
 - `sync-gentle-ai-upstream-assets.sh` / `.ps1` — canonical public upstream snapshot sync entrypoints.
 - `internal/overlay/` — implementation of overlay apply, audit, policy, global actor assignments, snapshots, and verification.
+- `internal/overlay/target_parity.go` — fail-closed coverage of registered agents, shared skill/hook installation, exact custom patch/asset/command inventories, and declared host-specific surfaces before apply, audit, or sync.
 - `apply-gentle-ai-custom.sh` / `.ps1` — canonical public entrypoints.
 - `audit-gentle-ai-upstream.sh` / `.ps1` — canonical public upstream audit entrypoints.
 
@@ -415,6 +416,7 @@ Detailed schema, validation behavior, and recovery guidance belong in `.agents/s
 
 ## Orchestrator invariants
 
+- Overlay customizations are transversal across registered targets by effect. `maintenance-intent.md` declares shared outcomes and explicit host-specific surfaces; `targetParityCapabilities`, `managed-assets.json`, and isolated public apply tests must cover every registered target before adoption. Never assume upstream snapshot audit proves post-overlay parity or installed runtime state. A new host-specific exception requires explicit user approval, not a silent omission.
 - The installed `agent.gentle-orchestrator.prompt` is upstream-owned. Custom apply does not clone it into custom profiles or certify its review semantics.
 - Upstream-owned plugins and contracts may be absent or opaque to custom apply unless a concrete local patch consumes them. They must never become custom install sources.
 - Codex owns its materialized `~/.codex/AGENTS.md`, skills, Engram files, `config.toml`, and model profiles. Codex apply installs only the allowlisted repo-owned skills, leaving unrelated upstream skills untouched; it inserts the local instruction block after the upstream Engram marker and the separate Notion activation immediately after that local block, changes the `odd-explorer` and `odd-worker` table rows from Luna/high to Sol/high, replaces exactly two inherited persona rules with calibrated evidence guidance, and removes only the recognized remote-authorization section from the prepared `AGENTS.md` patch. Other ODD, JD, and review rows, unrelated bytes, and file modes are preserved. It does not require an SDD marker; account model availability is unverified.

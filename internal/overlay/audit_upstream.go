@@ -45,6 +45,10 @@ func RunAuditUpstream(repoRoot string, args []string) int {
 		fmt.Fprintf(os.Stderr, "ERROR: upstream release parity preflight failed: %v\n", err)
 		return 1
 	}
+	if err := validateTargetParity(manifest, registeredAgentNames()); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		return 1
+	}
 	for _, name := range []string{"opencode", "codex"} {
 		if _, ok := manifest.Targets[name]; !ok {
 			fmt.Fprintf(os.Stderr, "ERROR: managed-assets manifest at %s does not define target %q\n", manifestPath, name)

@@ -150,6 +150,12 @@ El repo conserva intactas las copias upstream para auditoría, pero elimina esa 
 
 El `AGENTS.md` propio tampoco incluye esa regla. Esto no modifica la protección separada contra la lectura de archivos de credenciales ni otros permisos del runtime. El cambio afecta solo al repo: el runtime instalado requiere un `apply` autorizado por separado. Esta sesión no ejecutó `gentle-ai sync`, una reinstalación ni `apply`.
 
+#### La misma personalización en cada agente
+
+OpenCode y Codex comparten las decisiones del overlay: skills propias, poda de nombres rechazados, retiro de la regla de autorización remota, activación de Notion y retrospectiva de Judgment Day. Algunas interfaces son distintas: OpenCode crea comandos y ajusta permisos o modelos en su configuración; Codex usa las mismas skills para esos flujos y conserva su configuración upstream, con cambios puntuales en sus instrucciones. No se copian archivos completos de un agente al otro.
+
+Al agregar un agente nuevo, el instalador, la auditoría y la sincronización exigen que esté declarado en la lista de targets, en la cobertura de paridad y en las pruebas de instalación. Si falta, se detienen antes de escribir. Las pruebas comparan resultados en entornos temporales: no comprueban que tus agentes instalados estén actualizados. Una excepción para una interfaz que no existe en otro agente debe quedar documentada y aprobada; no se admite omitir una personalización sin advertirlo.
+
 #### Evidencia histórica del runtime v2.9.1 y v2.5.0
 
 En el cierre anterior de v2.9.1, la auditoría pasó para `9ec0cf443622f20fe511815ff5a83088c7467bff`, y una verificación de solo lectura confirmó 602 comprobaciones sobre asignaciones, perfiles, prompts, permisos, alcance de tareas y referencias. También confirmó el orchestrator con consentimiento compatible, las 7 skills propias, 5 wrappers, el `AGENTS.md` propio, la poda de skills y los parches locales. Esa evidencia corresponde al runtime v2.9.1 y no verifica un runtime v3.7.0.
