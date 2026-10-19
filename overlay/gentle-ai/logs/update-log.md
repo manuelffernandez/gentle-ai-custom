@@ -4,6 +4,18 @@ This file records only closed upstream-maintenance / overlay-maintenance events 
 
 It is not a mirror of every repo change. Git history carries implementation-level edits, intermediate iterations, and doc wording churn. `overlay/gentle-ai/state/upstream-state.json` remains the source of truth for the last maintained upstream boundary.
 
+## 2026-10-19 | Enforced overlay parity across supported targets
+
+- **Date**: `2026-10-19`
+- **Title**: Enforced overlay parity across supported targets
+- **Type**: `policy-change`
+- **Upstream scope/range**: Unchanged exact v4.1.1 boundary at `898d3976e8049a7238eaa7de60bff325c30d2b3d`; no upstream snapshots or installed runtimes changed.
+- **Decision**: Apply shared overlay effects to both OpenCode and Codex: remove the recognized remote-authorization rule in Codex, prune only explicit rejected skill names in either selected target, and keep standalone `apply-policy` scoped to OpenCode. Require every registered target and each declared custom patch, owned runtime asset, command, and canonical shared skill to pass the fail-closed parity check before apply, audit analysis, or snapshot sync. Document host-specific command, permission, config, and instruction ownership routes instead of silently omitting a shared effect.
+- **Why it mattered**: An OpenCode-only sanitization had left Codex asking for remote-session permission; standalone policy could also prune unselected Codex skills. Source audit passed while these post-overlay effects differed, and registering another agent did not automatically enforce parity.
+- **Affected artifacts**: `internal/overlay/{codex_agent.go,apply_policy.go,target_parity.go,apply_custom.go,audit_upstream.go,sync_upstream_assets.go}` and focused tests; `policy/{gentle-ai-policy.json,maintenance-intent.md}`; `AGENTS.md`, `README.md`, overlay guides, maintainer skill, and the feature logbook. The upstream snapshots and installed runtime files were not modified.
+- **Verification**: Observed RED/GREEN for Codex authorization removal, selected skill pruning, standalone policy scope, future-target coverage, and equal shared-skill omission. Focused and `go test ./... -count=1` passed; exact v4.1.1 canonical audit passed for both repository targets; `git diff --check` passed. Independent scratch-copy probes confirmed rejected paths leave data unchanged, repeat apply is idempotent, and prior output is preserved where unchanged. Four work-unit candidates received separate user-consented native reviews and exact acknowledgements; the third needed one bounded correction and targeted validation. No runtime apply, sync, push, or PR occurred.
+- **Follow-up**: The user must separately authorize applying this repository change to OpenCode or Codex; audit and temporary-home tests do not verify installed agent behavior.
+
 ## 2026-10-16 | Recovered duplicated installed Codex persona
 
 - **Date**: `2026-10-16`
