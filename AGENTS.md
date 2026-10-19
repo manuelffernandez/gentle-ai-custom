@@ -266,7 +266,7 @@ Files that `apply-gentle-ai-custom.sh` installs into the global OpenCode runtime
 - `cmd/gentle-ai-overlay/main.go` — shared Go CLI entrypoint for apply/audit commands.
 - `sync-gentle-ai-upstream-assets.sh` / `.ps1` — canonical public upstream snapshot sync entrypoints.
 - `internal/overlay/` — implementation of overlay apply, audit, policy, global actor assignments, snapshots, and verification.
-- `internal/overlay/target_parity.go` — fail-closed coverage of registered agents, shared skill/hook installation, exact custom patch/asset/command inventories, and declared host-specific surfaces before apply, audit, or sync.
+- `internal/overlay/target_parity.go` — fail-closed coverage of registered agents, the canonical shared-skill allowlist, exact custom patch/asset/command inventories, and declared host-specific surfaces before apply, audit, or sync.
 - `apply-gentle-ai-custom.sh` / `.ps1` — canonical public entrypoints.
 - `audit-gentle-ai-upstream.sh` / `.ps1` — canonical public upstream audit entrypoints.
 

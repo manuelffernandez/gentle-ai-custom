@@ -337,8 +337,8 @@ func (a *Adapter) SystemPromptFile(homeDir string) string { return filepath.Join
 		},
 	}
 	// This fixture exercises snapshot sync, not runtime installation. Declare
-	// the minimal shared target contract so the preflight reaches sync logic.
-	shared := RepoOwnedSharedSkills{Root: "shared/skills", InstallMode: "copy_skill_directory", Allowlist: []string{"branch-pr", "commit-planner"}}
+	// the target contract so the parity preflight reaches sync logic.
+	shared := RepoOwnedSharedSkills{Root: "shared/skills", InstallMode: "copy_skill_directory", Allowlist: expectedSharedSkills}
 	for _, name := range []string{"opencode", "codex"} {
 		target := manifest.Targets[name]
 		target.RepoOwnedSharedSkills = shared

@@ -34,6 +34,11 @@ var targetParityCapabilities = map[string]parityCapabilities{
 	},
 }
 
+var expectedSharedSkills = []string{
+	"branch-pr", "chained-pr", "code-design", "commit-planner",
+	"judgment-retrospective", "notion-project-knowledge", "package-security", "pr-finalizer",
+}
+
 func validateTargetParity(manifest ManagedAssetsManifest, registered []string) error {
 	if len(registered) == 0 || len(manifest.Targets) != len(registered) || len(targetParityCapabilities) != len(registered) {
 		return fmt.Errorf("target parity requires one manifest target and capability declaration for every registered agent (registered=%v)", registered)
@@ -44,6 +49,9 @@ func validateTargetParity(manifest ManagedAssetsManifest, registered []string) e
 	}
 	if len(opencode.RepoOwnedCommandBodies.Entries) == 0 {
 		return fmt.Errorf("OpenCode command wrappers are missing from the parity source")
+	}
+	if !sameSkillNames(opencode.RepoOwnedSharedSkills.Allowlist, expectedSharedSkills) {
+		return fmt.Errorf("target parity shared skill installation differs from the canonical overlay allowlist for %q", "opencode")
 	}
 	owners := map[string]bool{}
 	for _, command := range opencode.RepoOwnedCommandBodies.Entries {
@@ -83,7 +91,7 @@ func validateTargetParity(manifest ManagedAssetsManifest, registered []string) e
 		}
 		if target.RepoOwnedSharedSkills.Root != opencode.RepoOwnedSharedSkills.Root ||
 			target.RepoOwnedSharedSkills.InstallMode != opencode.RepoOwnedSharedSkills.InstallMode ||
-			!sameSkillNames(target.RepoOwnedSharedSkills.Allowlist, opencode.RepoOwnedSharedSkills.Allowlist) {
+			!sameSkillNames(target.RepoOwnedSharedSkills.Allowlist, expectedSharedSkills) {
 			return fmt.Errorf("target parity shared skill installation differs for %q", name)
 		}
 		if name == "opencode" {

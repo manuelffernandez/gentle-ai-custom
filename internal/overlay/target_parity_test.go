@@ -1,9 +1,83 @@
 package overlay
 
 import (
+	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestAuditAndSyncRejectEqualSkillOmissionBeforeWrites(t *testing.T) {
+	source := repoRootForTest(t)
+	manifest, _, err := loadManagedAssetsManifest(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy, _, err := loadPolicy(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range registeredAgentNames() {
+		target := manifest.Targets[name]
+		kept := []string{}
+		for _, skill := range target.RepoOwnedSharedSkills.Allowlist {
+			if skill != "package-security" {
+				kept = append(kept, skill)
+			}
+		}
+		target.RepoOwnedSharedSkills.Allowlist = kept
+		manifest.Targets[name] = target
+	}
+	repo, home := t.TempDir(), t.TempDir()
+	t.Setenv("HOME", home)
+	writeJSONFixture(t, filepath.Join(repo, "overlay", "gentle-ai", "policy", "managed-assets.json"), manifest)
+	writeJSONFixture(t, filepath.Join(repo, "overlay", "gentle-ai", "policy", "gentle-ai-policy.json"), policy)
+	upstream := newReleaseGuardRepo(t, "v4.1.1", false)
+	t.Setenv(upstreamRepoEnvVar, upstream)
+	installFakeGentleAI(t, "#!/bin/sh\necho 'gentle-ai 4.1.1'\n")
+	beforeRepo, beforeHome := snapshotTree(t, repo), snapshotTree(t, home)
+	for _, operation := range []struct {
+		name string
+		run  func() int
+	}{
+		{"audit", func() int { return RunAuditUpstream(repo, nil) }},
+		{"sync", func() int { return RunSyncUpstreamAssets(repo, nil) }},
+	} {
+		t.Run(operation.name, func(t *testing.T) {
+			code, output := captureParityStderr(t, operation.run)
+			if code != 1 || !strings.Contains(output, "target parity shared skill installation differs from the canonical overlay allowlist") {
+				t.Fatalf("%s failed before reaching the parity gate: exit=%d stderr=%q", operation.name, code, output)
+			}
+			if !equalStringMaps(beforeRepo, snapshotTree(t, repo)) || !equalStringMaps(beforeHome, snapshotTree(t, home)) {
+				t.Fatal("rejected audit or sync changed repository or home files")
+			}
+		})
+	}
+}
+
+func captureParityStderr(t *testing.T, run func() int) (int, string) {
+	t.Helper()
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous := os.Stderr
+	os.Stderr = writer
+	code := run()
+	os.Stderr = previous
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reader.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return code, string(output)
+}
 
 func TestApplyRefusesUnmappedRegisteredAgentBeforeWrites(t *testing.T) {
 	repo := repoRootForTest(t)
@@ -46,6 +120,27 @@ func TestTargetParityRejectsOmittedSharedCustomization(t *testing.T) {
 	manifest.Targets["codex"] = codex
 	if err := validateTargetParity(manifest, registeredAgentNames()); err == nil || !strings.Contains(err.Error(), "codex") {
 		t.Fatalf("unequal skill installation was accepted: %v", err)
+	}
+}
+
+func TestTargetParityRejectsSkillOmittedFromBothTargets(t *testing.T) {
+	manifest, _, err := loadManagedAssetsManifest(repoRootForTest(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range registeredAgentNames() {
+		target := manifest.Targets[name]
+		kept := []string{}
+		for _, skill := range target.RepoOwnedSharedSkills.Allowlist {
+			if skill != "package-security" {
+				kept = append(kept, skill)
+			}
+		}
+		target.RepoOwnedSharedSkills.Allowlist = kept
+		manifest.Targets[name] = target
+	}
+	if err := validateTargetParity(manifest, registeredAgentNames()); err == nil || !strings.Contains(err.Error(), "shared skill") {
+		t.Fatalf("equal omission of a canonical skill was accepted: %v", err)
 	}
 }
 

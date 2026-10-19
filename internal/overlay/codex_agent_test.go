@@ -790,12 +790,12 @@ func TestCodexApplyRemovesKnownRemoteAuthorizationWithoutChangingOtherInstructio
 				before += "\n<!-- gentle-ai:remote-authorization -->\n" + tc.section + "\n<!-- /gentle-ai:remote-authorization -->\n"
 			}
 			mustWriteFile(t, path, []byte(before))
-			writeCodexMigrationPrerequisites(t, root)
-			if code := (&CodexAgent{}).ApplyOverlay(repo, applyPolicyOptions{recorder: newVerboseRecorder(false)}); code != 0 {
-				t.Fatalf("Codex apply = %d, want success", code)
 			if err := os.Chmod(path, 0o640); err != nil {
 				t.Fatal(err)
 			}
+			writeCodexMigrationPrerequisites(t, root)
+			if code := (&CodexAgent{}).ApplyOverlay(repo, applyPolicyOptions{recorder: newVerboseRecorder(false)}); code != 0 {
+				t.Fatalf("Codex apply = %d, want success", code)
 			}
 			got := mustReadFile(t, path)
 			if strings.Contains(got, "gentle-ai:remote-authorization") || strings.Contains(got, "## Remote operation authorization") {
