@@ -68,10 +68,19 @@ func TestTargetParityRequiresSkillEntryForHostSpecificCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 	opencode := manifest.Targets["opencode"]
-	opencode.RepoOwnedCommandBodies.Entries = append(opencode.RepoOwnedCommandBodies.Entries, RepoOwnedCommandEntry{Key: "new-command", OwnerSkill: "unmapped-workflow"})
+	changed := false
+	for i := range opencode.RepoOwnedCommandBodies.Entries {
+		if opencode.RepoOwnedCommandBodies.Entries[i].Key == "pr-create" {
+			opencode.RepoOwnedCommandBodies.Entries[i].OwnerSkill = "unmapped-workflow"
+			changed = true
+		}
+	}
+	if !changed {
+		t.Fatal("command owner fixture is missing pr-create")
+	}
 	manifest.Targets["opencode"] = opencode
 	if err := validateTargetParity(manifest, registeredAgentNames()); err == nil || !strings.Contains(err.Error(), "unmapped-workflow") {
-		t.Fatalf("new OpenCode-only command escaped cross-target entrypoint check: %v", err)
+		t.Fatalf("unmapped command owner escaped cross-target entrypoint check: %v", err)
 	}
 }
 
