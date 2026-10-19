@@ -99,6 +99,24 @@ func TestPruneSkillsUsesSelectedRegisteredTargetsOnly(t *testing.T) {
 	}
 }
 
+func TestStandaloneApplyPolicyDoesNotPruneCodexSkills(t *testing.T) {
+	repo := repoRootForTest(t)
+	home, _ := writeCompatibleRuntimeFixture(t, repo)
+	codexSkill := filepath.Join(home, ".codex", "skills", "issue-creation", "SKILL.md")
+	mustWriteFile(t, codexSkill, []byte("Codex skill must remain untouched\n"))
+	openCodeSkill := filepath.Join(home, ".config", "opencode", "skills", "issue-creation", "SKILL.md")
+	mustWriteFile(t, openCodeSkill, []byte("OpenCode skill is pruned\n"))
+	if code := RunApplyPolicy(repo, nil); code != 0 {
+		t.Fatalf("standalone apply-policy returned %d, want 0", code)
+	}
+	if pathExists(openCodeSkill) {
+		t.Fatal("standalone apply-policy did not prune OpenCode")
+	}
+	if got := mustReadFile(t, codexSkill); got != "Codex skill must remain untouched\n" {
+		t.Fatalf("standalone apply-policy changed unselected Codex skill: %q", got)
+	}
+}
+
 func TestPruneSkillsReportsOnlyActualRemovals(t *testing.T) {
 	tests := []struct {
 		name    string

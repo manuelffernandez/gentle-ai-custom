@@ -396,8 +396,8 @@ func TestCodexApplyPatchesOnlyDeclaredUpstreamSectionsAndIsIdempotent(t *testing
 			t.Errorf("Codex patched skill mode at %s = %o, want preserved %o", path, got, mode)
 		}
 	}
-	if got := mustReadFile(t, upstreamSkillPath); got != "upstream SDD skill\n" {
-		t.Fatalf("Codex upstream SDD skill changed: %q", got)
+	if pathExists(upstreamSkillPath) {
+		t.Fatal("Codex retained explicitly pruned upstream SDD skill")
 	}
 	if got := mustReadFile(t, configPath); got != configBefore {
 		t.Fatalf("Codex config.toml changed: %q", got)
@@ -530,6 +530,8 @@ func TestRunApplyCustomCodexInstallsSharedSkillsWithoutTouchingOtherTargets(t *t
 	openCodeSentinel := filepath.Join(home, ".config", "opencode", "skills", "branch-pr", "SKILL.md")
 	mustWriteFile(t, openCodeSentinel, []byte("unselected OpenCode sentinel\n"))
 
+	retainedUpstreamSkill := filepath.Join(codexRoot, "skills", "go-testing", "SKILL.md")
+	mustWriteFile(t, retainedUpstreamSkill, []byte("retained Codex skill\n"))
 	if code := RunApplyCustom(repoRoot, []string{"codex"}); code != 0 {
 		t.Fatalf("RunApplyCustom(codex) = %d, want 0", code)
 	}
@@ -540,11 +542,11 @@ func TestRunApplyCustomCodexInstallsSharedSkillsWithoutTouchingOtherTargets(t *t
 			t.Errorf("installed Codex skill %q differs from shared source", skill)
 		}
 	}
-	if got := mustReadFile(t, upstreamSDD); got != "upstream Codex SDD skill\n" {
-		t.Fatalf("upstream Codex SDD skill changed: %q", got)
+	if pathExists(upstreamSDD) || pathExists(unselectedUpstreamSkill) {
+		t.Fatal("Codex apply retained explicitly pruned upstream skills")
 	}
-	if got := mustReadFile(t, unselectedUpstreamSkill); got != "unselected Codex skill\n" {
-		t.Fatalf("unselected upstream Codex skill changed: %q", got)
+	if got := mustReadFile(t, retainedUpstreamSkill); got != "retained Codex skill\n" {
+		t.Fatalf("unrelated upstream Codex skill changed: %q", got)
 	}
 	if got := mustReadFile(t, openCodeSentinel); got != "unselected OpenCode sentinel\n" {
 		t.Fatalf("unselected OpenCode target changed: %q", got)
@@ -851,5 +853,37 @@ func TestRunApplyCustomCodexRemovesRemoteAuthorization(t *testing.T) {
 	first := snapshotTree(t, root)
 	if code := RunApplyCustom(repo, []string{"codex"}); code != 0 || !equalStringMaps(first, snapshotTree(t, root)) {
 		t.Fatal("repeat public Codex apply changed runtime contents")
+	}
+}
+
+func TestRunApplyCustomAllRejectsUnsafeCodexPruneBeforeOpenCodeWrites(t *testing.T) {
+	repo := repoRootForTest(t)
+	home, openCodeConfig := writeCompatibleRuntimeFixture(t, repo)
+	root := filepath.Join(home, ".codex")
+	mustWriteFile(t, filepath.Join(root, "AGENTS.md"), []byte(codexMigrationFixture("", "")))
+	writeCodexMigrationPrerequisites(t, root)
+	outside := filepath.Join(t.TempDir(), "outside-skill")
+	mustWriteFile(t, filepath.Join(outside, "SKILL.md"), []byte("private outside skill\n"))
+	link := filepath.Join(root, "skills", "issue-creation")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+	beforeConfig := mustReadFile(t, openCodeConfig)
+	beforeCodex := mustReadFile(t, filepath.Join(root, "AGENTS.md"))
+	beforeLink, err := os.Readlink(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code := RunApplyCustom(repo, []string{"all"}); code == 0 {
+		t.Fatal("unsafe Codex prune path was accepted")
+	}
+	if mustReadFile(t, openCodeConfig) != beforeConfig || mustReadFile(t, filepath.Join(root, "AGENTS.md")) != beforeCodex {
+		t.Fatal("selected target changed before Codex prune preflight refusal")
+	}
+	if afterLink, err := os.Readlink(link); err != nil || afterLink != beforeLink {
+		t.Fatalf("Codex skill link changed after preflight refusal: %q, %v", afterLink, err)
+	}
+	if got := mustReadFile(t, filepath.Join(outside, "SKILL.md")); got != "private outside skill\n" {
+		t.Fatalf("outside skill changed: %q", got)
 	}
 }

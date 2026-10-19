@@ -46,6 +46,12 @@ func (a *CodexAgent) ApplyOverlay(repoRoot string, options applyPolicyOptions) i
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		return 1
 	}
+	if len(state.skillTargets) > 0 {
+		if err := state.pruneSkills(); err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+			return 1
+		}
+	}
 	fmt.Printf("Applied Codex instruction overlays -> %s\n", basePath)
 	return 0
 }
@@ -85,10 +91,18 @@ func prepareCodexOverlay(repoRoot string, options applyPolicyOptions) (*applyPol
 		return nil, "", err
 	}
 	state := applyPolicyState{
+		policy:        policy,
 		managedTarget: target,
 		configPath:    filepath.Join(basePath, "config.toml"),
 		verbose:       options.verbose,
 		recorder:      options.recorder,
+	}
+	pruneNeeded, err := preflightCodexSkillPrune(basePath, policy.Skills.Prune)
+	if err != nil {
+		return nil, "", err
+	}
+	if pruneNeeded {
+		state.skillTargets = registeredSkillTargets([]string{"codex"})
 	}
 	if err := validateCodexInstructionFile(filepath.Join(basePath, "AGENTS.md")); err != nil {
 		return nil, "", err
@@ -116,6 +130,42 @@ func prepareCodexOverlay(repoRoot string, options applyPolicyOptions) (*applyPol
 		return nil, "", fmt.Errorf("Codex runtime patches must prepare exactly one AGENTS.md target")
 	}
 	return &state, basePath, nil
+}
+
+func preflightCodexSkillPrune(basePath string, pruned []string) (bool, error) {
+	root := filepath.Join(basePath, "skills")
+	info, err := os.Lstat(root)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return false, fmt.Errorf("Codex skill root is not a regular directory: %s", root)
+	}
+	needed := false
+	for _, skill := range pruned {
+		if skill == "" || skill == "." || filepath.Base(skill) != skill {
+			return false, fmt.Errorf("invalid pruned skill name %q", skill)
+		}
+		path := filepath.Join(root, skill)
+		if err := validatePromptFilePath(path, basePath); err != nil {
+			return false, fmt.Errorf("unsafe Codex skill path: %w", err)
+		}
+		entry, err := os.Lstat(path)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return false, err
+		}
+		if !entry.IsDir() || entry.Mode()&os.ModeSymlink != 0 {
+			return false, fmt.Errorf("Codex pruned skill is not a regular directory: %s", path)
+		}
+		needed = true
+	}
+	return needed, nil
 }
 
 func validateCodexAuditOnlyAssets(target ManagedAssetsTarget) error {

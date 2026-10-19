@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "gentle-ai-overlay-baseline",
-  "description": "Runtime policy: OpenCode keep/prune baseline and global actor assignments, plus Codex preservation and command-surface constraints.",
+  "description": "Runtime policy: shared skill keep/prune decisions for selected agents, OpenCode actor assignments, and Codex preservation and command-surface constraints.",
   "maintenance": {
     "intent_file": "overlay/gentle-ai/policy/maintenance-intent.md",
     "state_file": "overlay/gentle-ai/state/upstream-state.json",

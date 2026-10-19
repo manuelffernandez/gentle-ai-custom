@@ -48,7 +48,9 @@ func RunApplyPolicy(repoRoot string, args []string) int {
 		return exitCode
 	}
 	options.recorder = newVerboseRecorder(options.verbose)
-	options.skillTargets = registeredSkillTargets(registeredAgentNames())
+	// Standalone apply-policy is the OpenCode policy entrypoint. Other agents
+	// receive the same declared skill decisions through their selected apply.
+	options.skillTargets = registeredSkillTargets([]string{"opencode"})
 	code := runApplyPolicyWithOptions(repoRoot, options)
 	options.recorder.print()
 	return code

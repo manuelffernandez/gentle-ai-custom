@@ -134,7 +134,7 @@ El snapshot v3.7.0 incorporaba el contrato output-only de `sdd-research`; esa ev
 
 #### Target Codex
 
-`apply-gentle-ai-custom.sh codex` instala las ocho skills propias reutilizando sus fuentes en `shared/skills/`; reemplaza solo las skills con el mismo nombre que estén en esa lista y no poda otras skills upstream. También agrega reglas locales puntuales después del marcador de Engram en `~/.codex/AGENTS.md`, cambia las filas de `odd-explorer` y `odd-worker` de `gpt-6.1-luna` a `gpt-6.1-sol` (ambas en `high`), adapta dos reglas sobre cómo comunicar la evidencia y aplica el parche exacto de retrospectiva de Judgment Day.
+`apply-gentle-ai-custom.sh codex` instala las ocho skills propias reutilizando sus fuentes en `shared/skills/`; reemplaza las que tengan el mismo nombre y poda únicamente las skills rechazadas explícitamente por la política común. Conserva las demás skills upstream. También agrega reglas locales puntuales después del marcador de Engram en `~/.codex/AGENTS.md`, cambia las filas de `odd-explorer` y `odd-worker` de `gpt-6.1-luna` a `gpt-6.1-sol` (ambas en `high`), adapta dos reglas sobre cómo comunicar la evidencia y aplica el parche exacto de retrospectiva de Judgment Day.
 
 La capa no reemplaza el archivo completo `AGENTS.md` ni modifica las otras filas ODD, Judgment Day o review. Tampoco poda skills upstream ajenas a la lista local, genera comandos ni cambia `config.toml`, Engram o perfiles de modelos. Si falta, cambia o se duplica una fila esperada, se detiene antes de escribir. Este ajuste está solo en el repo: no se ejecutó `apply`, y no se comprobó si `gpt-6.1-sol` está disponible en la cuenta. La auditoría actual no verifica el runtime de Codex; su comportamiento queda sin confirmar hasta que se autorice y revise un apply de Codex.
 
@@ -254,7 +254,7 @@ Para usar Notion desde OpenCode **en este repo**, `opencode.json` habilita el MC
 ### Qué hace el comando `apply-gentle-ai-custom`
 
 - instala nuestras skills propias para el target elegido; los comandos personalizados solo se generan para OpenCode.
-- borra las skills que no queremos usar solo en OpenCode y únicamente para los targets seleccionados; Codex conserva sus skills upstream.
+- borra las skills rechazadas explícitamente en OpenCode o Codex sólo cuando se selecciona ese target; las demás skills upstream se conservan. El subcomando interno `apply-policy` actúa únicamente sobre OpenCode.
 - bloquea en OpenCode cada skill podada que no tenga un reemplazo propio con el mismo nombre mediante `permission.skill`, incluso si OpenCode encuentra una copia en `~/.agents/skills` o `~/.claude/skills`. No borra ni modifica esas copias externas, y conserva los permisos de skills no podadas ni de reemplazos propios como `branch-pr`.
 - aplica nuestras preferencias de modelos de IA si las configuramos.
 - comprueba solo los archivos, referencias y anchors que necesita para las operaciones solicitadas o los parches locales declarados.
@@ -262,7 +262,7 @@ Para usar Notion desde OpenCode **en este repo**, `opencode.json` habilita el MC
 - conserva los prompts y plugins preparados por Gentle AI; no los reemplaza con plantillas fuente. Los snapshots mantenidos están en v4.1.1, pero el runtime materializado no está verificado. La política acepta RDD como activo y funcional, pero su estado efectivo se consulta por máquina o clon.
 - aplica overrides compatibles sin crear perfiles o agentes SDD. Si encuentra opciones SDD heredadas, se detiene antes de escribir y las deja intactas para revisión manual.
 - agrega de forma puntual el handoff de `judgment-retrospective` al skill `judgment-day` compatible.
-- mantiene los nombres SDD fuera de la lista de skills conservadas y los poda en OpenCode si aún existen. No borra ni migra configuración o archivos locales por esta actualización documental; cualquier runtime apply requiere autorización independiente.
+- mantiene los nombres SDD fuera de la lista de skills conservadas y los poda en el target seleccionado si aún existen. No borra ni migra configuración local; cualquier runtime apply requiere autorización independiente.
 - al podar skills, muestra solo las que eliminó en esta ejecución; si una ya no estaba, no la menciona. La poda y el bloqueo de permisos para las skills SDD siguen activos aunque no haya nada que eliminar.
 - registra todos los archivos que instala como propios. Al limpiar registros viejos, conserva los archivos devueltos a Gentle AI y los targets de parches puntuales sin declararlos como propios.
 

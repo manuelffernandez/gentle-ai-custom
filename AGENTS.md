@@ -332,7 +332,7 @@ Approved upstream runtime assets use replacement-first adoption: upstream Gentle
 - `shared/skills/package-security/SKILL.md`
 - `shared/skills/pr-finalizer/SKILL.md`
 
-The same eight `shared/skills/` sources are installed under `~/.codex/skills/` when `codex` or `all` is selected. Codex apply does not prune upstream skills or render command wrappers.
+The same eight `shared/skills/` sources are installed under `~/.codex/skills/` when `codex` or `all` is selected. Codex apply prunes only explicit policy-rejected skill directories after preflight; unrelated upstream skills remain untouched. It does not render command wrappers.
 
 `package-security` is the canonical source for package-manager guidance. It prohibits credential-file inspection and distinguishes npm's advisory-by-default reviewed script policy from pnpm's version-gated build approvals; use its local templates and verify exact CLI feature support rather than assuming a major version guarantees it.
 
@@ -347,7 +347,7 @@ The same eight `shared/skills/` sources are installed under `~/.codex/skills/` w
 
 The `Keep` list below is the retained upstream-skill baseline only. Repo-owned shared skills and overlay-owned runtime hooks are tracked separately in the sections above, so do not infer the install surface from this list alone.
 
-`chained-pr` is dual-tracked on purpose: its approved upstream snapshot stays retained for audit/sync, while `shared/skills/` provides the sanitized runtime copy that apply installs. `issue-creation` and legacy SDD skill names stay pruned from the default OpenCode runtime surface. No apply has run as part of the v4.1.1 snapshot adoption; runtime files and user-owned SDD settings were not changed.
+`chained-pr` is dual-tracked on purpose: its approved upstream snapshot stays retained for audit/sync, while `shared/skills/` provides the sanitized runtime copy that apply installs. `issue-creation` and legacy SDD skill names stay pruned from selected OpenCode and Codex runtime surfaces. No apply has run as part of the v4.1.1 snapshot adoption; runtime files and user-owned SDD settings were not changed.
 
 Selected OpenCode/Codex apply now preflights and removes only `skills/chained-pr/references/chaining-details.md` when the installed copy exactly matches the approved upstream snapshot and the selected target will receive the sanitized skill. Unknown bytes, symlinks, and unsafe parents fail before selected-target writes. The actively referenced `~/.agents/skills/chained-pr/` copy stays untouched; no installed runtime was changed by this repository implementation.
 
@@ -418,7 +418,7 @@ Detailed schema, validation behavior, and recovery guidance belong in `.agents/s
 - The installed `agent.gentle-orchestrator.prompt` is upstream-owned. Custom apply does not clone it into custom profiles or certify its review semantics.
 - Upstream-owned plugins and contracts may be absent or opaque to custom apply unless a concrete local patch consumes them. They must never become custom install sources.
 - Codex owns its materialized `~/.codex/AGENTS.md`, skills, Engram files, `config.toml`, and model profiles. Codex apply installs only the allowlisted repo-owned skills, leaving unrelated upstream skills untouched; it inserts the local instruction block after the upstream Engram marker and the separate Notion activation immediately after that local block, changes the `odd-explorer` and `odd-worker` table rows from Luna/high to Sol/high, replaces exactly two inherited persona rules with calibrated evidence guidance, and removes only the recognized remote-authorization section from the prepared `AGENTS.md` patch. Other ODD, JD, and review rows, unrelated bytes, and file modes are preserved. It does not require an SDD marker; account model availability is unverified.
-- Codex apply must not render OpenCode command wrappers, prune Codex skills, replace the full Codex `AGENTS.md`, or modify Codex config, Engram, SDD prompts, or model profiles. Its declared patch anchors are preflighted before any selected-target write; upstream Codex runtime materialization is not verified by the current audit.
+- Codex apply must not render OpenCode command wrappers, prune skills outside the policy-rejected names, replace the full Codex `AGENTS.md`, or modify Codex config, Engram, SDD prompts, or model profiles. Selected Codex prune paths and declared patch anchors are preflighted before any selected-target write; upstream Codex runtime materialization is not verified by the current audit.
 - Codex patch preflight removes only the exact stale second local-instructions block in the orchestrator-to-CodeGraph gap, including its retired no-commit line. It accepts an absent legacy block and an already-applied or unapplied Engram-adjacent current block; duplicate, partial, changed, or relocated blocks fail before writes, including for `all`. This repository-only migration does not run apply or verify the installed Codex runtime.
 - Owned-state reconciliation tracks every custom-installed output, including single-file assets without a sync mode. Stale paths returned to upstream or used as surgical patch targets are protected but never recorded as wholly custom-owned.
 - `gentle-ai sync` or reinstall restores the upstream runtime surface; re-applying the overlay remains mandatory for local skills, pruning, assignments, and declared surgical patches.
@@ -505,7 +505,7 @@ Operational reminders:
 - approval of audit findings, adoption, repo snapshot sync, or overlay edits never authorizes runtime refresh; only an explicit request for that specific runtime action does
 - an audit using `--release` is preview evidence only; it does not mean that release was adopted or approve repo snapshot sync. Repo sync still requires separate explicit authorization and must use the selected exact release only after approval.
 - runtime-refresh authorization never authorizes overlay apply; apply requires its own explicit approval
-- `apply-gentle-ai-custom.sh opencode` and `codex` select one target; `all` selects both. Codex apply is independent of OpenCode permissions, configuration, command wrappers, and pruning.
+- `apply-gentle-ai-custom.sh opencode` and `codex` select one target; `all` selects both. Both selected targets apply the shared rejected-skill list. Standalone `apply-policy` selects OpenCode only; Codex apply is otherwise independent of OpenCode permissions, configuration, and command wrappers.
 - The maintainer workflow is approval-gated: audit first, decision summary second, mutations only after explicit user approval.
 
 Detailed triage, decision gates, drift interpretation, recovery, and post-state verification belong in `.agents/skills/gentle-ai-overlay-maintainer/SKILL.md` and `overlay/gentle-ai/maintenance.md`.
