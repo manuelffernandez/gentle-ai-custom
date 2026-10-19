@@ -146,7 +146,7 @@ El repo aceptó de forma consciente una conducta de archivo SDD en v3.7.0. Esa d
 
 #### Retiro de la regla de autorización remota
 
-El repo conserva intacta la copia upstream para auditoría, pero ya no instala esa regla en los prompts OpenCode administrados. Al ejecutar `apply`, se elimina únicamente una sección reconocida: la versión upstream o la versión local relajada que se había aplicado antes. Si encuentra una sección duplicada, incompleta o desconocida, o una ruta insegura, se detiene antes de escribir. El resto del contenido y los permisos de los archivos se conservan.
+El repo conserva intactas las copias upstream para auditoría, pero elimina esa regla de los prompts OpenCode administrados y del `AGENTS.md` de Codex cuando se aplica cada target. Al ejecutar `apply`, se elimina únicamente una sección reconocida: la versión upstream o la versión local relajada que se había aplicado antes. Si encuentra una sección duplicada, incompleta o desconocida, o una ruta insegura, se detiene antes de escribir. El resto del contenido y los permisos de los archivos se conservan.
 
 El `AGENTS.md` propio tampoco incluye esa regla. Esto no modifica la protección separada contra la lectura de archivos de credenciales ni otros permisos del runtime. El cambio afecta solo al repo: el runtime instalado requiere un `apply` autorizado por separado. Esta sesión no ejecutó `gentle-ai sync`, una reinstalación ni `apply`.
 

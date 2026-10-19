@@ -768,3 +768,88 @@ func equalStringMaps(left, right map[string]string) bool {
 	}
 	return true
 }
+
+func TestCodexApplyRemovesKnownRemoteAuthorizationWithoutChangingOtherInstructions(t *testing.T) {
+	for _, tc := range []struct {
+		name, section string
+	}{
+		{"upstream", retiredRemoteAuthorizationSections[0]},
+		{"retired relaxation", retiredRemoteAuthorizationSections[1]},
+		{"already absent", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := repoRootForTest(t)
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			root := filepath.Join(home, ".codex")
+			path := filepath.Join(root, "AGENTS.md")
+			before := codexMigrationFixture("", "")
+			if tc.section != "" {
+				before += "\n<!-- gentle-ai:remote-authorization -->\n" + tc.section + "\n<!-- /gentle-ai:remote-authorization -->\n"
+			}
+			mustWriteFile(t, path, []byte(before))
+			writeCodexMigrationPrerequisites(t, root)
+			if code := (&CodexAgent{}).ApplyOverlay(repo, applyPolicyOptions{recorder: newVerboseRecorder(false)}); code != 0 {
+				t.Fatalf("Codex apply = %d, want success", code)
+			}
+			got := mustReadFile(t, path)
+			if strings.Contains(got, "gentle-ai:remote-authorization") || strings.Contains(got, "## Remote operation authorization") {
+				t.Fatal("Codex retained remote authorization after apply")
+			}
+			if !strings.Contains(got, "upstream CodeGraph\n") || !strings.Contains(got, "upstream orchestrator\n") {
+				t.Fatal("Codex changed unrelated upstream instructions")
+			}
+			first := snapshotTree(t, root)
+			if code := (&CodexAgent{}).ApplyOverlay(repo, applyPolicyOptions{recorder: newVerboseRecorder(false)}); code != 0 || !equalStringMaps(first, snapshotTree(t, root)) {
+				t.Fatal("repeated Codex apply changed runtime contents")
+			}
+		})
+	}
+}
+
+func TestCodexApplyRejectsUnknownRemoteAuthorizationBeforeWrites(t *testing.T) {
+	for _, section := range []string{
+		strings.Replace(retiredRemoteAuthorizationSections[0], "Before remote work", "Before any work", 1),
+		retiredRemoteAuthorizationSections[0] + "\n\n" + retiredRemoteAuthorizationSections[0],
+	} {
+		repo := repoRootForTest(t)
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		root := filepath.Join(home, ".codex")
+		mustWriteFile(t, filepath.Join(root, "AGENTS.md"), []byte(codexMigrationFixture("", "")+"\n<!-- gentle-ai:remote-authorization -->\n"+section+"\n<!-- /gentle-ai:remote-authorization -->\n"))
+		writeCodexMigrationPrerequisites(t, root)
+		before := snapshotTree(t, root)
+		if code := (&CodexAgent{}).ApplyOverlay(repo, applyPolicyOptions{recorder: newVerboseRecorder(false)}); code == 0 {
+			t.Fatal("Codex accepted unknown remote authorization section")
+		}
+		if after := snapshotTree(t, root); !equalStringMaps(before, after) {
+			t.Fatal("Codex wrote files after remote authorization preflight failure")
+		}
+	}
+}
+
+func TestRunApplyCustomCodexRemovesRemoteAuthorization(t *testing.T) {
+	repo := repoRootForTest(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	binDir := filepath.Join(t.TempDir(), "bin")
+	mustWriteFile(t, filepath.Join(binDir, "gentle-ai"), []byte("#!/bin/sh\nprintf 'gentle-ai 4.1.1\\n'\n"))
+	if err := os.Chmod(filepath.Join(binDir, "gentle-ai"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	root := filepath.Join(home, ".codex")
+	path := filepath.Join(root, "AGENTS.md")
+	mustWriteFile(t, path, []byte(codexMigrationFixture("", "")+"\n<!-- gentle-ai:remote-authorization -->\n"+retiredRemoteAuthorizationSections[0]+"\n<!-- /gentle-ai:remote-authorization -->\n"))
+	writeCodexMigrationPrerequisites(t, root)
+	if code := RunApplyCustom(repo, []string{"codex"}); code != 0 {
+		t.Fatalf("apply-custom codex returned %d, want 0", code)
+	}
+	if content := mustReadFile(t, path); strings.Contains(content, "## Remote operation authorization") || !strings.Contains(content, "upstream CodeGraph\n") {
+		t.Fatal("public Codex apply retained remote authorization or changed unrelated instructions")
+	}
+	first := snapshotTree(t, root)
+	if code := RunApplyCustom(repo, []string{"codex"}); code != 0 || !equalStringMaps(first, snapshotTree(t, root)) {
+		t.Fatal("repeat public Codex apply changed runtime contents")
+	}
+}

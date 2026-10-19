@@ -19,7 +19,7 @@ For an approved upstream asset, replacement-first means letting upstream Gentle 
 
 Codex apply installs the eight repo-owned portable skills from `shared/skills/` under `~/.codex/skills/`; allowlisted same-name skills are intentional repo-owned replacements. It does not prune unrelated upstream Codex skills, render command wrappers, replace the full `~/.codex/AGENTS.md`, or change `config.toml`, Engram files, SDD prompts, or model profiles.
 
-- Preserve unrelated upstream Codex instruction bytes. Insert the marker-bounded local rules after the unique upstream `<!-- /gentle-ai:engram-protocol -->` anchor, replace exactly the `odd-explorer` and `odd-worker` table rows from `gpt-6.1-luna` / `high` to `gpt-6.1-sol` / `high`, and replace the two inherited evidence/uncertainty rules with the approved local wording in the same declared `AGENTS.md` patch. Leave `odd-verify`, Judgment Day, review, and all other rows unchanged. Actual account model availability is unverified.
+- Preserve unrelated upstream Codex instruction bytes. Insert the marker-bounded local rules after the unique upstream `<!-- /gentle-ai:engram-protocol -->` anchor, replace exactly the `odd-explorer` and `odd-worker` table rows from `gpt-6.1-luna` / `high` to `gpt-6.1-sol` / `high`, and replace the two inherited evidence/uncertainty rules with the approved local wording in the same declared `AGENTS.md` patch. Remove only the recognized upstream or previously relaxed remote-authorization section from the prepared Codex `AGENTS.md`; reject unknown sections before any runtime write. Leave `odd-verify`, Judgment Day, review, and all other rows unchanged. Actual account model availability is unverified.
 - Keep `notion-project-knowledge` activation in a separate marker-bounded block after the local-instructions closing marker, using a second sequential replacement. Preserve replacement zero unchanged because legacy-block migration derives its recognized content from that replacement.
 - Keep implementation scope, plain-language communication, Agent-Readable Markdown, credential-file safety, and the conditional Gemini response rule in that local block. Do not add the retired remote-operation authorization rule or a local no-auto-commit override.
 - A stale second copy of the local block may remain between the orchestrator closing marker and the CodeGraph opening marker. During Codex patch preflight, remove only the exact legacy block containing the retired no-commit line, whether the current Engram-adjacent block is already installed or not. Reject duplicate, partial, changed, or relocated local blocks before any selected-target write; do not relax generic patch matching or claim the whole file.
@@ -63,7 +63,7 @@ Keep these customizations unless the user explicitly changes this intent:
 - A plain-language communication rule in the repo-owned global `AGENTS.md`; that file is its single source of truth.
 - Calibrated evidence communication across OpenCode and Codex: check consequential claims, give an actionable judgment from incomplete evidence, and state uncertainty briefly only when it changes the decision. OpenCode substitutes exactly two inherited persona rules in its owned `AGENTS.md`; Codex applies the same two exact substitutions to upstream's materialized `AGENTS.md`. Keep approved upstream snapshots unchanged and reject incompatible Codex anchors before writing.
 - Follow upstream ODD's required work-unit commit at task close. This requirement does not authorize pushes or PRs, which retain their explicit user-authorization and workflow gates; commits outside an ODD task-close requirement still need an explicit user request.
-- Do not carry the upstream remote-operation authorization rule into overlay-maintained OpenCode prompts or the repo-owned global `AGENTS.md`. Keep the upstream contract and its source snapshot unchanged for audit; custom apply removes only the exact recognized upstream or previously relaxed section from maintained prompt carriers. This does not change credential-file safety or unrelated runtime/tool permission guards.
+- Do not carry the upstream remote-operation authorization rule into overlay-maintained OpenCode prompts, the Codex `AGENTS.md`, or the repo-owned global `AGENTS.md`. Keep the upstream contract and its source snapshots unchanged for audit; custom apply removes only the exact recognized upstream or previously relaxed section from maintained prompt carriers. This does not change credential-file safety or unrelated runtime/tool permission guards.
 - Gemini anti-sycophancy guardrails for direct replies when a Gemini model is active.
 
 ## What we acquire from upstream by default
@@ -76,7 +76,7 @@ Acquire current upstream behavior by default for:
 - Review receipts, review state, and native upstream review gates.
 - Engram protocol updates.
 - OpenCode command surfaces and runtime materialization that are not in direct conflict with the local customizations above.
-- The canonical remote-operation authorization contract remains an audit input; its rule is intentionally removed from maintained OpenCode prompt projections.
+- The canonical remote-operation authorization contract remains an audit input; its rule is intentionally removed from maintained OpenCode prompts and the Codex `AGENTS.md` during separately authorized applies.
 - The rendered orchestrator, phase prompts, native review contracts/status, and review plugin are upstream-owned runtime artifacts. Raw upstream source templates are never custom install sources.
 - Custom apply must not inspect or certify the semantics of upstream-owned prompts, contracts, plugins, or review workflows. Upstream owns that validation.
 - Custom apply may validate only concrete prerequisites consumed by a local operation: ownership boundaries, base prompt references/files needed for configured profile cloning, safe obsolete-reference migration, exact declared runtime-patch anchors, and the exact known forms of a legacy prompt section it removes.
@@ -102,12 +102,13 @@ If a similar problem reappears on the v2 baseline, solve it against the v2 desig
 
 ## Remote operation authorization boundary
 
-Keep the upstream authorization contract as the audit baseline, but do not install its rule into overlay-maintained OpenCode prompts. The snapshot under `assets/upstream/` remains unchanged and is never a runtime source.
+Keep the upstream authorization contract as the audit baseline, but remove its rule from overlay-maintained OpenCode prompts and Codex `AGENTS.md` on apply. Snapshots under `assets/upstream/` remain unchanged and are never runtime install sources.
 
 - Apply validates reachable maintained inline/file prompts and any existing legacy shared SDD prompt files still declared among owned overlay assets before its first write, then removes only the exact upstream rule or the previously installed relaxed version. Missing optional legacy files are skipped.
 - Apply rejects duplicate, malformed, unknown, or partially changed sections and unsafe prompt paths before any write. It leaves unrelated prompt bytes and file modes unchanged and is idempotent once the section is absent.
 - Remote-bearing unmanaged named profiles block apply rather than being changed.
 - The repo-owned full-file `AGENTS.md` omits this section; credential-file safety and unrelated permission guards remain unchanged.
+- Codex preflights its prepared `AGENTS.md` patch and removes only a recognized marked or unmarked section before writing; an unknown or duplicated section blocks apply. Unrelated bytes and modes remain unchanged.
 - Runtime refresh and overlay apply remain separately authorized. Repository changes do not establish that the installed runtime has been updated.
 
 ## Commit and PR workflow boundary

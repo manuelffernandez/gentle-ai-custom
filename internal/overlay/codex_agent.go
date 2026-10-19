@@ -96,6 +96,25 @@ func prepareCodexOverlay(repoRoot string, options applyPolicyOptions) (*applyPol
 	if err := state.prepareRuntimePatches(repoRoot); err != nil {
 		return nil, "", err
 	}
+	// Sanitize the same upstream contract that OpenCode removes, after all
+	// declared Codex deltas have been prepared and before any runtime write.
+	agentsPath := filepath.Join(basePath, "AGENTS.md")
+	preparedAgents := 0
+	for i := range state.runtimePatches {
+		patch := &state.runtimePatches[i]
+		if filepath.Clean(patch.path) != filepath.Clean(agentsPath) {
+			continue
+		}
+		preparedAgents++
+		updated, err := removeRemoteAuthorizationSection(patch.content)
+		if err != nil {
+			return nil, "", upstreamRuntimeError("Codex AGENTS.md has incompatible remote authorization: %v", err)
+		}
+		patch.content = updated
+	}
+	if preparedAgents != 1 {
+		return nil, "", fmt.Errorf("Codex runtime patches must prepare exactly one AGENTS.md target")
+	}
 	return &state, basePath, nil
 }
 
